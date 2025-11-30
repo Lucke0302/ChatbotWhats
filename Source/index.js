@@ -313,11 +313,12 @@ async function connectToWhatsApp() {
                     ${mensagensFormatadas}`;
 
                     const resultAnalise = await modelAnalise.generateContent(promptAnalise);
-                    const textResposta = resultAnalise.text();
+                    const textResposta = resultAnalise.response;
+                    const responseAnalise = await textResposta.text();
 
-                    console.log(textResposta)
+                    console.log(responseAnalise)
 
-                    const finalResponse = `🤖 *Contexto Lembrado, @${senderJid}*:\n\n${textResposta}`;
+                    const finalResponse = `🤖 *Contexto Lembrado, @${senderJid}*:\n\n${responseAnalise}`;
                     await sendAndSave(sock, db, from, finalResponse, null, [sender]);
 
                 } catch (error) {

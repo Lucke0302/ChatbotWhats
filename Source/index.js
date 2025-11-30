@@ -280,7 +280,7 @@ async function connectToWhatsApp() {
                     const response = await result.response;
                     const resultSql = response.text();
 
-                    let sqlQuery = resultSql.text.trim();
+                    let sqlQuery = resultSql;
                     console.log(sqlQuery)
 
                     if (!sqlQuery.toLowerCase().startsWith('select')) {

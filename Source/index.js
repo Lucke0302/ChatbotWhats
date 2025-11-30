@@ -2,12 +2,39 @@ require('dotenv').config();
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const qrcode = require('qrcode-terminal');
+const sqlite = require('sqlite'); 
+const sqlite3 = require('sqlite3');
+
+const DB_PATH = 'bdChatbot.db'; 
+let db;
+
+async function initDatabase() {
+    db = await sqlite.open({
+        filename: DB_PATH,
+        driver: sqlite3.Database
+    });
+    
+    await db.exec(`
+        CREATE TABLE IF NOT EXISTS mensagens (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id_conversa TEXT NOT NULL,
+            timestamp INTEGER NOT NULL,
+            id_remetente TEXT NOT NULL,
+            nome_remetente TEXT,
+            conteudo TEXT NOT NULL,
+            id_mensagem_externo TEXT UNIQUE
+        );
+    `);
+    console.log('✅ Banco de dados SQLite inicializado.');
+}
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 const groupHistory = {}; 
 
 async function connectToWhatsApp() {
+    await initDatabase();
+
     const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
 
     const sock = makeWASocket({
@@ -41,6 +68,27 @@ async function connectToWhatsApp() {
                       msg.message.imageMessage?.caption || '';
 
         if (!texto) return;
+        else {
+            const id_conversa = from; 
+            const id_remetente = msg.key.participant || from; 
+            const nome_remetente = msg.pushName || '';
+            const id_mensagem_externo = msg.key.id;
+            const timestamp = msg.messageTimestamp;
+
+            try {
+                await db.run(
+                    `INSERT INTO mensagens 
+                    (id_conversa, timestamp, id_remetente, nome_remetente, conteudo, id_mensagem_externo)
+                    VALUES (?, ?, ?, ?, ?, ?)`,
+                    [id_conversa, timestamp, id_remetente, nome_remetente, texto, id_mensagem_externo]
+                );
+                console.log(`Mensagem de ${nome_remetente} salva no BD.`);
+            } catch (error) {
+                if (!error.message.includes('UNIQUE constraint failed')) {
+                    console.error("❌ Erro ao salvar mensagem no BD:", error);
+                }
+            }
+        }
 
         const contextInfo = msg.message?.extendedTextMessage?.contextInfo;
         const quotedMessage = contextInfo?.quotedMessage;

@@ -8,7 +8,7 @@ const sqlite3 = require('sqlite3');
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 const groupHistory = {}; 
-const DB_PATH = 'bdChatbot.db'; 
+const DB_PATH = 'chat_history.db'; 
 let db; 
 
 async function initDatabase() {

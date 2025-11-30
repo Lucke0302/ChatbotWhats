@@ -300,8 +300,6 @@ async function connectToWhatsApp() {
                     }
 
                     const mensagensFormatadas = mensagensDb.map(m => `${m.nome_remetente || 'Desconhecido'}: ${m.conteudo}`).join('\n');
-
-                    console.log(mensagensFormatadas)
                     
                     const modelAnalise = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
@@ -316,6 +314,8 @@ async function connectToWhatsApp() {
 
                     const resultAnalise = await modelAnalise.generateContent(promptAnalise);
                     const textResposta = resultAnalise.text;
+
+                    console.log(textResposta)
 
                     const finalResponse = `🤖 *Contexto Lembrado, @${senderJid}*:\n\n${textResposta}`;
                     await sendAndSave(sock, db, from, finalResponse, null, [sender]);

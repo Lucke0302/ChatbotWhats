@@ -313,7 +313,7 @@ async function connectToWhatsApp() {
                     ${mensagensFormatadas}`;
 
                     const resultAnalise = await modelAnalise.generateContent(promptAnalise);
-                    const textResposta = resultAnalise.text;
+                    const textResposta = resultAnalise.text();
 
                     console.log(textResposta)
 

@@ -277,6 +277,9 @@ async function connectToWhatsApp() {
                     Pergunta do usuário: ${pergunta}`;
 
                     const resultSql = await modelSql.generateContent(promptSql);
+
+                    console.log(promptSql)
+
                     let sqlQuery = resultSql.text.trim();
 
                     if (!sqlQuery.toLowerCase().startsWith('select')) {

@@ -281,7 +281,6 @@ async function connectToWhatsApp() {
                     const resultSql = response.text();
 
                     let sqlQuery = resultSql;
-                    console.log(sqlQuery)
 
                     if (!sqlQuery.toLowerCase().startsWith('select')) {
                         console.error("ERRO: IA não retornou um SELECT válido:", sqlQuery);
@@ -301,6 +300,8 @@ async function connectToWhatsApp() {
                     }
 
                     const mensagensFormatadas = mensagensDb.map(m => `${m.nome_remetente || 'Desconhecido'}: ${m.conteudo}`).join('\n');
+
+                    console.log(mensagensFormatadas)
                     
                     const modelAnalise = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 

@@ -3,17 +3,20 @@ const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = requi
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const qrcode = require('qrcode-terminal');
 const sqlite = require('sqlite'); 
-const sqlite3 = require('sqlite3');
+const sqlite3 = require('sqlite3'); 
 
-const DB_PATH = 'bdChatbot.db'; 
-let db;
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+
+const groupHistory = {}; 
+const DB_PATH = 'chat_history.db'; 
+let db; 
 
 async function initDatabase() {
     db = await sqlite.open({
         filename: DB_PATH,
         driver: sqlite3.Database
     });
-    
+
     await db.exec(`
         CREATE TABLE IF NOT EXISTS mensagens (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -25,12 +28,8 @@ async function initDatabase() {
             id_mensagem_externo TEXT UNIQUE
         );
     `);
-    console.log('✅ Banco de dados SQLite inicializado.');
+    console.log('✅ Banco de dados SQLite inicializado e tabela `mensagens` verificada.');
 }
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-
-const groupHistory = {}; 
 
 async function connectToWhatsApp() {
     await initDatabase();
@@ -56,6 +55,36 @@ async function connectToWhatsApp() {
 
     sock.ev.on('creds.update', saveCreds);
 
+    const me = state.creds.me;
+    const myFullJid = me?.id || me?.lid || '5513991526878@s.whatsapp.net'; 
+    
+
+    const saveBotMessage = async (from, text, externalId = null) => {
+        const timestamp = Math.floor(Date.now() / 1000);
+        
+        try {
+            await db.run(
+                `INSERT INTO mensagens 
+                (id_conversa, timestamp, id_remetente, nome_remetente, conteudo, id_mensagem_externo)
+                VALUES (?, ?, ?, ?, ?, ?)`,
+                [from, timestamp, myFullJid, 'Bot-Zap', text, externalId]
+            );
+        } catch (error) {
+            if (!error.message.includes('UNIQUE constraint failed')) {
+                console.error("❌ Erro ao salvar mensagem do Bot no BD:", error);
+            }
+        }
+    };
+    
+
+    const sendAndSave = async (from, text, msgKey = null, mentions = []) => {
+        const sentMessage = await sock.sendMessage(from, { 
+            text: text, 
+            mentions: mentions 
+        }, { quoted: msgKey });
+        await saveBotMessage(from, text, sentMessage.key.id);
+    };
+
     sock.ev.on('messages.upsert', async m => {
         const msg = m.messages[0];
         if (!msg.message || msg.key.fromMe) return;
@@ -67,13 +96,12 @@ async function connectToWhatsApp() {
                       msg.message.extendedTextMessage?.text || 
                       msg.message.imageMessage?.caption || '';
 
-        if (!texto) return;
-        else {
+        if (texto) {
             const id_conversa = from; 
             const id_remetente = msg.key.participant || from; 
             const nome_remetente = msg.pushName || '';
             const id_mensagem_externo = msg.key.id;
-            const timestamp = msg.messageTimestamp;
+            const timestamp = msg.messageTimestamp; 
 
             try {
                 await db.run(
@@ -82,7 +110,6 @@ async function connectToWhatsApp() {
                     VALUES (?, ?, ?, ?, ?, ?)`,
                     [id_conversa, timestamp, id_remetente, nome_remetente, texto, id_mensagem_externo]
                 );
-                console.log(`Mensagem de ${nome_remetente} salva no BD.`);
             } catch (error) {
                 if (!error.message.includes('UNIQUE constraint failed')) {
                     console.error("❌ Erro ao salvar mensagem no BD:", error);
@@ -90,12 +117,12 @@ async function connectToWhatsApp() {
             }
         }
 
+        if (!texto) return;
+
         const contextInfo = msg.message?.extendedTextMessage?.contextInfo;
         const quotedMessage = contextInfo?.quotedMessage;
         const replyParticipant = contextInfo?.participant;
 
-        const me = state.creds.me;
-        
         const myPhone = me?.id ? me.id.split(':')[0].split('@')[0] : ''; 
         const myLid = me?.lid ? me.lid.split(':')[0].split('@')[0] : '';   
 
@@ -123,11 +150,11 @@ async function connectToWhatsApp() {
             // 1. Comando !resumo
             if (command === '!resumo' && isGroup) {
                 if (!groupHistory[from] || groupHistory[from].length < 5) {
-                    await sock.sendMessage(from, { text: '❌ Poucas mensagens para resumir. Conversem mais um pouco!' });
+                    await sendAndSave(from, '❌ Poucas mensagens para resumir. Conversem mais um pouco!');
                     return;
                 }
 
-                await sock.sendMessage(from, { text: '🤖 Ces falam demais, preciso ler tudo...' });
+                await sendAndSave(from, '🤖 Ces falam demais, preciso ler tudo...'); 
 
                 try {
                     const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash"});
@@ -142,10 +169,10 @@ async function connectToWhatsApp() {
                     const response = await result.response;
                     const text = response.text();
 
-                    await sock.sendMessage(from, { text: text });
+                    await sendAndSave(from, text); 
                 } catch (error) {
                     console.error(error);
-                    await sock.sendMessage(from, { text: 'Morri kkkkkkkkkk tenta de novo aí.' });
+                    await sendAndSave(from, 'Morri kkkkkkkkkk tenta de novo aí.'); 
                 }
             }
 
@@ -153,7 +180,7 @@ async function connectToWhatsApp() {
             if (command.startsWith('!d')) {            
                 var pergunta = texto.slice(2).trim(); 
                 if(isNaN(pergunta) || pergunta === ""){
-                    await sock.sendMessage(from, { text: `Digita um número válido, imbecil` });
+                    await sendAndSave(from, `Digita um número válido, imbecil`);
                 }
                 else{                
                     const max = parseInt(pergunta);
@@ -165,14 +192,17 @@ async function connectToWhatsApp() {
                     else if(val < max/1.5) mssg = "🫤 até que não foi ruim."
                     else if(val < max) mssg = "😎 nice."
                     else if(val == max) mssg = "🎰 SORTE GRANDE!"
+                    
+                    const responseText = `🎲 O dado caiu em: *${val}* \n${mssg}`;
 
-                    await sock.sendMessage(from, { text: `🎲 O dado caiu em: *${val}* \n${mssg}` });
+                    await sendAndSave(from, responseText); 
                 }
             }
 
             // 3. Comando !menu
             if (command === '!menu') {
-                await sock.sendMessage(from, { text: `📍 Os comandos até agora são: \n!d{número}: Número aleatório (ex: !d20)\n!gpt {texto}: Pergunta pra IA\n!resumo: Resume a conversa` });
+                const responseText = `📍 Os comandos até agora são: \n!d{número}: Número aleatório (ex: !d20)\n!gpt {texto}: Pergunta pra IA\n!resumo: Resume a conversa`;
+                await sendAndSave(from, responseText); 
             }
 
             // 4. Comando !gpt
@@ -180,16 +210,15 @@ async function connectToWhatsApp() {
                 const pergunta = texto.slice(4).trim(); 
                 const nomeUsuario = msg.pushName || 'Desconhecido';
                 const sender = msg.key.participant || msg.key.remoteJid;
+                const senderJid = sender.split('@')[0];
 
                 if (!pergunta) {
-                    await sock.sendMessage(from, { 
-                        text: `⚠️ *Opa, @${sender.split('@')[0]}!* \ntem que escrever alguma coisa depois do comando, burre`,
-                        mentions: [sender]
-                    });
+                    const responseText = `⚠️ *Opa, @${senderJid}!* \ntem que escrever alguma coisa depois do comando, burre`;
+                    await sendAndSave(from, responseText, null, [sender]); 
                     return;
                 }
 
-                await sock.sendMessage(from, { text: '🧠 Eu sabo...' }); 
+                await sendAndSave(from, '🧠 Eu sabo...');
 
                 try {
                     const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
@@ -203,15 +232,14 @@ async function connectToWhatsApp() {
                     const result = await model.generateContent(promptFinal);
                     const response = await result.response;
                     const textResposta = response.text();
+                    
+                    const finalResponse = `🤖 *@${senderJid}!*\n\n${textResposta}`;
 
-                    await sock.sendMessage(from, { 
-                        text: `🤖 *@${sender.split('@')[0]}!*\n\n${textResposta}`,
-                        mentions: [sender]
-                    });
+                    await sendAndSave(from, finalResponse, null, [sender]);
 
                 } catch (error) {
                     console.error("Erro na IA:", error);
-                    await sock.sendMessage(from, { text: '❌ A IA pifou ou tá dormindo. Tenta de novo já já.' });
+                    await sendAndSave(from, '❌ A IA pifou ou tá dormindo. Tenta de novo já já.');
                 }
             }
 
@@ -247,10 +275,7 @@ async function connectToWhatsApp() {
                 const response = await result.response;
                 const textReply = response.text();
 
-                await sock.sendMessage(from, { 
-                    text: textReply,
-                    mentions: [sender]
-                }, { quoted: msg });
+                await sendAndSave(from, textReply, msg, [sender]); // ALTERADO (usa msg como quoted)
 
             } catch (error) {
                 console.error("Erro no Reply:", error);

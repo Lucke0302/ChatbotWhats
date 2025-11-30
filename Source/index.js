@@ -247,6 +247,80 @@ async function connectToWhatsApp() {
                 }
             }
 
+            // 5. Comando !lembrar
+            if (command.startsWith('!lembrar')) {
+                const pergunta = texto.slice(8).trim(); 
+                const sender = msg.key.participant || msg.key.remoteJid;
+                const senderJid = sender.split('@')[0];
+
+                if (!pergunta) {
+                    const responseText = `⚠️ *Opa, @${senderJid}!* \nDiga ao bot o que ele precisa lembrar e quando. Ex: !lembrar o que o João disse sobre o jogo hoje?`;
+                    await sendAndSave(sock, db, from, responseText, null, [sender]); 
+                    return;
+                }
+                
+                await sendAndSave(sock, db, from, `🧠 Deixa eu dar uma lida nas mensagens pra ver o que rolou...`); 
+                
+                try {
+                    const modelSql = genAI.getGenerativeModel({ model: "gemini-2.5-flash"});
+                    
+                    const promptSql = `Você é um gerador de consulta SQL. Sua única saída deve ser uma consulta SQL (SELECT), sem NENHUMA explicação ou texto adicional.
+                    A tabela é 'mensagens' e o campo de tempo é 'timestamp' (UNIX time em segundos).
+                    O ID da conversa atual é '${from}'.
+                    O usuário quer recuperar mensagens que se encaixam no período de tempo da pergunta, limitando o resultado a 500 mensagens no máximo.
+                    Recupere as colunas 'nome_remetente' e 'conteudo'.
+                    Use a condição WHERE para filtrar pelo id_conversa = '${from}' E pelo intervalo de tempo (timestamp).
+                    A ordenação deve ser por timestamp DESC, e o limite deve ser de 500. Se a pergunta não especificar um período de tempo, recupere as últimas 500 mensagens da conversa.
+
+                    Exemplo de saída para "o que rolou ontem": SELECT nome_remetente, conteudo FROM mensagens WHERE id_conversa = '${from}' AND timestamp BETWEEN 1764355200 AND 1764441600 ORDER BY timestamp DESC LIMIT 500;
+
+                    Pergunta do usuário: ${pergunta}`;
+
+                    const resultSql = await modelSql.generateContent(promptSql);
+                    let sqlQuery = resultSql.text.trim();
+
+                    if (!sqlQuery.toLowerCase().startsWith('select')) {
+                        console.error("ERRO: IA não retornou um SELECT válido:", sqlQuery);
+                        await sendAndSave(sock, db, from, '❌ A IA pirou e não me deu a query SQL. Tenta ser mais específico na pergunta.');
+                        return;
+                    }
+                    
+                    if (!sqlQuery.toLowerCase().includes('limit')) {
+                        sqlQuery = sqlQuery.replace(/;?$/, ` LIMIT 500;`);
+                    }
+                    
+                    const mensagensDb = await db.all(sqlQuery);
+                    
+                    if (!mensagensDb || mensagensDb.length === 0) {
+                        await sendAndSave(sock, db, from, `Não encontrei nenhuma mensagem para o período que você pediu, @${senderJid}. Falha crítica.`);
+                        return;
+                    }
+
+                    const mensagensFormatadas = mensagensDb.map(m => `${m.nome_remetente || 'Desconhecido'}: ${m.conteudo}`).join('\n');
+                    
+                    const modelAnalise = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+
+                    const promptAnalise = `Você é o Bostossauro, um bot de WhatsApp engraçado e sarcástico. 
+                    Responda ao usuário (@${senderJid}) usando o contexto das mensagens fornecidas abaixo. 
+                    Seja criativo, faça piadas com o conteúdo e resuma o que for relevante.
+                    As mensagens estão em ordem cronológica inversa (mais recentes primeiro).
+
+                    Pergunta original do usuário: ${pergunta}
+                    Contexto das Mensagens (${mensagensDb.length} mensagens):
+                    ${mensagensFormatadas}`;
+
+                    const resultAnalise = await modelAnalise.generateContent(promptAnalise);
+                    const textResposta = resultAnalise.text;
+
+                    const finalResponse = `🤖 *Contexto Lembrado, @${senderJid}*:\n\n${textResposta}`;
+                    await sendAndSave(sock, db, from, finalResponse, null, [sender]);
+
+                } catch (error) {
+                    console.error("❌ Erro no comando !lembrar:", error);
+                    await sendAndSave(sock, db, from, '❌ Erro tentando lembrar, to com alzheimer.');
+                }
+            }
+
             
         }
         if (quotedMessage && isReplyToBot) {

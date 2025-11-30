@@ -21,8 +21,9 @@ const saveBotMessage = async (database, from, text, externalId = null) => {
             `INSERT INTO mensagens 
             (id_conversa, timestamp, id_remetente, nome_remetente, conteudo, id_mensagem_externo)
             VALUES (?, ?, ?, ?, ?, ?)`,
-            [from, timestamp, myFullJid, 'Bot-Zap', text, externalId]
+            [from, timestamp, myFullJid, 'Bot-Zap', text, externalId]            
         );
+        console.log(`✅ OUTGOING: Resposta do Bot salva no BD. (Conversa: ${from})`);
     } catch (error) {
         if (error && !error.message.includes('UNIQUE constraint failed')) {
             console.error("❌ Erro ao salvar mensagem do Bot no BD:", error);
@@ -112,6 +113,7 @@ async function connectToWhatsApp() {
                     VALUES (?, ?, ?, ?, ?, ?)`,
                     [id_conversa, timestamp, id_remetente, nome_remetente, texto, id_mensagem_externo]
                 );
+                console.log(`✅ INCOMING: Mensagem de "${nome_remetente}" salva no BD.`);
             } catch (error) {
                 if (!error.message.includes('UNIQUE constraint failed')) {
                     console.error("❌ Erro ao salvar mensagem no BD:", error);

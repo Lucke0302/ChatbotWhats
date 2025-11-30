@@ -4,12 +4,40 @@ const { GoogleGenerativeAI } = require("@google/generative-ai");
 const qrcode = require('qrcode-terminal');
 const sqlite = require('sqlite'); 
 const sqlite3 = require('sqlite3'); 
+const pino = require('pino'); 
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 const groupHistory = {}; 
 const DB_PATH = 'chat_history.db'; 
 let db; 
+let myFullJid;
+
+const saveBotMessage = async (database, from, text, externalId = null) => {
+    const timestamp = Math.floor(Date.now() / 1000);
+    
+    try {
+        await database.run(
+            `INSERT INTO mensagens 
+            (id_conversa, timestamp, id_remetente, nome_remetente, conteudo, id_mensagem_externo)
+            VALUES (?, ?, ?, ?, ?, ?)`,
+            [from, timestamp, myFullJid, 'Bot-Zap', text, externalId]
+        );
+    } catch (error) {
+        if (error && !error.message.includes('UNIQUE constraint failed')) {
+            console.error("❌ Erro ao salvar mensagem do Bot no BD:", error);
+        }
+    }
+};
+
+const sendAndSave = async (sock, database, from, text, msgKey = null, mentions = []) => {
+    const sentMessage = await sock.sendMessage(from, { 
+        text: text, 
+        mentions: mentions 
+    }, { quoted: msgKey });
+    
+    await saveBotMessage(database, from, text, sentMessage.key.id);
+};
 
 async function initDatabase() {
     db = await sqlite.open({
@@ -38,7 +66,7 @@ async function connectToWhatsApp() {
 
     const sock = makeWASocket({
         auth: state,
-        printQRInTerminal: true
+        logger: pino({ level: 'warn' }), 
     });
 
     sock.ev.on('connection.update', (update) => {
@@ -56,35 +84,9 @@ async function connectToWhatsApp() {
     sock.ev.on('creds.update', saveCreds);
 
     const me = state.creds.me;
-    const myFullJid = me?.id || me?.lid || '5513991526878@s.whatsapp.net'; 
+    myFullJid = me?.id || me?.lid || '5513991526878@s.whatsapp.net'; 
     
-
-    const saveBotMessage = async (from, text, externalId = null) => {
-        const timestamp = Math.floor(Date.now() / 1000);
-        
-        try {
-            await db.run(
-                `INSERT INTO mensagens 
-                (id_conversa, timestamp, id_remetente, nome_remetente, conteudo, id_mensagem_externo)
-                VALUES (?, ?, ?, ?, ?, ?)`,
-                [from, timestamp, myFullJid, 'Bot-Zap', text, externalId]
-            );
-        } catch (error) {
-            if (!error.message.includes('UNIQUE constraint failed')) {
-                console.error("❌ Erro ao salvar mensagem do Bot no BD:", error);
-            }
-        }
-    };
     
-
-    const sendAndSave = async (from, text, msgKey = null, mentions = []) => {
-        const sentMessage = await sock.sendMessage(from, { 
-            text: text, 
-            mentions: mentions 
-        }, { quoted: msgKey });
-        await saveBotMessage(from, text, sentMessage.key.id);
-    };
-
     sock.ev.on('messages.upsert', async m => {
         const msg = m.messages[0];
         if (!msg.message || msg.key.fromMe) return;
@@ -150,11 +152,11 @@ async function connectToWhatsApp() {
             // 1. Comando !resumo
             if (command === '!resumo' && isGroup) {
                 if (!groupHistory[from] || groupHistory[from].length < 5) {
-                    await sendAndSave(from, '❌ Poucas mensagens para resumir. Conversem mais um pouco!');
+                    await sendAndSave(sock, db, from, '❌ Poucas mensagens para resumir. Conversem mais um pouco!'); 
                     return;
                 }
 
-                await sendAndSave(from, '🤖 Ces falam demais, preciso ler tudo...'); 
+                await sendAndSave(sock, db, from, '🤖 Ces falam demais, preciso ler tudo...'); 
 
                 try {
                     const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash"});
@@ -169,10 +171,10 @@ async function connectToWhatsApp() {
                     const response = await result.response;
                     const text = response.text();
 
-                    await sendAndSave(from, text); 
+                    await sendAndSave(sock, db, from, text); 
                 } catch (error) {
                     console.error(error);
-                    await sendAndSave(from, 'Morri kkkkkkkkkk tenta de novo aí.'); 
+                    await sendAndSave(sock, db, from, 'Morri kkkkkkkkkk tenta de novo aí.'); 
                 }
             }
 
@@ -180,7 +182,7 @@ async function connectToWhatsApp() {
             if (command.startsWith('!d')) {            
                 var pergunta = texto.slice(2).trim(); 
                 if(isNaN(pergunta) || pergunta === ""){
-                    await sendAndSave(from, `Digita um número válido, imbecil`);
+                    await sendAndSave(sock, db, from, `Digita um número válido, imbecil`); 
                 }
                 else{                
                     const max = parseInt(pergunta);
@@ -195,14 +197,14 @@ async function connectToWhatsApp() {
                     
                     const responseText = `🎲 O dado caiu em: *${val}* \n${mssg}`;
 
-                    await sendAndSave(from, responseText); 
+                    await sendAndSave(sock, db, from, responseText); 
                 }
             }
 
             // 3. Comando !menu
             if (command === '!menu') {
                 const responseText = `📍 Os comandos até agora são: \n!d{número}: Número aleatório (ex: !d20)\n!gpt {texto}: Pergunta pra IA\n!resumo: Resume a conversa`;
-                await sendAndSave(from, responseText); 
+                await sendAndSave(sock, db, from, responseText); 
             }
 
             // 4. Comando !gpt
@@ -214,11 +216,11 @@ async function connectToWhatsApp() {
 
                 if (!pergunta) {
                     const responseText = `⚠️ *Opa, @${senderJid}!* \ntem que escrever alguma coisa depois do comando, burre`;
-                    await sendAndSave(from, responseText, null, [sender]); 
+                    await sendAndSave(sock, db, from, responseText, null, [sender]); 
                     return;
                 }
 
-                await sendAndSave(from, '🧠 Eu sabo...');
+                await sendAndSave(sock, db, from, '🧠 Eu sabo...'); 
 
                 try {
                     const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
@@ -235,11 +237,11 @@ async function connectToWhatsApp() {
                     
                     const finalResponse = `🤖 *@${senderJid}!*\n\n${textResposta}`;
 
-                    await sendAndSave(from, finalResponse, null, [sender]);
+                    await sendAndSave(sock, db, from, finalResponse, null, [sender]); 
 
                 } catch (error) {
                     console.error("Erro na IA:", error);
-                    await sendAndSave(from, '❌ A IA pifou ou tá dormindo. Tenta de novo já já.');
+                    await sendAndSave(sock, db, from, '❌ A IA pifou ou tá dormindo. Tenta de novo já já.'); 
                 }
             }
 
@@ -275,7 +277,7 @@ async function connectToWhatsApp() {
                 const response = await result.response;
                 const textReply = response.text();
 
-                await sendAndSave(from, textReply, msg, [sender]); // ALTERADO (usa msg como quoted)
+                await sendAndSave(sock, db, from, textReply, msg, [sender]); 
 
             } catch (error) {
                 console.error("Erro no Reply:", error);

@@ -278,7 +278,7 @@ async function connectToWhatsApp() {
 
                     const resultSql = await modelSql.generateContent(promptSql);
 
-                    console.log(promptSql)
+                    console.log(resultSql)
 
                     let sqlQuery = resultSql.text.trim();
 

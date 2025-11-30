@@ -276,11 +276,12 @@ async function connectToWhatsApp() {
 
                     Pergunta do usuário: ${pergunta}`;
 
-                    const resultSql = await modelSql.generateContent(promptSql);
-
-                    console.log(resultSql.text)
+                    const result = await modelSql.generateContent(promptSql);
+                    const response = await result.response;
+                    const resultSql = response.text();
 
                     let sqlQuery = resultSql.text.trim();
+                    console.log(sqlQuery)
 
                     if (!sqlQuery.toLowerCase().startsWith('select')) {
                         console.error("ERRO: IA não retornou um SELECT válido:", sqlQuery);

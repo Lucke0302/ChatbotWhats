@@ -7,6 +7,7 @@ class ChatModel {
         this.genAI = genAI;
         this.myFullJid = sock.user.id || sock.user.lid; 
         this.isOnline = true;
+        this.isTesting = true;
     }
 
     async sendDesonlineSticker(sock, db, from, sender){

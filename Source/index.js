@@ -192,7 +192,7 @@ async function connectToWhatsApp() {
 
         const command = texto.trim().toLowerCase();
 
-        if(command.startsWith("!") &&  chatbot.isOnline){
+        if(command.startsWith("!") &&  chatbot.isOnline && command.length > 1){
             // 1. Comando !resumo
             if (command.startsWith('!resumo') && isGroup) {
                 tamanho = command.split(' ')
@@ -427,8 +427,8 @@ async function connectToWhatsApp() {
                     await sendAndSave(sock, db, from, '❌ Erro tentando lembrar, to com alzheimer.');
                 }
             }
-            
-            if(!isGroup && !chatbot.isOnline && msg.key.remoteJid == "5513991008854@s.whatsapp.net"){
+            //"endpoint" de testes.
+            if(!isGroup && !chatbot.isOnline && msg.key.remoteJid == "5513991008854@s.whatsapp.net" && chatbot.isTesting){
                 const mensagem = texto.trim(); 
                 const sender = msg.key.participant || msg.key.remoteJid;
                 const senderJid = sender.split('@')[0];

@@ -6,6 +6,7 @@ const sqlite = require('sqlite');
 const sqlite3 = require('sqlite3'); 
 const pino = require('pino'); 
 const ChatModel = require('./chatModel');
+const fs = require('fs');
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
@@ -13,6 +14,27 @@ const groupHistory = {};
 const DB_PATH = 'chat_history.db'; 
 let db; 
 let myFullJid;
+
+const sendDesonlineSticker = async(sock, db, from, msg, sender) =>{
+    if (!fs.existsSync("Assets/desonline.webp")) {
+        await sendMessage(sock, db, from, '❌ Erro: O arquivo do sticker não foi encontrado no servidor.', null, [sender]);
+        return;
+    }
+
+    try {
+        const stickerBuffer = fs.readFileSync("Assets/desonline.webp");
+
+        const sentMessage = await sock.sendMessage(from, { 
+            sticker: stickerBuffer 
+        });
+        
+        console.log(`✅ Sticker enviado com sucesso: ${sentMessage.key.id}`);
+
+    } catch (error) {
+        console.error("❌ Erro ao enviar sticker:", error);
+        await sendMessage(sock, db, from, "Desonline... 😴", null, [sender]);
+    }
+}
 
 const saveBotMessage = async (database, from, text, externalId = null) => {
     const timestamp = Math.floor(Date.now() / 1000);
@@ -371,7 +393,8 @@ async function connectToWhatsApp() {
         }
         else if(command.startsWith("!") &&  !chatbot.isOnline){
             const sender = msg.key.participant || msg.key.remoteJid;            
-            await sendAndSave(sock, db, from, "Desonline... 😴", null, [sender]);
+            await sendDesonlineSticker(sock, db, from, "Desonline... 😴", msg, [sender])
+            //await sendAndSave(sock, db, from, "Desonline... 😴", null, [sender]);
             return
         }
         else{
@@ -410,7 +433,8 @@ async function connectToWhatsApp() {
             }
             if(!isGroup && !chatbot.isOnline){    
                 const sender = msg.key.participant || msg.key.remoteJid;            
-                await sendAndSave(sock, db, from, "Desonline... 😴", null, [sender]);
+                await sendDesonlineSticker(sock, db, from, "Desonline... 😴", msg, [sender])
+                //await sendAndSave(sock, db, from, "Desonline... 😴", null, [sender]);
                 return
             }
         }
@@ -456,12 +480,14 @@ async function connectToWhatsApp() {
         }
         if (quotedMessage && isReplyToBot && !chatbot.isOnline){
             const sender = msg.key.participant || msg.key.remoteJid;
-            await sendAndSave(sock, db, from, "Desonline... 😴", msg, [sender]);
+            await sendDesonlineSticker(sock, db, from, "Desonline... 😴", msg, [sender])
+            //await sendAndSave(sock, db, from, "Desonline... 😴", msg, [sender]);
             return
         }
         if(command.startsWith("!") && !isOnline){
             const sender = msg.key.participant || msg.key.remoteJid;
-            await sendAndSave(sock, db, from, "Desonline... 😴", msg, [sender]);
+            await sendDesonlineSticker(sock, db, from, "Desonline... 😴", msg, [sender])
+            //await sendAndSave(sock, db, from, "Desonline... 😴", msg, [sender])
             return
         }
     });

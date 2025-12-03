@@ -64,14 +64,14 @@ class ChatModel {
         return result ? result.total : 0;
     };
 
-    async getMessagesByLimit(db, from, limit){
+    async getMessagesByLimit(from, limit){
         const sqlQuery = `SELECT nome_remetente, conteudo 
         FROM mensagens 
         WHERE id_conversa = '${from}' 
         ORDER BY timestamp DESC 
         LIMIT ${limit}`;
         
-        const messagesDb = await db.all(sqlQuery);
+        const messagesDb = await this.db.all(sqlQuery);
 
         console.log(messagesDb.map(m => `${m.nome_remetente || 'Desconhecido'}: ${m.conteudo}`).join('\n'))
 

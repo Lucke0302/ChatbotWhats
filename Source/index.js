@@ -264,10 +264,10 @@ async function connectToWhatsApp() {
             //}
 
             // 3. Comando !menu
-            if (command === '!menu') {
+            /*if (command === '!menu') {
                 const responseText = `📍 Os comandos até agora são: \n!d{número}: Número aleatório (ex: !d20)\n!gpt {texto}: Pergunta pra IA\n!lembrar: lembra de um certo período de tempo -\n!resumo: Resume a conversa - Parâmetros: curto, médio e completo (ex: !resumo curto)`;
                 await sendAndSave(sock, db, from, responseText); 
-            }
+            }*/
 
             // 4. Comando !gpt
             if (command.startsWith('!gpt')) {

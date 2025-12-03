@@ -170,6 +170,10 @@ class ChatModel {
         }
     }
 
+    async handleMenuCommand(){
+        return `📍 Os comandos até agora são: \n!d{número}: Número aleatório (ex: !d20)\n!gpt {texto}: Pergunta pra IA\n!lembrar: lembra de um certo período de tempo -\n!resumo: Resume a conversa - Parâmetros: curto, médio e completo (ex: !resumo curto)`;
+    }
+
     async handleDiceCommand(text, from){
         var num = text.slice(2).trim(); 
         if(isNaN(num) || num === ""){
@@ -194,6 +198,7 @@ class ChatModel {
     async handleCommand(msg, sender, from, isGroup, command) {
         if (command.startsWith('!d')) return await this.handleDiceCommand(command, from)
         if (command.startsWith('!gpt') && isGroup)
+        if (command.startsWith('!menu')) return await this.handleMenuCommand()
         if (command.startsWith('!resumo') && isGroup) return await this.handleResumoCommand(msg, command, from)
         if (!isGroup) return await this.getAiResponse(from, sender, isGroup, command)
     }

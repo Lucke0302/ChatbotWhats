@@ -359,7 +359,7 @@ async function connectToWhatsApp() {
                 try {                    
                     const modelAnalise = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
-                    const mensagensFormatadas = getMessagesByLimit(500);
+                    const mensagensFormatadas = getMessagesByLimit(db, from, 500);
 
                     const promptAnalise = `Mensagem do usuário: ${mensagem}
                     Contexto das Mensagens (Cada {nome}| simboliza um início de mensagem, o seu é Bot-Zap no banco de dados, não precisa apresentar

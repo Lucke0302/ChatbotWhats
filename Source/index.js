@@ -258,6 +258,8 @@ async function connectToWhatsApp() {
 
                 await sendAndSave(sock, db, from, '🧠 Eu sabo...'); 
 
+                const mensagensFormatadas = await getMessagesByLimit(db, from, 500);
+
                 try {
                     const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
@@ -266,7 +268,7 @@ async function connectToWhatsApp() {
                     você é um bot de WhatsApp chamado Bostossauro.
                     
                     Contexto da conversa (opcional):
-                    ${groupHistory[from] ? groupHistory[from].join('\n') : ''}`;
+                    ${mensagensFormatadas}`;
 
                     const result = await model.generateContent(promptFinal);
                     const response = await result.response;

@@ -369,8 +369,8 @@ async function connectToWhatsApp() {
 
             
         }
-        else if(chatbot.isOnline){
-            if(!isGroup){
+        else{
+            if(!isGroup && chatbot.isOnline){
                 const mensagem = texto.trim(); 
                 const sender = msg.key.participant || msg.key.remoteJid;
                 const senderJid = sender.split('@')[0];
@@ -399,9 +399,12 @@ async function connectToWhatsApp() {
                     await sendAndSave(sock, db, from, finalResponse, null, [sender]);
 
                 } catch (error) {
-                    console.error("❌ Erro no comando !lembrar:", error);
+                    console.error("❌ Erro no comando: ", error);
                     await sendAndSave(sock, db, from, '❌ Erro tentando lembrar, to com alzheimer.');
                 }
+            }
+            else if(!chatbot.isOnline){                
+                await sendAndSave(sock, db, from, "Desonline... 😴", msg, [sender]);
             }
         }
         if (quotedMessage && isReplyToBot && chatbot.isOnline) {
@@ -443,6 +446,12 @@ async function connectToWhatsApp() {
             } catch (error) {
                 console.error("Erro no Reply:", error);
             }
+        }
+        else{
+            await sendAndSave(sock, db, from, "Desonline... 😴", msg, [sender]);
+        }
+        if(command.startsWith("!") && !isOnline){
+
         }
     });
 }

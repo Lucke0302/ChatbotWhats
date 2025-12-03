@@ -387,9 +387,7 @@ async function connectToWhatsApp() {
                     console.error("❌ Erro no comando !lembrar:", error);
                     await sendAndSave(sock, db, from, '❌ Erro tentando lembrar, to com alzheimer.');
                 }
-            }
-
-            
+            }            
         }
         else if(command.startsWith("!") &&  !chatbot.isOnline){
             const sender = msg.key.participant || msg.key.remoteJid;            
@@ -432,10 +430,44 @@ async function connectToWhatsApp() {
                 }
             }
             if(!isGroup && !chatbot.isOnline){    
-                const sender = msg.key.participant || msg.key.remoteJid;            
+                const sender = msg.key.participant || msg.key.remoteJid; 
+                console.log(sender)           
                 await sendDesonlineSticker(sock, db, from, "Desonline... 😴", msg, [sender])
                 //await sendAndSave(sock, db, from, "Desonline... 😴", null, [sender]);
                 return
+            }
+            if(!isGroup && !chatbot.isOnline /*&& msg.key.remoteJid*/){
+                const mensagem = texto.trim(); 
+                const sender = msg.key.participant || msg.key.remoteJid;
+                const senderJid = sender.split('@')[0];
+                
+                try {                    
+                    const modelAnalise = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+
+                    const mensagensFormatadas = getMessagesByLimit(db, from, 500);
+
+                    const promptAnalise = `Mensagem do usuário: ${mensagem}
+                    Contexto das Mensagens (Cada {nome}| simboliza um início de mensagem, o seu é Bot-Zap no banco de dados, não precisa apresentar
+                    pro usuário):
+                    ${mensagensFormatadas}
+                    Você é o Bostossauro, um bot de WhatsApp engraçado e sarcástico. 
+                    Responda ao usuário (@${senderJid}) usando o contexto das mensagens fornecidas abaixo. 
+                    Converse como fosse uma conversa entre dois amigos, trate o contexto das mensagens como o histórico de conversas com a pessoa.
+                    As mensagens estão em ordem cronológica inversa (mais recentes primeiro).`;
+
+                    const resultAnalise = await modelAnalise.generateContent(promptAnalise);
+                    const textResposta = resultAnalise.response;
+                    const responseAnalise = await textResposta.text();
+
+                    console.log(responseAnalise)
+
+                    const finalResponse = `🤖 ${responseAnalise}`;
+                    await sendAndSave(sock, db, from, finalResponse, null, [sender]);
+
+                } catch (error) {
+                    console.error("❌ Erro no comando: ", error);
+                    await sendAndSave(sock, db, from, '❌ Erro tentando lembrar, to com alzheimer.');
+                }
             }
         }
         if (quotedMessage && isReplyToBot && chatbot.isOnline) {

@@ -6,7 +6,28 @@ class ChatModel {
         this.db = db;
         this.genAI = genAI;
         this.myFullJid = sock.user.id || sock.user.lid; 
-        this.isOnline= false;
+        this.isOnline = false;
+    }
+
+    async sendDesonlineSticker(sock, db, from, sender){
+        if (!fs.existsSync("Assets/desonline.webp")) {
+            await sendMessage(sock, db, from, '❌ Erro: O arquivo do sticker não foi encontrado no servidor.', null, [sender]);
+            return;
+        }
+    
+        try {
+            const stickerBuffer = fs.readFileSync("Assets/desonline.webp");
+    
+            const sentMessage = await sock.sendMessage(from, { 
+                sticker: stickerBuffer 
+            });
+            
+            console.log(`✅ Sticker enviado com sucesso: ${sentMessage.key.id}`);
+    
+        } catch (error) {
+            console.error("❌ Erro ao enviar sticker:", error);
+            await sendMessage(sock, db, from, "Desonline... 😴", null, [sender]);
+        }
     }
 
     async saveBotMessage (database, from, text, externalId = null){

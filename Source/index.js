@@ -258,7 +258,7 @@ async function connectToWhatsApp() {
 
                 await sendAndSave(sock, db, from, '🧠 Eu sabo...'); 
 
-                const mensagensFormatadas = await getMessagesByLimit(db, from, 500);
+                const mensagensFormatadas = await getMessagesByLimit(db, from, 50);
 
                 try {
                     const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });

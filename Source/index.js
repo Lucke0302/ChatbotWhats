@@ -193,6 +193,7 @@ async function connectToWhatsApp() {
         const command = texto.trim().toLowerCase();
 
         if(command.startsWith("!") &&  chatbot.isOnline && command.length > 1){
+
             // 1. Comando !resumo
             if (command.startsWith('!resumo') && isGroup) {
                 tamanho = command.split(' ')
@@ -240,8 +241,8 @@ async function connectToWhatsApp() {
             }
 
             // 2. Comando !d
-            if (command.startsWith('!d')) {            
-                var pergunta = texto.slice(2).trim(); 
+            //if (command.startsWith('!d')) {  
+                /*var pergunta = texto.slice(2).trim(); 
                 if(isNaN(pergunta) || pergunta === ""){
                     await sendAndSave(sock, db, from, `Digita um número válido, imbecil`); 
                 }
@@ -259,8 +260,8 @@ async function connectToWhatsApp() {
                     const responseText = `🎲 O dado caiu em: *${val}* \n${mssg}`;
 
                     await sendAndSave(sock, db, from, responseText); 
-                }
-            }
+                }*/
+            //}
 
             // 3. Comando !menu
             if (command === '!menu') {
@@ -387,7 +388,16 @@ async function connectToWhatsApp() {
                     console.error("❌ Erro no comando !lembrar:", error);
                     await sendAndSave(sock, db, from, '❌ Erro tentando lembrar, to com alzheimer.');
                 }
-            }            
+            }  
+            const mensagem = texto.trim(); 
+            const sender = msg.key.participant || msg.key.remoteJid;
+            const senderJid = sender.split('@')[0];
+
+            response = await chatbot.handleCommand(msg, sender, from, isGroup, mensagem)
+
+            await sendAndSave(sock, db, from, response, null, [sender]);
+
+            return          
         }
         else if(command.startsWith("!") &&  !chatbot.isOnline){
             const sender = msg.key.participant || msg.key.remoteJid;            
@@ -437,34 +447,10 @@ async function connectToWhatsApp() {
 
                 await sendAndSave(sock, db, from, response, null, [sender]);
 
-                
-                /*try {                    
-                    const modelAnalise = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-
-                    const mensagensFormatadas = getMessagesByLimit(db, from, 50);
-
-                    const promptAnalise = `Mensagem do usuário: ${mensagem}
-                    Contexto das Mensagens (Cada {nome}| simboliza um início de mensagem, o seu é Bot-Zap no banco de dados, não precisa apresentar
-                    pro usuário):
-                    ${mensagensFormatadas}
-                    Você é o Bostossauro, um bot de WhatsApp engraçado e sarcástico.
-                    Você está em modo de teste e essa é a conversa com o programador que faz o seu código (Lucas).
-                    Seu isTesting está definido como ${chatbot.isTesting}, se for pedido, diga qual é o estado dele.
-                    Apenas responda normalmente, são mensagens de teste para saber se você está funcionando corretamente.`;
-
-                    const resultAnalise = await modelAnalise.generateContent(promptAnalise);
-                    const textResposta = resultAnalise.response;
-                    const responseAnalise = await textResposta.text();
-
-                    const finalResponse = `🤖 ${responseAnalise}`;
-                    await sendAndSave(sock, db, from, finalResponse, null, [sender]);
-
-                } catch (error) {
-                    console.error("❌ Erro no comando: ", error);
-                    await sendAndSave(sock, db, from, '❌ Erro tentando lembrar, to com alzheimer.');
-                }*/
                 return
             }
+            //Fim do "endpoint" de testes.
+            
             if(!isGroup && !chatbot.isOnline){    
                 const sender = msg.key.participant || msg.key.remoteJid;   
                 await sendDesonlineSticker(sock, db, from, "Desonline... 😴", msg, [sender])

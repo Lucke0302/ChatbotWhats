@@ -170,13 +170,13 @@ class ChatModel {
         }
     }
 
-    async handleDiceCommand(msg, text, from){
+    async handleDiceCommand(text, from){
         var num = text.slice(2).trim(); 
         if(isNaN(pergunta) || pergunta === ""){
-            await sendAndSave(sock, db, from, `Digita um número válido, imbecil`); 
+            return false
         }
         else{                
-            const max = parseInt(pergunta);
+            const max = parseInt(num);
             const val = Math.floor(Math.random() * max) + 1;
             let mssg = "";
             
@@ -186,24 +186,16 @@ class ChatModel {
             else if(val < max) mssg = "😎 nice."
             else if(val == max) mssg = "🎰 SORTE GRANDE!"
             
-            const responseText = `🎲 O dado caiu em: *${val}* \n${mssg}`;
-
-            await sendAndSave(sock, db, from, responseText); 
+            return `🎲 O dado caiu em: *${val}* \n${mssg}`;
         }
 
     }
 
     async handleCommand(msg, sender, from, isGroup, command) {
-        if (command.startsWith('!resumo') && isGroup) {
-            return await this.handleResumoCommand(msg, command, from)
-        }
-        if (command.startsWith('!d')){
-            return this.handleDiceCommand(msg, command, from)
-        }
-        if (!isGroup){
-            console.log(`Remetente: ${sender}`)
-            return await this.getAiResponse(from, sender, isGroup, command)
-        }
+        if (command.startsWith('!d')) return await this.handleDiceCommand(command, from)
+        if (command.startsWith('!gpt') && isGroup)
+        if (command.startsWith('!resumo') && isGroup) return await this.handleResumoCommand(msg, command, from)
+        if (!isGroup) return await this.getAiResponse(from, sender, isGroup, command)
     }
 }
 

@@ -396,7 +396,7 @@ async function connectToWhatsApp() {
             return
         }
         else{
-            if(!isGroup && chatbot.isOnline){
+            if(!isGroup && chatbot.isOnline && !chatbot.isTesting){
                 const mensagem = texto.trim(); 
                 const sender = msg.key.participant || msg.key.remoteJid;
                 const senderJid = sender.split('@')[0];

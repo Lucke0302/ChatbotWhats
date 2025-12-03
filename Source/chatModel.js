@@ -78,8 +78,9 @@ class ChatModel {
         return messagesDb.map(m => `${m.nome_remetente || 'Desconhecido'}: ${m.conteudo}`).join('\n');
     };
 
-    async getAiResponse(from, isGroup, command){        
+    async getAiResponse(from, msg, isGroup, command){        
         let formatedMessages = await this.getMessagesByLimit(from, 50);
+        const sender = msg.key.participant || msg.key.remoteJid;;
 
         /*`
         ${complement}
@@ -94,7 +95,7 @@ class ChatModel {
         }
         else if(!isGroup && this.isTesting){
             prompt = `Você é um bot de WhatsApp chamado Bostossauro, o usuário do WhatsApp
-            chamado "${nomeUsuario}" te enviou a seguinte pergunta ou comando: "${command}".
+            chamado "${sender}" te enviou a seguinte pergunta ou comando: "${command}".
             Responda ele diretamente pelo nome. Seja criativo, útil e mantenha o tom 
             de uma conversa de WhatsApp.
             
@@ -196,7 +197,7 @@ class ChatModel {
             return this.handleDiceCommand(msg, command, from)
         }
         if (!isGroup){
-            return await this.getAiResponse(from, isGroup, command)
+            return await this.getAiResponse(from, msg, isGroup, command)
         }
     }
 }

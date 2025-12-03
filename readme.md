@@ -34,7 +34,7 @@ Mas não se engane com o nome chique. Estamos falando de uma máquina guerreira 
 
 ## 🚀 Como Rodar na Sua Máquina
 
-Quer testar localmente antes de colocar na sua própria batata na nuvem? Consulta o nosso guia detalhado em [INSTALL.md]***➡️Soon***(INSTALL.md).
+Quer testar localmente antes de colocar na sua própria batata na nuvem? Consulta o nosso guia detalhado em [INSTALL.md](INSTALL.md)***➡️Soon***.
 
 Resumo rápido:
 1.  Clonar o repositório.

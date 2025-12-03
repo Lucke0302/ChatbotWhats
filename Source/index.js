@@ -74,7 +74,7 @@ const getMessagesByLimit = async (db, from, limit) => {
     LIMIT ${limit}`;
     
     const messagesDb = await db.all(sqlQuery);
-
+    console.log(messagesDb.map(m => `${m.nome_remetente || 'Desconhecido'}: ${m.conteudo}`).join('\n'))
     return messagesDb.map(m => `${m.nome_remetente || 'Desconhecido'}: ${m.conteudo}`).join('\n');
 };
 
@@ -177,6 +177,8 @@ async function connectToWhatsApp() {
                 }       
 
                 const mensagensFormatadas = getMessagesByLimit(db, from, 500);
+
+                console.log(mensagensFormatadas)
 
                 await sendAndSave(sock, db, from, '🤖 Ces falam demais, preciso ler tudo...'); 
 

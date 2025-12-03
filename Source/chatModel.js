@@ -79,7 +79,7 @@ class ChatModel {
     };
 
     async getAiResponse(from, isGroup, command){        
-        let formatedMessages = await this.getMessagesByLimit();
+        let formatedMessages = await this.getMessagesByLimit(from, 50);
 
         /*`
         ${complement}

@@ -419,8 +419,6 @@ async function connectToWhatsApp() {
                     const textResposta = resultAnalise.response;
                     const responseAnalise = await textResposta.text();
 
-                    console.log(responseAnalise)
-
                     const finalResponse = `🤖 ${responseAnalise}`;
                     await sendAndSave(sock, db, from, finalResponse, null, [sender]);
 
@@ -452,8 +450,6 @@ async function connectToWhatsApp() {
                     const textResposta = resultAnalise.response;
                     const responseAnalise = await textResposta.text();
 
-                    console.log(responseAnalise)
-
                     const finalResponse = `🤖 ${responseAnalise}`;
                     await sendAndSave(sock, db, from, finalResponse, null, [sender]);
 
@@ -464,8 +460,7 @@ async function connectToWhatsApp() {
                 return
             }
             if(!isGroup && !chatbot.isOnline){    
-                const sender = msg.key.participant || msg.key.remoteJid; 
-                console.log(sender)           
+                const sender = msg.key.participant || msg.key.remoteJid;   
                 await sendDesonlineSticker(sock, db, from, "Desonline... 😴", msg, [sender])
                 //await sendAndSave(sock, db, from, "Desonline... 😴", null, [sender]);
                 return

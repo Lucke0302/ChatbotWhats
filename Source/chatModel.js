@@ -58,9 +58,9 @@ class ChatModel {
         await saveBotMessage(database, from, text, sentMessage.key.id);
     };
 
-    async getMessageCount(db, from){
+    async getMessageCount(from){
         const sqlQuery = `SELECT COUNT(*) AS total FROM mensagens WHERE id_conversa = '${from}'`;
-        const result = await db.get(sqlQuery); 
+        const result = await this.db.get(sqlQuery); 
         return result ? result.total : 0;
     };
 

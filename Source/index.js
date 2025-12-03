@@ -433,7 +433,10 @@ async function connectToWhatsApp() {
                 const sender = msg.key.participant || msg.key.remoteJid;
                 const senderJid = sender.split('@')[0];
 
-                resposta = await chatbot.handleCommand(msg, sender, from, isGroup, mensagem)
+                response = await chatbot.handleCommand(msg, sender, from, isGroup, mensagem)
+
+                await sendAndSave(sock, db, from, response, null, [sender]);
+
                 
                 /*try {                    
                     const modelAnalise = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });

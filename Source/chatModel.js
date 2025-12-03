@@ -88,7 +88,7 @@ class ChatModel {
         ${formatedMessages}`*/;
 
         if(isGroup){
-            let prompt = `Você é um bot de WhatsApp engraçado e sarcástico num grupo de amigos,
+            this.prompt = `Você é um bot de WhatsApp engraçado e sarcástico num grupo de amigos,
             chamado Bostossauro. 
             Nenhum deles vai achar qualquer brincadeira ruim, pode falar o que quiser e fazer piadas.`
         }
@@ -118,10 +118,10 @@ class ChatModel {
             const response = await result.response;
             const text = response.text();
 
-            await sendAndSave(this.sock, this.db, this.from, text); 
+            return text
         } catch (error) {
             console.error(error);
-            await this.sendAndSave(this.sock, this.db, this.from, 'Morri kkkkkkkkkk tenta de novo aí.'); 
+            return 'Morri kkkkkkkkkk tenta de novo aí.'; 
         }
     }
     

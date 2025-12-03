@@ -94,6 +94,30 @@ async function connectToWhatsApp() {
 
         const from = msg.key.remoteJid;
         const isGroup = from.endsWith('@g.us');
+
+        const getMessagesByLimit = async (limit) => {
+            const sqlQuery = `SELECT nome_remetente, conteudo 
+            FROM mensagens 
+            WHERE id_conversa = '${from}' 
+            ORDER BY timestamp DESC 
+            LIMIT ${limit};`;
+            
+            const messagesDb = await db.all(sqlQuery);
+
+            const formatedMessages = messagesDb.map(m => `${m.nome_remetente || 'Desconhecido'}: ${m.conteudo}`).join('\n');
+
+            return formatedMessages
+        }
+
+        const getMessagesNumber = async () =>{
+            const sqlQuery = `SELECT COUNT(*) 
+            FROM mensagens 
+            WHERE id_conversa = '${from}'`;
+            
+            const messagesDb = await db.all(sqlQuery);
+
+            return messagesDb
+        }
         
         const texto = msg.message.conversation || 
                       msg.message.extendedTextMessage?.text || 
@@ -156,18 +180,20 @@ async function connectToWhatsApp() {
                 if (!groupHistory[from] || groupHistory[from].length < 5) {
                     await sendAndSave(sock, db, from, '❌ Poucas mensagens para resumir. Conversem mais um pouco!'); 
                     return;
-                }
+                }       
+
+                const mensagensFormatadas = getMessagesByLimit(500);
 
                 await sendAndSave(sock, db, from, '🤖 Ces falam demais, preciso ler tudo...'); 
 
                 try {
                     const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash"});
-                    const prompt = `Você é um bot de WhatsApp engraçado e sarcástico num grupo de amigos. 
+                    const prompt = `Você é um bot de WhatsApp engraçado e sarcástico num grupo de amigos, chamado Bostossauro. 
                     Resuma a conversa abaixo destacando os tópicos principais e quem falou mais besteira.
                     Nenhum deles vai achar qualquer brincadeira ruim, pode falar o que quiser e fazer piadas.
                     
                     Conversa:
-                    ${groupHistory[from].join('\n')}`;
+                    ${mensagensFormatadas}`;
 
                     const result = await model.generateContent(prompt);
                     const response = await result.response;
@@ -205,7 +231,7 @@ async function connectToWhatsApp() {
 
             // 3. Comando !menu
             if (command === '!menu') {
-                const responseText = `📍 Os comandos até agora são: \n!d{número}: Número aleatório (ex: !d20)\n!gpt {texto}: Pergunta pra IA\n!resumo: Resume a conversa`;
+                const responseText = `📍 Os comandos até agora são: \n!d{número}: Número aleatório (ex: !d20)\n!gpt {texto}: Pergunta pra IA\n!lembrar: lembra de um certo período de tempo -\n!resumo: Resume a conversa`;
                 await sendAndSave(sock, db, from, responseText); 
             }
 
@@ -228,7 +254,8 @@ async function connectToWhatsApp() {
                     const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
                     const promptFinal = `O usuário do WhatsApp chamado "${nomeUsuario}" te enviou a seguinte pergunta ou comando: "${pergunta}".
-                    Responda ele diretamente pelo nome. Seja criativo, útil e mantenha o tom de uma conversa de WhatsApp.
+                    Responda ele diretamente pelo nome. Seja criativo, útil e mantenha o tom de uma conversa de WhatsApp, considerando que 
+                    você é um bot de WhatsApp chamado Bostossauro.
                     
                     Contexto da conversa (opcional):
                     ${groupHistory[from] ? groupHistory[from].join('\n') : ''}`;
@@ -329,6 +356,42 @@ async function connectToWhatsApp() {
 
             
         }
+        else{
+            if(!isGroup){
+                const mensagem = texto.trim(); 
+                const sender = msg.key.participant || msg.key.remoteJid;
+                const senderJid = sender.split('@')[0];
+                
+                await sendAndSave(sock, db, from, `🧠 Deixa eu dar uma lida nas mensagens pra ver o que rolou...`); 
+                
+                try {                    
+                    const modelAnalise = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+
+                    const mensagensFormatadas = getMessagesByLimit(500);
+
+                    const promptAnalise = `Mensagem do usuário: ${mensagem}
+                    Contexto das Mensagens (Cada {nome}| simboliza um início de mensagem, o seu é Bot-Zap):
+                    ${mensagensFormatadas}
+                    Você é o Bostossauro, um bot de WhatsApp engraçado e sarcástico. 
+                    Responda ao usuário (@${senderJid}) usando o contexto das mensagens fornecidas abaixo. 
+                    Converse como fosse uma conversa entre dois amigos, trate o contexto das mensagens como o histórico de conversas com a pessoa.
+                    As mensagens estão em ordem cronológica inversa (mais recentes primeiro).`;
+
+                    const resultAnalise = await modelAnalise.generateContent(promptAnalise);
+                    const textResposta = resultAnalise.response;
+                    const responseAnalise = await textResposta.text();
+
+                    console.log(responseAnalise)
+
+                    const finalResponse = `🤖 *Contexto Lembrado, @${senderJid}*:\n\n${responseAnalise}`;
+                    await sendAndSave(sock, db, from, finalResponse, null, [sender]);
+
+                } catch (error) {
+                    console.error("❌ Erro no comando !lembrar:", error);
+                    await sendAndSave(sock, db, from, '❌ Erro tentando lembrar, to com alzheimer.');
+                }
+            }
+        }
         if (quotedMessage && isReplyToBot) {
 
             console.log("✅ REPLY DETECTADO! Respondendo...");
@@ -347,13 +410,17 @@ async function connectToWhatsApp() {
                 const nomeUsuario = msg.pushName || 'Amigo';
                 const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
+                const mensagensFormatadas = getMessagesByLimit(50);
+
                 const promptReply = `Contexto: Você é um bot de WhatsApp.
                 O usuário "${nomeUsuario}" está te respondendo.
                 
                 O que VOCÊ (Bot) tinha falado antes: "${textoOriginal}"
                 O que o USUÁRIO respondeu agora: "${texto}"
                 
-                Analise a resposta dele com base no que você falou antes. Responda de forma natural e contínua.`;
+                Analise a resposta dele com base no que você falou antes. Responda de forma natural e contínua.
+                
+                Contexto das últimas 50 mensagens (ignore se não fizer sentido utilizar): ${mensagensFormatadas}`;
 
                 const result = await model.generateContent(promptReply);
                 const response = await result.response;

@@ -434,8 +434,10 @@ async function connectToWhatsApp() {
                 const senderJid = sender.split('@')[0];
 
                 console.log("Valor do isTesting: "+ chatbot.isTesting.toString());
+
+                resposta = await chatbot.getAiResponse(from, isGroup, mensagem)
                 
-                try {                    
+                /*try {                    
                     const modelAnalise = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
                     const mensagensFormatadas = getMessagesByLimit(db, from, 50);
@@ -459,7 +461,7 @@ async function connectToWhatsApp() {
                 } catch (error) {
                     console.error("❌ Erro no comando: ", error);
                     await sendAndSave(sock, db, from, '❌ Erro tentando lembrar, to com alzheimer.');
-                }
+                }*/
                 return
             }
             if(!isGroup && !chatbot.isOnline){    

@@ -72,10 +72,13 @@ class ChatModel {
         LIMIT ${limit}`;
         
         const messagesDb = await db.all(sqlQuery);
+
+        console.log(messagesDb.map(m => `${m.nome_remetente || 'Desconhecido'}: ${m.conteudo}`).join('\n'))
+
         return messagesDb.map(m => `${m.nome_remetente || 'Desconhecido'}: ${m.conteudo}`).join('\n');
     };
 
-    async getAiResponse(db, from, isGroup, question, trimmedCommand, complement){        
+    async getAiResponse(from, isGroup, command){        
         let formatedMessages = await this.getMessagesByLimit();
 
         /*`
@@ -89,9 +92,9 @@ class ChatModel {
             chamado Bostossauro. 
             Nenhum deles vai achar qualquer brincadeira ruim, pode falar o que quiser e fazer piadas.`
         }
-        else{
+        else if(!isGroup && this.isTesting){
             prompt = `Você é um bot de WhatsApp chamado Bostossauro, o usuário do WhatsApp
-            chamado "${nomeUsuario}" te enviou a seguinte pergunta ou comando: "${pergunta}".
+            chamado "${nomeUsuario}" te enviou a seguinte pergunta ou comando: "${command}".
             Responda ele diretamente pelo nome. Seja criativo, útil e mantenha o tom 
             de uma conversa de WhatsApp.
             
@@ -185,12 +188,15 @@ class ChatModel {
 
     }
 
-    async handleCommand(msg, text, from, isGroup, command) {
+    async handleCommand(msg, from, isGroup, command) {
         if (command.startsWith('!resumo') && isGroup) {
-            return this.handleResumoCommand(msg, text, from)
+            return await this.handleResumoCommand(msg, command, from)
         }
         if (command.startsWith('!d')){
-            return this.handleDiceCommand(msg, text, from)
+            return this.handleDiceCommand(msg, command, from)
+        }
+        if (!isGroup){
+            return await this.getAiResponse(from, isGroup, command)
         }
     }
 }

@@ -112,7 +112,7 @@ class ChatModel {
         }
 
         try{
-            const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash"});
+            const model = this.genAI.getGenerativeModel({ model: "gemini-2.5-flash"});
 
             const result = await model.generateContent(prompt);
             const response = await result.response;
@@ -121,7 +121,7 @@ class ChatModel {
             await sendAndSave(sock, db, from, text); 
         } catch (error) {
             console.error(error);
-            await sendAndSave(sock, db, from, 'Morri kkkkkkkkkk tenta de novo aí.'); 
+            await this.sendAndSave(sock, db, from, 'Morri kkkkkkkkkk tenta de novo aí.'); 
         }
     }
     

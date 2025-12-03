@@ -171,7 +171,7 @@ async function connectToWhatsApp() {
         if(command.startsWith("!")){
             // 1. Comando !resumo
             if (command === '!resumo' && isGroup) {
-                if (getMessageNumber(db, from) < 5) {
+                if (getMessageCount(db, from) < 5) {
                     await sendAndSave(sock, db, from, '❌ Poucas mensagens para resumir. Conversem mais um pouco!'); 
                     return;
                 }       

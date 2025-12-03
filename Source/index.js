@@ -5,6 +5,7 @@ const qrcode = require('qrcode-terminal');
 const sqlite = require('sqlite'); 
 const sqlite3 = require('sqlite3'); 
 const pino = require('pino'); 
+const ChatModel = require('./chatModel');
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
@@ -77,6 +78,8 @@ const getMessagesByLimit = async (db, from, limit) => {
     return messagesDb.map(m => `${m.nome_remetente || 'Desconhecido'}: ${m.conteudo}`).join('\n');
 };
 
+const chatbot = new ChatModel(sock, db, genAI)
+
 async function connectToWhatsApp() {
     await initDatabase();
 
@@ -116,7 +119,7 @@ async function connectToWhatsApp() {
                       msg.message.extendedTextMessage?.text || 
                       msg.message.imageMessage?.caption || '';
 
-        if (texto) {
+        if (texto && chatbot.isOnline) {
             const id_conversa = from; 
             const id_remetente = msg.key.participant || from; 
             const nome_remetente = msg.pushName || '';

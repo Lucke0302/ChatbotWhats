@@ -78,8 +78,6 @@ const getMessagesByLimit = async (db, from, limit) => {
     return messagesDb.map(m => `${m.nome_remetente || 'Desconhecido'}: ${m.conteudo}`).join('\n');
 };
 
-const chatbot = new ChatModel(sock, db, genAI)
-
 async function connectToWhatsApp() {
     await initDatabase();
 
@@ -89,6 +87,8 @@ async function connectToWhatsApp() {
         auth: state,
         logger: pino({ level: 'warn' }), 
     });
+
+    const chatbot = new ChatModel(sock, db, genAI)
 
     sock.ev.on('connection.update', (update) => {
         const { connection, lastDisconnect, qr } = update;

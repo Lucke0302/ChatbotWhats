@@ -436,7 +436,7 @@ async function connectToWhatsApp() {
                 //await sendAndSave(sock, db, from, "Desonline... 😴", null, [sender]);
                 return
             }
-            if(!isGroup && !chatbot.isOnline /*&& msg.key.remoteJid*/){
+            if(!isGroup && !chatbot.isOnline && msg.key.remoteJid == "5513991008854@s.whatsapp.net"){
                 const mensagem = texto.trim(); 
                 const sender = msg.key.participant || msg.key.remoteJid;
                 const senderJid = sender.split('@')[0];
@@ -444,16 +444,15 @@ async function connectToWhatsApp() {
                 try {                    
                     const modelAnalise = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
-                    const mensagensFormatadas = getMessagesByLimit(db, from, 500);
+                    const mensagensFormatadas = getMessagesByLimit(db, from, 50);
 
                     const promptAnalise = `Mensagem do usuário: ${mensagem}
                     Contexto das Mensagens (Cada {nome}| simboliza um início de mensagem, o seu é Bot-Zap no banco de dados, não precisa apresentar
                     pro usuário):
                     ${mensagensFormatadas}
-                    Você é o Bostossauro, um bot de WhatsApp engraçado e sarcástico. 
-                    Responda ao usuário (@${senderJid}) usando o contexto das mensagens fornecidas abaixo. 
-                    Converse como fosse uma conversa entre dois amigos, trate o contexto das mensagens como o histórico de conversas com a pessoa.
-                    As mensagens estão em ordem cronológica inversa (mais recentes primeiro).`;
+                    Você é o Bostossauro, um bot de WhatsApp engraçado e sarcástico.
+                    Você está em modo de teste e essa é a conversa com o programador que faz o seu código (Lucas).
+                    Apenas responda normalmente, são mensagens de teste para saber se você está funcionando corretamente.`;
 
                     const resultAnalise = await modelAnalise.generateContent(promptAnalise);
                     const textResposta = resultAnalise.response;

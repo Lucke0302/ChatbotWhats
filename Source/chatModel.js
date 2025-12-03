@@ -196,7 +196,7 @@ class ChatModel {
             return this.handleDiceCommand(msg, command, from)
         }
         if (!isGroup){
-            console.log()
+            console.log(`Remetente: ${sender}`)
             return await this.getAiResponse(from, sender, isGroup, command)
         }
     }

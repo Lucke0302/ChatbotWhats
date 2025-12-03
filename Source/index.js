@@ -185,6 +185,7 @@ async function connectToWhatsApp() {
                     const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash"});
                     const prompt = `Você é um bot de WhatsApp engraçado e sarcástico num grupo de amigos, chamado Bostossauro. 
                     Resuma a conversa abaixo destacando os tópicos principais e quem falou mais besteira.
+                    Use tópicos para resumir a conversa (no máximo )
                     Nenhum deles vai achar qualquer brincadeira ruim, pode falar o que quiser e fazer piadas.
                     
                     Conversa:
@@ -404,7 +405,7 @@ async function connectToWhatsApp() {
                 const nomeUsuario = msg.pushName || 'Amigo';
                 const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
-                const mensagensFormatadas = getMessagesByLimit(50);
+                const mensagensFormatadas = getMessagesByLimit(db, from, 50);
 
                 const promptReply = `Contexto: Você é um bot de WhatsApp.
                 O usuário "${nomeUsuario}" está te respondendo.

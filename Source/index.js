@@ -403,8 +403,9 @@ async function connectToWhatsApp() {
                     await sendAndSave(sock, db, from, '❌ Erro tentando lembrar, to com alzheimer.');
                 }
             }
-            else if(!chatbot.isOnline){                
-                await sendAndSave(sock, db, from, "Desonline... 😴", msg, [sender]);
+            else if(!chatbot.isOnline){    
+                const sender = msg.key.participant || msg.key.remoteJid;            
+                await sendAndSave(sock, db, from, "Desonline... 😴", null, [sender]);
             }
         }
         if (quotedMessage && isReplyToBot && chatbot.isOnline) {
@@ -448,6 +449,7 @@ async function connectToWhatsApp() {
             }
         }
         else{
+            const sender = msg.key.participant || msg.key.remoteJid;
             await sendAndSave(sock, db, from, "Desonline... 😴", msg, [sender]);
         }
         if(command.startsWith("!") && !isOnline){

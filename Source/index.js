@@ -406,6 +406,7 @@ async function connectToWhatsApp() {
             else if(!chatbot.isOnline){    
                 const sender = msg.key.participant || msg.key.remoteJid;            
                 await sendAndSave(sock, db, from, "Desonline... 😴", null, [sender]);
+                return
             }
         }
         if (quotedMessage && isReplyToBot && chatbot.isOnline) {
@@ -451,9 +452,12 @@ async function connectToWhatsApp() {
         else{
             const sender = msg.key.participant || msg.key.remoteJid;
             await sendAndSave(sock, db, from, "Desonline... 😴", msg, [sender]);
+            return
         }
         if(command.startsWith("!") && !isOnline){
-
+            const sender = msg.key.participant || msg.key.remoteJid;
+            await sendAndSave(sock, db, from, "Desonline... 😴", msg, [sender]);
+            return
         }
     });
 }

@@ -1,4 +1,4 @@
-# 🦖 Bostossauro Bot (Bot-Zap)
+# 🦖 Bostossauro Bot 
 > *"Eu sabo... mas às vezes a RAM acaba."*
 
 Bem-vindo ao repositório oficial do **Bostossauro**, o bot de WhatsApp mais sarcástico, sincero e levemente instável do hemisfério sul. Este projeto nasceu da vontade de automatizar respostas, jogar RPG de mesa via texto e, principalmente, julgar as conversas dos seus grupos com o poder da Inteligência Artificial.

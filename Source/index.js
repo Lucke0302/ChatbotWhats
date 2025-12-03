@@ -187,9 +187,9 @@ async function connectToWhatsApp() {
                         complemento = "Responda de maneira concisa, dois ou três parágrafos."
                         break;
                     case "médio":
-                        complemento = "Responda com certa concisão (até 3 linhas pra cada assunto), mas pode aprofundar um pouco."
+                        complemento = "Responda com certa concisão (até 2 linhas pra cada assunto), mas pode aprofundar um pouco."
                     case "completo":
-                        complemento = "Se aprofunde (até 10 linhas) em cada assunto"
+                        complemento = "Se aprofunde (até 5 linhas) em cada assunto"
                 }
 
                 try {

@@ -449,7 +449,7 @@ async function connectToWhatsApp() {
                 console.error("Erro no Reply:", error);
             }
         }
-        else{
+        else if (!isGroup){
             const sender = msg.key.participant || msg.key.remoteJid;
             await sendAndSave(sock, db, from, "Desonline... 😴", msg, [sender]);
             return

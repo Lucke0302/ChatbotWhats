@@ -362,8 +362,6 @@ async function connectToWhatsApp() {
                 const sender = msg.key.participant || msg.key.remoteJid;
                 const senderJid = sender.split('@')[0];
                 
-                await sendAndSave(sock, db, from, `🧠 Deixa eu dar uma lida nas mensagens pra ver o que rolou...`); 
-                
                 try {                    
                     const modelAnalise = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
@@ -383,7 +381,7 @@ async function connectToWhatsApp() {
 
                     console.log(responseAnalise)
 
-                    const finalResponse = `🤖 *Contexto Lembrado, @${senderJid}*:\n\n${responseAnalise}`;
+                    const finalResponse = `🤖 ${responseAnalise}`;
                     await sendAndSave(sock, db, from, finalResponse, null, [sender]);
 
                 } catch (error) {

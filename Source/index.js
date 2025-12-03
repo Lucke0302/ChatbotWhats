@@ -432,6 +432,8 @@ async function connectToWhatsApp() {
                 const mensagem = texto.trim(); 
                 const sender = msg.key.participant || msg.key.remoteJid;
                 const senderJid = sender.split('@')[0];
+
+                console.log("Valor do isTesting: "+ chatbot.isTesting);
                 
                 try {                    
                     const modelAnalise = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });

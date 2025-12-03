@@ -109,7 +109,7 @@ async function connectToWhatsApp() {
             return formatedMessages
         }
 
-        const getMessagesNumber = async () =>{
+        const getMessageNumber = async () =>{
             const sqlQuery = `SELECT COUNT(*) 
             FROM mensagens 
             WHERE id_conversa = '${from}'`;
@@ -177,7 +177,7 @@ async function connectToWhatsApp() {
         if(command.startsWith("!")){
             // 1. Comando !resumo
             if (command === '!resumo' && isGroup) {
-                if (!groupHistory[from] || groupHistory[from].length < 5) {
+                if (getMessageNumber() < 5) {
                     await sendAndSave(sock, db, from, '❌ Poucas mensagens para resumir. Conversem mais um pouco!'); 
                     return;
                 }       

@@ -428,7 +428,7 @@ async function connectToWhatsApp() {
                 }
             }
             //"endpoint" de testes.
-            if(!isGroup && !chatbot.isOnline && msg.key.remoteJid == "5513991008854@s.whatsapp.net" && chatbot.isTesting){
+            if(!isGroup && msg.key.remoteJid == "5513991008854@s.whatsapp.net" && chatbot.isTesting){
                 const mensagem = texto.trim(); 
                 const sender = msg.key.participant || msg.key.remoteJid;
                 const senderJid = sender.split('@')[0];

@@ -60,6 +60,24 @@ async function initDatabase() {
     console.log('✅ Banco de dados SQLite inicializado e tabela `mensagens` verificada.');
 }
 
+const getMessageCount = async (db, from) => {
+    const sqlQuery = `SELECT COUNT(*) AS total FROM mensagens WHERE id_conversa = '${from}'`;
+    const result = await db.get(sqlQuery); 
+    return result ? result.total : 0;
+};
+
+const getMessagesByLimit = async (db, from, limit) => {
+    const sqlQuery = `SELECT nome_remetente, conteudo 
+    FROM mensagens 
+    WHERE id_conversa = '${from}' 
+    ORDER BY timestamp DESC 
+    LIMIT ${limit}`;
+    
+    const messagesDb = await db.all(sqlQuery);
+
+    return messagesDb.map(m => `${m.nome_remetente || 'Desconhecido'}: ${m.conteudo}`).join('\n');
+};
+
 async function connectToWhatsApp() {
     await initDatabase();
 
@@ -94,30 +112,6 @@ async function connectToWhatsApp() {
 
         const from = msg.key.remoteJid;
         const isGroup = from.endsWith('@g.us');
-
-        const getMessagesByLimit = async (limit) => {
-            const sqlQuery = `SELECT nome_remetente, conteudo 
-            FROM mensagens 
-            WHERE id_conversa = '${from}' 
-            ORDER BY timestamp DESC 
-            LIMIT ${limit};`;
-            
-            const messagesDb = await db.all(sqlQuery);
-
-            const formatedMessages = messagesDb.map(m => `${m.nome_remetente || 'Desconhecido'}: ${m.conteudo}`).join('\n');
-
-            return formatedMessages
-        }
-
-        const getMessageNumber = async () =>{
-            const sqlQuery = `SELECT COUNT(*) 
-            FROM mensagens 
-            WHERE id_conversa = '${from}'`;
-            
-            const messagesDb = await db.all(sqlQuery);
-
-            return messagesDb
-        }
         
         const texto = msg.message.conversation || 
                       msg.message.extendedTextMessage?.text || 
@@ -177,12 +171,12 @@ async function connectToWhatsApp() {
         if(command.startsWith("!")){
             // 1. Comando !resumo
             if (command === '!resumo' && isGroup) {
-                if (getMessageNumber() < 5) {
+                if (getMessageNumber(db, from) < 5) {
                     await sendAndSave(sock, db, from, '❌ Poucas mensagens para resumir. Conversem mais um pouco!'); 
                     return;
                 }       
 
-                const mensagensFormatadas = getMessagesByLimit(500);
+                const mensagensFormatadas = getMessagesByLimit(db, from, 500);
 
                 await sendAndSave(sock, db, from, '🤖 Ces falam demais, preciso ler tudo...'); 
 

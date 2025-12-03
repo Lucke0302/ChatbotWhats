@@ -88,12 +88,12 @@ class ChatModel {
         ${formatedMessages}`*/;
 
         if(isGroup){
-            prompt = `Você é um bot de WhatsApp engraçado e sarcástico num grupo de amigos,
+            let prompt = `Você é um bot de WhatsApp engraçado e sarcástico num grupo de amigos,
             chamado Bostossauro. 
             Nenhum deles vai achar qualquer brincadeira ruim, pode falar o que quiser e fazer piadas.`
         }
         else if(!isGroup && this.isTesting){
-            prompt = `Você é um bot de WhatsApp chamado Bostossauro, o usuário do WhatsApp
+            let prompt = `Você é um bot de WhatsApp chamado Bostossauro, o usuário do WhatsApp
             chamado "${sender}" te enviou a seguinte pergunta ou comando: "${command}".
             Responda ele diretamente pelo nome. Seja criativo, útil e mantenha o tom 
             de uma conversa de WhatsApp.
@@ -101,9 +101,14 @@ class ChatModel {
             Contexto da conversa (opcional):
             ${formatedMessages}`
         }
-
-        if(trimmedCommand == "!gpt"){
-
+        else{
+            let prompt = `Você é um bot de WhatsApp chamado Bostossauro, o usuário do WhatsApp
+            chamado "${sender}" te enviou a seguinte pergunta ou comando: "${command}".
+            Responda ele diretamente pelo nome. Seja criativo, útil e mantenha o tom 
+            de uma conversa de WhatsApp.
+            
+            Contexto da conversa (opcional):
+            ${formatedMessages}`
         }
 
         try{

@@ -25,7 +25,7 @@ Este projeto é sustentado por fita crepe digital e as seguintes tecnologias:
 * **Google Gemini AI:** O cérebro por trás do sarcasmo.
 * **Node.js:** O motor do caos.
 * **PM2:** A ama-seca que reinicia o bot toda vez que ele tropeça nos próprios pés.
-* **SQLite:** Um banco de dados leve (porque a nossa VM não aguenta um Postgres) para guardar cada "bom dia" que mandas.
+* **SQLite:** Um banco de dados leve (porque a nossa VM não aguenta um Postgres) para guardar cada "bom dia" que você mandar.
 
 ## ☁️ A Saga da Infraestrutura (Google Cloud)
 Este bot roda orgulhosamente em uma **VM Debian 12 no Google Cloud.**

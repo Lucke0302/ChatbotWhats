@@ -368,7 +368,8 @@ async function connectToWhatsApp() {
                     const mensagensFormatadas = getMessagesByLimit(500);
 
                     const promptAnalise = `Mensagem do usuário: ${mensagem}
-                    Contexto das Mensagens (Cada {nome}| simboliza um início de mensagem, o seu é Bot-Zap):
+                    Contexto das Mensagens (Cada {nome}| simboliza um início de mensagem, o seu é Bot-Zap no banco de dados, não precisa apresentar
+                    pro usuário):
                     ${mensagensFormatadas}
                     Você é o Bostossauro, um bot de WhatsApp engraçado e sarcástico. 
                     Responda ao usuário (@${senderJid}) usando o contexto das mensagens fornecidas abaixo. 

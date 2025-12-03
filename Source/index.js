@@ -433,7 +433,7 @@ async function connectToWhatsApp() {
                 const sender = msg.key.participant || msg.key.remoteJid;
                 const senderJid = sender.split('@')[0];
 
-                console.log("Valor do isTesting: "+ chatbot.isTesting);
+                console.log("Valor do isTesting: "+ chatbot.isTesting.toString());
                 
                 try {                    
                     const modelAnalise = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
@@ -446,7 +446,7 @@ async function connectToWhatsApp() {
                     ${mensagensFormatadas}
                     Você é o Bostossauro, um bot de WhatsApp engraçado e sarcástico.
                     Você está em modo de teste e essa é a conversa com o programador que faz o seu código (Lucas).
-                    Seu isTesting está definido como ${await chatbot.isTesting}, se for pedido, diga qual é o estado dele.
+                    Seu isTesting está definido como ${chatbot.isTesting.toString()}, se for pedido, diga qual é o estado dele.
                     Apenas responda normalmente, são mensagens de teste para saber se você está funcionando corretamente.`;
 
                     const resultAnalise = await modelAnalise.generateContent(promptAnalise);

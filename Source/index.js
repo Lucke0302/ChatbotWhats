@@ -177,8 +177,6 @@ async function connectToWhatsApp() {
 
                 const mensagensFormatadas = await getMessagesByLimit(db, from, 500);
 
-                console.log(mensagensFormatadas)
-
                 await sendAndSave(sock, db, from, '🤖 Ces falam demais, preciso ler tudo...'); 
 
                 try {

@@ -169,7 +169,8 @@ async function connectToWhatsApp() {
 
         if(command.startsWith("!")){
             // 1. Comando !resumo
-            if (command === '!resumo' && isGroup) {
+            if (command.startsWith('!resumo') && isGroup) {
+                tamanho = command.split(' ')
                 if (getMessageCount(db, from) < 5) {
                     await sendAndSave(sock, db, from, '❌ Poucas mensagens para resumir. Conversem mais um pouco!'); 
                     return;
@@ -179,12 +180,25 @@ async function connectToWhatsApp() {
 
                 await sendAndSave(sock, db, from, '🤖 Ces falam demais, preciso ler tudo...'); 
 
+                complemento = " ";
+
+                switch(tamanho[1]){
+                    case "curto":
+                        complemento = "Responda de maneira concisa, dois ou três parágrafos."
+                        break;
+                    case "médio":
+                        complemento = "Responda com certa concisão (até 3 linhas pra cada assunto), mas pode aprofundar um pouco."
+                    case "completo":
+                        complemento = "Se aprofunde (até 10 linhas) em cada assunto"
+                }
+
                 try {
                     const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash"});
                     const prompt = `Você é um bot de WhatsApp engraçado e sarcástico num grupo de amigos, chamado Bostossauro. 
                     Resuma a conversa abaixo destacando os tópicos principais e quem falou mais besteira.
-                    Use tópicos para resumir a conversa (no máximo )
+                    Use tópicos para resumir a conversa.
                     Nenhum deles vai achar qualquer brincadeira ruim, pode falar o que quiser e fazer piadas.
+                    ${complemento}
                     
                     Conversa:
                     ${mensagensFormatadas}`;
@@ -225,7 +239,7 @@ async function connectToWhatsApp() {
 
             // 3. Comando !menu
             if (command === '!menu') {
-                const responseText = `📍 Os comandos até agora são: \n!d{número}: Número aleatório (ex: !d20)\n!gpt {texto}: Pergunta pra IA\n!lembrar: lembra de um certo período de tempo -\n!resumo: Resume a conversa`;
+                const responseText = `📍 Os comandos até agora são: \n!d{número}: Número aleatório (ex: !d20)\n!gpt {texto}: Pergunta pra IA\n!lembrar: lembra de um certo período de tempo -\n!resumo: Resume a conversa - Parâmetros: curto, médio e completo (ex: !resumo curto)`;
                 await sendAndSave(sock, db, from, responseText); 
             }
 

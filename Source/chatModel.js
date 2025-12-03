@@ -93,7 +93,7 @@ class ChatModel {
             Nenhum deles vai achar qualquer brincadeira ruim, pode falar o que quiser e fazer piadas.`
         }
         else if(!isGroup && this.isTesting){
-            let prompt = `Você é um bot de WhatsApp chamado Bostossauro, o usuário do WhatsApp
+            this.prompt = `Você é um bot de WhatsApp chamado Bostossauro, o usuário do WhatsApp
             chamado "${sender}" te enviou a seguinte pergunta ou comando: "${command}".
             Responda ele diretamente pelo nome. Seja criativo, útil e mantenha o tom 
             de uma conversa de WhatsApp.
@@ -102,7 +102,7 @@ class ChatModel {
             ${formatedMessages}`
         }
         else{
-            let prompt = `Você é um bot de WhatsApp chamado Bostossauro, o usuário do WhatsApp
+            this.prompt = `Você é um bot de WhatsApp chamado Bostossauro, o usuário do WhatsApp
             chamado "${sender}" te enviou a seguinte pergunta ou comando: "${command}".
             Responda ele diretamente pelo nome. Seja criativo, útil e mantenha o tom 
             de uma conversa de WhatsApp.
@@ -114,14 +114,14 @@ class ChatModel {
         try{
             const model = this.genAI.getGenerativeModel({ model: "gemini-2.5-flash"});
 
-            const result = await model.generateContent(prompt);
+            const result = await model.generateContent(this.prompt);
             const response = await result.response;
             const text = response.text();
 
-            await sendAndSave(sock, db, from, text); 
+            await sendAndSave(this.sock, this.db, this.from, text); 
         } catch (error) {
             console.error(error);
-            await this.sendAndSave(sock, db, from, 'Morri kkkkkkkkkk tenta de novo aí.'); 
+            await this.sendAndSave(this.sock, this.db, this.from, 'Morri kkkkkkkkkk tenta de novo aí.'); 
         }
     }
     

@@ -119,7 +119,7 @@ async function connectToWhatsApp() {
                       msg.message.extendedTextMessage?.text || 
                       msg.message.imageMessage?.caption || '';
 
-        if (texto && chatbot.isOnline) {
+        if (texto) {
             const id_conversa = from; 
             const id_remetente = msg.key.participant || from; 
             const nome_remetente = msg.pushName || '';
@@ -170,7 +170,7 @@ async function connectToWhatsApp() {
 
         const command = texto.trim().toLowerCase();
 
-        if(command.startsWith("!")){
+        if(command.startsWith("!") &&  chatbot.isOnline){
             // 1. Comando !resumo
             if (command.startsWith('!resumo') && isGroup) {
                 tamanho = command.split(' ')
@@ -369,7 +369,7 @@ async function connectToWhatsApp() {
 
             
         }
-        else{
+        else if(chatbot.isOnline){
             if(!isGroup){
                 const mensagem = texto.trim(); 
                 const sender = msg.key.participant || msg.key.remoteJid;
@@ -404,7 +404,7 @@ async function connectToWhatsApp() {
                 }
             }
         }
-        if (quotedMessage && isReplyToBot) {
+        if (quotedMessage && isReplyToBot && chatbot.isOnline) {
 
             console.log("✅ REPLY DETECTADO! Respondendo...");
             

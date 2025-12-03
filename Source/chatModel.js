@@ -188,7 +188,7 @@ class ChatModel {
 
     }
 
-    async handleCommand(msg, from, isGroup, command) {
+    async handleCommand(msg, sender, from, isGroup, command) {
         if (command.startsWith('!resumo') && isGroup) {
             return await this.handleResumoCommand(msg, command, from)
         }

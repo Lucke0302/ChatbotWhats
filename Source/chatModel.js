@@ -78,9 +78,8 @@ class ChatModel {
         return messagesDb.map(m => `${m.nome_remetente || 'Desconhecido'}: ${m.conteudo}`).join('\n');
     };
 
-    async getAiResponse(from, msg, isGroup, command){        
+    async getAiResponse(from, sender, isGroup, command){        
         let formatedMessages = await this.getMessagesByLimit(from, 50);
-        const sender = msg.key.participant || msg.key.remoteJid;;
 
         /*`
         ${complement}
@@ -197,7 +196,8 @@ class ChatModel {
             return this.handleDiceCommand(msg, command, from)
         }
         if (!isGroup){
-            return await this.getAiResponse(from, msg, isGroup, command)
+            console.log()
+            return await this.getAiResponse(from, sender, isGroup, command)
         }
     }
 }

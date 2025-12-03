@@ -429,13 +429,7 @@ async function connectToWhatsApp() {
                     await sendAndSave(sock, db, from, '❌ Erro tentando lembrar, to com alzheimer.');
                 }
             }
-            if(!isGroup && !chatbot.isOnline){    
-                const sender = msg.key.participant || msg.key.remoteJid; 
-                console.log(sender)           
-                await sendDesonlineSticker(sock, db, from, "Desonline... 😴", msg, [sender])
-                //await sendAndSave(sock, db, from, "Desonline... 😴", null, [sender]);
-                return
-            }
+            
             if(!isGroup && !chatbot.isOnline && msg.key.remoteJid == "5513991008854@s.whatsapp.net"){
                 const mensagem = texto.trim(); 
                 const sender = msg.key.participant || msg.key.remoteJid;
@@ -467,6 +461,14 @@ async function connectToWhatsApp() {
                     console.error("❌ Erro no comando: ", error);
                     await sendAndSave(sock, db, from, '❌ Erro tentando lembrar, to com alzheimer.');
                 }
+                return
+            }
+            if(!isGroup && !chatbot.isOnline){    
+                const sender = msg.key.participant || msg.key.remoteJid; 
+                console.log(sender)           
+                await sendDesonlineSticker(sock, db, from, "Desonline... 😴", msg, [sender])
+                //await sendAndSave(sock, db, from, "Desonline... 😴", null, [sender]);
+                return
             }
         }
         if (quotedMessage && isReplyToBot && chatbot.isOnline) {

@@ -403,7 +403,7 @@ async function connectToWhatsApp() {
                     await sendAndSave(sock, db, from, '❌ Erro tentando lembrar, to com alzheimer.');
                 }
             }
-            else if(!chatbot.isOnline){    
+            else if(!isGroup && !chatbot.isOnline){    
                 const sender = msg.key.participant || msg.key.remoteJid;            
                 await sendAndSave(sock, db, from, "Desonline... 😴", null, [sender]);
                 return

@@ -172,7 +172,7 @@ class ChatModel {
 
     async handleDiceCommand(text, from){
         var num = text.slice(2).trim(); 
-        if(isNaN(pergunta) || pergunta === ""){
+        if(isNaN(num) || num === ""){
             return false
         }
         else{                

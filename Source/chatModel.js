@@ -84,6 +84,7 @@ class ChatModel {
 
         const onlyLetters = this.text.replace(/[^a-zA-ZÀ-ÿ]/g, '');
         const capitalTotal = onlyLetters.replace(/[^A-ZÀ-ÖØ-Þ]/g, '').length;
+        console.log(`capitalTotal: ${capitalTotal}. onlyLetters: ${onlyLetters}. Texto: ${this.text}`)
         return capitalTotal > (onlyLetters.length / 4);
     }
 

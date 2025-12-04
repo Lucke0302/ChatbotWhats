@@ -255,7 +255,7 @@ async function connectToWhatsApp() {
                     return;
                 }
 
-                //await sendSticker(sock, db, from, msg, [sender], texto)
+                await sendSticker(sock, db, from, msg, [sender], texto)
 
                 await sendAndSave(sock, db, from, '🧠 Eu sabo...'); 
 

@@ -85,7 +85,7 @@ class ChatModel {
         const onlyLetters = this.text.replace(/[^a-zA-ZÀ-ÿ]/g, '');
         const capitalTotal = onlyLetters.replace(/[^A-ZÀ-ÖØ-Þ]/g, '').length;
         console.log(`capitalTotal: ${capitalTotal}. onlyLetters: ${onlyLetters}. Texto: ${this.text}`)
-        
+
         return capitalTotal > (onlyLetters.length / 4);
     }
 
@@ -248,7 +248,7 @@ class ChatModel {
     //Faz o controle de todos os comandos
     async handleCommand(msg, sender, from, isGroup, command) {
         if (command.startsWith('!d')) return await this.handleDiceCommand(command, from)
-        if (command.startsWith('!gpt') && isGroup) return await this.handleGptCommand()
+        //if (command.startsWith('!gpt') && isGroup) return await this.handleGptCommand()
         if (command.startsWith('!menu')) return await this.handleMenuCommand()
         if (command.startsWith('!resumo') && isGroup) return await this.handleResumoCommand(msg, command, from)
         if (!isGroup) return await this.getAiResponse(from, sender, isGroup, command)

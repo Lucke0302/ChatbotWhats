@@ -69,12 +69,6 @@ Para rodar o bot diretamente no terminal e visualizar o QR Code:
 node Source/index.js
 ```
 
-* **Baileys:** A biblioteca que faz a magia de conectar ao WhatsApp sem precisar de um navegador aberto.
-* **Google Gemini AI:** O cérebro por trás do sarcasmo.
-* **Node.js:** O motor do caos.
-* **PM2:** A ama-seca que reinicia o bot toda vez que ele tropeça nos próprios pés.
-* **SQLite:** Um banco de dados leve (porque a nossa VM não aguenta um Postgres) para guardar cada "bom dia" que mandas.
-
 * **1.** O terminal exibirá um QR Code.
 
 * **2.** Abra o WhatsApp no seu celular.

@@ -88,10 +88,31 @@ Para manter o bot rodando 24/7 em um servidor *(mesmo que você feche o terminal
 npm install pm2 -g
 ```
 
-* **2.** Inicie o bot:
+```javascript
+module.exports = {
+  apps : [{
+    name: 'bostossauro',
+    script: 'Source/index.js',
+    watch: true,
+    // Garanta que esta lista de arquivos e pastas está correta
+    // Essa parte ignora a observação de modificações nesses aquivos,
+    //que são arquivos que mudam muito, mas não modificam o funcionamento do bot
+    // Toda vez que arquivos são modificados no diretório, o pm2 reinicia o bot 
+    // para colocar as alterações em vigor
+    ignore_watch : [
+        "auth_info_baileys/.", 
+        "chat_history.db", 
+        "chat_history.db-journal", 
+        "chat_history.db-wal"
+    ],
+  }]
+};
+```
+
+* **3.** Inicie o bot:
 
 ```bash
-pm2 start Source/index.js --name bostossauro
+pm2 start ecosystem.config.js
 ```
 
 ### 🆒 Comandos úteis do PM2:
@@ -103,3 +124,44 @@ pm2 start Source/index.js --name bostossauro
 * Reiniciar: pm2 restart bostossauro
 
 * Parar: pm2 stop bostossauro
+
+### ⚠️ Importante:
+
+Não se esqueça de configurar um ***.gitignore*** para arquivos que contenham chaves!
+
+Exemplo de conteúdo do ***.gitignore***:
+
+```.gitignore
+node_modules/
+.env
+auth_info_baileys/
+npm-debug.log
+``` 
+
+## 📂 Banco de Dados e Sessão
+Sessão do WhatsApp: Após o login, uma pasta chamada auth_info_baileys será criada automaticamente na raiz. Não apague esta pasta, a menos que queira desconectar o bot e escanear o QR Code novamente.
+
+Histórico de Conversas: Um arquivo chat_history.db (SQLite) será criado automaticamente na raiz para armazenar o contexto das conversas.
+
+## ⚠️ Solução de Problemas Comuns
+### Erro: "Module not found"
+
+* Verifique se você rodou npm install.
+
+* Verifique se está executando o comando a partir da raiz da pasta ChatbotWhats.
+
+* Erro no SQLite ou Python (node-gyp)
+
+* Algumas versões do Node requerem ferramentas de compilação para o SQLite.
+
+* No Ubuntu/Debian: sudo apt-get install build-essential python3
+
+* No Windows: npm install --global --production windows-build-tools
+
+### Bot cai ao tentar enviar Sticker
+
+* Verifique se a pasta Assets contém o arquivo desonline.webp. O caminho no código é relativo à raiz de execução (fs.readFileSync("Assets/desonline.webp")).
+
+* Memória RAM Alta
+O bot armazena histórico em memória para o baileys e processa dados com o sharp. Em VMs com 1GB de RAM (como a free tier do Google Cloud), recomenda-se adicionar Swap file.
+ 

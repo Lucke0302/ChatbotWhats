@@ -239,36 +239,6 @@ async function connectToWhatsApp() {
                     await sendAndSave(sock, db, from, 'Morri kkkkkkkkkk tenta de novo aí.'); 
                 }
             }
-
-            // 2. Comando !d
-            //if (command.startsWith('!d')) {  
-                /*var pergunta = texto.slice(2).trim(); 
-                if(isNaN(pergunta) || pergunta === ""){
-                    await sendAndSave(sock, db, from, `Digita um número válido, imbecil`); 
-                }
-                else{                
-                    const max = parseInt(pergunta);
-                    const val = Math.floor(Math.random() * max) + 1;
-                    let mssg = "";
-                    
-                    if(val == 1) mssg = "❌ FALHA CRÍTICA!"
-                    else if(val < max/2) mssg = "🫠 meh."
-                    else if(val < max/1.5) mssg = "🫤 até que não foi ruim."
-                    else if(val < max) mssg = "😎 nice."
-                    else if(val == max) mssg = "🎰 SORTE GRANDE!"
-                    
-                    const responseText = `🎲 O dado caiu em: *${val}* \n${mssg}`;
-
-                    await sendAndSave(sock, db, from, responseText); 
-                }*/
-            //}
-
-            // 3. Comando !menu
-            /*if (command === '!menu') {
-                const responseText = `📍 Os comandos até agora são: \n!d{número}: Número aleatório (ex: !d20)\n!gpt {texto}: Pergunta pra IA\n!lembrar: lembra de um certo período de tempo -\n!resumo: Resume a conversa - Parâmetros: curto, médio e completo (ex: !resumo curto)`;
-                await sendAndSave(sock, db, from, responseText); 
-            }*/
-
             // 4. Comando !gpt
             if (command.startsWith('!gpt')) {
                 const pergunta = texto.slice(4).trim(); 
@@ -389,22 +359,56 @@ async function connectToWhatsApp() {
                     await sendAndSave(sock, db, from, '❌ Erro tentando lembrar, to com alzheimer.');
                 }
             }  
-            const mensagem = texto.trim(); 
-            const sender = msg.key.participant || msg.key.remoteJid;
-            const senderJid = sender.split('@')[0];
 
-            response = await chatbot.handleCommand(msg, sender, from, isGroup, mensagem)
+            //Bloco de controle NOVO
+            try {
+                const mensagem = texto.trim(); 
+                const sender = msg.key.participant || msg.key.remoteJid;
+                const senderJid = sender.split('@')[0];
 
-            await sendAndSave(sock, db, from, response, null, [sender]);
+                let reactEmoji = '';
 
-            return          
+                if (command.startsWith('!d')) {
+                    reactEmoji = '🎲';
+                } else if (command.startsWith('!gpt')) {
+                    reactEmoji = '🤖';
+                } else if (command.startsWith('!lembrar')) {
+                    reactEmoji = '🧠';
+                } else if (command.startsWith('!menu')) {
+                    reactEmoji = '📄';
+                } else if (command.startsWith('!resumo')) {
+                    reactEmoji = '🛎️';
+                }
+                else{
+                    reactEmoji = '❓'
+                }
+
+                if (reactEmoji) {
+                    await sock.sendMessage(from, { react: { text: reactEmoji, key: msg.key } });
+                }
+
+                const response = await chatbot.handleCommand(msg, sender, from, isGroup, mensagem);
+                
+                if (response) {
+                    await sendAndSave(sock, db, from, response, null, [sender]);
+                }
+            } catch (error) {
+                if (error.message === "FEW_MESSAGES") {
+                    await sendAndSave(sock, db, from, '❌ Poucas mensagens para resumir. Conversem mais um pouco!');
+                } else {
+                    console.error("❌ Erro ao processar comando:", error);
+                    await sendAndSave(sock, db, from, '😵 Ocorreu um erro interno ao processar seu comando.');
+                }
+            }    
         }
+
         else if(command.startsWith("!") &&  !chatbot.isOnline){
             const sender = msg.key.participant || msg.key.remoteJid;            
             await sendDesonlineSticker(sock, db, from, "Desonline... 😴", msg, [sender])
             //await sendAndSave(sock, db, from, "Desonline... 😴", null, [sender]);
             return
         }
+
         else{
             if(!isGroup && chatbot.isOnline && !chatbot.isTesting){
                 const mensagem = texto.trim(); 

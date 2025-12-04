@@ -10,6 +10,7 @@ class ChatModel {
         this.isTesting = true;
     }
 
+    //Envia o sticker desonline (vai ser modificada pra enviar qualquer sticker salvo na pasta assets dependendo do contexto)
     async sendDesonlineSticker(sock, db, from, sender){
         if (!fs.existsSync("Assets/desonline.webp")) {
             await sendMessage(sock, db, from, '❌ Erro: O arquivo do sticker não foi encontrado no servidor.', null, [sender]);
@@ -31,6 +32,7 @@ class ChatModel {
         }
     }
 
+    //Salva mensagem no banco de dados
     async saveBotMessage (database, from, text, externalId = null){
         const timestamp = Math.floor(Date.now() / 1000);
         
@@ -49,6 +51,21 @@ class ChatModel {
         }
     };
 
+    //Essa função verifica a quantidade de letras maiúsculas na mensagem pra responder
+    //com a figurinha do "não grita"
+    async verifyCapitalLetters(command){
+        if(command.startsWith("!")){
+            this.text = command.split(" ")
+        }
+        else{
+            this.text = command
+        }
+        const onlyLetters = this.text.replace(/[^a-zA-ZÀ-ÿ]/g, '');
+        const capitalTotal = onlyLetters.replace(/[^A-ZÀ-cY]/g, '').length;
+        return capitalTotal > (onlyLetters.length / 4);
+    }
+
+    /*
     async sendAndSave(sock, database, from, text, msgKey = null, mentions = []){
         const sentMessage = await sock.sendMessage(from, { 
             text: text, 
@@ -56,14 +73,16 @@ class ChatModel {
         }, { quoted: msgKey });
         
         await saveBotMessage(database, from, text, sentMessage.key.id);
-    };
+    };*/
 
+    //Retorna a contagem total de mensagens de uma conversa
     async getMessageCount(from){
         const sqlQuery = `SELECT COUNT(*) AS total FROM mensagens WHERE id_conversa = '${from}'`;
         const result = await this.db.get(sqlQuery); 
         return result ? result.total : 0;
     };
 
+    //Retorna mensagens do banco de dados para um certo remetente (pessoa ou grupo) com um limite
     async getMessagesByLimit(from, limit){
         const sqlQuery = `SELECT nome_remetente, conteudo 
         FROM mensagens 
@@ -78,14 +97,11 @@ class ChatModel {
         return messagesDb.map(m => `${m.nome_remetente || 'Desconhecido'}: ${m.conteudo}`).join('\n');
     };
 
+    //Essa função concatena o prompt para para a IA por algumas condicionais
+    //Verifica se a mensagem veio de um grupo, quem enviou e uma série de fatores
+    //pra moldar a melhor resposta possível (lógica ainda em desenvolvimento)
     async getAiResponse(from, sender, isGroup, command){        
         let formatedMessages = await this.getMessagesByLimit(from, 50);
-
-        /*`
-        ${complement}
-        
-        Conversa:
-        ${formatedMessages}`*/;
 
         if(isGroup){
             this.prompt = `Você é um bot de WhatsApp engraçado e sarcástico num grupo de amigos,
@@ -125,31 +141,33 @@ class ChatModel {
         }
     }
     
+    //Controla o comando resumo
     async handleResumoCommand(msg, text, from, command){
-        tamanho = command.split(' ')
-        if (getMessageCount(db, from) < 5) {
-            await sendAndSave(sock, db, from, '❌ Poucas mensagens para resumir. Conversem mais um pouco!'); 
-            return;
+        const tamanho = command.split(' ');
+        
+        if (await this.getMessageCount(from) < 5) {
+            throw new Error("FEW_MESSAGES");
         }       
 
-        const mensagensFormatadas = await getMessagesByLimit(db, from, 500);
+        const mensagensFormatadas = await this.getMessagesByLimit(from, 500);
 
-        await sendAndSave(sock, db, from, '🤖 Ces falam demais, preciso ler tudo...'); 
-
-        complemento = " ";
+        let complemento = " "; 
 
         switch(tamanho[1]){
             case "curto":
-                complemento = "Responda de maneira concisa, dois ou três parágrafos."
+                complemento = "Responda de maneira concisa, dois ou três parágrafos.";
                 break;
             case "médio":
-                complemento = "Responda com certa concisão (até 2 linhas pra cada assunto), limite em no máximo 5 assuntos."
+                complemento = "Responda com certa concisão (até 2 linhas pra cada assunto), limite em no máximo 5 assuntos.";
+                break; 
             case "completo":
-                complemento = "Se aprofunde (até 5 linhas) em cada assunto"
+                complemento = "Se aprofunde (até 5 linhas) em cada assunto";
+                break;
         }
 
         try {
-            const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash"});
+            const model = this.genAI.getGenerativeModel({ model: "gemini-2.5-flash"});
+            
             const prompt = `Você é um bot de WhatsApp engraçado e sarcástico num grupo de amigos, chamado Bostossauro. 
             Resuma a conversa abaixo destacando os tópicos principais e quem falou mais besteira.
             Use tópicos para resumir a conversa.
@@ -163,17 +181,25 @@ class ChatModel {
             const response = await result.response;
             const text = response.text();
 
-            await sendAndSave(sock, db, from, text); 
+            return text;
+
         } catch (error) {
-            console.error(error);
-            await sendAndSave(sock, db, from, 'Morri kkkkkkkkkk tenta de novo aí.'); 
+            console.error("Erro no Model:", error);
+            throw new Error("AI_ERROR"); 
         }
     }
 
+    //Responde o comando !menu
     async handleMenuCommand(){
-        return `📍 Os comandos até agora são: \n!d{número}: Número aleatório (ex: !d20)\n!gpt {texto}: Pergunta pra IA\n!lembrar: lembra de um certo período de tempo -\n!resumo: Resume a conversa - Parâmetros: curto, médio e completo (ex: !resumo curto)`;
+        return `📍 Os comandos até agora são: \n!d{número}: Número aleatório (ex: !d20)\n!gpt {texto}: Pergunta pra IA\n!lembrar: lembra de um certo período de tempo\n!resumo: Resume a conversa - Parâmetros: curto, médio e completo (ex: !resumo curto)`;
     }
 
+    //Responde o comando !gpt
+    async handleGptCommand(){
+        return "Ainda vazio 😓"
+    }
+
+    //Responde o comando !d
     async handleDiceCommand(text, from){
         var num = text.slice(2).trim(); 
         if(isNaN(num) || num === ""){
@@ -184,7 +210,7 @@ class ChatModel {
             const val = Math.floor(Math.random() * max) + 1;
             let mssg = "";
             
-            if(val == 1) mssg = "❌ FALHA CRÍTICA!"
+            if(val == 1) mssg = "❌ FALHA CRÍTICA! Tomou gap..."
             else if(val < max/2) mssg = "🫠 meh."
             else if(val < max/1.5) mssg = "🫤 até que não foi ruim."
             else if(val < max) mssg = "😎 nice."
@@ -195,9 +221,10 @@ class ChatModel {
 
     }
 
+    //Faz o controle de todos os comandos
     async handleCommand(msg, sender, from, isGroup, command) {
         if (command.startsWith('!d')) return await this.handleDiceCommand(command, from)
-        if (command.startsWith('!gpt') && isGroup)
+        if (command.startsWith('!gpt') && isGroup) return await this.handleGptCommand()
         if (command.startsWith('!menu')) return await this.handleMenuCommand()
         if (command.startsWith('!resumo') && isGroup) return await this.handleResumoCommand(msg, command, from)
         if (!isGroup) return await this.getAiResponse(from, sender, isGroup, command)

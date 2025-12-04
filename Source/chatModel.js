@@ -60,8 +60,9 @@ class ChatModel {
         else{
             this.text = command
         }
+        
         const onlyLetters = this.text.replace(/[^a-zA-ZÀ-ÿ]/g, '');
-        const capitalTotal = onlyLetters.replace(/[^A-ZÀ-cY]/g, '').length;
+        const capitalTotal = onlyLetters.replace(/[^A-ZÀ-ÖØ-Þ]/g, '').length;
         return capitalTotal > (onlyLetters.length / 4);
     }
 

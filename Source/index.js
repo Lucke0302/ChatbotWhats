@@ -324,6 +324,7 @@ async function connectToWhatsApp() {
                     const resultSql = response.text();
 
                     let sqlQuery = resultSql;
+                    console.log(sqlQuery)
 
                     if (!sqlQuery.toLowerCase().startsWith('select')) {
                         console.error("ERRO: IA não retornou um SELECT válido:", sqlQuery);

@@ -196,7 +196,8 @@ async function connectToWhatsApp() {
         if(command.startsWith("!") &&  chatbot.isOnline && command.length > 1){
 
             // 1. Comando !resumo
-            if (command.startsWith('!resumo') && isGroup) {
+            if (command.startsWith('!resumo') && isGroup) {                
+                const sender = msg.key.participant || msg.key.remoteJid;
                 tamanho = command.split(' ')
                 if (getMessageCount(db, from) < 5) {
                     await sendAndSave(sock, db, from, '❌ Poucas mensagens para resumir. Conversem mais um pouco!'); 

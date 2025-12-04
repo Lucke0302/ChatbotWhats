@@ -75,17 +75,23 @@ class ChatModel {
     //Essa função verifica a quantidade de letras maiúsculas na mensagem pra responder
     //com a figurinha do "não grita"
     async verifyCapitalLetters(command){
-        if(command.startsWith("!")){
-            sendedText = command.split(" ")
-            onlyLetters = sendedText[1].replace(/[^a-zA-ZÀ-ÿ]/g, '');
-        }
-        else{
-            sendedText = command
-            const onlyLetters = sendedText[0].replace(/[^a-zA-ZÀ-ÿ]/g, '');
+        let sendedText = command;
+        if (command.startsWith("!")) {
+            const args = command.split(" ");
+            if (args.length > 1) {
+                args.shift();
+                sendedText = args.join(" ");
+            } else {
+                sendedText = "";
+            }
         }
         
+        if (!sendedText) return false;
+        
+        const onlyLetters = sendedText.replace(/[^a-zA-ZÀ-ÿ]/g, '');
+        if (onlyLetters.length === 0) return false;
         const capitalTotal = onlyLetters.replace(/[^A-ZÀ-ÖØ-Þ]/g, '').length;
-        console.log(`capitalTotal: ${capitalTotal}. onlyLetters: ${onlyLetters}. Texto: ${this.text}`)
+        console.log(`capitalTotal: ${capitalTotal}. onlyLetters: ${onlyLetters}. Texto: ${sendedText}`);
 
         return capitalTotal > (onlyLetters.length / 4);
     }

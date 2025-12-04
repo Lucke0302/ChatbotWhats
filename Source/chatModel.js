@@ -60,7 +60,7 @@ class ChatModel {
         else{
             this.text = command
         }
-        
+
         const onlyLetters = this.text.replace(/[^a-zA-ZÀ-ÿ]/g, '');
         const capitalTotal = onlyLetters.replace(/[^A-ZÀ-ÖØ-Þ]/g, '').length;
         return capitalTotal > (onlyLetters.length / 4);
@@ -192,7 +192,7 @@ class ChatModel {
 
     //Responde o comando !menu
     async handleMenuCommand(){
-        return `📍 Os comandos até agora são: \n!d{número}: Número aleatório (ex: !d20)\n!gpt {texto}: Pergunta pra IA\n!lembrar: lembra de um certo período de tempo\n!resumo: Resume a conversa - Parâmetros: curto, médio e completo (ex: !resumo curto)`;
+        return `📍 Os comandos até agora são: \n🎲 !d{número}: Número aleatório (ex: !d20)\n🤖 !gpt {texto}: Pergunta pra IA\n🧠 !lembrar: lembra de um certo período de tempo\n 🛎️!resumo: Resume a conversa - Parâmetros: curto, médio e completo (ex: !resumo curto)`;
     }
 
     //Responde o comando !gpt

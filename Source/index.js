@@ -475,6 +475,7 @@ async function connectToWhatsApp() {
             }
         }
         if (quotedMessage && isReplyToBot && chatbot.isOnline) {
+            const sender = msg.key.participant || msg.key.remoteJid;
 
             console.log("✅ REPLY DETECTADO! Respondendo...");
 

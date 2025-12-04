@@ -77,12 +77,13 @@ class ChatModel {
     async verifyCapitalLetters(command){
         if(command.startsWith("!")){
             sendedText = command.split(" ")
+            onlyLetters = sendedText[1].replace(/[^a-zA-ZÀ-ÿ]/g, '');
         }
         else{
             sendedText = command
+            const onlyLetters = sendedText[0].replace(/[^a-zA-ZÀ-ÿ]/g, '');
         }
-
-        const onlyLetters = sendedText.replace(/[^a-zA-ZÀ-ÿ]/g, '');
+        
         const capitalTotal = onlyLetters.replace(/[^A-ZÀ-ÖØ-Þ]/g, '').length;
         console.log(`capitalTotal: ${capitalTotal}. onlyLetters: ${onlyLetters}. Texto: ${this.text}`)
 

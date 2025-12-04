@@ -203,7 +203,7 @@ async function connectToWhatsApp() {
                     return;
                 }      
                 
-                await sendSticker(sock, db, from, msg, [sender])
+                await sendSticker(sock, db, from, msg, [sender], texto)
 
                 const mensagensFormatadas = await getMessagesByLimit(db, from, 500);
 
@@ -255,7 +255,7 @@ async function connectToWhatsApp() {
                     return;
                 }
 
-                await sendSticker(sock, db, from, msg, [sender], command)
+                await sendSticker(sock, db, from, msg, [sender], texto)
 
                 await sendAndSave(sock, db, from, '🧠 Eu sabo...'); 
 
@@ -297,7 +297,7 @@ async function connectToWhatsApp() {
                     return;
                 }
 
-                await sendSticker(sock, db, from, msg, [sender], command)
+                await sendSticker(sock, db, from, msg, [sender], texto)
                 
                 await sendAndSave(sock, db, from, `🧠 Deixa eu dar uma lida nas mensagens pra ver o que rolou...`); 
                 
@@ -411,7 +411,7 @@ async function connectToWhatsApp() {
 
         else if(command.startsWith("!") &&  !chatbot.isOnline){
             const sender = msg.key.participant || msg.key.remoteJid;            
-            await sendSticker(sock, db, from, msg, [sender], command)
+            await sendSticker(sock, db, from, msg, [sender], texto)
             //await sendAndSave(sock, db, from, "Desonline... 😴", null, [sender]);
             return
         }
@@ -423,7 +423,7 @@ async function connectToWhatsApp() {
                 const sender = msg.key.participant || msg.key.remoteJid;
                 const senderJid = sender.split('@')[0];
 
-                await sendSticker(sock, db, from, msg, [sender], command)
+                await sendSticker(sock, db, from, msg, [sender], texto)
 
                 response = await chatbot.handleCommand(msg, sender, from, isGroup, mensagem)
 
@@ -438,7 +438,7 @@ async function connectToWhatsApp() {
                 const sender = msg.key.participant || msg.key.remoteJid;
                 const senderJid = sender.split('@')[0];
 
-                await sendSticker(sock, db, from, msg, [sender], command)
+                await sendSticker(sock, db, from, msg, [sender], texto)
                 
                 try {                    
                     const modelAnalise = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
@@ -469,7 +469,7 @@ async function connectToWhatsApp() {
             
             if(!isGroup && !chatbot.isOnline){    
                 const sender = msg.key.participant || msg.key.remoteJid;   
-                await sendSticker(sock, db, from, msg, [sender], command)
+                await sendSticker(sock, db, from, msg, [sender], texto)
                 //await sendAndSave(sock, db, from, "Desonline... 😴", null, [sender]);
                 return
             }
@@ -479,7 +479,7 @@ async function connectToWhatsApp() {
 
             console.log("✅ REPLY DETECTADO! Respondendo...");
 
-            await sendSticker(sock, db, from, msg, [sender], command)
+            await sendSticker(sock, db, from, msg, [sender], texto)
             
             if (texto.startsWith('!')) return;
 
@@ -519,13 +519,13 @@ async function connectToWhatsApp() {
         }
         if (quotedMessage && isReplyToBot && !chatbot.isOnline){
             const sender = msg.key.participant || msg.key.remoteJid;
-            await sendSticker(sock, db, from, msg, [sender], command)
+            await sendSticker(sock, db, from, msg, [sender], texto)
             //await sendAndSave(sock, db, from, "Desonline... 😴", msg, [sender]);
             return
         }
         if(command.startsWith("!") && !chatbot.isOnline){
             const sender = msg.key.participant || msg.key.remoteJid;
-            await sendSticker(sock, db, from, msg, [sender], command)
+            await sendSticker(sock, db, from, msg, [sender], texto)
             //await sendAndSave(sock, db, from, "Desonline... 😴", msg, [sender])
             return
         }

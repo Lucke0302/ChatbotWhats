@@ -508,7 +508,7 @@ async function connectToWhatsApp() {
             //await sendAndSave(sock, db, from, "Desonline... 😴", msg, [sender]);
             return
         }
-        if(command.startsWith("!") && !isOnline){
+        if(command.startsWith("!") && !chatbot.isOnline){
             const sender = msg.key.participant || msg.key.remoteJid;
             await sendDesonlineSticker(sock, db, from, "Desonline... 😴", msg, [sender])
             //await sendAndSave(sock, db, from, "Desonline... 😴", msg, [sender])

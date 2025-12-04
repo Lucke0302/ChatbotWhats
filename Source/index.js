@@ -104,6 +104,8 @@ async function connectToWhatsApp() {
 
             const sentMessage = await sock.sendMessage(from, { 
                 sticker: stickerBuffer 
+            }, { 
+                quoted: msg // <--- ISSO FAZ ELE RESPONDER MARCANDO A MENSAGEM
             });
             
             console.log(`✅ Sticker enviado com sucesso: ${sentMessage.key.id}`);

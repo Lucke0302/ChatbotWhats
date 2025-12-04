@@ -88,6 +88,9 @@ Para manter o bot rodando 24/7 em um servidor *(mesmo que você feche o terminal
 npm install pm2 -g
 ```
 
+* **2.** Configuração do ecossistema do bot
+#### Crie e configure um arquivo chamado *ecosystem.config.js*
+
 ```javascript
 module.exports = {
   apps : [{
@@ -127,7 +130,7 @@ pm2 start ecosystem.config.js
 
 ### ⚠️ Importante:
 
-Não se esqueça de configurar um ***.gitignore*** para arquivos que contenham chaves!
+#### Não se esqueça de configurar um ***.gitignore*** para arquivos que contenham chaves!
 
 Exemplo de conteúdo do ***.gitignore***:
 

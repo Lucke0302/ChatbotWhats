@@ -11,8 +11,10 @@ class ChatModel {
     }
 
     //Envia o sticker desonline (vai ser modificada pra enviar qualquer sticker salvo na pasta assets dependendo do contexto)
-    async sendDesonlineSticker(sock, db, from, sender){
-        if (!fs.existsSync("Assets/desonline.webp")) {
+    /*async sendSticker(sock, db, from, sender){
+        const stickerFile = this.getSticker();
+
+        if (!fs.existsSync(stickerFile)) {
             await sendMessage(sock, db, from, '❌ Erro: O arquivo do sticker não foi encontrado no servidor.', null, [sender]);
             return;
         }
@@ -30,7 +32,26 @@ class ChatModel {
             console.error("❌ Erro ao enviar sticker:", error);
             await sendMessage(sock, db, from, "Desonline... 😴", null, [sender]);
         }
+    }*/
+
+    async getSticker(command) {
+        let stickerPath = "Assets/";
+
+        if (!this.isOnline) {
+            stickerPath += "desonline.webp"
+        } 
+        else {
+            if(await this.verifyCapitalLetters(command)){
+                stickerPath += "naogrita.webp"
+            } 
+            else{
+                return null
+            }
+        }
+        return stickerPath;
     }
+
+    
 
     //Salva mensagem no banco de dados
     async saveBotMessage (database, from, text, externalId = null){

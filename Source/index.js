@@ -15,27 +15,6 @@ const DB_PATH = 'chat_history.db';
 let db; 
 let myFullJid;
 
-const sendDesonlineSticker = async(sock, db, from, msg, sender) =>{
-    if (!fs.existsSync("Assets/desonline.webp")) {
-        await sendMessage(sock, db, from, '❌ Erro: O arquivo do sticker não foi encontrado no servidor.', null, [sender]);
-        return;
-    }
-
-    try {
-        const stickerBuffer = fs.readFileSync("Assets/desonline.webp");
-
-        const sentMessage = await sock.sendMessage(from, { 
-            sticker: stickerBuffer 
-        });
-        
-        console.log(`✅ Sticker enviado com sucesso: ${sentMessage.key.id}`);
-
-    } catch (error) {
-        console.error("❌ Erro ao enviar sticker:", error);
-        await sendMessage(sock, db, from, "Desonline... 😴", null, [sender]);
-    }
-}
-
 const saveBotMessage = async (database, from, text, externalId = null) => {
     const timestamp = Math.floor(Date.now() / 1000);
     
@@ -111,6 +90,28 @@ async function connectToWhatsApp() {
     });
 
     const chatbot = new ChatModel(sock, db, genAI)
+
+    
+    const getSticker = async(command) =>{
+        return await chatbot.getSticker(command)
+    }
+    
+    const sendSticker = async(sock, db, from, msg, sender) =>{
+        let stickerFile = await getSticker(command)
+
+        try {
+            const stickerBuffer = fs.readFileSync(stickerFile);
+
+            const sentMessage = await sock.sendMessage(from, { 
+                sticker: stickerBuffer 
+            });
+            
+            console.log(`✅ Sticker enviado com sucesso: ${sentMessage.key.id}`);
+
+        } catch (error) {
+            console.error("❌ Erro ao enviar sticker:", error);
+        }
+    }
 
     sock.ev.on('connection.update', (update) => {
         const { connection, lastDisconnect, qr } = update;
@@ -200,7 +201,9 @@ async function connectToWhatsApp() {
                 if (getMessageCount(db, from) < 5) {
                     await sendAndSave(sock, db, from, '❌ Poucas mensagens para resumir. Conversem mais um pouco!'); 
                     return;
-                }       
+                }      
+                
+                await sendSticker(sock, db, from, msg, [sender])
 
                 const mensagensFormatadas = await getMessagesByLimit(db, from, 500);
 
@@ -252,6 +255,8 @@ async function connectToWhatsApp() {
                     return;
                 }
 
+                await sendSticker(sock, db, from, msg, [sender])
+
                 await sendAndSave(sock, db, from, '🧠 Eu sabo...'); 
 
                 const mensagensFormatadas = await getMessagesByLimit(db, from, 50);
@@ -291,6 +296,8 @@ async function connectToWhatsApp() {
                     await sendAndSave(sock, db, from, responseText, null, [sender]); 
                     return;
                 }
+
+                await sendSticker(sock, db, from, msg, [sender])
                 
                 await sendAndSave(sock, db, from, `🧠 Deixa eu dar uma lida nas mensagens pra ver o que rolou...`); 
                 
@@ -404,16 +411,34 @@ async function connectToWhatsApp() {
 
         else if(command.startsWith("!") &&  !chatbot.isOnline){
             const sender = msg.key.participant || msg.key.remoteJid;            
-            await sendDesonlineSticker(sock, db, from, "Desonline... 😴", msg, [sender])
+            await sendSticker(sock, db, from, msg, [sender])
             //await sendAndSave(sock, db, from, "Desonline... 😴", null, [sender]);
             return
         }
 
         else{
-            if(!isGroup && chatbot.isOnline && !chatbot.isTesting){
+            //"endpoint" de testes.
+            if(!isGroup && msg.key.remoteJid == "5513991008854@s.whatsapp.net" && chatbot.isTesting){
                 const mensagem = texto.trim(); 
                 const sender = msg.key.participant || msg.key.remoteJid;
                 const senderJid = sender.split('@')[0];
+
+                await sendSticker(sock, db, from, msg, [sender])
+
+                response = await chatbot.handleCommand(msg, sender, from, isGroup, mensagem)
+
+                await sendAndSave(sock, db, from, response, null, [sender]);
+
+                return
+            }
+            //Fim do "endpoint" de testes.
+
+            if(!isGroup && chatbot.isOnline){
+                const mensagem = texto.trim(); 
+                const sender = msg.key.participant || msg.key.remoteJid;
+                const senderJid = sender.split('@')[0];
+
+                await sendSticker(sock, db, from, msg, [sender])
                 
                 try {                    
                     const modelAnalise = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
@@ -441,23 +466,10 @@ async function connectToWhatsApp() {
                     await sendAndSave(sock, db, from, '❌ Erro tentando lembrar, to com alzheimer.');
                 }
             }
-            //"endpoint" de testes.
-            if(!isGroup && msg.key.remoteJid == "5513991008854@s.whatsapp.net" && chatbot.isTesting){
-                const mensagem = texto.trim(); 
-                const sender = msg.key.participant || msg.key.remoteJid;
-                const senderJid = sender.split('@')[0];
-
-                response = await chatbot.handleCommand(msg, sender, from, isGroup, mensagem)
-
-                await sendAndSave(sock, db, from, response, null, [sender]);
-
-                return
-            }
-            //Fim do "endpoint" de testes.
             
             if(!isGroup && !chatbot.isOnline){    
                 const sender = msg.key.participant || msg.key.remoteJid;   
-                await sendDesonlineSticker(sock, db, from, "Desonline... 😴", msg, [sender])
+                await sendSticker(sock, db, from, msg, [sender])
                 //await sendAndSave(sock, db, from, "Desonline... 😴", null, [sender]);
                 return
             }
@@ -465,6 +477,8 @@ async function connectToWhatsApp() {
         if (quotedMessage && isReplyToBot && chatbot.isOnline) {
 
             console.log("✅ REPLY DETECTADO! Respondendo...");
+
+            await sendSticker(sock, db, from, msg, [sender])
             
             if (texto.startsWith('!')) return;
 
@@ -504,13 +518,13 @@ async function connectToWhatsApp() {
         }
         if (quotedMessage && isReplyToBot && !chatbot.isOnline){
             const sender = msg.key.participant || msg.key.remoteJid;
-            await sendDesonlineSticker(sock, db, from, "Desonline... 😴", msg, [sender])
+            await sendSticker(sock, db, from, msg, [sender])
             //await sendAndSave(sock, db, from, "Desonline... 😴", msg, [sender]);
             return
         }
         if(command.startsWith("!") && !chatbot.isOnline){
             const sender = msg.key.participant || msg.key.remoteJid;
-            await sendDesonlineSticker(sock, db, from, "Desonline... 😴", msg, [sender])
+            await sendSticker(sock, db, from, msg, [sender])
             //await sendAndSave(sock, db, from, "Desonline... 😴", msg, [sender])
             return
         }

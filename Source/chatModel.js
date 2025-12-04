@@ -76,13 +76,13 @@ class ChatModel {
     //com a figurinha do "não grita"
     async verifyCapitalLetters(command){
         if(command.startsWith("!")){
-            this.text = command.split(" ")
+            sendedText = command.split(" ")
         }
         else{
-            this.text = command
+            sendedText = command
         }
 
-        const onlyLetters = this.text.replace(/[^a-zA-ZÀ-ÿ]/g, '');
+        const onlyLetters = sendedText.replace(/[^a-zA-ZÀ-ÿ]/g, '');
         const capitalTotal = onlyLetters.replace(/[^A-ZÀ-ÖØ-Þ]/g, '').length;
         console.log(`capitalTotal: ${capitalTotal}. onlyLetters: ${onlyLetters}. Texto: ${this.text}`)
 

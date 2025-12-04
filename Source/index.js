@@ -307,7 +307,7 @@ async function connectToWhatsApp() {
                 try {
                     const modelSql = genAI.getGenerativeModel({ model: "gemini-2.5-flash"});
                     
-                    const promptSql = `Você é um gerador de consulta SQL. Sua única saída deve ser uma consulta SQL (SELECT), sem NENHUMA explicação ou texto adicional.
+                    const promptSql = `Você é um gerador de consulta SQL para SQLite. Sua única saída deve ser uma consulta SQL (SELECT), sem NENHUMA explicação ou texto adicional.
                     A tabela é 'mensagens' e o campo de tempo é 'timestamp' (UNIX time em segundos).
                     O ID da conversa atual é '${from}'.
                     O usuário quer recuperar mensagens que se encaixam no período de tempo da pergunta, limitando o resultado a 500 mensagens no máximo.

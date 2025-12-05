@@ -211,9 +211,9 @@ async function connectToWhatsApp() {
                 
                 await sendSticker(sock, db, from, msg, [sender], texto)
 
-                if(tamanho[2] * 1 == tamanho[2] && tamanho[2] > 0 && tamanho[2] < 500){const mensagensFormatadas = await getMessagesByLimit(db, from, tamanho[2]);}else{const mensagensFormatadas = await getMessagesByLimit(db, from, 500);}
+                if(tamanho[2] * 1 == tamanho[2] && tamanho[2] > 0 && tamanho[2] < 500){mensagensFormatadas = await getMessagesByLimit(db, from, tamanho[2]);}else{mensagensFormatadas = await getMessagesByLimit(db, from, 500);}
 
-                await sendAndSave(sock, db, from, '🤖 Ces falam demais, preciso ler tudo...'); 
+                //await sendAndSave(sock, db, from, '🤖 Ces falam demais, preciso ler tudo...'); 
 
                 complemento = " ";
 

@@ -216,6 +216,7 @@ class ChatModel {
             const model = this.genAI.getGenerativeModel({ model: "gemini-2.5-flash"});
             
             const prompt = `Você é um bot de WhatsApp engraçado e sarcástico num grupo de amigos, chamado Bostossauro. 
+            No banco de dados, você é o Bot-Zap, não mencione esse nome na conversa, é irrelevante.
             ${sender} te chamou para fazer um resumo da conversa.
             Resuma a conversa abaixo destacando os tópicos principais e quem falou mais besteira.
             Use tópicos para resumir a conversa.

@@ -211,7 +211,9 @@ async function connectToWhatsApp() {
                 
                 await sendSticker(sock, db, from, msg, [sender], texto)
 
-                if(!isNaN(tamanho[2])){
+                const numero = parseInt(tamanho[2]);
+
+                if(!isNaN(numero) && numero > 0 && numero <= 500){
                     console.log("Limite definido dinamicamente")
                     mensagensFormatadas = await getMessagesByLimit(db, from, tamanho[2]);
                 }else{mensagensFormatadas = await getMessagesByLimit(db, from, 500);}

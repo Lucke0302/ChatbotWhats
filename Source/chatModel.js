@@ -12,30 +12,7 @@ class ChatModel {
         this.isTesting = true;
     }
 
-    //Envia o sticker desonline (vai ser modificada pra enviar qualquer sticker salvo na pasta assets dependendo do contexto)
-    /*async sendSticker(sock, db, from, sender){
-        const stickerFile = this.getSticker();
-
-        if (!fs.existsSync(stickerFile)) {
-            await sendMessage(sock, db, from, '❌ Erro: O arquivo do sticker não foi encontrado no servidor.', null, [sender]);
-            return;
-        }
-    
-        try {
-            const stickerBuffer = fs.readFileSync("Assets/desonline.webp");
-    
-            const sentMessage = await sock.sendMessage(from, { 
-                sticker: stickerBuffer 
-            });
-            
-            console.log(`✅ Sticker enviado com sucesso: ${sentMessage.key.id}`);
-    
-        } catch (error) {
-            console.error("❌ Erro ao enviar sticker:", error);
-            await sendMessage(sock, db, from, "Desonline... 😴", null, [sender]);
-        }
-    }*/
-
+    //Escolhe qual figurinha deve ser enviada (ou nenhuma)
     async getSticker(command) {
         let stickerPath = "Assets/";
         const cmd = command.split(' ')[0];
@@ -59,8 +36,6 @@ class ChatModel {
         }
         
         else return null
-
-        console.log(stickerPath)
 
         return stickerPath;
     }      
@@ -109,6 +84,7 @@ class ChatModel {
         return capitalTotal > (onlyLetters.length / 4);
     }
 
+    //Verifica qual é a primeira palavra usando regex
     async verifyCommand(command){
         return command.trim().split(/\s+/)[0];
     }
@@ -186,20 +162,22 @@ class ChatModel {
         const tamanho = command.split(' ');
         const numero = parseInt(tamanho[2]);
 
+        //Retorna um erro se tiver poucas mensagens 
         if (await this.getMessageCount(from) < 5) {
             throw new Error("FEW_MESSAGES");
         }   
 
         let mensagensFormatadas;
 
+        //Se o número receber Nan (not a number), joga no máximo de mensagens
+        //que ele pode resumir (limite determinado por mim mesmo)
         if(!isNaN(numero) && numero > 0 && numero <= 500){
             mensagensFormatadas = await this.getMessagesByLimit(from, tamanho[2]);
-        }else{mensagensFormatadas = await this.getMessagesByLimit(from, 500);}    
-
-        mensagensFormatadas = await this.getMessagesByLimit(from, 500);
+        }else{mensagensFormatadas = await this.getMessagesByLimit(from, 200);}    
 
         let complemento = " "; 
 
+        //Adiciona complemento à resposta
         switch(tamanho[1]){
             case "curto":
                 complemento = "Responda de maneira concisa, dois ou três parágrafos.";
@@ -271,6 +249,7 @@ class ChatModel {
         }
     }
     
+    //Gera um número aleatório entre 1 e um número via parâmetro
     async rollDice(num){        
         const max = parseInt(num);
         const val = Math.floor(Math.random() * max) + 1;

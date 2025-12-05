@@ -15,6 +15,7 @@ const DB_PATH = 'chat_history.db';
 let db; 
 let myFullJid;
 
+//Insere as mensagens do bot no banco de dados.
 const saveBotMessage = async (database, from, text, externalId = null) => {
     const timestamp = Math.floor(Date.now() / 1000);
     
@@ -33,6 +34,7 @@ const saveBotMessage = async (database, from, text, externalId = null) => {
     }
 };
 
+//Envia a mensagem e chama saveBotMessage
 const sendAndSave = async (sock, database, from, text, msgKey = null, mentions = []) => {
     const sentMessage = await sock.sendMessage(from, { 
         text: text, 
@@ -42,6 +44,7 @@ const sendAndSave = async (sock, database, from, text, msgKey = null, mentions =
     await saveBotMessage(database, from, text, sentMessage.key.id);
 };
 
+//Conexão com o banco
 async function initDatabase() {
     db = await sqlite.open({
         filename: DB_PATH,
@@ -62,12 +65,7 @@ async function initDatabase() {
     console.log('✅ Banco de dados SQLite inicializado e tabela `mensagens` verificada.');
 }
 
-const getMessageCount = async (db, from) => {
-    const sqlQuery = `SELECT COUNT(*) AS total FROM mensagens WHERE id_conversa = '${from}'`;
-    const result = await db.get(sqlQuery); 
-    return result ? result.total : 0;
-};
-
+//Recupera mensagens no banco de dados dado um limite
 const getMessagesByLimit = async (db, from, limit) => {
     const sqlQuery = `SELECT nome_remetente, conteudo 
         FROM mensagens 
@@ -80,6 +78,7 @@ const getMessagesByLimit = async (db, from, limit) => {
     return messagesDb.map(m => `${m.nome_remetente || 'Desconhecido'}: ${m.conteudo}`).join('\n');
 };
 
+//Inicia a conexão com mo Whatsapp para fazer todas as operações
 async function connectToWhatsApp() {
     await initDatabase();
 
@@ -90,13 +89,10 @@ async function connectToWhatsApp() {
         logger: pino({ level: 'warn' }), 
     });
 
+    //Instancia o chatbot
     const chatbot = new ChatModel(sock, db, genAI)
-
     
-    const getSticker = async(command) =>{
-        return await chatbot.getSticker(command)
-    }
-    
+    //Envia figurinha
     const sendSticker = async (sock, db, from, msg, mentions, command) => {
         const stickerPath = await chatbot.getSticker(command);
 
@@ -119,6 +115,7 @@ async function connectToWhatsApp() {
         }
     }
 
+    //Funções do baileys
     sock.ev.on('connection.update', (update) => {
         const { connection, lastDisconnect, qr } = update;
         if (qr) qrcode.generate(qr, { small: true });
@@ -133,21 +130,25 @@ async function connectToWhatsApp() {
 
     sock.ev.on('creds.update', saveCreds);
 
+    //Pega as informações do bot
     const me = state.creds.me;
     myFullJid = me?.id || me?.lid || '5513991526878@s.whatsapp.net'; 
     
-    
+    //Acorda quando chega uma mensagem
     sock.ev.on('messages.upsert', async m => {
         const msg = m.messages[0];
         if (!msg.message || msg.key.fromMe) return;
 
+        //Pega de quem é a mensagem e verifica se é de um grupo
         const from = msg.key.remoteJid;
         const isGroup = from.endsWith('@g.us');
         
+        //Pega o texto da mensagem
         const texto = msg.message.conversation || 
                       msg.message.extendedTextMessage?.text || 
                       msg.message.imageMessage?.caption || '';
 
+        //Verifica se por algum motivo a mensagem não chegou vazia
         if (texto) {
             const id_conversa = from; 
             const id_remetente = msg.key.participant || from; 
@@ -170,19 +171,24 @@ async function connectToWhatsApp() {
             }
         }
 
+        //Para por aqui se a mensagem for vazia
         if (!texto) return;
 
         const contextInfo = msg.message?.extendedTextMessage?.contextInfo;
+        //Verifica se a mensagem é um quote e quem quotou
         const quotedMessage = contextInfo?.quotedMessage;
         const replyParticipant = contextInfo?.participant;
 
+        //Pega o número do Whatsapp do bot e o Lid
         const myPhone = me?.id ? me.id.split(':')[0].split('@')[0] : ''; 
         const myLid = me?.lid ? me.lid.split(':')[0].split('@')[0] : '';   
 
         const replyNumber = replyParticipant ? replyParticipant.split(':')[0].split('@')[0] : '';
 
+        //Verifica se o quote é para o bot
         const isReplyToBot = replyNumber && (replyNumber === myPhone || replyNumber === myLid);
 
+        //Logs de quote
         if (quotedMessage) {
             console.log(`💬 DETECTEI UMA RESPOSTA!`);
             console.log(`   Quem foi respondido (Clean): ${replyNumber}`);
@@ -190,15 +196,11 @@ async function connectToWhatsApp() {
             console.log(`   É pra mim? ${isReplyToBot ? 'SIM ✅' : 'NÃO ❌'}`);
         }
 
-        if (isGroup) {
-            if (!groupHistory[from]) groupHistory[from] = [];
-            const pushName = msg.pushName || 'Desconhecido';
-            groupHistory[from].push(`${pushName}: ${texto}`);
-            if (groupHistory[from].length > 200) groupHistory[from].shift();
-        }
-
+        //Joga o comando todo para letras minúsculas para evitar problemas com case-sensitive
         const command = texto.trim().toLowerCase();
 
+        //Início da lógica geral do bot, se o texto começar com !, o chatbot estiver online
+        //e o texto tenha mais de 1 caractere
         if(command.startsWith("!") &&  chatbot.isOnline && command.length > 1){
             // 4. Comando !gpt
             if (command.startsWith('!gpt')) {
@@ -294,7 +296,7 @@ async function connectToWhatsApp() {
                     const mensagensDb = await db.all(sqlQuery);
                     
                     if (!mensagensDb || mensagensDb.length === 0) {
-                        await sendAndSave(sock, db, from, `Não encontrei nenhuma mensagem para o período que você pediu, @${senderJid}. Falha crítica.`);
+                        await sendAndSave(sock, db, from, `Não encontrei nenhuma mensagem para o período que você pediu, @${senderJid}.`);
                         return;
                     }
 
@@ -326,7 +328,8 @@ async function connectToWhatsApp() {
                 }
             }  
 
-            //Bloco de controle NOVO
+            //Bloco de controle NOVO, trata melhor os problemas e se comunica diretamente
+            //com o chatModel.js
             try {
                 const command = texto.trim(); 
                 const sender = msg.key.participant || msg.key.remoteJid;
@@ -334,6 +337,7 @@ async function connectToWhatsApp() {
 
                 let reactEmoji = '';
 
+                //Verifica os comandos e define um emoji para reagir
                 if (command.startsWith('!d')) {
                     reactEmoji = '🎲';
                 } else if (command.startsWith('!gpt')) {
@@ -348,16 +352,19 @@ async function connectToWhatsApp() {
                 else{
                     reactEmoji = '❓'
                 }
-
-                await sendSticker(sock, db, from, msg, [sender], texto)
-
+                
+                //Reaje com emoji se ele não for vazio
                 if (reactEmoji) {
                     await sock.sendMessage(from, { react: { text: reactEmoji, key: msg.key } });
                 }
 
-                
+                //Controla o envio dos stickers
+                await sendSticker(sock, db, from, msg, [sender], texto)
+
+                //Pega a resposta do handleCommand do chatModel.js
                 const response = await chatbot.handleCommand(msg, sender, from, isGroup, command);
                 
+                //Verifica se recebeu alguma resposta
                 if (response) {
                     await sendAndSave(sock, db, from, response, null, [sender]);
                 }
@@ -365,6 +372,7 @@ async function connectToWhatsApp() {
                     await sendAndSave(sock, db, from, 'Morri kkkkkkkkkk tenta de novo aí otário.'); 
                 }
             } catch (error) {
+                //Verifica o valor do erro tratado no chatModel.js
                 if (error.message === "FEW_MESSAGES") {
                     await sendAndSave(sock, db, from, '❌ Poucas mensagens para resumir. Conversem mais um pouco!');
                 } else {
@@ -374,6 +382,7 @@ async function connectToWhatsApp() {
             }
         }
 
+        //Se o chatbot estiver online e receber um comando
         else if(command.startsWith("!") &&  !chatbot.isOnline){
             const sender = msg.key.participant || msg.key.remoteJid;            
             await sendSticker(sock, db, from, msg, [sender], texto)
@@ -381,6 +390,7 @@ async function connectToWhatsApp() {
             return
         }
 
+        //Apenas para testes no meu Whatsapp
         else{
             //"endpoint" de testes.
             if(!isGroup && msg.key.remoteJid == "5513991008854@s.whatsapp.net" && chatbot.isTesting){
@@ -398,17 +408,20 @@ async function connectToWhatsApp() {
             }
             //Fim do "endpoint" de testes.
 
+            //Se não for grupo e o chatbot estiver online, responde a qualquer mensagem,
+            //sem precisar de quote ou comando
             if(!isGroup && chatbot.isOnline){
                 const mensagem = texto.trim(); 
                 const sender = msg.key.participant || msg.key.remoteJid;
                 const senderJid = sender.split('@')[0];
 
+                //Verifica se deve mandar um sticker
                 await sendSticker(sock, db, from, msg, [sender], texto)
                 
                 try {                    
                     const modelAnalise = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
-                    const mensagensFormatadas = getMessagesByLimit(db, from, 500);
+                    const mensagensFormatadas = getMessagesByLimit(db, from, 100);
 
                     const promptAnalise = `Mensagem do usuário: ${mensagem}
                     Contexto das Mensagens (Cada {nome}| simboliza um início de mensagem, o seu é Bot-Zap no banco de dados, não precisa apresentar
@@ -432,6 +445,7 @@ async function connectToWhatsApp() {
                 }
             }
             
+            //Se não estiver online, manda o sticker "desonline"
             if(!isGroup && !chatbot.isOnline){    
                 const sender = msg.key.participant || msg.key.remoteJid;   
                 await sendSticker(sock, db, from, msg, [sender], texto)
@@ -439,7 +453,10 @@ async function connectToWhatsApp() {
                 return
             }
         }
-        if (quotedMessage && isReplyToBot && chatbot.isOnline) {
+
+        //Se é um quote para o bot, ele está online e é um grupo, responde
+        //e reage com emoji de olho
+        if (quotedMessage && isReplyToBot && chatbot.isOnline && isGroup) {
             const sender = msg.key.participant || msg.key.remoteJid;
 
             console.log("✅ REPLY DETECTADO! Respondendo...");
@@ -460,7 +477,7 @@ async function connectToWhatsApp() {
                 const nomeUsuario = msg.pushName || 'Amigo';
                 const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
-                const mensagensFormatadas = getMessagesByLimit(db, from, 50);
+                const mensagensFormatadas = getMessagesByLimit(db, from, 20);
 
                 const promptReply = `Contexto: Você é um bot de WhatsApp.
                 O usuário "${nomeUsuario}" está te respondendo.
@@ -482,12 +499,16 @@ async function connectToWhatsApp() {
                 console.error("Erro no Reply:", error);
             }
         }
+
+        //Se for um quote para o bot e ele não estiver online, manda o desonline
         if (quotedMessage && isReplyToBot && !chatbot.isOnline){
             const sender = msg.key.participant || msg.key.remoteJid;
             await sendSticker(sock, db, from, msg, [sender], texto)
             //await sendAndSave(sock, db, from, "Desonline... 😴", msg, [sender]);
             return
         }
+
+        //Se receber um comando e não estiver online, manda o desonline
         if(command.startsWith("!") && !chatbot.isOnline){
             const sender = msg.key.participant || msg.key.remoteJid;
             await sendSticker(sock, db, from, msg, [sender], texto)

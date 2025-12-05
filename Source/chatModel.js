@@ -194,7 +194,7 @@ class ChatModel {
             mensagensFormatadas = await this.getMessagesByLimit(from, tamanho[2]);
         }else{mensagensFormatadas = await this.getMessagesByLimit(from, 500);}    
 
-        const mensagensFormatadas = await this.getMessagesByLimit(from, 500);
+        mensagensFormatadas = await this.getMessagesByLimit(from, 500);
 
         let complemento = " "; 
 

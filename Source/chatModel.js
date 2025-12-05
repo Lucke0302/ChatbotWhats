@@ -278,7 +278,7 @@ class ChatModel {
             if (command.startsWith('!d')) return await this.handleDiceCommand(command, from)
             //if (command.startsWith('!gpt') && isGroup) return await this.handleGptCommand()
             if (command.startsWith('!menu')) return await this.handleMenuCommand()
-            //if (command.startsWith('!resumo') && isGroup) return await this.handleResumoCommand(msg, command, from)
+            if (command.startsWith('!resumo') && isGroup) return await this.handleResumoCommand(msg, command, from)
             if (!isGroup) return await this.getAiResponse(from, sender, isGroup, command)
         }
         catch(error){

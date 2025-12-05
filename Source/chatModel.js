@@ -60,6 +60,8 @@ class ChatModel {
         
         else return null
 
+        console.log(stickerPath)
+
         return stickerPath;
     }      
 

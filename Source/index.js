@@ -70,10 +70,11 @@ const getMessageCount = async (db, from) => {
 
 const getMessagesByLimit = async (db, from, limit) => {
     const sqlQuery = `SELECT nome_remetente, conteudo 
-    FROM mensagens 
-    WHERE id_conversa = '${from}' 
-    ORDER BY timestamp DESC 
-    LIMIT ${limit}`;
+        FROM mensagens 
+        WHERE id_conversa = '${from}' 
+        AND conteudo NOT LIKE '*Resumo da conversa*%'
+        ORDER BY timestamp DESC 
+        LIMIT ${limit}`;
     
     const messagesDb = await db.all(sqlQuery);
     return messagesDb.map(m => `${m.nome_remetente || 'Desconhecido'}: ${m.conteudo}`).join('\n');

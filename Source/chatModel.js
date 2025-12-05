@@ -38,6 +38,7 @@ class ChatModel {
 
     async getSticker(command) {
         let stickerPath = "Assets/";
+        const cmd = command.split(' ')[0];
 
         const commandActions = {
             '!gpt': async () => {

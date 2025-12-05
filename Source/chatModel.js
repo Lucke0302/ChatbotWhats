@@ -8,7 +8,7 @@ class ChatModel {
         this.db = db;
         this.genAI = genAI;
         this.myFullJid = sock.user.id || sock.user.lid; 
-        this.isOnline = true;
+        this.isOnline = false;
         this.isTesting = true;
     }
 
@@ -113,16 +113,6 @@ class ChatModel {
         return command.trim().split(/\s+/)[0];
     }
 
-    /*
-    async sendAndSave(sock, database, from, text, msgKey = null, mentions = []){
-        const sentMessage = await sock.sendMessage(from, { 
-            text: text, 
-            mentions: mentions 
-        }, { quoted: msgKey });
-        
-        await saveBotMessage(database, from, text, sentMessage.key.id);
-    };*/
-
     //Retorna a contagem total de mensagens de uma conversa
     async getMessageCount(from){
         const sqlQuery = `SELECT COUNT(*) AS total FROM mensagens WHERE id_conversa = '${from}'`;
@@ -135,6 +125,7 @@ class ChatModel {
         const sqlQuery = `SELECT nome_remetente, conteudo 
         FROM mensagens 
         WHERE id_conversa = '${from}' 
+        AND conteudo NOT LIKE '*Resumo da conversa*%'
         ORDER BY timestamp DESC 
         LIMIT ${limit}`;
         
@@ -188,14 +179,19 @@ class ChatModel {
             return 'Morri kkkkkkkkkk tenta de novo aí.'; 
         }
     }
-    
+
     //Controla o comando resumo
     async handleResumoCommand(msg, text, from, command){
         const tamanho = command.split(' ');
-        
+        const numero = parseInt(tamanho[2]);
+
         if (await this.getMessageCount(from) < 5) {
             throw new Error("FEW_MESSAGES");
-        }       
+        }   
+
+        if(!isNaN(numero) && numero > 0 && numero <= 500){
+                    mensagensFormatadas = await getMessagesByLimit(db, from, tamanho[2]);
+        }else{mensagensFormatadas = await getMessagesByLimit(db, from, 500);}    
 
         const mensagensFormatadas = await this.getMessagesByLimit(from, 500);
 
@@ -220,6 +216,8 @@ class ChatModel {
             Resuma a conversa abaixo destacando os tópicos principais e quem falou mais besteira.
             Use tópicos para resumir a conversa.
             Nenhum deles vai achar qualquer brincadeira ruim, pode falar o que quiser e fazer piadas.
+            Responda indicando, no primeiro parágrafo, quantas mensagens foram recuperadas.
+            Comece a resposta com "*Resumo da conversa* \\n".
             ${complemento}
             
             Conversa:

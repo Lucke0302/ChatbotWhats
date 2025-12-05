@@ -413,6 +413,9 @@ async function connectToWhatsApp() {
                 if (response) {
                     await sendAndSave(sock, db, from, response, null, [sender]);
                 }
+                else{
+                    await sendAndSave(sock, db, from, 'Morri kkkkkkkkkk tenta de novo aí otário.'); 
+                }
             } catch (error) {
                 if (error.message === "FEW_MESSAGES") {
                     await sendAndSave(sock, db, from, '❌ Poucas mensagens para resumir. Conversem mais um pouco!');

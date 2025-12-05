@@ -191,8 +191,8 @@ class ChatModel {
         }   
 
         if(!isNaN(numero) && numero > 0 && numero <= 500){
-                    mensagensFormatadas = await getMessagesByLimit(db, from, tamanho[2]);
-        }else{mensagensFormatadas = await getMessagesByLimit(db, from, 500);}    
+            mensagensFormatadas = await this.getMessagesByLimit(db, from, tamanho[2]);
+        }else{mensagensFormatadas = await this.getMessagesByLimit(db, from, 500);}    
 
         const mensagensFormatadas = await this.getMessagesByLimit(from, 500);
 

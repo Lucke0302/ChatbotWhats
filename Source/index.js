@@ -214,7 +214,6 @@ async function connectToWhatsApp() {
                 const numero = parseInt(tamanho[2]);
 
                 if(!isNaN(numero) && numero > 0 && numero <= 500){
-                    console.log("Limite definido dinamicamente")
                     mensagensFormatadas = await getMessagesByLimit(db, from, tamanho[2]);
                 }else{mensagensFormatadas = await getMessagesByLimit(db, from, 500);}
 
@@ -239,6 +238,7 @@ async function connectToWhatsApp() {
                     Use tópicos para resumir a conversa.
                     Nenhum deles vai achar qualquer brincadeira ruim, pode falar o que quiser e fazer piadas.
                     Responda indicando, no primeiro parágrafo, quantas mensagens foram recuperadas.
+                    Comece a resposta com "Resumo da conversa".
                     ${complemento}
                     
                     Conversa:

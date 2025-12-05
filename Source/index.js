@@ -211,7 +211,10 @@ async function connectToWhatsApp() {
                 
                 await sendSticker(sock, db, from, msg, [sender], texto)
 
-                if(tamanho[2] * 1 == tamanho[2] && tamanho[2] > 0 && tamanho[2] < 500){mensagensFormatadas = await getMessagesByLimit(db, from, tamanho[2]);}else{mensagensFormatadas = await getMessagesByLimit(db, from, 500);}
+                if(tamanho[2] * 1 == tamanho[2] && tamanho[2] > 0 && tamanho[2] < 500){
+                    console.log("Limite definido dinamicamente")
+                    mensagensFormatadas = await getMessagesByLimit(db, from, tamanho[2]);
+                }else{mensagensFormatadas = await getMessagesByLimit(db, from, 500);}
 
                 //await sendAndSave(sock, db, from, '🤖 Ces falam demais, preciso ler tudo...'); 
 
@@ -245,7 +248,7 @@ async function connectToWhatsApp() {
                     await sendAndSave(sock, db, from, text); 
                 } catch (error) {
                     console.error(error);
-                    await sendAndSave(sock, db, from, 'Morri kkkkkkkkkk tenta de novo aí.'); 
+                    await sendAndSave(sock, db, from, 'Morri kkkkkkkkkk tenta de novo aí otário.'); 
                 }
             }
             // 4. Comando !gpt

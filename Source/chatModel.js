@@ -55,7 +55,7 @@ class ChatModel {
         }
 
         else if (commandActions[cmd]) {
-            return await commandActions[cmd]();
+            stickerPath += await commandActions[cmd]();
         }
         
         else return null

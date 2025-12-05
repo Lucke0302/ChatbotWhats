@@ -390,7 +390,6 @@ async function connectToWhatsApp() {
             return
         }
 
-        //Apenas para testes no meu Whatsapp
         else{
             //"endpoint" de testes.
             if(!isGroup && msg.key.remoteJid == "5513991008854@s.whatsapp.net" && chatbot.isTesting){
@@ -418,30 +417,15 @@ async function connectToWhatsApp() {
                 //Verifica se deve mandar um sticker
                 await sendSticker(sock, db, from, msg, [sender], texto)
                 
-                try {                    
-                    const modelAnalise = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+                try { 
+                    //Pega a resposta do handleCommand do chatModel.js
+                    const response = await chatbot.handleCommand(msg, sender, from, isGroup, command);
 
-                    const mensagensFormatadas = getMessagesByLimit(db, from, 100);
-
-                    const promptAnalise = `Mensagem do usuário: ${mensagem}
-                    Contexto das Mensagens (Cada {nome}| simboliza um início de mensagem, o seu é Bot-Zap no banco de dados, não precisa apresentar
-                    pro usuário):
-                    ${mensagensFormatadas}
-                    Você é o Bostossauro, um bot de WhatsApp engraçado e sarcástico. 
-                    Responda ao usuário (@${senderJid}) usando o contexto das mensagens fornecidas abaixo. 
-                    Converse como fosse uma conversa entre dois amigos, trate o contexto das mensagens como o histórico de conversas com a pessoa.
-                    As mensagens estão em ordem cronológica inversa (mais recentes primeiro).`;
-
-                    const resultAnalise = await modelAnalise.generateContent(promptAnalise);
-                    const textResposta = resultAnalise.response;
-                    const responseAnalise = await textResposta.text();
-
-                    const finalResponse = `🤖 ${responseAnalise}`;
-                    await sendAndSave(sock, db, from, finalResponse, null, [sender]);
+                    await sendAndSave(sock, db, from, response, null, [sender]);
 
                 } catch (error) {
                     console.error("❌ Erro no comando: ", error);
-                    await sendAndSave(sock, db, from, '❌ Erro tentando lembrar, to com alzheimer.');
+                    await sendAndSave(sock, db, from, '❌ Erro aaaaaaaaaaaaaaaaaaaaaaaaa.');
                 }
             }
             

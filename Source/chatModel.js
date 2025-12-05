@@ -190,6 +190,8 @@ class ChatModel {
             throw new Error("FEW_MESSAGES");
         }   
 
+        let mensagensFormatadas;
+
         if(!isNaN(numero) && numero > 0 && numero <= 500){
             mensagensFormatadas = await this.getMessagesByLimit(from, tamanho[2]);
         }else{mensagensFormatadas = await this.getMessagesByLimit(from, 500);}    

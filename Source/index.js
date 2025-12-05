@@ -409,7 +409,7 @@ async function connectToWhatsApp() {
                 }
 
                 console.log(command)
-                const response = await chatbot.handleCommand(msg, sender, texto, from, command);
+                const response = await chatbot.handleCommand(msg, sender, from, isGroup, command);
                 
                 if (response) {
                     await sendAndSave(sock, db, from, response, null, [sender]);

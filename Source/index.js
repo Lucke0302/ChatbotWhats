@@ -383,7 +383,7 @@ async function connectToWhatsApp() {
 
             //Bloco de controle NOVO
             try {
-                const mensagem = texto.trim(); 
+                const message = texto.trim(); 
                 const sender = msg.key.participant || msg.key.remoteJid;
                 const senderJid = sender.split('@')[0];
 
@@ -408,7 +408,7 @@ async function connectToWhatsApp() {
                     await sock.sendMessage(from, { react: { text: reactEmoji, key: msg.key } });
                 }
 
-                const response = await chatbot.handleCommand(msg, sender, from, isGroup, mensagem);
+                const response = await chatbot.handleCommand(sender, from, message);
                 
                 if (response) {
                     await sendAndSave(sock, db, from, response, null, [sender]);

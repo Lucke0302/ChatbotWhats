@@ -181,7 +181,7 @@ class ChatModel {
     }
 
     //Controla o comando resumo
-    async handleResumoCommand(msg, text, from, command){
+    async handleResumoCommand(msg, sender, text, from, command){
         const tamanho = command.split(' ');
         const numero = parseInt(tamanho[2]);
 
@@ -213,6 +213,7 @@ class ChatModel {
             const model = this.genAI.getGenerativeModel({ model: "gemini-2.5-flash"});
             
             const prompt = `Você é um bot de WhatsApp engraçado e sarcástico num grupo de amigos, chamado Bostossauro. 
+            ${sender} te chamou para fazer um resumo da conversa.
             Resuma a conversa abaixo destacando os tópicos principais e quem falou mais besteira.
             Use tópicos para resumir a conversa.
             Nenhum deles vai achar qualquer brincadeira ruim, pode falar o que quiser e fazer piadas.
@@ -278,7 +279,7 @@ class ChatModel {
             if (command.startsWith('!d')) return await this.handleDiceCommand(command, from)
             //if (command.startsWith('!gpt') && isGroup) return await this.handleGptCommand()
             if (command.startsWith('!menu')) return await this.handleMenuCommand()
-            if (command.startsWith('!resumo') && isGroup) return await this.handleResumoCommand(msg, command, from)
+            if (command.startsWith('!resumo') && isGroup) return await this.handleResumoCommand(sender, from, command)
             if (!isGroup) return await this.getAiResponse(from, sender, isGroup, command)
         }
         catch(error){

@@ -202,7 +202,7 @@ async function connectToWhatsApp() {
         if(command.startsWith("!") &&  chatbot.isOnline && command.length > 1){
 
             // 1. Comando !resumo
-            if (command.startsWith('!resumo') && isGroup) {                
+            /*if (command.startsWith('!resumo') && isGroup) {                
                 const sender = msg.key.participant || msg.key.remoteJid;
                 tamanho = command.split(' ')
                 if (getMessageCount(db, from) < 5) {
@@ -254,7 +254,7 @@ async function connectToWhatsApp() {
                     console.error(error);
                     await sendAndSave(sock, db, from, 'Morri kkkkkkkkkk tenta de novo aí otário.'); 
                 }
-            }
+            }*/
             // 4. Comando !gpt
             if (command.startsWith('!gpt')) {
                 const pergunta = texto.slice(4).trim(); 

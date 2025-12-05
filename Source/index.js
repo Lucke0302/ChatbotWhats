@@ -224,12 +224,12 @@ async function connectToWhatsApp() {
 
                 switch(tamanho[1]){
                     case "curto":
-                        complemento = "Responda de maneira concisa, dois ou três parágrafos."
+                        complemento = "Responda de maneira concisa, dois ou três parágrafos de até 30 palavras."
                         break;
                     case "médio":
-                        complemento = "Responda com certa concisão (até 2 linhas pra cada assunto), limite em no máximo 5 assuntos."
+                        complemento = "Responda com certa concisão dois ou três parágrafos de até 60 palavras."
                     case "completo":
-                        complemento = "Se aprofunde (até 5 linhas) em cada assunto"
+                        complemento = "Se aprofunde (até 3 linhas) em cada assunto."
                 }
 
                 try {

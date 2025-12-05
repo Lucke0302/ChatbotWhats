@@ -408,6 +408,7 @@ async function connectToWhatsApp() {
                     await sock.sendMessage(from, { react: { text: reactEmoji, key: msg.key } });
                 }
 
+                console.log(command)
                 const response = await chatbot.handleCommand(msg, sender, texto, from, command);
                 
                 if (response) {

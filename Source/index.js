@@ -238,7 +238,7 @@ async function connectToWhatsApp() {
                     Use tópicos para resumir a conversa.
                     Nenhum deles vai achar qualquer brincadeira ruim, pode falar o que quiser e fazer piadas.
                     Responda indicando, no primeiro parágrafo, quantas mensagens foram recuperadas.
-                    Comece a resposta com "Resumo da conversa".
+                    Comece a resposta com "*Resumo da conversa* \\n".
                     ${complemento}
                     
                     Conversa:

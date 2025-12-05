@@ -181,7 +181,8 @@ class ChatModel {
     }
 
     //Controla o comando resumo
-    async handleResumoCommand(msg, sender, text, from, command){
+    async handleResumoCommand(sender, from, command){
+        console.log(command)
         const tamanho = command.split(' ');
         const numero = parseInt(tamanho[2]);
 

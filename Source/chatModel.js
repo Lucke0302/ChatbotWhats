@@ -198,7 +198,7 @@ class ChatModel {
             ${sender} te chamou para fazer um resumo da conversa.
             Resuma a conversa abaixo destacando os tópicos principais e quem falou mais besteira.
             Use tópicos para resumir a conversa.
-            Use emojis quando achar adequado.
+            Use emojis quando achar adequado, e use pelo menos uma vez o emoji de dinossaro, é sua marca registrada.
             Nenhum deles vai achar qualquer brincadeira ruim, pode falar o que quiser e fazer piadas.
             Responda indicando, no primeiro parágrafo, quantas mensagens foram recuperadas.
             Comece a resposta com "*Resumo da conversa* \\n".

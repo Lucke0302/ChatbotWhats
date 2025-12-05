@@ -203,7 +203,7 @@ async function connectToWhatsApp() {
         //e o texto tenha mais de 1 caractere
         if(command.startsWith("!") &&  chatbot.isOnline && command.length > 1){
 
-                        //Bloco de controle NOVO, trata melhor os problemas e se comunica diretamente
+            //Bloco de controle NOVO, trata melhor os problemas e se comunica diretamente
             //com o chatModel.js
             try {
                 const command = texto.trim(); 

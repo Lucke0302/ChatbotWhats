@@ -268,7 +268,7 @@ async function connectToWhatsApp() {
                     return;
                 }
 
-                await sendSticker(sock, db, from, msg, [sender], texto)
+                //await sendSticker(sock, db, from, msg, [sender], texto)
 
                 await sendAndSave(sock, db, from, '🧠 Eu sabo...'); 
 
@@ -310,7 +310,7 @@ async function connectToWhatsApp() {
                     return;
                 }
 
-                await sendSticker(sock, db, from, msg, [sender], texto)
+                //await sendSticker(sock, db, from, msg, [sender], texto)
                 
                 await sendAndSave(sock, db, from, `🧠 Deixa eu dar uma lida nas mensagens pra ver o que rolou...`); 
                 
@@ -404,11 +404,13 @@ async function connectToWhatsApp() {
                     reactEmoji = '❓'
                 }
 
+                await sendSticker(sock, db, from, msg, [sender], texto)
+
                 if (reactEmoji) {
                     await sock.sendMessage(from, { react: { text: reactEmoji, key: msg.key } });
                 }
 
-                console.log(command)
+                
                 const response = await chatbot.handleCommand(msg, sender, from, isGroup, command);
                 
                 if (response) {

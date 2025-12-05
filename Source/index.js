@@ -96,20 +96,23 @@ async function connectToWhatsApp() {
         return await chatbot.getSticker(command)
     }
     
-    const sendSticker = async(sock, db, from, msg, sender, command) =>{
-        let stickerFile = await getSticker(command)
+    const sendSticker = async (sock, db, from, msg, mentions, command) => {
+        const stickerPath = await chatbot.getSticker(command);
+
+        if (!stickerPath || !fs.existsSync(stickerPath)) {
+            console.log(`[SendSticker] Sem sticker para o comando: ${command}`);
+            return; 
+        }
 
         try {
-            const stickerBuffer = fs.readFileSync(stickerFile);
+            const stickerBuffer = fs.readFileSync(stickerPath);
 
-            const sentMessage = await sock.sendMessage(from, { 
+            await sock.sendMessage(from, { 
                 sticker: stickerBuffer 
             }, { 
-                quoted: msg // <--- ISSO FAZ ELE RESPONDER MARCANDO A MENSAGEM
+                quoted: msg 
             });
             
-            console.log(`✅ Sticker enviado com sucesso: ${sentMessage.key.id}`);
-
         } catch (error) {
             console.error("❌ Erro ao enviar sticker:", error);
         }
@@ -410,7 +413,7 @@ async function connectToWhatsApp() {
                     console.error("❌ Erro ao processar comando:", error);
                     await sendAndSave(sock, db, from, '😵 Ocorreu um erro interno ao processar seu comando.');
                 }
-            }    
+            }
         }
 
         else if(command.startsWith("!") &&  !chatbot.isOnline){

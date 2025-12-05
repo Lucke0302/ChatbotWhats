@@ -1,5 +1,7 @@
 // chatModel.js
 
+const { error } = require("qrcode-terminal");
+
 class ChatModel {
     constructor(sock, db, genAI) {
         this.sock = sock;
@@ -37,21 +39,29 @@ class ChatModel {
     async getSticker(command) {
         let stickerPath = "Assets/";
 
+        const commandActions = {
+            '!gpt': async () => {
+                if(await this.verifyCapitalLetters(command)){return "naogrita"+await this.rollDice(4)+".webp";}
+                else return "eusabo"+await this.rollDice(2)+".webp"
+            },
+            '!resumo': async () =>{
+                return "resumo.webp"
+            }
+        };
+
         if (!this.isOnline) {
             stickerPath += "desonline.webp"
-        } 
-        else {
-            if(await this.verifyCapitalLetters(command)){
-                stickerPath += "naogrita.webp"
-            } 
-            else{
-                return null
-            }
         }
-        return stickerPath;
-    }
 
-    
+        else if (commandActions[cmd]) {
+            return await commandActions[cmd]();
+        }
+        
+        else return null
+
+        return stickerPath;
+    }      
+
 
     //Salva mensagem no banco de dados
     async saveBotMessage (database, from, text, externalId = null){
@@ -94,6 +104,10 @@ class ChatModel {
         console.log(`capitalTotal: ${capitalTotal}. onlyLetters: ${onlyLetters}. Texto: ${sendedText}`);
 
         return capitalTotal > (onlyLetters.length / 4);
+    }
+
+    async verifyCommand(command){
+        return command.trim().split(/\s+/)[0];
     }
 
     /*
@@ -233,12 +247,12 @@ class ChatModel {
     //Responde o comando !d
     async handleDiceCommand(text, from){
         var num = text.slice(2).trim(); 
+
         if(isNaN(num) || num === ""){
             return false
         }
-        else{                
-            const max = parseInt(num);
-            const val = Math.floor(Math.random() * max) + 1;
+        else{               
+            let val = await rollDice(num); 
             let mssg = "";
             
             if(val == 1) mssg = "❌ FALHA CRÍTICA! Tomou gap..."
@@ -249,16 +263,26 @@ class ChatModel {
             
             return `🎲 O dado caiu em: *${val}* \n${mssg}`;
         }
-
+    }
+    
+    async rollDice(num){        
+        const max = parseInt(num);
+        const val = Math.floor(Math.random() * max) + 1;
+        return val
     }
 
     //Faz o controle de todos os comandos
     async handleCommand(msg, sender, from, isGroup, command) {
-        if (command.startsWith('!d')) return await this.handleDiceCommand(command, from)
-        //if (command.startsWith('!gpt') && isGroup) return await this.handleGptCommand()
-        if (command.startsWith('!menu')) return await this.handleMenuCommand()
-        //if (command.startsWith('!resumo') && isGroup) return await this.handleResumoCommand(msg, command, from)
-        if (!isGroup) return await this.getAiResponse(from, sender, isGroup, command)
+        try{
+            if (command.startsWith('!d')) return await this.handleDiceCommand(command, from)
+            //if (command.startsWith('!gpt') && isGroup) return await this.handleGptCommand()
+            if (command.startsWith('!menu')) return await this.handleMenuCommand()
+            //if (command.startsWith('!resumo') && isGroup) return await this.handleResumoCommand(msg, command, from)
+            if (!isGroup) return await this.getAiResponse(from, sender, isGroup, command)
+        }
+        catch(error){
+            console.error("Tipo do erro:", error);
+        }
     }
 }
 

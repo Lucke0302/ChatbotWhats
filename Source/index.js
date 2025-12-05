@@ -454,9 +454,9 @@ async function connectToWhatsApp() {
             }
         }
 
-        //Se é um quote para o bot, ele está online e é um grupo, responde
+        //Se é um quote para o bot e ele está online, responde
         //e reage com emoji de olho
-        if (quotedMessage && isReplyToBot && chatbot.isOnline && isGroup) {
+        if (quotedMessage && isReplyToBot && chatbot.isOnline) {
             const sender = msg.key.participant || msg.key.remoteJid;
 
             console.log("✅ REPLY DETECTADO! Respondendo...");

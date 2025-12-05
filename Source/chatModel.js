@@ -113,16 +113,6 @@ class ChatModel {
         return command.trim().split(/\s+/)[0];
     }
 
-    /*
-    async sendAndSave(sock, database, from, text, msgKey = null, mentions = []){
-        const sentMessage = await sock.sendMessage(from, { 
-            text: text, 
-            mentions: mentions 
-        }, { quoted: msgKey });
-        
-        await saveBotMessage(database, from, text, sentMessage.key.id);
-    };*/
-
     //Retorna a contagem total de mensagens de uma conversa
     async getMessageCount(from){
         const sqlQuery = `SELECT COUNT(*) AS total FROM mensagens WHERE id_conversa = '${from}'`;
@@ -135,6 +125,7 @@ class ChatModel {
         const sqlQuery = `SELECT nome_remetente, conteudo 
         FROM mensagens 
         WHERE id_conversa = '${from}' 
+        AND conteudo NOT LIKE '*Resumo da conversa*%'
         ORDER BY timestamp DESC 
         LIMIT ${limit}`;
         
@@ -188,16 +179,24 @@ class ChatModel {
             return 'Morri kkkkkkkkkk tenta de novo aí.'; 
         }
     }
-    
+
     //Controla o comando resumo
-    async handleResumoCommand(msg, text, from, command){
+    async handleResumoCommand(sender, from, command){
+        console.log(`Sender: ${sender}, from: ${from}`)
         const tamanho = command.split(' ');
-        
+        const numero = parseInt(tamanho[2]);
+
         if (await this.getMessageCount(from) < 5) {
             throw new Error("FEW_MESSAGES");
-        }       
+        }   
 
-        const mensagensFormatadas = await this.getMessagesByLimit(from, 500);
+        let mensagensFormatadas;
+
+        if(!isNaN(numero) && numero > 0 && numero <= 500){
+            mensagensFormatadas = await this.getMessagesByLimit(from, tamanho[2]);
+        }else{mensagensFormatadas = await this.getMessagesByLimit(from, 500);}    
+
+        mensagensFormatadas = await this.getMessagesByLimit(from, 500);
 
         let complemento = " "; 
 
@@ -217,9 +216,13 @@ class ChatModel {
             const model = this.genAI.getGenerativeModel({ model: "gemini-2.5-flash"});
             
             const prompt = `Você é um bot de WhatsApp engraçado e sarcástico num grupo de amigos, chamado Bostossauro. 
+            No banco de dados, você é o Bot-Zap, não mencione esse nome na conversa, é irrelevante.
+            ${sender} te chamou para fazer um resumo da conversa.
             Resuma a conversa abaixo destacando os tópicos principais e quem falou mais besteira.
             Use tópicos para resumir a conversa.
             Nenhum deles vai achar qualquer brincadeira ruim, pode falar o que quiser e fazer piadas.
+            Responda indicando, no primeiro parágrafo, quantas mensagens foram recuperadas.
+            Comece a resposta com "*Resumo da conversa* \\n".
             ${complemento}
             
             Conversa:
@@ -280,7 +283,7 @@ class ChatModel {
             if (command.startsWith('!d')) return await this.handleDiceCommand(command, from)
             //if (command.startsWith('!gpt') && isGroup) return await this.handleGptCommand()
             if (command.startsWith('!menu')) return await this.handleMenuCommand()
-            //if (command.startsWith('!resumo') && isGroup) return await this.handleResumoCommand(msg, command, from)
+            if (command.startsWith('!resumo') && isGroup) return await this.handleResumoCommand(sender, from, command)
             if (!isGroup) return await this.getAiResponse(from, sender, isGroup, command)
         }
         catch(error){

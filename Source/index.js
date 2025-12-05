@@ -200,61 +200,6 @@ async function connectToWhatsApp() {
         const command = texto.trim().toLowerCase();
 
         if(command.startsWith("!") &&  chatbot.isOnline && command.length > 1){
-
-            // 1. Comando !resumo
-            if (command.startsWith('!resumo') && isGroup) {                
-                const sender = msg.key.participant || msg.key.remoteJid;
-                tamanho = command.split(' ')
-                if (getMessageCount(db, from) < 5) {
-                    await sendAndSave(sock, db, from, '❌ Poucas mensagens para resumir. Conversem mais um pouco!'); 
-                    return;
-                }      
-                
-                await sendSticker(sock, db, from, msg, [sender], texto)
-
-                const numero = parseInt(tamanho[2]);
-
-                if(!isNaN(numero) && numero > 0 && numero <= 500){
-                    mensagensFormatadas = await getMessagesByLimit(db, from, tamanho[2]);
-                }else{mensagensFormatadas = await getMessagesByLimit(db, from, 500);}
-
-                //await sendAndSave(sock, db, from, '🤖 Ces falam demais, preciso ler tudo...'); 
-
-                complemento = " ";
-
-                switch(tamanho[1]){
-                    case "curto":
-                        complemento = "Responda de maneira concisa, dois ou três parágrafos de até 30 palavras."
-                        break;
-                    case "médio":
-                        complemento = "Responda com certa concisão dois ou três parágrafos de até 60 palavras."
-                    case "completo":
-                        complemento = "Se aprofunde (até 3 linhas) em cada assunto."
-                }
-
-                try {
-                    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash"});
-                    const prompt = `Você é um bot de WhatsApp engraçado e sarcástico num grupo de amigos, chamado Bostossauro. 
-                    Resuma a conversa abaixo destacando os tópicos principais e quem falou mais besteira.
-                    Use tópicos para resumir a conversa.
-                    Nenhum deles vai achar qualquer brincadeira ruim, pode falar o que quiser e fazer piadas.
-                    Responda indicando, no primeiro parágrafo, quantas mensagens foram recuperadas.
-                    Comece a resposta com "*Resumo da conversa* \\n".
-                    ${complemento}
-                    
-                    Conversa:
-                    ${mensagensFormatadas}`;
-
-                    const result = await model.generateContent(prompt);
-                    const response = await result.response;
-                    const text = response.text();
-
-                    await sendAndSave(sock, db, from, text); 
-                } catch (error) {
-                    console.error(error);
-                    await sendAndSave(sock, db, from, 'Morri kkkkkkkkkk tenta de novo aí otário.'); 
-                }
-            }
             // 4. Comando !gpt
             if (command.startsWith('!gpt')) {
                 const pergunta = texto.slice(4).trim(); 
@@ -268,7 +213,7 @@ async function connectToWhatsApp() {
                     return;
                 }
 
-                await sendSticker(sock, db, from, msg, [sender], texto)
+                //await sendSticker(sock, db, from, msg, [sender], texto)
 
                 await sendAndSave(sock, db, from, '🧠 Eu sabo...'); 
 
@@ -310,7 +255,7 @@ async function connectToWhatsApp() {
                     return;
                 }
 
-                await sendSticker(sock, db, from, msg, [sender], texto)
+                //await sendSticker(sock, db, from, msg, [sender], texto)
                 
                 await sendAndSave(sock, db, from, `🧠 Deixa eu dar uma lida nas mensagens pra ver o que rolou...`); 
                 
@@ -383,7 +328,7 @@ async function connectToWhatsApp() {
 
             //Bloco de controle NOVO
             try {
-                const mensagem = texto.trim(); 
+                const command = texto.trim(); 
                 const sender = msg.key.participant || msg.key.remoteJid;
                 const senderJid = sender.split('@')[0];
 
@@ -404,14 +349,20 @@ async function connectToWhatsApp() {
                     reactEmoji = '❓'
                 }
 
+                await sendSticker(sock, db, from, msg, [sender], texto)
+
                 if (reactEmoji) {
                     await sock.sendMessage(from, { react: { text: reactEmoji, key: msg.key } });
                 }
 
-                const response = await chatbot.handleCommand(msg, sender, from, isGroup, mensagem);
+                
+                const response = await chatbot.handleCommand(msg, sender, from, isGroup, command);
                 
                 if (response) {
                     await sendAndSave(sock, db, from, response, null, [sender]);
+                }
+                else{
+                    await sendAndSave(sock, db, from, 'Morri kkkkkkkkkk tenta de novo aí otário.'); 
                 }
             } catch (error) {
                 if (error.message === "FEW_MESSAGES") {

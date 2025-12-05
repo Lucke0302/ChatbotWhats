@@ -202,6 +202,59 @@ async function connectToWhatsApp() {
         //Início da lógica geral do bot, se o texto começar com !, o chatbot estiver online
         //e o texto tenha mais de 1 caractere
         if(command.startsWith("!") &&  chatbot.isOnline && command.length > 1){
+
+                        //Bloco de controle NOVO, trata melhor os problemas e se comunica diretamente
+            //com o chatModel.js
+            try {
+                const command = texto.trim(); 
+                const sender = msg.key.participant || msg.key.remoteJid;
+                const senderJid = sender.split('@')[0];
+
+                let reactEmoji = '';
+
+                //Verifica os comandos e define um emoji para reagir
+                if (command.startsWith('!d')) {
+                    reactEmoji = '🎲';
+                } else if (command.startsWith('!gpt')) {
+                    reactEmoji = '🤖';
+                } else if (command.startsWith('!lembrar')) {
+                    reactEmoji = '🧠';
+                } else if (command.startsWith('!menu')) {
+                    reactEmoji = '📄';
+                } else if (command.startsWith('!resumo')) {
+                    reactEmoji = '🛎️';
+                }
+                else{
+                    reactEmoji = '❓'
+                }
+                
+                //Reaje com emoji se ele não for vazio
+                if (reactEmoji) {
+                    await sock.sendMessage(from, { react: { text: reactEmoji, key: msg.key } });
+                }
+
+                //Controla o envio dos stickers
+                await sendSticker(sock, db, from, msg, [sender], texto)
+
+                //Pega a resposta do handleCommand do chatModel.js
+                const response = await chatbot.handleCommand(msg, sender, from, isGroup, command);
+                
+                //Verifica se recebeu alguma resposta
+                if (response) {
+                    await sendAndSave(sock, db, from, response, null, [sender]);
+                }
+                else{
+                    if(!command.startsWith("!gpt" || "!lembrar")) await sendAndSave(sock, db, from, 'Morri kkkkkkkkkk tenta de novo aí otário.'); 
+                }
+            } catch (error) {
+                //Verifica o valor do erro tratado no chatModel.js
+                if (error.message === "FEW_MESSAGES") {
+                    await sendAndSave(sock, db, from, '❌ Poucas mensagens para resumir. Conversem mais um pouco!');
+                } else {
+                    console.error("❌ Erro ao processar comando:", error);
+                    await sendAndSave(sock, db, from, '😵 Ocorreu um erro interno ao processar seu comando.');
+                }
+            }
             // 4. Comando !gpt
             if (command.startsWith('!gpt')) {
                 const pergunta = texto.slice(4).trim(); 
@@ -217,7 +270,7 @@ async function connectToWhatsApp() {
 
                 //await sendSticker(sock, db, from, msg, [sender], texto)
 
-                await sendAndSave(sock, db, from, '🧠 Eu sabo...'); 
+                //await sendAndSave(sock, db, from, '🧠 Eu sabo...'); 
 
                 const mensagensFormatadas = await getMessagesByLimit(db, from, 50);
 
@@ -327,59 +380,6 @@ async function connectToWhatsApp() {
                     await sendAndSave(sock, db, from, '❌ Erro tentando lembrar, to com alzheimer.');
                 }
             }  
-
-            //Bloco de controle NOVO, trata melhor os problemas e se comunica diretamente
-            //com o chatModel.js
-            try {
-                const command = texto.trim(); 
-                const sender = msg.key.participant || msg.key.remoteJid;
-                const senderJid = sender.split('@')[0];
-
-                let reactEmoji = '';
-
-                //Verifica os comandos e define um emoji para reagir
-                if (command.startsWith('!d')) {
-                    reactEmoji = '🎲';
-                } else if (command.startsWith('!gpt')) {
-                    reactEmoji = '🤖';
-                } else if (command.startsWith('!lembrar')) {
-                    reactEmoji = '🧠';
-                } else if (command.startsWith('!menu')) {
-                    reactEmoji = '📄';
-                } else if (command.startsWith('!resumo')) {
-                    reactEmoji = '🛎️';
-                }
-                else{
-                    reactEmoji = '❓'
-                }
-                
-                //Reaje com emoji se ele não for vazio
-                if (reactEmoji) {
-                    await sock.sendMessage(from, { react: { text: reactEmoji, key: msg.key } });
-                }
-
-                //Controla o envio dos stickers
-                await sendSticker(sock, db, from, msg, [sender], texto)
-
-                //Pega a resposta do handleCommand do chatModel.js
-                const response = await chatbot.handleCommand(msg, sender, from, isGroup, command);
-                
-                //Verifica se recebeu alguma resposta
-                if (response) {
-                    await sendAndSave(sock, db, from, response, null, [sender]);
-                }
-                else{
-                    await sendAndSave(sock, db, from, 'Morri kkkkkkkkkk tenta de novo aí otário.'); 
-                }
-            } catch (error) {
-                //Verifica o valor do erro tratado no chatModel.js
-                if (error.message === "FEW_MESSAGES") {
-                    await sendAndSave(sock, db, from, '❌ Poucas mensagens para resumir. Conversem mais um pouco!');
-                } else {
-                    console.error("❌ Erro ao processar comando:", error);
-                    await sendAndSave(sock, db, from, '😵 Ocorreu um erro interno ao processar seu comando.');
-                }
-            }
         }
 
         //Se o chatbot estiver online e receber um comando

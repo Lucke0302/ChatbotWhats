@@ -233,6 +233,7 @@ class ChatModel {
     //Responde o comando !d
     async handleDiceCommand(text, from){
         var num = text.slice(2).trim(); 
+        const max = parseInt(num);
 
         if(isNaN(num) || num === ""){
             return false

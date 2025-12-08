@@ -238,7 +238,7 @@ class ChatModel {
             return false
         }
         else{               
-            let val = await rollDice(num); 
+            let val = await this.rollDice(num); 
             let mssg = "";
             
             if(val == 1) mssg = "❌ FALHA CRÍTICA! Tomou gap..."

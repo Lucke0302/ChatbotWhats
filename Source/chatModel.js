@@ -97,10 +97,10 @@ class ChatModel {
     };
 
     //Retorna mensagens do banco de dados para um certo remetente (pessoa ou grupo) com um limite
-    async getMessagesByLimit(from, limit){
+    async getMessagesByLimit(sender, limit){
         const sqlQuery = `SELECT nome_remetente, conteudo 
         FROM mensagens 
-        WHERE id_conversa = '${from}' 
+        WHERE id_conversa = '${sender}' 
         AND conteudo NOT LIKE '*Resumo da conversa*%'
         ORDER BY timestamp DESC 
         LIMIT ${limit}`;
@@ -126,12 +126,11 @@ class ChatModel {
         }
 
         const msgCount = await this.getMessageCount(sender);
-        console.log(`from: ${from}\nmsgCount: ${msgCount}`)
         if (msgCount < 5) {
             throw new Error("FEW_MESSAGES");
         }
 
-        const formatedMessages = await this.getMessagesByLimit(from, limit);
+        const formatedMessages = await this.getMessagesByLimit(sender, limit);
 
         console.log(formatedMessages)
 

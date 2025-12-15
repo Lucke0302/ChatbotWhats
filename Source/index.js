@@ -253,8 +253,6 @@ async function connectToWhatsApp() {
                         await sock.sendMessage(from, { react: { text: action.emoji, key: msg.key } });
                     }
 
-                    await sendSticker(sock, db, from, msg, [sender], texto);
-
                 } else {
                     await sock.sendMessage(from, { react: { text: '🤨', key: msg.key } });
                 }

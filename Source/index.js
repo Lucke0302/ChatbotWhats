@@ -220,8 +220,8 @@ async function connectToWhatsApp() {
 
         const commandName = command.split(' ')[0];
 
-        if (/^!d\d+$/.test(commandKey)) {
-            commandKey = '!d';
+        if (/^!d\d+$/.test(commandName)) {
+            commandName = '!d';
         }
 
         const action = botCommands[commandName];
@@ -258,7 +258,7 @@ async function connectToWhatsApp() {
                 } else {
                     await sock.sendMessage(from, { react: { text: '❓', key: msg.key } });
                 }
-                
+
                 //Controla o envio dos stickers
                 await sendSticker(sock, db, from, msg, [sender], texto)
 

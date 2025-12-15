@@ -125,7 +125,7 @@ class ChatModel {
             limit = num;
         }
 
-        const msgCount = await this.getMessageCount(from);
+        const msgCount = await this.getMessageCount(sender);
         console.log(`from: ${from}\nmsgCount: ${msgCount}`)
         if (msgCount < 5) {
             throw new Error("FEW_MESSAGES");

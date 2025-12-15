@@ -447,36 +447,18 @@ async function connectToWhatsApp() {
 
             await sock.sendMessage(from, { react: { text: "👀", key: msg.key } }); 
 
-            const textoOriginal = quotedMessage.conversation || 
+            const quotedMessageText = quotedMessage.conversation || 
                                 quotedMessage.extendedTextMessage?.text || 
                                 quotedMessage.imageMessage?.caption || 
                                 "[Midia/Sticker sem texto]";
 
             let response
-            response = chatbot.handleCommand(msg, sender, from, isGroup, command, quotedMessage)
-
+            
             try {
                 const sender = msg.key.participant || msg.key.remoteJid;
-                const nomeUsuario = msg.pushName || 'Amigo';
-                const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+                response = chatbot.handleCommand(msg, sender, from, isGroup, command, quotedMessageText)
 
-                const mensagensFormatadas = getMessagesByLimit(db, from, 20);
-
-                const promptReply = `Contexto: Você é um bot de WhatsApp.
-                O usuário "${nomeUsuario}" está te respondendo.
-                
-                O que VOCÊ (Bot) tinha falado antes: "${textoOriginal}"
-                O que o USUÁRIO respondeu agora: "${texto}"
-                
-                Analise a resposta dele com base no que você falou antes. Responda de forma natural e contínua.
-                
-                Contexto das últimas 50 mensagens (ignore se não fizer sentido utilizar): ${mensagensFormatadas}`;
-
-                const result = await model.generateContent(promptReply);
-                const response = await result.response;
-                const textReply = response.text();
-
-                await sendAndSave(sock, db, from, textReply, msg, [sender]); 
+                await sendAndSave(sock, db, from, response, msg, [sender]); 
 
             } catch (error) {
                 console.error("Erro no Reply:", error);

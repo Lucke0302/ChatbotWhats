@@ -6,6 +6,7 @@ const sqlite = require('sqlite');
 const sqlite3 = require('sqlite3'); 
 const pino = require('pino'); 
 const ChatModel = require('./chatModel');
+const { handleBotError } = require('./errorHandler');
 const fs = require('fs');
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
@@ -202,12 +203,23 @@ async function connectToWhatsApp() {
         //Início da lógica geral do bot, se o texto começar com !, o chatbot estiver online
         //e o texto tenha mais de 1 caractere
         if(command.startsWith("!") &&  chatbot.isOnline && command.length > 1){
+            
+            const sender = msg.key.participant || msg.key.remoteJid;
+
+            const contextObj = {
+                from: from,
+                sender: sender,
+                command: command
+            };
+
+            const replyToUser = async (text) => {
+                await sendAndSave(sock, db, from, text, msg, [sender]);
+            };
 
             //Bloco de controle NOVO, trata melhor os problemas e se comunica diretamente
             //com o chatModel.js
             try {
                 const command = texto.trim(); 
-                const sender = msg.key.participant || msg.key.remoteJid;
                 const senderJid = sender.split('@')[0];
 
                 let reactEmoji = '';
@@ -246,163 +258,141 @@ async function connectToWhatsApp() {
                 else{
                     if(!command.startsWith("!gpt" || "!lembrar")) await sendAndSave(sock, db, from, 'Morri kkkkkkkkkk tenta de novo aí otário.'); 
                 }
+
+                // 4. Comando !gpt
+                if (command.startsWith('!gpt')) {
+                    const pergunta = texto.slice(4).trim(); 
+                    const nomeUsuario = msg.pushName || 'Desconhecido';
+                    const sender = msg.key.participant || msg.key.remoteJid;
+                    const senderJid = sender.split('@')[0];
+
+                    if (!pergunta) {
+                        const responseText = `⚠️ *Opa, @${senderJid}!* \ntem que escrever alguma coisa depois do comando, burre`;
+                        await sendAndSave(sock, db, from, responseText, null, [sender]); 
+                        return;
+                    }
+
+                    const mensagensFormatadas = await getMessagesByLimit(db, from, 50);
+
+                    try {
+                        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+
+                        const promptFinal = `O usuário do WhatsApp chamado "${nomeUsuario}" te enviou a seguinte pergunta ou comando: "${pergunta}".
+                        Responda ele diretamente pelo nome. Seja criativo, útil e mantenha o tom de uma conversa de WhatsApp, considerando que 
+                        você é um bot de WhatsApp chamado Bostossauro.
+                        
+                        Contexto da conversa (opcional):
+                        ${mensagensFormatadas}`;
+
+                        const result = await model.generateContent(promptFinal);
+                        const response = await result.response;
+                        const textResposta = response.text();
+                        
+                        const finalResponse = `🤖 *@${senderJid}!*\n\n${textResposta}`;
+
+                        await sendAndSave(sock, db, from, finalResponse, null, [sender]); 
+
+                    } catch (error) {
+                        console.error("Erro na IA:", error);
+                        await sendAndSave(sock, db, from, '❌ A IA pifou ou tá dormindo. Tenta de novo já já.'); 
+                    }
+                }
+
+                // 5. Comando !lembrar
+                if (command.startsWith('!lembrar')) {
+                    const pergunta = texto.slice(8).trim(); 
+                    const sender = msg.key.participant || msg.key.remoteJid;
+                    const senderJid = sender.split('@')[0];
+
+                    if (!pergunta) {
+                        const responseText = `⚠️ *Opa, @${senderJid}!* \nDiga ao bot o que ele precisa lembrar e quando. Ex: !lembrar o que o João disse sobre o jogo hoje?`;
+                        await sendAndSave(sock, db, from, responseText, null, [sender]); 
+                        return;
+                    }
+
+                    //await sendSticker(sock, db, from, msg, [sender], texto)
+                    
+                    await sendAndSave(sock, db, from, `🧠 Deixa eu dar uma lida nas mensagens pra ver o que rolou...`); 
+                    
+                    try {
+                        const modelSql = genAI.getGenerativeModel({ model: "gemini-2.5-flash"});
+                        
+                        const promptSql = `Você é um gerador de consulta SQL para SQLite. Sua única saída deve ser uma consulta SQL (SELECT), sem NENHUMA explicação ou texto adicional.
+                        A tabela é 'mensagens' e o campo de tempo é 'timestamp' (UNIX time em segundos).
+                        O ID da conversa atual é '${from}'.
+                        O usuário quer recuperar mensagens que se encaixam no período de tempo da pergunta, limitando o resultado a 500 mensagens no máximo.
+                        Recupere as colunas 'nome_remetente' e 'conteudo'.
+                        Use a condição WHERE para filtrar pelo id_conversa = '${from}' E pelo intervalo de tempo (timestamp).
+                        A ordenação deve ser por timestamp DESC, e o limite deve ser de 500. Se a pergunta não especificar um período de tempo, recupere as últimas 500 mensagens da conversa.
+
+                        Exemplo de saída para "o que rolou ontem": SELECT nome_remetente, conteudo FROM mensagens WHERE id_conversa = '${from}' AND timestamp BETWEEN 1764355200 AND 1764441600 ORDER BY timestamp DESC LIMIT 500;
+
+                        Pergunta do usuário: ${pergunta}`;
+
+                        const result = await modelSql.generateContent(promptSql);
+                        const response = await result.response;
+                        const resultSql = response.text();
+
+                        let sqlQuery = resultSql;
+                        console.log(sqlQuery)
+
+                        if (!sqlQuery.toLowerCase().startsWith('select')) {
+                            console.error("ERRO: IA não retornou um SELECT válido:", sqlQuery);
+                            await sendAndSave(sock, db, from, '❌ A IA pirou e não me deu a query SQL. Tenta ser mais específico na pergunta.');
+                            return;
+                        }
+                        
+                        if (!sqlQuery.toLowerCase().includes('limit')) {
+                            sqlQuery = sqlQuery.replace(/;?$/, ` LIMIT 500;`);
+                        }
+                        
+                        const mensagensDb = await db.all(sqlQuery);
+                        
+                        if (!mensagensDb || mensagensDb.length === 0) {
+                            await sendAndSave(sock, db, from, `Não encontrei nenhuma mensagem para o período que você pediu, @${senderJid}.`);
+                            return;
+                        }
+
+                        const mensagensFormatadas = mensagensDb.map(m => `${m.nome_remetente || 'Desconhecido'}: ${m.conteudo}`).join('\n');
+                        
+                        const modelAnalise = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+
+                        const promptAnalise = `Você é o Bostossauro, um bot de WhatsApp engraçado e sarcástico. 
+                        Responda ao usuário (@${senderJid}) usando o contexto das mensagens fornecidas abaixo. 
+                        Seja criativo, faça piadas com o conteúdo e resuma o que for relevante.
+                        As mensagens estão em ordem cronológica inversa (mais recentes primeiro).
+
+                        Pergunta original do usuário: ${pergunta}
+                        Contexto das Mensagens (${mensagensDb.length} mensagens):
+                        ${mensagensFormatadas}`;
+
+                        const resultAnalise = await modelAnalise.generateContent(promptAnalise);
+                        const textResposta = resultAnalise.response;
+                        const responseAnalise = await textResposta.text();
+
+                        console.log(responseAnalise)
+
+                        const finalResponse = `🤖 *Contexto Lembrado, @${senderJid}*:\n\n${responseAnalise}`;
+                        await sendAndSave(sock, db, from, finalResponse, null, [sender]);
+
+                    } catch (error) {
+                        console.error("❌ Erro no comando !lembrar:", error);
+                        await sendAndSave(sock, db, from, '❌ Erro tentando lembrar, to com alzheimer.');
+                    }
+                }  
             } catch (error) {
-                //Verifica o valor do erro tratado no chatModel.js
-                if (error.message === "FEW_MESSAGES") {
-                    await sendAndSave(sock, db, from, '❌ Poucas mensagens para resumir. Conversem mais um pouco!');
-                } else {
-                    console.error("❌ Erro ao processar comando:", error);
-                    await sendAndSave(sock, db, from, '😵 Ocorreu um erro interno ao processar seu comando.');
-                }
+                await handleBotError(error, replyToUser, contextObj);
             }
-            // 4. Comando !gpt
-            if (command.startsWith('!gpt')) {
-                const pergunta = texto.slice(4).trim(); 
-                const nomeUsuario = msg.pushName || 'Desconhecido';
-                const sender = msg.key.participant || msg.key.remoteJid;
-                const senderJid = sender.split('@')[0];
-
-                if (!pergunta) {
-                    const responseText = `⚠️ *Opa, @${senderJid}!* \ntem que escrever alguma coisa depois do comando, burre`;
-                    await sendAndSave(sock, db, from, responseText, null, [sender]); 
-                    return;
-                }
-
-                const mensagensFormatadas = await getMessagesByLimit(db, from, 50);
-
-                try {
-                    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-
-                    const promptFinal = `O usuário do WhatsApp chamado "${nomeUsuario}" te enviou a seguinte pergunta ou comando: "${pergunta}".
-                    Responda ele diretamente pelo nome. Seja criativo, útil e mantenha o tom de uma conversa de WhatsApp, considerando que 
-                    você é um bot de WhatsApp chamado Bostossauro.
-                    
-                    Contexto da conversa (opcional):
-                    ${mensagensFormatadas}`;
-
-                    const result = await model.generateContent(promptFinal);
-                    const response = await result.response;
-                    const textResposta = response.text();
-                    
-                    const finalResponse = `🤖 *@${senderJid}!*\n\n${textResposta}`;
-
-                    await sendAndSave(sock, db, from, finalResponse, null, [sender]); 
-
-                } catch (error) {
-                    console.error("Erro na IA:", error);
-                    await sendAndSave(sock, db, from, '❌ A IA pifou ou tá dormindo. Tenta de novo já já.'); 
-                }
-            }
-
-            // 5. Comando !lembrar
-            if (command.startsWith('!lembrar')) {
-                const pergunta = texto.slice(8).trim(); 
-                const sender = msg.key.participant || msg.key.remoteJid;
-                const senderJid = sender.split('@')[0];
-
-                if (!pergunta) {
-                    const responseText = `⚠️ *Opa, @${senderJid}!* \nDiga ao bot o que ele precisa lembrar e quando. Ex: !lembrar o que o João disse sobre o jogo hoje?`;
-                    await sendAndSave(sock, db, from, responseText, null, [sender]); 
-                    return;
-                }
-
-                //await sendSticker(sock, db, from, msg, [sender], texto)
-                
-                await sendAndSave(sock, db, from, `🧠 Deixa eu dar uma lida nas mensagens pra ver o que rolou...`); 
-                
-                try {
-                    const modelSql = genAI.getGenerativeModel({ model: "gemini-2.5-flash"});
-                    
-                    const promptSql = `Você é um gerador de consulta SQL para SQLite. Sua única saída deve ser uma consulta SQL (SELECT), sem NENHUMA explicação ou texto adicional.
-                    A tabela é 'mensagens' e o campo de tempo é 'timestamp' (UNIX time em segundos).
-                    O ID da conversa atual é '${from}'.
-                    O usuário quer recuperar mensagens que se encaixam no período de tempo da pergunta, limitando o resultado a 500 mensagens no máximo.
-                    Recupere as colunas 'nome_remetente' e 'conteudo'.
-                    Use a condição WHERE para filtrar pelo id_conversa = '${from}' E pelo intervalo de tempo (timestamp).
-                    A ordenação deve ser por timestamp DESC, e o limite deve ser de 500. Se a pergunta não especificar um período de tempo, recupere as últimas 500 mensagens da conversa.
-
-                    Exemplo de saída para "o que rolou ontem": SELECT nome_remetente, conteudo FROM mensagens WHERE id_conversa = '${from}' AND timestamp BETWEEN 1764355200 AND 1764441600 ORDER BY timestamp DESC LIMIT 500;
-
-                    Pergunta do usuário: ${pergunta}`;
-
-                    const result = await modelSql.generateContent(promptSql);
-                    const response = await result.response;
-                    const resultSql = response.text();
-
-                    let sqlQuery = resultSql;
-                    console.log(sqlQuery)
-
-                    if (!sqlQuery.toLowerCase().startsWith('select')) {
-                        console.error("ERRO: IA não retornou um SELECT válido:", sqlQuery);
-                        await sendAndSave(sock, db, from, '❌ A IA pirou e não me deu a query SQL. Tenta ser mais específico na pergunta.');
-                        return;
-                    }
-                    
-                    if (!sqlQuery.toLowerCase().includes('limit')) {
-                        sqlQuery = sqlQuery.replace(/;?$/, ` LIMIT 500;`);
-                    }
-                    
-                    const mensagensDb = await db.all(sqlQuery);
-                    
-                    if (!mensagensDb || mensagensDb.length === 0) {
-                        await sendAndSave(sock, db, from, `Não encontrei nenhuma mensagem para o período que você pediu, @${senderJid}.`);
-                        return;
-                    }
-
-                    const mensagensFormatadas = mensagensDb.map(m => `${m.nome_remetente || 'Desconhecido'}: ${m.conteudo}`).join('\n');
-                    
-                    const modelAnalise = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-
-                    const promptAnalise = `Você é o Bostossauro, um bot de WhatsApp engraçado e sarcástico. 
-                    Responda ao usuário (@${senderJid}) usando o contexto das mensagens fornecidas abaixo. 
-                    Seja criativo, faça piadas com o conteúdo e resuma o que for relevante.
-                    As mensagens estão em ordem cronológica inversa (mais recentes primeiro).
-
-                    Pergunta original do usuário: ${pergunta}
-                    Contexto das Mensagens (${mensagensDb.length} mensagens):
-                    ${mensagensFormatadas}`;
-
-                    const resultAnalise = await modelAnalise.generateContent(promptAnalise);
-                    const textResposta = resultAnalise.response;
-                    const responseAnalise = await textResposta.text();
-
-                    console.log(responseAnalise)
-
-                    const finalResponse = `🤖 *Contexto Lembrado, @${senderJid}*:\n\n${responseAnalise}`;
-                    await sendAndSave(sock, db, from, finalResponse, null, [sender]);
-
-                } catch (error) {
-                    console.error("❌ Erro no comando !lembrar:", error);
-                    await sendAndSave(sock, db, from, '❌ Erro tentando lembrar, to com alzheimer.');
-                }
-            }  
         }
 
         //Se o chatbot estiver online e receber um comando
         else if(command.startsWith("!") &&  !chatbot.isOnline){
             const sender = msg.key.participant || msg.key.remoteJid;            
             await sendSticker(sock, db, from, msg, [sender], texto)
-            //await sendAndSave(sock, db, from, "Desonline... 😴", null, [sender]);
             return
         }
 
         else{
-            //"endpoint" de testes.
-            if(!isGroup && msg.key.remoteJid == "5513991008854@s.whatsapp.net" && chatbot.isTesting){
-                const mensagem = texto.trim(); 
-                const sender = msg.key.participant || msg.key.remoteJid;
-                const senderJid = sender.split('@')[0];
-
-                await sendSticker(sock, db, from, msg, [sender], texto)
-
-                response = await chatbot.handleCommand(msg, sender, from, isGroup, mensagem)
-
-                await sendAndSave(sock, db, from, response, null, [sender]);
-
-                return
-            }
-            //Fim do "endpoint" de testes.
-
             //Se não for grupo e o chatbot estiver online, responde a qualquer mensagem,
             //sem precisar de quote ou comando
             if(!isGroup && chatbot.isOnline){
@@ -415,7 +405,7 @@ async function connectToWhatsApp() {
                 
                 try { 
                     //Pega a resposta do handleCommand do chatModel.js
-                    const response = await chatbot.handleCommand(msg, sender, from, isGroup, command);
+                    const response = await chatbot.handleMessageWithoutCommand(msg, sender, from, isGroup, command);
 
                     await sendAndSave(sock, db, from, response, null, [sender]);
 
@@ -470,7 +460,6 @@ async function connectToWhatsApp() {
         if (quotedMessage && isReplyToBot && !chatbot.isOnline){
             const sender = msg.key.participant || msg.key.remoteJid;
             await sendSticker(sock, db, from, msg, [sender], texto)
-            //await sendAndSave(sock, db, from, "Desonline... 😴", msg, [sender]);
             return
         }
 
@@ -478,7 +467,6 @@ async function connectToWhatsApp() {
         if(command.startsWith("!") && !chatbot.isOnline){
             const sender = msg.key.participant || msg.key.remoteJid;
             await sendSticker(sock, db, from, msg, [sender], texto)
-            //await sendAndSave(sock, db, from, "Desonline... 😴", msg, [sender])
             return
         }
     });

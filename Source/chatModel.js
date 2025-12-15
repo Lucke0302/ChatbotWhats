@@ -236,7 +236,6 @@ class ChatModel {
             //if (command.startsWith('!gpt') && isGroup) return await this.handleGptCommand()
             if (command.startsWith('!menu')) return await this.handleMenuCommand()
             if (command.startsWith('!resumo') && isGroup) return await this.handleResumoCommand(from, sender, isGroup, command, quotedMessage)
-            //if (!isGroup) return await this.getAiResponse(from, sender, isGroup, command)
         }
         catch(error){
             console.error("Tipo do erro:", error);

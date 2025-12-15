@@ -1,0 +1,39 @@
+const ERROR_DICTIONARY = {
+    "FEW_MESSAGES": "❌ Pô, tem nem mensagem direito pra eu ler... Conversem mais um pouco aí depois me chama.",
+    "AI_ERROR": "😵 A IA pifou ou tá dormindo. Tenta de novo já já.",
+    "NO_SQL_RESULT": "🔍 Não encontrei nenhuma mensagem para o período que você pediu.",
+    "INVALID_COMMAND": "⚠️ Esse comando não existe não.",
+    "MISSING_ARGS": "⚠️ Opa, tá faltando coisa nesse comando. Escreve direito aí.",
+    "AI_TIMEOUT": "⏳ A IA demorou demais pra pensar e eu desisti. Tenta algo mais simples."
+};
+
+// Mensagem padrão para erros não mapeados (bugs reais)
+const DEFAULT_ERROR_MESSAGE = "😵 Ocorreu um erro interno bizarro. O dev deve ter feito gambiarra.";
+
+/**
+ * Função Middleware para tratar erros centralizados
+ * @param {Error} error
+ * @param {Function} replyFunction
+ * @param {Object} context
+ */
+const handleBotError = async (error, replyFunction, context = {}) => {
+
+    console.error(`[ERROR HANDLER] Erro em '${context.command || 'Desconhecido'}':`);
+    console.error(`   Sender: ${context.sender}`);
+    console.error(`   From: ${context.from}`);
+    console.error(`   Detalhes:`, error);
+
+    const errorKey = typeof error === 'string' ? error : error.message;
+    
+    const userMessage = ERROR_DICTIONARY[errorKey] || DEFAULT_ERROR_MESSAGE;
+
+    try {
+        if (replyFunction) {
+            await replyFunction(userMessage);
+        }
+    } catch (sendError) {
+        console.error("❌ CRÍTICO: Erro ao tentar enviar a mensagem de erro para o usuário.", sendError);
+    }
+};
+
+module.exports = { handleBotError };

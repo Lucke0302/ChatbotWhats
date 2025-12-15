@@ -218,7 +218,7 @@ async function connectToWhatsApp() {
         //Joga o comando todo para letras minúsculas para evitar problemas com case-sensitive
         const command = texto.trim().toLowerCase();
 
-        const commandName = command.split(' ')[0];
+        let commandName = command.split(' ')[0];
 
         if (/^!d\d+$/.test(commandName)) {
             commandName = '!d';

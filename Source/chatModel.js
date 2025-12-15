@@ -40,26 +40,6 @@ class ChatModel {
         return stickerPath;
     }      
 
-
-    //Salva mensagem no banco de dados
-    async saveBotMessage (database, from, text, externalId = null){
-        const timestamp = Math.floor(Date.now() / 1000);
-        
-        try {
-            await database.run(
-                `INSERT INTO mensagens 
-                (id_conversa, timestamp, id_remetente, nome_remetente, conteudo, id_mensagem_externo)
-                VALUES (?, ?, ?, ?, ?, ?)`,
-                [from, timestamp, myFullJid, 'Bot-Zap', text, externalId]            
-            );
-            console.log(`✅ OUTGOING: Resposta do Bot salva no BD. (Conversa: ${from})`);
-        } catch (error) {
-            if (error && !error.message.includes('UNIQUE constraint failed')) {
-                console.error("❌ Erro ao salvar mensagem do Bot no BD:", error);
-            }
-        }
-    };
-
     //Essa função verifica a quantidade de letras maiúsculas na mensagem pra responder
     //com a figurinha do "não grita"
     async verifyCapitalLetters(command){
@@ -200,8 +180,6 @@ class ChatModel {
 
     //Controla o comando resumo
     async handleResumoCommand(from, sender, isGroup, command, quotedMessage){
-        console.log(`Sender: ${sender}, from: ${from}`)
-
         try {
             const text = await this.getAiResponse(from, sender, isGroup, command, quotedMessage)
             return text;
@@ -223,7 +201,7 @@ class ChatModel {
     }
 
     //Responde o comando !d
-    async handleDiceCommand(text, from){
+    async handleDiceCommand(text, sender){
         var num = text.slice(2).trim(); 
         const max = parseInt(num);
 
@@ -254,7 +232,7 @@ class ChatModel {
     //Faz o controle de todos os comandos
     async handleCommand(msg, sender, from, isGroup, command, quotedMessage) {
         try{
-            if (command.startsWith('!d')) return await this.handleDiceCommand(command, from)
+            if (command.startsWith('!d')) return await this.handleDiceCommand(command, sender)
             //if (command.startsWith('!gpt') && isGroup) return await this.handleGptCommand()
             if (command.startsWith('!menu')) return await this.handleMenuCommand()
             if (command.startsWith('!resumo') && isGroup) return await this.handleResumoCommand(from, sender, isGroup, command, quotedMessage)

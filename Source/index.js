@@ -79,6 +79,24 @@ const getMessagesByLimit = async (db, from, limit) => {
     return messagesDb.map(m => `${m.nome_remetente || 'Desconhecido'}: ${m.conteudo}`).join('\n');
 };
 
+const botCommands = {
+    '!d': {
+        emoji: '🎲'
+    },
+    '!menu': {
+        emoji: '📄'
+    },
+    '!resumo': {
+        emoji: '🛎️'
+    },
+    '!gpt': {
+        emoji: '🤖'
+    },
+    '!lembrar': {
+        emoji: '🧠'
+    }
+};
+
 //Inicia a conexão com mo Whatsapp para fazer todas as operações
 async function connectToWhatsApp() {
     await initDatabase();
@@ -200,6 +218,14 @@ async function connectToWhatsApp() {
         //Joga o comando todo para letras minúsculas para evitar problemas com case-sensitive
         const command = texto.trim().toLowerCase();
 
+        const commandName = command.split(' ')[0];
+
+        if (/^!d\d+$/.test(commandKey)) {
+            commandKey = '!d';
+        }
+
+        const action = botCommands[commandName];
+
         //Início da lógica geral do bot, se o texto começar com !, o chatbot estiver online
         //e o texto tenha mais de 1 caractere
         if(command.startsWith("!") &&  chatbot.isOnline && command.length > 1){
@@ -222,29 +248,17 @@ async function connectToWhatsApp() {
                 const command = texto.trim(); 
                 const senderJid = sender.split('@')[0];
 
-                let reactEmoji = '';
+                if (action) {
+                    if (action.emoji) {
+                        await sock.sendMessage(from, { react: { text: action.emoji, key: msg.key } });
+                    }
 
-                //Verifica os comandos e define um emoji para reagir
-                if (command.startsWith('!d')) {
-                    reactEmoji = '🎲';
-                } else if (command.startsWith('!gpt')) {
-                    reactEmoji = '🤖';
-                } else if (command.startsWith('!lembrar')) {
-                    reactEmoji = '🧠';
-                } else if (command.startsWith('!menu')) {
-                    reactEmoji = '📄';
-                } else if (command.startsWith('!resumo')) {
-                    reactEmoji = '🛎️';
-                }
-                else{
-                    reactEmoji = '❓'
+                    await sendSticker(sock, db, from, msg, [sender], texto);
+
+                } else {
+                    await sock.sendMessage(from, { react: { text: '❓', key: msg.key } });
                 }
                 
-                //Reaje com emoji se ele não for vazio
-                if (reactEmoji) {
-                    await sock.sendMessage(from, { react: { text: reactEmoji, key: msg.key } });
-                }
-
                 //Controla o envio dos stickers
                 await sendSticker(sock, db, from, msg, [sender], texto)
 

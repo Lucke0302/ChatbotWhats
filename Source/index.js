@@ -268,10 +268,6 @@ async function connectToWhatsApp() {
                     return;
                 }
 
-                //await sendSticker(sock, db, from, msg, [sender], texto)
-
-                //await sendAndSave(sock, db, from, '🧠 Eu sabo...'); 
-
                 const mensagensFormatadas = await getMessagesByLimit(db, from, 50);
 
                 try {
@@ -455,6 +451,9 @@ async function connectToWhatsApp() {
                                 quotedMessage.extendedTextMessage?.text || 
                                 quotedMessage.imageMessage?.caption || 
                                 "[Midia/Sticker sem texto]";
+
+            let response
+            response = chatbot.handleCommand(msg, sender, from, isGroup, command, quotedMessage)
 
             try {
                 const sender = msg.key.participant || msg.key.remoteJid;

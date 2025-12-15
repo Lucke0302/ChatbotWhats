@@ -112,106 +112,96 @@ class ChatModel {
         return messagesDb.map(m => `${m.nome_remetente || 'Desconhecido'}: ${m.conteudo}`).join('\n');
     };
 
-    //Essa função concatena o prompt para para a IA por algumas condicionais
-    //Verifica se a mensagem veio de um grupo, quem enviou e uma série de fatores
-    //pra moldar a melhor resposta possível (lógica ainda em desenvolvimento)
-    async getAiResponse(from, sender, isGroup, command){        
-        let formatedMessages = await this.getMessagesByLimit(from, 50);
+    async formulatePrompt(sender, from, isGroup, command, quotedMessage) {
+        let prompt = "";
+        let limit = 200;
+        
+        const args = command.split(" ");
+        const action = args[0].toLowerCase();
+        const subAction = args[1] ? args[1].toLowerCase() : null;
+        const num = parseInt(args[2]);
 
-        if(isGroup){
-            this.prompt = `Você é um bot de WhatsApp engraçado e sarcástico num grupo de amigos,
-            chamado Bostossauro. 
-            Nenhum deles vai achar qualquer brincadeira ruim, pode falar o que quiser e fazer piadas.`
+        if (action === "!resumo" && !isNaN(num) && num > 0 && num <= 200) {
+            limit = num;
         }
-        else if(!isGroup && this.isTesting){
-            this.prompt = `Você é um bot de WhatsApp chamado Bostossauro, o usuário do WhatsApp
-            chamado "${sender}" te enviou a seguinte pergunta ou comando: "${command}".
-            Responda ele diretamente pelo nome. Seja criativo, útil e mantenha o tom 
-            de uma conversa de WhatsApp.
-            
-            Contexto da conversa (opcional):
-            ${formatedMessages}`
+
+        const msgCount = await this.getMessageCount(from);
+        if (msgCount < 5) {
+            throw new Error("FEW_MESSAGES");
         }
-        else{
-            this.prompt = `Você é um bot de WhatsApp chamado Bostossauro, o usuário do WhatsApp
-            chamado "${sender}" te enviou a seguinte pergunta ou comando: "${command}".
-            Responda ele diretamente pelo nome. Seja criativo, útil e mantenha o tom 
-            de uma conversa de WhatsApp.
-            
-            Contexto da conversa (opcional):
-            ${formatedMessages}`
+
+        const formatedMessages = await this.getMessagesByLimit(from, limit);
+
+        prompt = `Você é um bot de WhatsApp engraçado e sarcástico, chamado Bostossauro.
+        O usuário "${sender}" te mandou: "${command}".
+        Use emojis (pelo menos um dinossauro 🦖), mas nunca use o emoji de cocô.
+        Responda diretamente pelo nome. Seja criativo e mantenha o tom de uma conversa do whatsapp.`;
+
+        if (quotedMessage !== "Vazio") {
+            prompt += `\nO usuário respondeu a esta mensagem: "${quotedMessage}"`;
         }
+
+        if (isGroup) {
+            prompt += `\nVocê está em um grupo de amigos. Pode zoar à vontade, ninguém se ofende.`;
+        } else {
+            prompt += `\nEste é um chat privado, aja como um amigo.`;
+        }
+
+        prompt += `\n\nContexto das últimas mensagens:\n${formatedMessages}`;
+
+        if (action === "!resumo") {
+            prompt += `\n\n${sender} pediu um RESUMO da conversa acima.
+            Destaque os tópicos principais e quem falou mais besteira.`;
+
+            switch (subAction) {
+                case "curto":
+                    prompt += "\nDiretriz: Resuma em 2 ou 3 parágrafos curtos (max 30 palavras cada).";
+                    break;
+                case "médio":
+                    prompt += "\nDiretriz: Resuma com moderação (max 60 palavras por parágrafo).";
+                    break;
+                case "completo":
+                    prompt += "\nDiretriz: Se aprofunde nos detalhes (até 60 palavras por assunto).";
+                    break;
+                default:
+                    prompt += "\nDiretriz: Faça um resumo equilibrado.";
+            }
+            prompt += `\nComece a resposta EXATAMENTE com: "*Resumo da conversa* \\n"`;
+        }
+        return prompt;
+    }
+    
+    async getAiResponse(from, sender, isGroup, command, quotedMessage = "Vazio"){    
+
+        const finalPrompt = await this.formulatePrompt(from, sender, isGroup, command, quotedMessage)
 
         try{
             const model = this.genAI.getGenerativeModel({ model: "gemini-2.5-flash"});
 
-            const result = await model.generateContent(this.prompt);
+            const result = await model.generateContent(finalPrompt);
             const response = await result.response;
             const text = response.text();
 
             return text
         } catch (error) {
+            if (error.message === "FEW_MESSAGES") {
+                return "Pô, tem nem mensagem direito pra eu ler... Fala mais aí depois me chama.";
+            }
             console.error(error);
             return 'Morri kkkkkkkkkk tenta de novo aí.'; 
         }
     }
 
+    async handleLembrarCommand(sender, from, command){
+        
+    }
+
     //Controla o comando resumo
-    async handleResumoCommand(sender, from, command){
+    async handleResumoCommand(from, sender, isGroup, command, quotedMessage){
         console.log(`Sender: ${sender}, from: ${from}`)
-        const tamanho = command.split(' ');
-        const numero = parseInt(tamanho[2]);
-
-        //Retorna um erro se tiver poucas mensagens 
-        if (await this.getMessageCount(from) < 5) {
-            throw new Error("FEW_MESSAGES");
-        }   
-
-        let mensagensFormatadas;
-
-        //Se o número receber Nan (not a number), joga no máximo de mensagens
-        //que ele pode resumir (limite determinado por mim mesmo)
-        if(!isNaN(numero) && numero > 0 && numero <= 500){
-            mensagensFormatadas = await this.getMessagesByLimit(from, tamanho[2]);
-        }else{mensagensFormatadas = await this.getMessagesByLimit(from, 200);}    
-
-        let complemento = " "; 
-
-        //Adiciona complemento à resposta
-        switch(tamanho[1]){
-            case "curto":
-                complemento = "Responda de maneira concisa, dois ou três parágrafos.";
-                break;
-            case "médio":
-                complemento = "Responda com certa concisão (até 2 linhas pra cada assunto), limite em no máximo 5 assuntos.";
-                break; 
-            case "completo":
-                complemento = "Se aprofunde (até 5 linhas) em cada assunto";
-                break;
-        }
 
         try {
-            const model = this.genAI.getGenerativeModel({ model: "gemini-2.5-flash"});
-            
-            const prompt = `Você é um bot de WhatsApp engraçado e sarcástico num grupo de amigos, chamado Bostossauro. 
-            No banco de dados, você é o Bot-Zap, não mencione esse nome na conversa, é irrelevante.
-            ${sender} te chamou para fazer um resumo da conversa.
-            Resuma a conversa abaixo destacando os tópicos principais e quem falou mais besteira.
-            Use tópicos para resumir a conversa.
-            Use emojis quando achar adequado, e use pelo menos uma vez o emoji de dinossaro, é sua marca registrada.
-            Não usa o emoji de cocô.
-            Nenhum deles vai achar qualquer brincadeira ruim, pode falar o que quiser e fazer piadas.
-            Responda indicando, no primeiro parágrafo, quantas mensagens foram recuperadas.
-            Comece a resposta com "*Resumo da conversa* \\n".
-            ${complemento}
-            
-            Conversa:
-            ${mensagensFormatadas}`;
-
-            const result = await model.generateContent(prompt);
-            const response = await result.response;
-            const text = response.text();
-
+            const text = await this.getAiResponse(from, sender, isGroup, command, quotedMessage)
             return text;
 
         } catch (error) {
@@ -260,17 +250,21 @@ class ChatModel {
     }
 
     //Faz o controle de todos os comandos
-    async handleCommand(msg, sender, from, isGroup, command) {
+    async handleCommand(msg, sender, from, isGroup, command, quotedMessage) {
         try{
             if (command.startsWith('!d')) return await this.handleDiceCommand(command, from)
             //if (command.startsWith('!gpt') && isGroup) return await this.handleGptCommand()
             if (command.startsWith('!menu')) return await this.handleMenuCommand()
-            if (command.startsWith('!resumo') && isGroup) return await this.handleResumoCommand(sender, from, command)
-            if (!isGroup) return await this.getAiResponse(from, sender, isGroup, command)
+            if (command.startsWith('!resumo') && isGroup) return await this.handleResumoCommand(from, sender, isGroup, command, quotedMessage)
+            //if (!isGroup) return await this.getAiResponse(from, sender, isGroup, command)
         }
         catch(error){
             console.error("Tipo do erro:", error);
         }
+    }
+
+    async handleMessageWithoutCommand(msg, sender, from, isGroup, command, quotedMessage){
+        return await this.getAiResponse(from, sender, isGroup, command, quotedMessage)
     }
 }
 

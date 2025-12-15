@@ -256,7 +256,7 @@ async function connectToWhatsApp() {
                     await sendSticker(sock, db, from, msg, [sender], texto);
 
                 } else {
-                    await sock.sendMessage(from, { react: { text: '❓', key: msg.key } });
+                    await sock.sendMessage(from, { react: { text: '🤨', key: msg.key } });
                 }
 
                 //Controla o envio dos stickers

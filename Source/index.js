@@ -456,10 +456,12 @@ async function connectToWhatsApp() {
             
             try {
                 const sender = msg.key.participant || msg.key.remoteJid;
+                
                 response = await chatbot.handleCommand(msg, sender, from, isGroup, command, quotedMessageText)
-
-                await sendAndSave(sock, db, from, response, msg, [sender]); 
-
+                console.log(response)
+                if (response && typeof response === 'string') {
+                    await sendAndSave(sock, db, from, response, msg, [sender]); 
+                }
             } catch (error) {
                 console.error("Erro no Reply:", error);
             }

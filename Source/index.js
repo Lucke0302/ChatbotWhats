@@ -255,9 +255,6 @@ async function connectToWhatsApp() {
                 if (response) {
                     await sendAndSave(sock, db, from, response, null, [sender]);
                 }
-                else{
-                    if(!command.startsWith("!gpt" || "!lembrar")) await sendAndSave(sock, db, from, 'Morri kkkkkkkkkk tenta de novo aí otário.'); 
-                }
 
                 // 4. Comando !gpt
                 if (command.startsWith('!gpt')) {

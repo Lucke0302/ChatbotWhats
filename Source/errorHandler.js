@@ -1,5 +1,7 @@
 const ERROR_DICTIONARY = {
     "FEW_MESSAGES": "❌ Pô, tem nem mensagem direito pra eu ler... Conversem mais um pouco aí depois me chama.",
+    "LEMBRAR_ERROR": "❌ Erro tentando lembrar, to com alzheimer.",
+    "INVALID_SELECT": "❌ A IA pirou e não me deu a query SQL. Tenta ser mais específico na pergunta.",
     "AI_ERROR": "😵 A IA pifou ou tá dormindo. Tenta de novo já já.",
     "NO_SQL_RESULT": "🔍 Não encontrei nenhuma mensagem para o período que você pediu.",
     "INVALID_COMMAND": "⚠️ Esse comando não existe não.",

@@ -458,7 +458,6 @@ async function connectToWhatsApp() {
                 const sender = msg.key.participant || msg.key.remoteJid;
                 
                 response = await chatbot.handleMessageWithoutCommand(msg, sender, from, isGroup, command, quotedMessageText)
-                console.log(response)
                 if (response && typeof response === 'string') {
                     await sendAndSave(sock, db, from, response, msg, [sender]); 
                 }

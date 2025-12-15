@@ -90,8 +90,8 @@ class ChatModel {
     }
 
     //Retorna a contagem total de mensagens de uma conversa
-    async getMessageCount(from){
-        const sqlQuery = `SELECT COUNT(*) AS total FROM mensagens WHERE id_conversa = '${from}'`;
+    async getMessageCount(sender){
+        const sqlQuery = `SELECT COUNT(*) AS total FROM mensagens WHERE id_conversa = '${sender}'`;
         const result = await this.db.get(sqlQuery); 
         return result ? result.total : 0;
     };
@@ -132,6 +132,8 @@ class ChatModel {
         }
 
         const formatedMessages = await this.getMessagesByLimit(from, limit);
+
+        console.log(formatedMessages)
 
         prompt = `Você é um bot de WhatsApp engraçado e sarcástico, chamado Bostossauro.
         O usuário "${sender}" te mandou: "${command}".

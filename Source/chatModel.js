@@ -1,13 +1,7 @@
-// chatModel.js
-
-const { error } = require("qrcode-terminal");
-
 class ChatModel {
-    constructor(sock, db, genAI) {
-        this.sock = sock;
+    constructor(db, genAI) {
         this.db = db;
         this.genAI = genAI;
-        this.myFullJid = sock.user.id || sock.user.lid; 
         this.isOnline = true;
         this.isTesting = true;
     }
@@ -92,6 +86,7 @@ class ChatModel {
         return messagesDb.map(m => `${m.nome_remetente || 'Desconhecido'}: ${m.conteudo}`).join('\n');
     };
 
+    //Modifica o prompt pra cada comando
     async formulatePrompt(sender, from, isGroup, command, quotedMessage) {
         let prompt = "";
         let limit = 200;
@@ -150,54 +145,30 @@ class ChatModel {
             }
             prompt += `\nComece a resposta EXATAMENTE com: "*Resumo da conversa* \\n"`;
         }
+        else if(action === "!gpt"){
+            prompt += "Seja útil e responda diretamente a mensagem do usuário com dados que julgar importantes."
+        }
         return prompt;
     }
-    
-    async getAiResponse(from, sender, isGroup, command, quotedMessage = "Vazio"){    
 
-        const finalPrompt = await this.formulatePrompt(from, sender, isGroup, command, quotedMessage)
+    //Recebe a resposta do Gemini utilizando o prompr do formulatePrompt
+    async getAiResponse(from, sender, isGroup, command, quotedMessage = "Vazio") {    
 
-        try{
-            const model = this.genAI.getGenerativeModel({ model: "gemini-2.5-flash"});
+        const finalPrompt = await this.formulatePrompt(from, sender, isGroup, command, quotedMessage);
 
-            const result = await model.generateContent(finalPrompt);
-            const response = await result.response;
-            const text = response.text();
+        const model = this.genAI.getGenerativeModel({ model: "gemini-2.5-flash"});
+        const result = await model.generateContent(finalPrompt);
+        const response = await result.response;
+        const text = response.text();
 
-            return text
-        } catch (error) {
-            if (error.message === "FEW_MESSAGES") {
-                return "Pô, tem nem mensagem direito pra eu ler... Fala mais aí depois me chama.";
-            }
-            console.error(error);
-            return 'Morri kkkkkkkkkk tenta de novo aí.'; 
-        }
-    }
+        if (!text) throw new Error("AI_ERROR"); 
 
-    async handleLembrarCommand(sender, from, command){
-        
-    }
-
-    //Controla o comando resumo
-    async handleResumoCommand(from, sender, isGroup, command, quotedMessage){
-        try {
-            const text = await this.getAiResponse(from, sender, isGroup, command, quotedMessage)
-            return text;
-
-        } catch (error) {
-            console.error("Erro no Model:", error);
-            throw new Error("AI_ERROR"); 
-        }
+        return text;
     }
 
     //Responde o comando !menu
     async handleMenuCommand(){
         return `📍 Os comandos até agora são: \n🎲 !d{número}: Número aleatório (ex: !d20)\n🤖 !gpt {texto}: Pergunta pra IA\n🧠 !lembrar: lembra de um certo período de tempo\n 🛎️!resumo: Resume a conversa - Parâmetros:\n1 - tamanho do resumo: curto, médio e completo\n2 - quantidade de mensagens a resumir (máximo 500)\n Ex: !resumo curto 100`;
-    }
-
-    //Responde o comando !gpt
-    async handleGptCommand(){
-        return "Ainda vazio 😓"
     }
 
     //Responde o comando !d
@@ -231,15 +202,10 @@ class ChatModel {
 
     //Faz o controle de todos os comandos
     async handleCommand(msg, sender, from, isGroup, command, quotedMessage) {
-        try{
-            if (command.startsWith('!d')) return await this.handleDiceCommand(command, sender)
-            //if (command.startsWith('!gpt') && isGroup) return await this.handleGptCommand()
-            if (command.startsWith('!menu')) return await this.handleMenuCommand()
-            if (command.startsWith('!resumo') && isGroup) return await this.handleResumoCommand(from, sender, isGroup, command, quotedMessage)
-        }
-        catch(error){
-            console.error("Tipo do erro:", error);
-        }
+        if (command.startsWith('!d')) return await this.handleDiceCommand(command, sender)
+        if (command.startsWith('!menu')) return await this.handleMenuCommand()
+        if (command.startsWith('!resumo') && isGroup || command.startsWith("!gpt") && isGroup) return await this.getAiResponse(from, sender, isGroup, command, quotedMessage);
+
     }
 
     async handleMessageWithoutCommand(msg, sender, from, isGroup, command, quotedMessage){

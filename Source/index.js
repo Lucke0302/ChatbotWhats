@@ -109,7 +109,7 @@ async function connectToWhatsApp() {
     });
 
     //Instancia o chatbot
-    const chatbot = new ChatModel(sock, db, genAI)
+    const chatbot = new ChatModel(db, genAI)
     
     //Envia figurinha
     const sendSticker = async (sock, db, from, msg, mentions, command) => {
@@ -269,7 +269,7 @@ async function connectToWhatsApp() {
                 }
 
                 // 4. Comando !gpt
-                if (command.startsWith('!gpt')) {
+                /*if (command.startsWith('!gpt')) {
                     const pergunta = texto.slice(4).trim(); 
                     const nomeUsuario = msg.pushName || 'Desconhecido';
                     const sender = msg.key.participant || msg.key.remoteJid;
@@ -301,7 +301,7 @@ async function connectToWhatsApp() {
                     const finalResponse = `🤖 *@${senderJid}!*\n\n${textResponse}`;
 
                     await sendAndSave(sock, db, from, finalResponse, null, [sender]); 
-                }
+                }*/
 
                 // 5. Comando !lembrar
                 if (command.startsWith('!lembrar')) {

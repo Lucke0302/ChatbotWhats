@@ -17,7 +17,7 @@ class ChatModel {
                 else return "eusabo"+await this.rollDice(2)+".webp"
             },
             '!resumo': async () =>{
-                return "resumo.webp"
+                return "resumo"+await this.rollDice(2)+".webp"
             }
         };
 

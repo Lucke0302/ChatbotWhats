@@ -356,6 +356,11 @@ async function connectToWhatsApp() {
             const replyToUser = async (text) => {
                 await sendAndSave(sock, db, from, text, msg, [sender]);
             };
+            const contextObj = {
+                from: from,
+                sender: sender,
+                command: command
+            };
             try{
                 //Se não for grupo e o chatbot estiver online, responde a qualquer mensagem,
                 //sem precisar de quote ou comando

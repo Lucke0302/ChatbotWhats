@@ -171,16 +171,25 @@ class ChatModel {
     }
 
     //Recebe a resposta do Gemini utilizando o prompt recebido
-    async getAiResponse(from, sender, isGroup, command, prompt) {
+    async getAiResponse(from, sender, isGroup, command, prompt) {    
+        const model = this.genAI.getGenerativeModel({ model: "gemini-1.5-flash-8b" });
 
-        const model = this.genAI.getGenerativeModel({ model: "gemini-2.5-flash"});
-        const result = await model.generateContent(prompt);
-        const response = await result.response;
-        const text = response.text();
-
-        if (!text) throw new Error("AI_ERROR"); 
-
-        return text;
+        // Tenta até 3 vezes se der erro 503
+        for (let i = 0; i < 3; i++) {
+            try {
+                const result = await model.generateContent(prompt);
+                const response = await result.response;
+                return response.text();
+            } catch (error) {
+                if (error.message.includes("503") || error.message.includes("overloaded")) {
+                    console.log(`[IA] Servidor cheio (503), tentativa ${i+1}/3...`);
+                    await new Promise(r => setTimeout(r, 2000));
+                    continue;
+                }
+                throw error; 
+            }
+        }
+        throw new Error("AI_OVERLOAD");
     }
 
     //Responde o comando !lembrar

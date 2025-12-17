@@ -300,7 +300,7 @@ class ChatModel {
         
             if(command.startsWith('!resumo') && isGroup || command.startsWith("!gpt") && isGroup) return await this.getAiResponse(from, sender, isGroup, command, quotedMessage);
         
-        if(command.startsWith("!lembrar") && !limitedMode){
+        if(command.startsWith("!lembrar") && !this.limitedMode){
             return await this.handleLembrarCommand(from, sender, isGroup, command)
         }
         else{

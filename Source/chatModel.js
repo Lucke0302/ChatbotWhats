@@ -5,7 +5,16 @@ class ChatModel {
         this.genAI = genAI;
         this.isOnline = true;
         this.isTesting = true;
-        this.limitedMode = false;
+        this.modelLimits = {
+            "gemini-2.5-flash": 20,
+            "gemini-2.5-flash-lite": 20,
+            "gemini-3.0-flash": 20
+        };
+        this.updateOnlineStatus();
+    }
+
+    updateOnlineStatus() {
+        this.isOnline = usage.hasAnyQuotaAvailable(this.modelLimits);
     }
 
     //Escolhe qual figurinha deve ser enviada (ou nenhuma)
@@ -175,6 +184,7 @@ class ChatModel {
 
     //Recebe a resposta do Gemini utilizando o prompt recebido
     async getAiResponse(from, sender, isGroup, command, prompt, forceModel = null) {
+        this.updateOnlineStatus();
         let modelName;
 
         if (forceModel) {
@@ -281,7 +291,7 @@ class ChatModel {
         
             if(command.startsWith('!resumo') && isGroup || command.startsWith("!gpt") && isGroup) return await this.getAiResponse(from, sender, isGroup, command, await this.formulatePrompt(from, sender, isGroup, command, quotedMessage));
         
-        if(command.startsWith("!lembrar") && !this.limitedMode){
+        if(command.startsWith("!lembrar")){
             return await this.handleLembrarCommand(from, sender, isGroup, command)
         }
         else{

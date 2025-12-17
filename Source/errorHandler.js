@@ -9,7 +9,8 @@ const ERROR_DICTIONARY = {
     "MISSING_ARGS": "⚠️ Opa, tá faltando coisa nesse comando. Escreve direito aí.",
     "AI_TIMEOUT": "⏳ A IA demorou demais pra pensar e eu desisti. Tenta algo mais simples.",
     "AI_OVERLOAD": "🔥 A IA tá fritando de tanta gente usando! Tenta de novo daqui 1 minutinho que ela esfria.",
-    "LIMITED_MODE_ACTIVE": "⏳ Comando !lembrar indisponível temporariamente"
+    "LIMITED_MODE_ACTIVE": "⏳ Comando !lembrar indisponível temporariamente",
+    "ALL_QUOTAS_EXHAUSTED": "😵 Minhas baterias (e cotas do Google) acabaram por hoje! Volto amanhã cedinho."
 };
 
 // Mensagem padrão para erros não mapeados (bugs reais)

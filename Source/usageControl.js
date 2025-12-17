@@ -20,6 +20,10 @@ const usageControl = {
     hasQuota(modelName, limit) {
         const data = this.getData();
         return (data.counts[modelName] || 0) < limit;
+    },
+
+    hasAnyQuotaAvailable(modelLimits) {
+        return Object.entries(modelLimits).some(([model, limit]) => this.hasQuota(model, limit));
     }
 };
 

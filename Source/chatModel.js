@@ -222,7 +222,7 @@ class ChatModel {
     }
 
     //Responde o comando !lembrar
-    async handleLembrarCommand(from, sender, isGroup, command){
+    async handleLembrarCommand(from, sender, isGroup, command, complement){
             const pergunta = command.slice(8).trim()
             const selectPrompt = `Você é um gerador de consulta SQL para SQLite. Sua única saída deve ser uma consulta SQL (SELECT), sem NENHUMA explicação ou texto adicional.
             A tabela é 'mensagens' e o campo de tempo é 'timestamp' (UNIX time em segundos).
@@ -237,15 +237,23 @@ class ChatModel {
             Pergunta do usuário: ${pergunta}`
 
             let sqlQuery = await this.getAiResponse(from, sender, isGroup, command, selectPrompt)
+
+            // Remove blocos de código markdown (```sql e ```) e espaços extras
+            sqlQuery = sqlQuery.replace(/```sql/gi, '').replace(/```/g, '').trim(); 
+            
             if (!sqlQuery.toLowerCase().startsWith('select')) {
+                console.log("IA gerou SQL inválido:", sqlQuery);
                 throw new Error("INVALID_SELECT");
             }
             
             if (!sqlQuery.toLowerCase().includes('limit')) {
                 sqlQuery = sqlQuery.replace(/;?$/, ` LIMIT 200;`);
             }
-            let selectedMessages = await this.getMessagesByAiResponse(selectPrompt)
+            
+            let selectedMessages = await this.getMessagesByAiResponse(sqlQuery)
+
             let finalPrompt = await this.formulatePrompt(from, sender, isGroup, command, selectedMessages)
+            
             return await this.getAiResponse(from, sender, isGroup, command, finalPrompt)
     }
 

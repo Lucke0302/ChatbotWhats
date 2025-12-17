@@ -178,7 +178,7 @@ class ChatModel {
     
         // 2. Define a estratégia de modelos (Primeiro tenta o 8b, depois o Lite)
         const attemptStrategy = [
-            { modelName: "gemini-1.5-flash-8b", retries: 3 }, // Tenta 3x com o rápido
+            { modelName: "gemini-2.5-flash", retries: 3 }, // Tenta 3x com o rápido
             { modelName: "gemini-2.5-flash-lite", retries: 1 } // Se tudo falhar, tenta 1x com o Lite
         ];
     

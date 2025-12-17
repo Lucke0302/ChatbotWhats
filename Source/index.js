@@ -261,50 +261,15 @@ async function connectToWhatsApp() {
                 await sendSticker(sock, db, from, msg, [sender], texto)
 
                 //Pega a resposta do handleCommand do chatModel.js
-                const response = await chatbot.handleCommand(msg, sender, from, isGroup, command);
+                const response = await chatbot.handleCommand(msg, sender, from, isGroup, command, quotedMessage);
                 
                 //Verifica se recebeu alguma resposta
                 if (response) {
                     await sendAndSave(sock, db, from, response, null, [sender]);
                 }
 
-                // 4. Comando !gpt
-                /*if (command.startsWith('!gpt')) {
-                    const pergunta = texto.slice(4).trim(); 
-                    const nomeUsuario = msg.pushName || 'Desconhecido';
-                    const sender = msg.key.participant || msg.key.remoteJid;
-                    const senderJid = sender.split('@')[0];
-
-                    if (!pergunta) {
-                        throw new Error("MISSING_ARGS");
-                    }
-
-                    const mensagensFormatadas = await getMessagesByLimit(db, from, 50);
-
-                    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-
-                    const promptFinal = `O usuário do WhatsApp chamado "${nomeUsuario}" te enviou a seguinte pergunta ou comando: "${pergunta}".
-                    Responda ele diretamente pelo nome. Seja criativo, útil e mantenha o tom de uma conversa de WhatsApp, considerando que 
-                    você é um bot de WhatsApp chamado Bostossauro.
-                    
-                    Contexto da conversa (opcional):
-                    ${mensagensFormatadas}`;
-
-                    const result = await model.generateContent(promptFinal);
-                    const response = await result.response;
-                    const textResponse = response.text();
-
-                    if(!textResponse){
-                        throw new Error("AI_ERROR");
-                    }
-                    
-                    const finalResponse = `🤖 *@${senderJid}!*\n\n${textResponse}`;
-
-                    await sendAndSave(sock, db, from, finalResponse, null, [sender]); 
-                }*/
-
                 // 5. Comando !lembrar
-                if (command.startsWith('!lembrar')) {
+                /*if (command.startsWith('!lembrar')) {
                     const pergunta = texto.slice(8).trim(); 
                     const sender = msg.key.participant || msg.key.remoteJid;
                     const senderJid = sender.split('@')[0];
@@ -374,7 +339,7 @@ async function connectToWhatsApp() {
                     const finalResponse = `🤖 *Contexto Lembrado, @${senderJid}*:\n\n${responseAnalise}`;
                     await sendAndSave(sock, db, from, finalResponse, null, [sender]);
 
-                }  
+                }*/
             } catch (error) {
                 await handleBotError(error, replyToUser, contextObj);
             }

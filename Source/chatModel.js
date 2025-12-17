@@ -80,14 +80,27 @@ class ChatModel {
         LIMIT ${limit}`;
         
         const messagesDb = await this.db.all(sqlQuery);
-
-        console.log(messagesDb.map(m => `${m.nome_remetente || 'Desconhecido'}: ${m.conteudo}`).join('\n'))
+        if (!messagesDb || messagesDb.length === 0) {
+            throw new Error("SQL_ERROR");
+        }
 
         return messagesDb.map(m => `${m.nome_remetente || 'Desconhecido'}: ${m.conteudo}`).join('\n');
     };
 
+    //Função para o comando !resumo, retorna a resposta de um select feito pelo Gemini
+    async getMessagesByAiResponse(response){
+        const sqlQuery = response
+        
+        const messagesDb = await this.db.all(sqlQuery);
+        if (!messagesDb || messagesDb.length === 0) {
+            throw new Error("NO_AI_SQL_RESULT");
+        }
+
+        return messagesDb.map(m => `${m.nome_remetente || 'Desconhecido'}: ${m.conteudo}`).join('\n');        
+    }
+
     //Modifica o prompt pra cada comando
-    async formulatePrompt(sender, from, isGroup, command, quotedMessage) {
+    async formulatePrompt(from, sender, isGroup, command, complement = "Vazio") {
         let prompt = "";
         let limit = 200;
         
@@ -104,18 +117,16 @@ class ChatModel {
         if (msgCount < 5) {
             throw new Error("FEW_MESSAGES");
         }
-
-        const formatedMessages = await this.getMessagesByLimit(sender, limit);
-
-        console.log(formatedMessages)
+        
+        let formatedMessages
 
         prompt = `Você é um bot de WhatsApp engraçado e sarcástico, chamado Bostossauro.
         O usuário "${from}" te mandou: "${command}".
         Use emojis (pelo menos um dinossauro 🦖), mas nunca use o emoji de cocô.
         Responda diretamente pelo nome. Seja criativo e mantenha o tom de uma conversa do whatsapp.`;
 
-        if (quotedMessage !== "Vazio") {
-            prompt += `\nO usuário respondeu a esta mensagem: "${quotedMessage}"`;
+        if (quotedMessage !== "Vazio" && action !== "!lembrar") {
+            prompt += `\nO usuário respondeu a esta mensagem: "${complement}"`;
         }
 
         if (isGroup) {
@@ -124,7 +135,15 @@ class ChatModel {
             prompt += `\nEste é um chat privado, aja como um amigo.`;
         }
 
-        prompt += `\n\nContexto das últimas mensagens:\n${formatedMessages}`;
+        if(action !== "!lembrar") {
+            formatedMessages = await this.getMessagesByLimit(sender, limit);
+            prompt += `\n\nContexto das últimas mensagens:\n${formatedMessages}`;
+        }
+        else{
+            prompt += `Mensagens que o usuário te pediu para "lembrar":
+            ${complement}.
+            Resuma o que foi dito nas mensagens recuperadas e responda à mensagem do usuário diretamente.`
+        }
 
         if (action === "!resumo") {
             prompt += `\n\n${sender} pediu um RESUMO da conversa acima.
@@ -151,19 +170,45 @@ class ChatModel {
         return prompt;
     }
 
-    //Recebe a resposta do Gemini utilizando o prompr do formulatePrompt
-    async getAiResponse(from, sender, isGroup, command, quotedMessage = "Vazio") {    
-
-        const finalPrompt = await this.formulatePrompt(from, sender, isGroup, command, quotedMessage);
+    //Recebe a resposta do Gemini utilizando o prompt recebido
+    async getAiResponse(from, sender, isGroup, command, prompt) {
 
         const model = this.genAI.getGenerativeModel({ model: "gemini-2.5-flash"});
-        const result = await model.generateContent(finalPrompt);
+        const result = await model.generateContent(prompt);
         const response = await result.response;
         const text = response.text();
 
         if (!text) throw new Error("AI_ERROR"); 
 
         return text;
+    }
+
+    //Responde o comando !lembrar
+    async handleLembrarCommand(from, sender, isGroup, command){
+            const pergunta = command.slice(8).trim()
+            const selectPrompt = `Você é um gerador de consulta SQL para SQLite. Sua única saída deve ser uma consulta SQL (SELECT), sem NENHUMA explicação ou texto adicional.
+            A tabela é 'mensagens' e o campo de tempo é 'timestamp' (UNIX time em segundos).
+            O ID da conversa atual é '${from}'.
+            O usuário quer recuperar mensagens que se encaixam no período de tempo da pergunta, limitando o resultado a 500 mensagens no máximo.
+            Recupere as colunas 'nome_remetente' e 'conteudo'.
+            Use a condição WHERE para filtrar pelo id_conversa = '${from}' E pelo intervalo de tempo (timestamp).
+            A ordenação deve ser por timestamp DESC, e o limite deve ser de 200. Se a pergunta não especificar um período de tempo, recupere as últimas 200 mensagens da conversa.
+
+            Exemplo de saída para "o que rolou ontem": SELECT nome_remetente, conteudo FROM mensagens WHERE id_conversa = '${from}' AND timestamp BETWEEN 1764355200 AND 1764441600 ORDER BY timestamp DESC LIMIT 200;
+
+            Pergunta do usuário: ${pergunta}`
+
+            let sqlQuery = await this.getAiResponse(from, sender, isGroup, command, selectPrompt)
+            if (!sqlQuery.toLowerCase().startsWith('select')) {
+                throw new Error("INVALID_SELECT");
+            }
+            
+            if (!sqlQuery.toLowerCase().includes('limit')) {
+                sqlQuery = sqlQuery.replace(/;?$/, ` LIMIT 200;`);
+            }
+            let selectedMessages = await this.getMessagesByAiResponse(selectPrompt)
+            let finalPrompt = await this.formulatePrompt(from, sender, isGroup, command, selectedMessages)
+            return await this.getAiResponse(from, sender, isGroup, command, finalPrompt)
     }
 
     //Responde o comando !menu
@@ -202,14 +247,21 @@ class ChatModel {
 
     //Faz o controle de todos os comandos
     async handleCommand(msg, sender, from, isGroup, command, quotedMessage) {
-        if (command.startsWith('!d')) return await this.handleDiceCommand(command, sender)
-        if (command.startsWith('!menu')) return await this.handleMenuCommand()
-        if (command.startsWith('!resumo') && isGroup || command.startsWith("!gpt") && isGroup) return await this.getAiResponse(from, sender, isGroup, command, quotedMessage);
-
+        let finalPrompt
+        if(command.startsWith('!d')) return await this.handleDiceCommand(command, sender)
+        if(command.startsWith('!menu')) return await this.handleMenuCommand()
+        if(command.startsWith('!resumo') && isGroup || command.startsWith("!gpt") && isGroup) {
+            finalPrompt = await this.formulatePrompt(from, sender, isGroup, command, quotedMessage);
+            return await this.getAiResponse(from, sender, isGroup, command, quotedMessage, finalPrompt);
+        }
+        if(command.startsWith("!lembrar")){
+            return await this.handleLembrarCommand(from, sender, isGroup, command)
+        }
     }
 
     async handleMessageWithoutCommand(msg, sender, from, isGroup, command, quotedMessage){
-        return await this.getAiResponse(from, sender, isGroup, command, quotedMessage)
+        let finalPrompt = await this.formulatePrompt(from, sender, isGroup, command, quotedMessage);
+        return await this.getAiResponse(from, sender, isGroup, command, finalPrompt)
     }
 }
 

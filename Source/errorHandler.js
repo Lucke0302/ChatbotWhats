@@ -3,7 +3,8 @@ const ERROR_DICTIONARY = {
     "LEMBRAR_ERROR": "❌ Erro tentando lembrar, to com alzheimer.",
     "INVALID_SELECT": "❌ A IA pirou e não me deu a query SQL. Tenta ser mais específico na pergunta.",
     "AI_ERROR": "😵 A IA pifou ou tá dormindo. Tenta de novo já já.",
-    "NO_SQL_RESULT": "🔍 Não encontrei nenhuma mensagem para o período que você pediu.",
+    "NO_AI_SQL_RESULT": "🔍 Não encontrei nenhuma mensagem para o período que você pediu, ou a IA deu um select doido.",
+    "SQL_ERROR" : "Não sei lê",
     "INVALID_COMMAND": "⚠️ Esse comando não existe não.",
     "MISSING_ARGS": "⚠️ Opa, tá faltando coisa nesse comando. Escreve direito aí.",
     "AI_TIMEOUT": "⏳ A IA demorou demais pra pensar e eu desisti. Tenta algo mais simples."

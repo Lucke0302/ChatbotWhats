@@ -4,7 +4,7 @@ class ChatModel {
         this.genAI = genAI;
         this.isOnline = true;
         this.isTesting = true;
-        this.limitedMode = true;
+        this.limitedMode = false;
     }
 
     //Escolhe qual figurinha deve ser enviada (ou nenhuma)
@@ -173,7 +173,7 @@ class ChatModel {
     }
 
     //Recebe a resposta do Gemini utilizando o prompt recebido
-    async getAiResponse(from, sender, isGroup, command, quotedMessage = "Vazio") {
+    async getAiResponse(from, sender, isGroup, command, overridePrompt=null) {
         // SE vier um prompt pronto (overridePrompt), usa ele. 
         const finalPrompt = overridePrompt || await this.formulatePrompt(from, sender, isGroup, command, quotedMessage);
     
@@ -237,7 +237,7 @@ class ChatModel {
 
             Pergunta do usuário: ${pergunta}`
 
-            let sqlQuery = await this.getAiResponse(from, sender, isGroup, command, null, selectPrompt)
+            let sqlQuery = await this.getAiResponse(from, sender, isGroup, command, selectPrompt)
 
             // Remove blocos de código markdown (```sql e ```) e espaços extras
             sqlQuery = sqlQuery.replace(/```sql/gi, '').replace(/```/g, '').trim(); 
@@ -298,7 +298,7 @@ class ChatModel {
         
             if(command.startsWith('!menu')) return await this.handleMenuCommand()
         
-            if(command.startsWith('!resumo') && isGroup || command.startsWith("!gpt") && isGroup) return await this.getAiResponse(from, sender, isGroup, command, quotedMessage);
+            if(command.startsWith('!resumo') && isGroup || command.startsWith("!gpt") && isGroup) return await this.getAiResponse(from, sender, isGroup, command, await this.formulatePrompt(from, sender, isGroup, command, quotedMessage));
         
         if(command.startsWith("!lembrar") && !this.limitedMode){
             return await this.handleLembrarCommand(from, sender, isGroup, command)

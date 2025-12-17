@@ -1,3 +1,4 @@
+const usage = require('./usageControl');
 class ChatModel {
     constructor(db, genAI) {
         this.db = db;
@@ -173,54 +174,33 @@ class ChatModel {
     }
 
     //Recebe a resposta do Gemini utilizando o prompt recebido
-    async getAiResponse(from, sender, isGroup, command, overridePrompt=null) {
-        // SE vier um prompt pronto (overridePrompt), usa ele. 
-        const finalPrompt = overridePrompt || await this.formulatePrompt(from, sender, isGroup, command, quotedMessage);
-    
-        const attemptStrategy = [
-            { modelName: "gemini-2.5-flash", retries: 3 }, // Tenta 3x com o rápido
-            { modelName: "gemini-2.5-flash-lite", retries: 1 } // Se tudo falhar, tenta 1x com o Lite
-        ];
-    
-        let lastError;
-    
-        // Loop de Estratégia
-        for (const strategy of attemptStrategy) {
-            const model = this.genAI.getGenerativeModel({ model: strategy.modelName });
-    
-            // Loop de Tentativas (Retries)
-            for (let attempt = 1; attempt <= strategy.retries; attempt++) {
-                try {
-                    const result = await model.generateContent(finalPrompt);
-                    const response = await result.response;
-                    const text = response.text();
-                    
-                    if (!text) throw new Error("AI_ERROR");
+    async getAiResponse(from, sender, isGroup, command, prompt, forceModel = null) {
+        let modelName;
 
-                    if(attempt === 1) console.log(`Mensagem gerada pelo ${strategy.modelName}:
-                    ${text}`)
-                    
-                    return text;
-    
-                } catch (error) {
-                    lastError = error;
-                    const isOverloaded = error.message.includes("503") || error.message.includes("overloaded");
-                    if (isOverloaded) {
-                        console.log(`[IA] ${strategy.modelName} sobrecarregado (503). Tentativa ${attempt}/${strategy.retries}...`);
-                        if (attempt < strategy.retries) {
-                            await new Promise(r => setTimeout(r, 2000));
-                            continue;
-                        }
-                    } else {
-                        console.error(`[IA] Erro fatal no modelo ${strategy.modelName}:`, error.message);
-                        break; 
-                    }
-                }
-            }
-            console.log(`[IA] Desistindo do modelo ${strategy.modelName}, trocando para o próximo...`);
+        if (forceModel) {
+            modelName = forceModel;
+        } else {
+            modelName = usage.hasQuota("gemini-2.5-flash-lite", 20) 
+                ? "gemini-2.5-flash-lite" 
+                : "gemini-2.0-flash";
         }
-    
-        throw lastError || new Error("AI_OVERLOAD");
+
+        if (modelName === "gemini-2.5-flash" && !usage.hasQuota("gemini-2.5-flash", 20)) {
+            console.log("Cota do Flash 2.5 esgotada, usando Lite como backup.");
+            modelName = "gemini-2.5-flash-lite";
+        }
+
+        try {
+            const model = this.genAI.getGenerativeModel({ model: modelName });
+            const result = await model.generateContent(prompt);
+            
+            usage.increment(modelName);
+            
+            return result.response.text();
+        } catch (error) {
+            // Se der erro 503 ou 429, você pode disparar aquela sua lógica de retry aqui
+            throw error;
+        }
     }
 
     //Responde o comando !lembrar
@@ -238,7 +218,7 @@ class ChatModel {
 
             Pergunta do usuário: ${pergunta}`
 
-            let sqlQuery = await this.getAiResponse(from, sender, isGroup, command, selectPrompt)
+            let sqlQuery = await this.getAiResponse(from, sender, isGroup, command, selectPrompt, "gemini-2.5-flash")
 
             // Remove blocos de código markdown (```sql e ```) e espaços extras
             sqlQuery = sqlQuery.replace(/```sql/gi, '').replace(/```/g, '').trim(); 

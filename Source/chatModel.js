@@ -197,7 +197,8 @@ class ChatModel {
                     
                     if (!text) throw new Error("AI_ERROR");
 
-                    if(attempt === 1) console.log(`Mensagem gerada pelo ${strategy.modelName}`)
+                    if(attempt === 1) console.log(`Mensagem gerada pelo ${strategy.modelName}:
+                    ${text}`)
                     
                     return text;
     

@@ -172,25 +172,52 @@ class ChatModel {
     }
 
     //Recebe a resposta do Gemini utilizando o prompt recebido
-    async getAiResponse(from, sender, isGroup, command, prompt) {    
-        const model = this.genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
-
-        // Tenta até 3 vezes se der erro 503
-        for (let i = 0; i < 3; i++) {
-            try {
-                const result = await model.generateContent(prompt);
-                const response = await result.response;
-                return response.text();
-            } catch (error) {
-                if (error.message.includes("503") || error.message.includes("overloaded")) {
-                    console.log(`[IA] Servidor cheio (503), tentativa ${i+1}/3...`);
-                    await new Promise(r => setTimeout(r, 2000));
-                    continue;
+    async getAiResponse(from, sender, isGroup, command, quotedMessage = "Vazio") {    
+        // 1. Formula o prompt uma única vez
+        const finalPrompt = await this.formulatePrompt(from, sender, isGroup, command, quotedMessage);
+    
+        // 2. Define a estratégia de modelos (Primeiro tenta o 8b, depois o Lite)
+        const attemptStrategy = [
+            { modelName: "gemini-1.5-flash-8b", retries: 3 }, // Tenta 3x com o rápido
+            { modelName: "gemini-2.5-flash-lite", retries: 1 } // Se tudo falhar, tenta 1x com o Lite
+        ];
+    
+        let lastError;
+    
+        // 3. Loop de Estratégia
+        for (const strategy of attemptStrategy) {
+            const model = this.genAI.getGenerativeModel({ model: strategy.modelName });
+    
+            // Loop de Tentativas (Retries)
+            for (let attempt = 1; attempt <= strategy.retries; attempt++) {
+                try {
+                    const result = await model.generateContent(finalPrompt);
+                    const response = await result.response;
+                    const text = response.text();
+                    
+                    if (!text) throw new Error("AI_ERROR");
+                    
+                    return text;
+    
+                } catch (error) {
+                    lastError = error;
+                    const isOverloaded = error.message.includes("503") || error.message.includes("overloaded");
+                    if (isOverloaded) {
+                        console.log(`[IA] ${strategy.modelName} sobrecarregado (503). Tentativa ${attempt}/${strategy.retries}...`);
+                        if (attempt < strategy.retries) {
+                            await new Promise(r => setTimeout(r, 2000));
+                            continue;
+                        }
+                    } else {
+                        console.error(`[IA] Erro fatal no modelo ${strategy.modelName}:`, error.message);
+                        break; 
+                    }
                 }
-                throw error; 
             }
+            console.log(`[IA] Desistindo do modelo ${strategy.modelName}, trocando para o próximo...`);
         }
-        throw new Error("AI_OVERLOAD");
+    
+        throw lastError || new Error("AI_OVERLOAD");
     }
 
     //Responde o comando !lembrar

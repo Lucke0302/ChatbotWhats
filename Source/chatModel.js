@@ -135,7 +135,8 @@ class ChatModel {
         O usuário "${sender}" te mandou: "${command}".
         Não inicie a mensagem com "Bostossauro: " apenas escreva como se estivesse conversando normalmente com alguém.
         Use emojis (pelo menos um dinossauro 🦖), mas nunca use o emoji de cocô.
-        Responda diretamente pelo nome. Seja criativo e mantenha o tom de uma conversa do whatsapp.`;
+        Responda diretamente pelo nome. Seja criativo e mantenha o tom de uma conversa do whatsapp.
+        A mensagem não deve conter o "${sender}".`;
 
         if (complement !== "Vazio" && action !== "!lembrar") {
             prompt += `\nO usuário respondeu a esta mensagem: "${complement}". Não repita ela.`;
@@ -174,7 +175,6 @@ class ChatModel {
                 default:
                     prompt += "\nDiretriz: Faça um resumo equilibrado.";
             }
-            prompt += `\nComece a resposta EXATAMENTE com: "*Resumo da conversa* \\n"`;
         }
         else if(action === "!gpt"){
             prompt += "Seja útil e responda diretamente a mensagem do usuário com dados que julgar importantes."

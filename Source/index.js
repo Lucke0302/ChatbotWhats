@@ -242,6 +242,12 @@ async function connectToWhatsApp() {
                 await sendAndSave(sock, db, from, text, msg, [sender]);
             };
 
+            const commandIntros = {
+                '!gpt': `🤖 @${senderJid}\n`,
+                '!resumo': `🦖 @${senderJid}\n*Resumo da conversa*\n`,
+                '!lembrar': `🧠\n`
+            };
+
             //Bloco de controle NOVO, trata melhor os problemas e se comunica diretamente
             //com o chatModel.js
             try {
@@ -262,90 +268,19 @@ async function connectToWhatsApp() {
 
                 //Pega a resposta do handleCommand do chatModel.js
                 const response = await chatbot.handleCommand(msg, sender, from, isGroup, command, quotedMessage);
+
+                const finalResponse = `${intro}\n\n${response}`;
                 
                 //Verifica se recebeu alguma resposta
                 if (response) {
-                    await sendAndSave(sock, db, from, response, null, [sender]);
-                }
-
-                // 5. Comando !lembrar
-                /*if (command.startsWith('!lembrar')) {
-                    const pergunta = texto.slice(8).trim(); 
-                    const sender = msg.key.participant || msg.key.remoteJid;
-                    const senderJid = sender.split('@')[0];
-
-                    if (!pergunta) {
-                        throw new Error("MISSING_ARGS");
-                    }
-                    
-                    await sendAndSave(sock, db, from, `🧠 Deixa eu dar uma lida nas mensagens pra ver o que rolou...`); 
-                
-                    const modelSql = genAI.getGenerativeModel({ model: "gemini-2.5-flash"});
-                    
-                    const promptSql = `Você é um gerador de consulta SQL para SQLite. Sua única saída deve ser uma consulta SQL (SELECT), sem NENHUMA explicação ou texto adicional.
-                    A tabela é 'mensagens' e o campo de tempo é 'timestamp' (UNIX time em segundos).
-                    O ID da conversa atual é '${from}'.
-                    O usuário quer recuperar mensagens que se encaixam no período de tempo da pergunta, limitando o resultado a 500 mensagens no máximo.
-                    Recupere as colunas 'nome_remetente' e 'conteudo'.
-                    Use a condição WHERE para filtrar pelo id_conversa = '${from}' E pelo intervalo de tempo (timestamp).
-                    A ordenação deve ser por timestamp DESC, e o limite deve ser de 500. Se a pergunta não especificar um período de tempo, recupere as últimas 500 mensagens da conversa.
-
-                    Exemplo de saída para "o que rolou ontem": SELECT nome_remetente, conteudo FROM mensagens WHERE id_conversa = '${from}' AND timestamp BETWEEN 1764355200 AND 1764441600 ORDER BY timestamp DESC LIMIT 500;
-
-                    Pergunta do usuário: ${pergunta}`;
-
-                    const result = await modelSql.generateContent(promptSql);
-                    const response = await result.response;
-                    const resultSql = response.text();
-
-                    let sqlQuery = resultSql;
-                    console.log(sqlQuery)
-
-                    if (!sqlQuery.toLowerCase().startsWith('select')) {
-                        throw new Error("INVALID_SELECT");
-                    }
-                    
-                    if (!sqlQuery.toLowerCase().includes('limit')) {
-                        sqlQuery = sqlQuery.replace(/;?$/, ` LIMIT 200;`);
-                    }
-                    
-                    const mensagensDb = await db.all(sqlQuery);
-                    
-                    if (!mensagensDb || mensagensDb.length === 0) {
-                        throw new Error("NO_SQL_RESULT");
-                    }
-
-                    const mensagensFormatadas = mensagensDb.map(m => `${m.nome_remetente || 'Desconhecido'}: ${m.conteudo}`).join('\n');
-                    
-                    const modelAnalise = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-
-                    const promptAnalise = `Você é o Bostossauro, um bot de WhatsApp engraçado e sarcástico. 
-                    Responda ao usuário (@${senderJid}) usando o contexto das mensagens fornecidas abaixo. 
-                    Seja criativo, faça piadas com o conteúdo e resuma o que for relevante.
-                    As mensagens estão em ordem cronológica inversa (mais recentes primeiro).
-
-                    Pergunta original do usuário: ${pergunta}
-                    Contexto das Mensagens (${mensagensDb.length} mensagens):
-                    ${mensagensFormatadas}`;
-
-                    const resultAnalise = await modelAnalise.generateContent(promptAnalise);
-                    const textResposta = resultAnalise.response;
-                    const responseAnalise = await textResposta.text();
-
-                    if(!responseAnalise){
-                        throw new Error("AI_ERROR");
-                    }
-
-                    const finalResponse = `🤖 *Contexto Lembrado, @${senderJid}*:\n\n${responseAnalise}`;
                     await sendAndSave(sock, db, from, finalResponse, null, [sender]);
-
-                }*/
+                }
             } catch (error) {
                 await handleBotError(error, replyToUser, contextObj);
             }
         }
 
-        //Se o chatbot estiver online e receber um comando
+        //Se o chatbot não estiver online e receber um comando
         else if(command.startsWith("!") &&  !chatbot.isOnline){
             const sender = msg.key.participant || msg.key.remoteJid;            
             await sendSticker(sock, db, from, msg, [sender], texto)

@@ -261,7 +261,7 @@ class ChatModel {
         if(command.startsWith('!menu')) return await this.handleMenuCommand()
         if(command.startsWith('!resumo') && isGroup || command.startsWith("!gpt") && isGroup) {
             finalPrompt = await this.formulatePrompt(from, sender, isGroup, command, quotedMessage);
-            return await this.getAiResponse(from, sender, isGroup, command, quotedMessage, finalPrompt);
+            return await this.getAiResponse(from, sender, isGroup, command, finalPrompt);
         }
         if(command.startsWith("!lembrar")){
             return await this.handleLembrarCommand(from, sender, isGroup, command)

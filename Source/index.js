@@ -241,6 +241,8 @@ async function connectToWhatsApp() {
             const replyToUser = async (text) => {
                 await sendAndSave(sock, db, from, text, msg, [sender]);
             };
+            
+            const senderJid = sender.split('@')[0];
 
             const commandIntros = {
                 '!gpt': `🤖 @${senderJid}\n`,
@@ -252,7 +254,6 @@ async function connectToWhatsApp() {
             //com o chatModel.js
             try {
                 const command = texto.trim(); 
-                const senderJid = sender.split('@')[0];
 
                 if (action) {
                     if (action.emoji) {

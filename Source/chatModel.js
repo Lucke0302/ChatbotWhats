@@ -125,7 +125,7 @@ class ChatModel {
         Use emojis (pelo menos um dinossauro 🦖), mas nunca use o emoji de cocô.
         Responda diretamente pelo nome. Seja criativo e mantenha o tom de uma conversa do whatsapp.`;
 
-        if (quotedMessage !== "Vazio" && action !== "!lembrar") {
+        if (complement !== "Vazio" && action !== "!lembrar") {
             prompt += `\nO usuário respondeu a esta mensagem: "${complement}"`;
         }
 

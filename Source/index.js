@@ -270,7 +270,7 @@ async function connectToWhatsApp() {
                 //Pega a resposta do handleCommand do chatModel.js
                 const response = await chatbot.handleCommand(msg, sender, from, isGroup, command, quotedMessage);
 
-                const intro = commandIntros[cmdKey] || commandIntros['default'];
+                const intro = commandIntros[commandName] || commandIntros['default'];
                 const finalResponse = `${intro}\n\n${response}`;
                 
                 //Verifica se recebeu alguma resposta

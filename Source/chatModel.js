@@ -138,7 +138,7 @@ class ChatModel {
         Responda diretamente pelo nome. Seja criativo e mantenha o tom de uma conversa do whatsapp.`;
 
         if (complement !== "Vazio" && action !== "!lembrar") {
-            prompt += `\nO usuário respondeu a esta mensagem: "${complement}"`;
+            prompt += `\nO usuário respondeu a esta mensagem: "${complement}". Não repita ela.`;
         }
 
         if (isGroup) {

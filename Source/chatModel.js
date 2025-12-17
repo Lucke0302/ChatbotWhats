@@ -172,7 +172,7 @@ class ChatModel {
 
     //Recebe a resposta do Gemini utilizando o prompt recebido
     async getAiResponse(from, sender, isGroup, command, prompt) {    
-        const model = this.genAI.getGenerativeModel({ model: "gemini-1.5-flash-8b" });
+        const model = this.genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
         // Tenta até 3 vezes se der erro 503
         for (let i = 0; i < 3; i++) {

@@ -205,6 +205,8 @@ class ChatModel {
             const result = await model.generateContent(prompt);
             
             usage.increment(modelName);
+
+            console.log(`Mensagem gerada usando o ${modelName}`)
             
             return result.response.text();
         } catch (error) {

@@ -353,34 +353,31 @@ async function connectToWhatsApp() {
         }
 
         else{
-            //Se não for grupo e o chatbot estiver online, responde a qualquer mensagem,
-            //sem precisar de quote ou comando
-            if(!isGroup && chatbot.isOnline){
-                const mensagem = texto.trim(); 
-                const sender = msg.key.participant || msg.key.remoteJid;
-                const senderJid = sender.split('@')[0];
+            try{
+                //Se não for grupo e o chatbot estiver online, responde a qualquer mensagem,
+                //sem precisar de quote ou comando
+                if(!isGroup && chatbot.isOnline){
+                    const mensagem = texto.trim(); 
+                    const sender = msg.key.participant || msg.key.remoteJid;
+                    const senderJid = sender.split('@')[0];
 
-                //Verifica se deve mandar um sticker
-                await sendSticker(sock, db, from, msg, [sender], texto)
+                    //Verifica se deve mandar um sticker
+                    await sendSticker(sock, db, from, msg, [sender], texto)
                 
-                try { 
                     //Pega a resposta do handleCommand do chatModel.js
                     const response = await chatbot.handleMessageWithoutCommand(msg, sender, from, isGroup, command);
 
                     await sendAndSave(sock, db, from, response, null, [sender]);
-
-                } catch (error) {
-                    console.error("❌ Erro no comando: ", error);
-                    await sendAndSave(sock, db, from, '❌ Erro aaaaaaaaaaaaaaaaaaaaaaaaa.');
                 }
-            }
-            
-            //Se não estiver online, manda o sticker "desonline"
-            if(!isGroup && !chatbot.isOnline){    
-                const sender = msg.key.participant || msg.key.remoteJid;   
-                await sendSticker(sock, db, from, msg, [sender], texto)
-                //await sendAndSave(sock, db, from, "Desonline... 😴", null, [sender]);
-                return
+                
+                //Se não estiver online, manda o sticker "desonline"
+                if(!isGroup && !chatbot.isOnline){    
+                    const sender = msg.key.participant || msg.key.remoteJid;   
+                    await sendSticker(sock, db, from, msg, [sender], texto)
+                    return
+                }
+            }catch (error) {
+                await handleBotError(error, replyToUser, contextObj);
             }
         }
 

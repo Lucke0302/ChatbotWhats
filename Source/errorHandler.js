@@ -7,7 +7,8 @@ const ERROR_DICTIONARY = {
     "SQL_ERROR" : "Não sei lê",
     "INVALID_COMMAND": "⚠️ Esse comando não existe não.",
     "MISSING_ARGS": "⚠️ Opa, tá faltando coisa nesse comando. Escreve direito aí.",
-    "AI_TIMEOUT": "⏳ A IA demorou demais pra pensar e eu desisti. Tenta algo mais simples."
+    "AI_TIMEOUT": "⏳ A IA demorou demais pra pensar e eu desisti. Tenta algo mais simples.",
+    "AI_OVERLOAD": "🔥 A IA tá fritando de tanta gente usando! Tenta de novo daqui 1 minutinho que ela esfria."
 };
 
 // Mensagem padrão para erros não mapeados (bugs reais)
@@ -26,8 +27,13 @@ const handleBotError = async (error, replyFunction, context = {}) => {
     console.error(`   From: ${context.from}`);
     console.error(`   Detalhes:`, error);
 
-    const errorKey = typeof error === 'string' ? error : error.message;
-    
+    let errorKey = typeof error === 'string' ? error : error.message;
+
+    // DETECÇÃO INTELIGENTE DE ERROS DA API
+    if (errorKey.includes("overloaded") || errorKey.includes("503")) {
+        errorKey = "AI_OVERLOAD";
+    }
+
     const userMessage = ERROR_DICTIONARY[errorKey] || DEFAULT_ERROR_MESSAGE;
 
     try {

@@ -218,6 +218,21 @@ async function connectToWhatsApp() {
         //Joga o comando todo para letras minúsculas para evitar problemas com case-sensitive
         const command = texto.trim().toLowerCase();
 
+        if (command === '!status') {
+            const GRUPO_CONTROLE = '120363422821336011@g.us';
+            
+            if (from === GRUPO_CONTROLE) {
+                try {
+                    await sock.sendMessage(from, { react: { text: '📊', key: msg.key } });                    
+                    const statusReport = await chatbot.getStatus();
+                    await sock.sendMessage(from, { text: statusReport }, { quoted: msg });
+                    return;
+                } catch (error) {
+                    console.error("Erro ao gerar status:", error);
+                }
+            } 
+        }
+
         let commandName = command.split(' ')[0];
 
         if (/^!d\d+$/.test(commandName)) {

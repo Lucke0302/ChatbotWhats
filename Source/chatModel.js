@@ -8,13 +8,40 @@ class ChatModel {
         this.modelLimits = {
             "gemini-2.5-flash": 20,
             "gemini-2.5-flash-lite": 20,
-            "gemini-3.0-flash": 20
+            "gemini-3.0-flash": 20,
+            "gemma-3-27b": 5000,
+            "gemma-3-12b": 5000,
+            "gemma-3-4b": 9999
         };
         this.updateOnlineStatus();
     }
 
     updateOnlineStatus() {
         this.isOnline = usage.hasAnyQuotaAvailable(this.modelLimits);
+    }
+
+    //Função de monitoramento de recursos
+    async getStatus() {
+        const stats = usage.getData(); // Pega os dados do usageControl.js
+        const date = stats.date;
+        const counts = stats.counts;
+
+        let report = `📊 *STATUS DO BOSTOSSAURO* - ${date}\n\n`;
+        report += `🌐 *Status:* ${this.isOnline ? '✅ ONLINE' : '❌ OFFLINE'}\n\n`;
+        
+        report += `🛡️ *Uso de Modelos:* (Usado / Limite)\n`;
+
+        for (const [model, limit] of Object.entries(this.modelLimits)) {
+            const used = counts[model] || 0;
+            const remaining = limit - used;
+            const icon = used >= limit ? '🔴' : (used > limit * 0.8 ? '🟡' : '🟢');
+            
+            report += `${icon} *${model}:* ${used}/${limit}\n`;
+        }
+
+        report += `\n⚠️ _Modelos com 🔴 serão ignorados no fallback._`;
+        
+        return report;
     }
 
     //Escolhe qual figurinha deve ser enviada (ou nenhuma)
@@ -83,6 +110,7 @@ class ChatModel {
 
     //Retorna mensagens do banco de dados para um certo remetente (pessoa ou grupo) com um limite
     async getMessagesByLimit(sender, limit){
+        
         const sqlQuery = `SELECT nome_remetente, conteudo 
         FROM mensagens 
         WHERE id_conversa = '${sender}' 
@@ -108,6 +136,47 @@ class ChatModel {
         }
 
         return messagesDb.map(m => `${m.nome_remetente || 'Desconhecido'}: ${m.conteudo}`).join('\n');        
+    }
+
+    // Define qual modelo usar baseado no comando, força e cota
+    selectBestModel(command, forceModel) {
+        let candidates = [];
+
+        if (forceModel) {
+            candidates.push(forceModel);
+            if (forceModel === "gemini-3-flash") candidates.push("gemini-2.5-flash");
+        } 
+        else if (command.startsWith("!resumo")){            
+            candidates = ["gemini-2.5-flash-lite", "gemini-3-flash", "gemini-2.5-flash", "gemma-3-27b","gemma-3-12b"]; 
+        }
+        else if (command.startsWith("!gpt")){            
+            candidates = ["gemini-2.5-flash-lite", "gemini-3-flash", "gemini-2.5-flash", "gemma-3-4b"]; 
+        }
+        else if (command.startsWith("!lembrar")) {
+            candidates = ["gemini-3-flash", "gemma-3-27b", "gemini-2.5-flash"]; 
+        } 
+        else {
+            candidates = [
+                "gemini-2.5-flash-lite",                
+                "gemini-3-flash",
+                "gemini-2.5-flash",
+                "gemma-3-4b"
+            ];
+        }
+
+        for (const model of candidates) {
+            const limit = this.modelLimits[model] || 20;            
+            if (usage.hasQuota(model, limit)) {
+                return model;
+            }            
+            console.log(`[QUOTA] Sem cota para ${model}, tentando próximo...`);
+        }
+
+        if (command.startsWith("!lembrar")) {
+            throw new Error("LEMBRAR_UNAVAILABLE");
+        }        
+
+        throw new Error("ALL_QUOTAS_EXHAUSTED");
     }
 
     //Modifica o prompt pra cada comando
@@ -185,20 +254,8 @@ class ChatModel {
     //Recebe a resposta do Gemini utilizando o prompt recebido
     async getAiResponse(from, sender, isGroup, command, prompt, forceModel = null) {
         this.updateOnlineStatus();
-        let modelName;
 
-        if (forceModel) {
-            modelName = forceModel;
-        } else {
-            modelName = usage.hasQuota("gemini-2.5-flash-lite", 20) 
-                ? "gemini-2.5-flash-lite" 
-                : "gemini-2.0-flash";
-        }
-
-        if (modelName === "gemini-2.5-flash" && !usage.hasQuota("gemini-2.5-flash", 20)) {
-            console.log("Cota do Flash 2.5 esgotada, usando Lite como backup.");
-            modelName = "gemini-2.5-flash-lite";
-        }
+        let modelName = this.selectBestModel(command, forceModel);
 
         try {
             const model = this.genAI.getGenerativeModel({ model: modelName });
@@ -248,7 +305,7 @@ class ChatModel {
 
             let finalPrompt = await this.formulatePrompt(from, sender, isGroup, command, selectedMessages)
             
-            return await this.getAiResponse(from, sender, isGroup, command, finalPrompt)
+            return await this.getAiResponse(from, sender, isGroup, "any", finalPrompt)
     }
 
     //Responde o comando !menu
@@ -289,15 +346,12 @@ class ChatModel {
     async handleCommand(msg, sender, from, isGroup, command, quotedMessage) {
         if(command.startsWith('!d')) return await this.handleDiceCommand(command, sender)
         
-            if(command.startsWith('!menu')) return await this.handleMenuCommand()
+        if(command.startsWith('!menu')) return await this.handleMenuCommand()
         
-            if(command.startsWith('!resumo') && isGroup || command.startsWith("!gpt") && isGroup) return await this.getAiResponse(from, sender, isGroup, command, await this.formulatePrompt(from, sender, isGroup, command, quotedMessage));
+        if(command.startsWith('!resumo') && isGroup || command.startsWith("!gpt") && isGroup) return await this.getAiResponse(from, sender, isGroup, command, await this.formulatePrompt(from, sender, isGroup, command, quotedMessage));
         
         if(command.startsWith("!lembrar")){
             return await this.handleLembrarCommand(from, sender, isGroup, command)
-        }
-        else{
-            throw new Error("LIMITED_MODE_ACTIVE")
         }
     }
 

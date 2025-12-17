@@ -172,11 +172,10 @@ class ChatModel {
     }
 
     //Recebe a resposta do Gemini utilizando o prompt recebido
-    async getAiResponse(from, sender, isGroup, command, quotedMessage = "Vazio") {    
-        // 1. Formula o prompt uma única vez
+    async getAiResponse(from, sender, isGroup, command, quotedMessage = "Vazio") {
         const finalPrompt = await this.formulatePrompt(from, sender, isGroup, command, quotedMessage);
     
-        // 2. Define a estratégia de modelos (Primeiro tenta o 8b, depois o Lite)
+        // Define a estratégia de modelos (Primeiro tenta o 8b, depois o Lite)
         const attemptStrategy = [
             { modelName: "gemini-2.5-flash", retries: 3 }, // Tenta 3x com o rápido
             { modelName: "gemini-2.5-flash-lite", retries: 1 } // Se tudo falhar, tenta 1x com o Lite
@@ -184,7 +183,7 @@ class ChatModel {
     
         let lastError;
     
-        // 3. Loop de Estratégia
+        // Loop de Estratégia
         for (const strategy of attemptStrategy) {
             const model = this.genAI.getGenerativeModel({ model: strategy.modelName });
     
@@ -196,6 +195,8 @@ class ChatModel {
                     const text = response.text();
                     
                     if (!text) throw new Error("AI_ERROR");
+
+                    if(attempt === 1) console.log(`Mensagem gerada pelo ${strategy.modelName}`)
                     
                     return text;
     

@@ -8,7 +8,8 @@ const ERROR_DICTIONARY = {
     "INVALID_COMMAND": "⚠️ Esse comando não existe não.",
     "MISSING_ARGS": "⚠️ Opa, tá faltando coisa nesse comando. Escreve direito aí.",
     "AI_TIMEOUT": "⏳ A IA demorou demais pra pensar e eu desisti. Tenta algo mais simples.",
-    "AI_OVERLOAD": "🔥 A IA tá fritando de tanta gente usando! Tenta de novo daqui 1 minutinho que ela esfria."
+    "AI_OVERLOAD": "🔥 A IA tá fritando de tanta gente usando! Tenta de novo daqui 1 minutinho que ela esfria.",
+    "LIMITED_MODE_ACTIVE": "⏳ Comando !lembrar indisponível temporariamente"
 };
 
 // Mensagem padrão para erros não mapeados (bugs reais)

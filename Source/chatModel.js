@@ -4,6 +4,7 @@ class ChatModel {
         this.genAI = genAI;
         this.isOnline = true;
         this.isTesting = true;
+        this.limitedMode = true;
     }
 
     //Escolhe qual figurinha deve ser enviada (ou nenhuma)
@@ -173,9 +174,9 @@ class ChatModel {
 
     //Recebe a resposta do Gemini utilizando o prompt recebido
     async getAiResponse(from, sender, isGroup, command, quotedMessage = "Vazio") {
-        const finalPrompt = await this.formulatePrompt(from, sender, isGroup, command, quotedMessage);
+        // SE vier um prompt pronto (overridePrompt), usa ele. 
+        const finalPrompt = overridePrompt || await this.formulatePrompt(from, sender, isGroup, command, quotedMessage);
     
-        // Define a estratégia de modelos (Primeiro tenta o 8b, depois o Lite)
         const attemptStrategy = [
             { modelName: "gemini-2.5-flash", retries: 3 }, // Tenta 3x com o rápido
             { modelName: "gemini-2.5-flash-lite", retries: 1 } // Se tudo falhar, tenta 1x com o Lite
@@ -236,7 +237,7 @@ class ChatModel {
 
             Pergunta do usuário: ${pergunta}`
 
-            let sqlQuery = await this.getAiResponse(from, sender, isGroup, command, selectPrompt)
+            let sqlQuery = await this.getAiResponse(from, sender, isGroup, command, null, selectPrompt)
 
             // Remove blocos de código markdown (```sql e ```) e espaços extras
             sqlQuery = sqlQuery.replace(/```sql/gi, '').replace(/```/g, '').trim(); 
@@ -293,15 +294,17 @@ class ChatModel {
 
     //Faz o controle de todos os comandos
     async handleCommand(msg, sender, from, isGroup, command, quotedMessage) {
-        let finalPrompt
         if(command.startsWith('!d')) return await this.handleDiceCommand(command, sender)
-        if(command.startsWith('!menu')) return await this.handleMenuCommand()
-        if(command.startsWith('!resumo') && isGroup || command.startsWith("!gpt") && isGroup) {
-            finalPrompt = await this.formulatePrompt(from, sender, isGroup, command, quotedMessage);
-            return await this.getAiResponse(from, sender, isGroup, command, finalPrompt);
-        }
-        if(command.startsWith("!lembrar")){
+        
+            if(command.startsWith('!menu')) return await this.handleMenuCommand()
+        
+            if(command.startsWith('!resumo') && isGroup || command.startsWith("!gpt") && isGroup) return await this.getAiResponse(from, sender, isGroup, command, quotedMessage);
+        
+        if(command.startsWith("!lembrar") && !limitedMode){
             return await this.handleLembrarCommand(from, sender, isGroup, command)
+        }
+        else{
+            throw new Error("LIMITED_MODE_ACTIVE")
         }
     }
 

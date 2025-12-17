@@ -353,6 +353,7 @@ async function connectToWhatsApp() {
         }
 
         else{
+            const sender = msg.key.participant || msg.key.remoteJid;
             const replyToUser = async (text) => {
                 await sendAndSave(sock, db, from, text, msg, [sender]);
             };

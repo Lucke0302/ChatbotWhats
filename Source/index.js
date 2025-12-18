@@ -167,6 +167,9 @@ async function connectToWhatsApp() {
                       msg.message.extendedTextMessage?.text || 
                       msg.message.imageMessage?.caption || '';
 
+        //Joga o comando todo para letras minúsculas para evitar problemas com case-sensitive
+        const command = texto.trim().toLowerCase();
+
         //Verifica se por algum motivo a mensagem não chegou vazia
         if (texto) {
             const id_conversa = from; 
@@ -175,8 +178,7 @@ async function connectToWhatsApp() {
             const id_mensagem_externo = msg.key.id;
             const timestamp = msg.messageTimestamp; 
 
-            //Joga o comando todo para letras minúsculas para evitar problemas com case-sensitive
-             const command = texto.trim().toLowerCase();
+
             if(!command.startsWith("!status")){
                 try {
                     await db.run(

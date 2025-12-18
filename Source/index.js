@@ -300,10 +300,10 @@ async function connectToWhatsApp() {
                 const userDef = command.split[1]
                 let stickerQuality = 50
                 if(userDef == "baixa"){
-                    userDef = 10
+                    stickerQuality= 10
                 }
                 else{
-                    userDef = 50
+                    stickerQuality = 50
                 }
                 // Cria a figurinha
                 const sticker = new Sticker(buffer, {
@@ -312,7 +312,7 @@ async function connectToWhatsApp() {
                     type: StickerTypes.FULL, 
                     categories: ['🤩', '🎉'],
                     id: '12345',
-                    quality: userDef,
+                    quality: stickerQuality,
                     background: '#00000000'
                 });
 

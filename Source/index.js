@@ -309,7 +309,7 @@ async function connectToWhatsApp() {
                     try {
                         finalBuffer = await sharp(buffer)
                         .resize(16, null)
-                        .toFormat('jpeg', { quality: 10 })
+                        .toFormat('jpeg', { quality: 1 })
                         .resize(512, null, { 
                             kernel: sharp.kernel.nearest
                         })

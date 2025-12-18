@@ -407,10 +407,10 @@ async function connectToWhatsApp() {
                 '!lembrar': `🧠\n\n`,
                 'undefined': ''
             };
-            
-            const quotedMessageText = quotedMessage.conversation || 
-                                quotedMessage.extendedTextMessage?.text || 
-                                quotedMessage.imageMessage?.caption || 
+
+            const quotedMessageText = quotedMessage?.conversation || 
+                                quotedMessage?.extendedTextMessage?.text || 
+                                quotedMessage?.imageMessage?.caption || 
                                 "[Midia/Sticker sem texto]";
 
             //Bloco de controle NOVO, trata melhor os problemas e se comunica diretamente
@@ -462,9 +462,9 @@ async function connectToWhatsApp() {
                 sender: sender,
                 command: command
             };
-            const quotedMessageText = quotedMessage.conversation || 
-                                quotedMessage.extendedTextMessage?.text || 
-                                quotedMessage.imageMessage?.caption || 
+            const quotedMessageText = quotedMessage?.conversation || 
+                                quotedMessage?.extendedTextMessage?.text || 
+                                quotedMessage?.imageMessage?.caption || 
                                 "[Midia/Sticker sem texto]";
             try{
                 //Se não for grupo e o chatbot estiver online, responde a qualquer mensagem,

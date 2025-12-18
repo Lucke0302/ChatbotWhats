@@ -253,17 +253,16 @@ class ChatModel {
             if (forceModel === "gemini-3-flash") candidates.push("gemini-2.5-flash");
         } 
         else if (command.startsWith("!resumo")){            
-            candidates = ["gemini-3-flash", "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemma-3-27b","gemma-3-12b"]; 
+            candidates = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemma-3-27b","gemma-3-12b"]; 
         }
         else if (command.startsWith("!gpt")){            
-            candidates = ["gemini-3-flash", "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemma-3-4b"]; 
+            candidates = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemma-3-4b"]; 
         }
         else if (command.startsWith("!lembrar")) {
-            candidates = ["gemini-3-flash", "gemma-3-27b", "gemini-2.5-flash"]; 
+            candidates = ["gemma-3-27b", "gemini-2.5-flash"]; 
         } 
         else {
-            candidates = [              
-                "gemini-3-flash",
+            candidates = [
                 "gemini-2.5-flash",
                 "gemini-2.5-flash-lite",  
                 "gemma-3-4b"

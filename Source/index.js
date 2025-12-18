@@ -38,7 +38,6 @@ const saveBotMessage = async (database, from, text, externalId = null) => {
 
 //Envia a mensagem e chama saveBotMessage
 const sendAndSave = async (sock, database, from, text, msgKey = null, mentions = []) => {
-    console.log("From no sendAndSave: "+from);
     const sentMessage = await sock.sendMessage(from, { 
         text: text, 
         mentions: mentions 
@@ -172,7 +171,6 @@ async function connectToWhatsApp() {
 
         //Pega de quem é a mensagem e verifica se é de um grupo
         const from = msg.key.remoteJid;
-        console.log("From no index: "+ from)
         const isGroup = from.endsWith('@g.us');
         
         //Pega o texto da mensagem

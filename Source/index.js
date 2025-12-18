@@ -308,7 +308,7 @@ async function connectToWhatsApp() {
                     stickerQuality = 1;
                     try {
                         finalBuffer = await sharp(buffer)
-                            .resize(16, null)
+                            .resize(64, null)
                             .resize(512, null, { 
                                 kernel: sharp.kernel.nearest
                             })
@@ -321,7 +321,7 @@ async function connectToWhatsApp() {
                 }
 
                 // Cria a figurinha
-                const sticker = new Sticker(buffer, {
+                const sticker = new Sticker(finalBuffer, {
                     pack: 'Bostossauro Pack',
                     author: 'Bostossauro', 
                     type: StickerTypes.FULL, 

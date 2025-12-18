@@ -14,7 +14,7 @@ O Bostossauro não é apenas um bot, é um estilo de vida. Aqui estão as skills
 
 * **🧠 !lembrar [contexto]:** Uma feature state-of-the-art que usa SQL Injection do bem (mentira, é só um SELECT gerado por IA) para buscar mensagens antigas no banco de dados e lembrar o que o João falou semana passada.
 
-* **📝 !resumo [curto/médio/completo]:** Perdeu 300 mensagens no grupo? O bot lê o histórico, fofoca sobre quem falou mais besteira e resume tudo pra você.
+* **📝 !resumo [curto/médio/completo]:** Perdeu 200 mensagens no grupo? O bot lê o histórico, fofoca sobre quem falou mais besteira e resume tudo pra você.
 
 * **😴 Modo Desonline:** Se o bot estiver em manutenção, ele manda uma figurinha do macaco desmaiado pra você não ficar no vácuo.
 
@@ -30,7 +30,7 @@ Este projeto é sustentado por fita crepe digital e as seguintes tecnologias:
 ## ☁️ A Saga da Infraestrutura (Google Cloud)
 Este bot roda orgulhosamente em uma **VM Debian 12 no Google Cloud.**
 
-Mas não se engane com o nome chique. Estamos falando de uma máquina guerreira com 1GB de RAM. Isso mesmo. Cada vez que alguém pede um !resumo de 500 mensagens, a ventoinha virtual da Google chora e o Swap entra em ação para evitar que o Linux mate o processo por falta de memória. É uma vida perigosa, mas é a vida que escolhemos.
+Mas não se engane com o nome chique. Estamos falando de uma máquina guerreira com 1GB de RAM. Isso mesmo. Cada vez que alguém pede um !resumo de 200 mensagens, a ventoinha virtual da Google chora e o Swap entra em ação para evitar que o Linux mate o processo por falta de memória. É uma vida perigosa, mas é a vida que escolhemos.
 
 ## 🚀 Como Rodar na Sua Máquina
 
@@ -45,7 +45,7 @@ Resumo rápido:
 ## 🤝 Contribua (Por favor, sério)
 Você entende de arquitetura de software? Sabe como evitar que o Node.js consuma 800MB de RAM para somar 2+2? Precisamos de você!
 
-Estamos num processo de "componentização" (tirar tudo do index.js e jogar pro ChatModel.js), mas ainda tem muita função global perdida e try/catch segurando as pontas.
+Finalizamos uma parte do processo de "componentização" (tirar tudo do index.js e jogar pro ChatModel.js), mas ainda tem alguma lógica desnecessária no index.
 
 **Ideias para Pull Requests:**
 

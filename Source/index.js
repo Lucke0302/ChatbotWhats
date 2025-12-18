@@ -320,7 +320,8 @@ async function connectToWhatsApp() {
                     }
                 }
 
-                if(param === 'podi'){
+                if(param === 'podi'){                    
+                    stickerQuality = 1;
                     finalBuffer = await sharp(buffer)
                     .resize(96, null) 
                     .toFormat('jpeg', { 

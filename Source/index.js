@@ -1,6 +1,7 @@
 require('dotenv').config();
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, downloadMediaMessage, jidNormalizedUser } = require('@whiskeysockets/baileys');
-const { GoogleGenerativeAI } = require("@google/generative-ai");
+const { GoogleGenAI } = require("@google/genai");
+const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 const qrcode = require('qrcode-terminal');
 const sqlite = require('sqlite'); 
 const sqlite3 = require('sqlite3'); 
@@ -10,8 +11,6 @@ const { handleBotError } = require('./errorHandler');
 const fs = require('fs');
 const { Sticker, StickerTypes } = require('wa-sticker-formatter');
 const sharp = require('sharp');
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 const groupHistory = {}; 
 const DB_PATH = 'chat_history.db'; 
@@ -182,7 +181,7 @@ async function connectToWhatsApp() {
         //Verifica se por algum motivo a mensagem não chegou vazia
         if (texto) {
             const id_conversa = from; 
-            
+
             const rawParticipant = msg.key.participant || from;
             const id_remetente = jidNormalizedUser(rawParticipant);
             const nome_remetente = msg.pushName || '';

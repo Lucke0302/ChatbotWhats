@@ -364,16 +364,21 @@ class ChatModel {
         let modelName = this.selectBestModel(command, forceModel);
 
         try {
-            const model = this.genAI.getGenerativeModel({ model: modelName });
-            const result = await model.generateContent(prompt);
+            const response = await this.genAI.models.generateContent({
+                model: modelName,
+                contents: prompt,
+                config: {}
+            });
             
             usage.increment(modelName);
 
-            console.log(`Mensagem gerada usando o ${modelName}`)
+            console.log(`Mensagem gerada usando o ${modelName}`);
             
-            return result.response.text();
+            return response.text || (response.response ? response.response.text() : "");
+
         } catch (error) {
-            // Se der erro 503 ou 429, você pode disparar aquela sua lógica de retry aqui
+            // Se der erro 503 ou 429, o errorHandler pega lá na frente
+            console.error("Erro na requisição IA:", error);
             throw error;
         }
     }
@@ -381,8 +386,6 @@ class ChatModel {
     // 5. Comando para aplicar Timeout (!timeout @pessoa tempo)
     // Ex: !timeout @551199999999 10 (bane por 10 minutos)
     async handleTimeoutCommand(command, sender, isGroup, mentions) {
-        // Verifica se quem mandou o comando é "admin" (adapte conforme necessidade)
-        // Aqui vou deixar liberado, mas idealmente teria uma lista de admins.
 
         if(sender !== ""){
             return

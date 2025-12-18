@@ -365,7 +365,7 @@ class ChatModel {
 
         let response = `📊 *ESTATÍSTICAS LOZINHO*\n\n`;
         response += `👤 *Jogador:* ${accountData.gameName} #${accountData.tagLine}\n`;
-        response += `🏆 *Elo Solo:* ${rankString}\n`;
+        response += `🏆 *Elo Solo:* ${rankSolo}\n`;
         
         if (soloQueue) {
             const winRate = Math.round((soloQueue.wins / (soloQueue.wins + soloQueue.losses)) * 100);

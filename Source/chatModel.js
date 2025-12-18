@@ -36,6 +36,8 @@ class ChatModel {
             //Busca o mapa de campeões
             const champsResp = await fetch(`https://ddragon.leagueoflegends.com/cdn/${this.lolVersion}/data/pt_BR/champion.json`);
             const champsJson = await champsResp.json();
+
+            console.log(champsJson)
             
             //Transforma em um objeto
             this.lolChampionsMap = {};
@@ -50,7 +52,6 @@ class ChatModel {
     }
 
     getChampName(id) {
-        console.log(this.lolChampionsMap)
         return this.lolChampionsMap ? (this.lolChampionsMap[id] || `ID: ${id}`) : `ID: ${id}`;
     }
 

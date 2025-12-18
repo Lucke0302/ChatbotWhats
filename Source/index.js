@@ -186,7 +186,7 @@ async function connectToWhatsApp() {
             const timestamp = msg.messageTimestamp; 
 
 
-            if(!command.startsWith("!status")){
+            if(!command.startsWith("!status") && !command.startsWith("!s") && !command.startsWith("sticker")){
                 try {
                     await db.run(
                         `INSERT INTO mensagens 
@@ -297,7 +297,7 @@ async function connectToWhatsApp() {
                     { logger: pino({ level: 'silent' }) } 
                 );
 
-                const userDef = command.split[1]
+                const userDef = command.split(" ")[1]
                 let stickerQuality = 50
                 if(userDef == "baixa"){
                     stickerQuality= 10

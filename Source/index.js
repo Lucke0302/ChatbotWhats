@@ -9,6 +9,7 @@ const ChatModel = require('./chatModel');
 const { handleBotError } = require('./errorHandler');
 const fs = require('fs');
 const { Sticker, StickerTypes } = require('wa-sticker-formatter');
+const sharp = require('sharp');
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
@@ -297,16 +298,27 @@ async function connectToWhatsApp() {
                     { logger: pino({ level: 'silent' }) } 
                 );
 
-                const userDef = command.split(" ")[1]
-                let stickerQuality = 50
-                if(userDef == "baixa"){
-                    stickerQuality = 1
-                }
-                else{
-                    stickerQuality = 50
+                let finalBuffer = buffer;
+
+                const args = command.trim().split(' ');
+                const param = args[1] ? args[1].toLowerCase() : null;
+
+                // Se tiver o parâmetro "1", "ruim" ou "pixel", a gente destrói a imagem
+                if (param === 'baixa') {
+                    try {
+                        finalBuffer = await sharp(buffer)
+                            .resize(64, null)
+                            .resize(512, null, { 
+                                kernel: sharp.kernel.nearest
+                            })
+                            .toBuffer();
+                        
+                        console.log("✅ Imagem pixelada com sucesso!");
+                    } catch (err) {
+                        console.error("Erro ao pixelar imagem:", err);
+                    }
                 }
 
-                console.log("userDef: "+userDef+". Stickerquality: "+stickerQuality)
                 // Cria a figurinha
                 const sticker = new Sticker(buffer, {
                     pack: 'Bostossauro Pack',
@@ -314,7 +326,7 @@ async function connectToWhatsApp() {
                     type: StickerTypes.FULL, 
                     categories: ['🤩', '🎉'],
                     id: '12345',
-                    quality: stickerQuality,
+                    quality: 50,
                     background: '#00000000'
                 });
 

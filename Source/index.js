@@ -1,5 +1,5 @@
 require('dotenv').config();
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
+const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, downloadMediaMessage } = require('@whiskeysockets/baileys');
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const qrcode = require('qrcode-terminal');
 const sqlite = require('sqlite'); 
@@ -8,6 +8,8 @@ const pino = require('pino');
 const ChatModel = require('./chatModel');
 const { handleBotError } = require('./errorHandler');
 const fs = require('fs');
+const { Sticker, StickerTypes } = require('wa-sticker-formatter');
+const sharp = require('sharp');
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
@@ -94,6 +96,12 @@ const botCommands = {
     },
     '!lembrar': {
         emoji: '🧠'
+    },
+    '!sticker': {
+        emoji: '🪄'
+    },
+    '!s': {
+        emoji: '🪄'
     }
 };
 
@@ -167,6 +175,9 @@ async function connectToWhatsApp() {
                       msg.message.extendedTextMessage?.text || 
                       msg.message.imageMessage?.caption || '';
 
+        //Joga o comando todo para letras minúsculas para evitar problemas com case-sensitive
+        const command = texto.trim().toLowerCase();
+
         //Verifica se por algum motivo a mensagem não chegou vazia
         if (texto) {
             const id_conversa = from; 
@@ -175,17 +186,20 @@ async function connectToWhatsApp() {
             const id_mensagem_externo = msg.key.id;
             const timestamp = msg.messageTimestamp; 
 
-            try {
-                await db.run(
-                    `INSERT INTO mensagens 
-                    (id_conversa, timestamp, id_remetente, nome_remetente, conteudo, id_mensagem_externo)
-                    VALUES (?, ?, ?, ?, ?, ?)`,
-                    [id_conversa, timestamp, id_remetente, nome_remetente, texto, id_mensagem_externo]
-                );
-                console.log(`✅ INCOMING: Mensagem de "${nome_remetente}" salva no BD.`);
-            } catch (error) {
-                if (!error.message.includes('UNIQUE constraint failed')) {
-                    console.error("❌ Erro ao salvar mensagem no BD:", error);
+
+            if(!command.startsWith("!status") && !command.startsWith("!s") && !command.startsWith("sticker")){
+                try {
+                    await db.run(
+                        `INSERT INTO mensagens 
+                        (id_conversa, timestamp, id_remetente, nome_remetente, conteudo, id_mensagem_externo)
+                        VALUES (?, ?, ?, ?, ?, ?)`,
+                        [id_conversa, timestamp, id_remetente, nome_remetente, texto, id_mensagem_externo]
+                    );
+                    console.log(`✅ INCOMING: Mensagem de "${nome_remetente}" salva no BD.`);
+                } catch (error) {
+                    if (!error.message.includes('UNIQUE constraint failed')) {
+                        console.error("❌ Erro ao salvar mensagem no BD:", error);
+                    }
                 }
             }
         }
@@ -215,8 +229,7 @@ async function connectToWhatsApp() {
             console.log(`   É pra mim? ${isReplyToBot ? 'SIM ✅' : 'NÃO ❌'}`);
         }
 
-        //Joga o comando todo para letras minúsculas para evitar problemas com case-sensitive
-        const command = texto.trim().toLowerCase();
+
 
         if (command === '!status') {
             const GRUPO_CONTROLE = '120363422821336011@g.us';
@@ -241,6 +254,132 @@ async function connectToWhatsApp() {
 
         const action = botCommands[commandName];
 
+        // Comando para criar figurinha (!s ou !sticker)
+        if (commandName === '!s' || commandName === '!sticker') {
+            try {
+                // Identifica se é uma imagem/video direto ou um quote
+                const isQuoted = !!msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+                const targetMessage = isQuoted ? msg.message.extendedTextMessage.contextInfo.quotedMessage : msg.message;
+                
+                // Verifica se existe mídia na mensagem alvo
+                // (imageMessage, videoMessage ou viewOnceMessage)
+                const mediaMessage = targetMessage?.imageMessage || 
+                                     targetMessage?.videoMessage ||
+                                     targetMessage?.viewOnceMessage?.message?.imageMessage ||
+                                     targetMessage?.viewOnceMessage?.message?.videoMessage;
+
+                if (!mediaMessage) {
+                    await sock.sendMessage(from, { text: '❌ Cadê a imagem? Manda uma foto com a legenda !s ou responde a uma foto com !s' }, { quoted: msg });
+                    return;
+                }
+
+                if (action) {
+                    if (action.emoji) {
+                        await sock.sendMessage(from, { react: { text: action.emoji, key: msg.key } });
+                    }
+
+                } else {
+                    await sock.sendMessage(from, { react: { text: '🤨', key: msg.key } });
+                }
+
+                // Baixa a mídia
+                // Nota: downloadMediaMessage precisa do objeto de mensagem completo se for quote,
+                // mas aqui fazemos um "truque" passando a estrutura correta pro helper do Baileys
+                const messageType = Object.keys(targetMessage)[0];
+                
+                // Se for quoted, precisamos simular a estrutura de uma message key para o download funcionar bem
+                const mediaKeys = {
+                    message: targetMessage
+                };
+
+                const buffer = await downloadMediaMessage(
+                    mediaKeys,
+                    'buffer',
+                    { logger: pino({ level: 'silent' }) } 
+                );
+
+                let finalBuffer = buffer;
+                let stickerQuality = 50
+
+                const args = command.trim().split(' ');
+                const param = args[1] ? args[1].toLowerCase() : null;
+
+                if (param === 'baixa') {
+                    stickerQuality = 1;
+                    try {
+                        finalBuffer = await sharp(buffer)
+                            .resize(30, null) 
+                            .toFormat('jpeg', { 
+                                quality: 10, 
+                                //chromaSubsampling: '4:2:0',
+                                mozjpeg: false
+                            })
+                            .modulate({
+                                saturation: 1.5,
+                                brightness: 1.1
+                            })
+                            .resize(512, null, { 
+                                kernel: sharp.kernel.mitchell 
+                            })                            
+                            .blur(3) 
+                            .toBuffer();                        
+                        stickerQuality = 5; 
+                        
+                        console.log("✅ Imagem destruída (Modo Batata baixo)");
+                    } catch (err) {
+                        console.error("Erro ao destruir imagem:", err);
+                    }
+                }
+
+                if(param === 'podi'){                    
+                    try {
+                        finalBuffer = await sharp(buffer)
+                            .resize(16, null) 
+                            .toFormat('jpeg', { 
+                                quality: 5, 
+                                //chromaSubsampling: '4:2:0', 
+                                mozjpeg: false
+                            })
+                            .modulate({
+                                saturation: 1.5, 
+                                brightness: 1.1
+                            })
+                            .resize(512, null, { 
+                                kernel: sharp.kernel.mitchell 
+                            })
+                            .blur(8) 
+                            .toBuffer();
+                        stickerQuality = 5; 
+                        
+                        console.log("✅ Imagem destruída (Modo Batata podi)");
+                    } catch (err) {
+                        console.error("Erro ao destruir imagem:", err);
+                    }
+                }
+
+                // Cria a figurinha
+                const sticker = new Sticker(finalBuffer, {
+                    pack: 'Bostossauro Pack',
+                    author: 'Bostossauro', 
+                    type: StickerTypes.FULL, 
+                    categories: ['🤩', '🎉'],
+                    id: '12345',
+                    quality: stickerQuality,
+                    background: '#00000000'
+                });
+
+                await sock.sendMessage(from, await sticker.toMessage(), { quoted: msg });
+                await sock.sendMessage(from, { react: { text: '✅', key: msg.key } });
+                
+                return;
+
+            } catch (error) {
+                console.error("Erro ao criar figurinha:", error);
+                await sock.sendMessage(from, { text: '❌ Deu ruim na figurinha. Tenta com outra imagem.' }, { quoted: msg });
+                return;
+            }
+        }
+
         //Início da lógica geral do bot, se o texto começar com !, o chatbot estiver online
         //e o texto tenha mais de 1 caractere
         if(command.startsWith("!") &&  chatbot.isOnline && command.length > 1){
@@ -260,9 +399,10 @@ async function connectToWhatsApp() {
             const senderJid = sender.split('@')[0];
 
             const commandIntros = {
-                '!gpt': `🤖 @${senderJid}\n`,
-                '!resumo': `🦖 @${senderJid}\n*Resumo da conversa*\n`,
-                '!lembrar': `🧠\n`
+                '!gpt': `🤖 @${senderJid}\n\n`,
+                '!resumo': `🦖 @${senderJid}\n*Resumo da conversa*\n\n`,
+                '!lembrar': `🧠\n\n`,
+                'undefined': ''
             };
 
             //Bloco de controle NOVO, trata melhor os problemas e se comunica diretamente
@@ -285,8 +425,8 @@ async function connectToWhatsApp() {
                 //Pega a resposta do handleCommand do chatModel.js
                 const response = await chatbot.handleCommand(msg, sender, from, isGroup, command, quotedMessage);
 
-                const intro = commandIntros[commandName] || commandIntros['default'];
-                const finalResponse = `${intro}\n\n${response}`;
+                const intro = commandIntros[commandName] || commandIntros['undefined'];
+                const finalResponse = `${intro}${response}`;
                 
                 //Verifica se recebeu alguma resposta
                 if (response) {

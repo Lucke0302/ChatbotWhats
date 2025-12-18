@@ -23,10 +23,71 @@ class ChatModel {
             console.log("⏰ Atualizando versão e campeões do LoL (Rotina Diária)...");
             this.initLoLData();
         }, 1000 * 60 * 60 * 24);
+        this.spamCooldowns = new Map(); 
+        this.SPAM_DELAY_SECONDS = 10;
+        this.DAILY_AI_LIMIT = 20;
+    }
+
+    checkSpam(sender) {
+        const now = Date.now();
+        const lastTime = this.spamCooldowns.get(sender) || 0;
+        const diffSeconds = (now - lastTime) / 1000;
+
+        if (diffSeconds < this.SPAM_DELAY_SECONDS) {
+            const waitTime = Math.ceil(this.SPAM_DELAY_SECONDS - diffSeconds);
+            throw new Error(`SPAM_DETECTED|${waitTime}`);
+        }
+
+        this.spamCooldowns.set(sender, now);
+    }
+
+    async getUserData(sender) {
+        let user = await this.db.get(`SELECT * FROM usuarios WHERE id_usuario = ?`, [sender]);
+        
+        // Cria usuário se não existir
+        if (!user) {
+            await this.db.run(`INSERT INTO usuarios (id_usuario) VALUES (?)`, [sender]);
+            user = { id_usuario: sender, banido_ate: 0, uso_ia_diario: 0, data_ultimo_uso: '' };
+        }
+        return user;
+    }
+
+    //Verifica Timeout
+    async checkTimeout(sender) {
+        const user = await this.getUserData(sender);
+        const now = Math.floor(Date.now() / 1000);
+
+        if (user.banido_ate > now) {
+            const timeLeft = Math.ceil((user.banido_ate - now) / 60); // Em minutos
+            throw new Error(`USER_BANNED|${timeLeft}`);
+        }
+    }
+
+    //Verifica cote de uso de IA
+    async checkAndIncrementAiQuota(sender) {
+        const user = await this.getUserData(sender);
+        const today = new Date().toLocaleDateString('pt-BR');
+
+        if (user.data_ultimo_uso !== today) {
+            await this.db.run(
+                `UPDATE usuarios SET uso_ia_diario = 0, data_ultimo_uso = ? WHERE id_usuario = ?`,
+                [today, sender]
+            );
+            user.uso_ia_diario = 0;
+        }
+
+        if (user.uso_ia_diario >= this.DAILY_AI_LIMIT) {
+            throw new Error("USER_QUOTA_EXCEEDED");
+        }
+
+        await this.db.run(
+            `UPDATE usuarios SET uso_ia_diario = uso_ia_diario + 1 WHERE id_usuario = ?`,
+            [sender]
+        );
     }
 
     //Atualiza os dados do LOL
-async initLoLData() {
+    async initLoLData() {
         const versionResp = await fetch('https://ddragon.leagueoflegends.com/api/versions.json');
         
         if (!versionResp.ok) throw new Error(`LOL_VERSION_ERROR`);
@@ -315,6 +376,34 @@ async initLoLData() {
             // Se der erro 503 ou 429, você pode disparar aquela sua lógica de retry aqui
             throw error;
         }
+    }
+
+    // 5. Comando para aplicar Timeout (!timeout @pessoa tempo)
+    // Ex: !timeout @551199999999 10 (bane por 10 minutos)
+    async handleTimeoutCommand(command, sender, isGroup, mentions) {
+        // Verifica se quem mandou o comando é "admin" (adapte conforme necessidade)
+        // Aqui vou deixar liberado, mas idealmente teria uma lista de admins.
+
+        if(sender !== ""){
+            return
+        }
+        
+        const args = command.split(' ');
+        if (args.length < 3) return "❌ Uso: !timeout @usuario [minutos]";
+
+        const targetUser = mentions[0];
+        const minutes = parseInt(args[args.length - 1]); 
+
+        if (!targetUser) return;
+        if (isNaN(minutes) || minutes <= 0) return;
+
+        const banUntil = Math.floor(Date.now() / 1000) + (minutes * 60);
+        
+        await this.getUserData(targetUser); 
+        
+        await this.db.run(`UPDATE usuarios SET banido_ate = ? WHERE id_usuario = ?`, [banUntil, targetUser]);
+
+        return `🚫 Usuário silenciado por ${minutes} minutos. Fica pianinho aí.`;
     }
 
     // Responde o comando !lol

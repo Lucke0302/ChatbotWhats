@@ -1,5 +1,5 @@
 require('dotenv').config();
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, downloadMediaMessage } = require('@whiskeysockets/baileys');
+const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, downloadMediaMessage, jidNormalizedUser } = require('@whiskeysockets/baileys');
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const qrcode = require('qrcode-terminal');
 const sqlite = require('sqlite'); 
@@ -65,7 +65,18 @@ async function initDatabase() {
             id_mensagem_externo TEXT UNIQUE
         );
     `);
-    console.log('✅ Banco de dados SQLite inicializado e tabela `mensagens` verificada.');
+
+    await db.exec(`
+        CREATE TABLE IF NOT EXISTS usuarios (
+            id_usuario TEXT PRIMARY KEY,
+            nome TEXT,
+            banido_ate INTEGER DEFAULT 0,
+            uso_ia_diario INTEGER DEFAULT 0,
+            data_ultimo_uso TEXT DEFAULT '' )
+        );
+    `);
+
+    console.log('✅ Banco de dados SQLite inicializado e tabelas `mensagens` e `usuarios` verificadas.');
 }
 
 const botCommands = {
@@ -149,7 +160,7 @@ async function connectToWhatsApp() {
 
     //Pega as informações do bot
     const me = state.creds.me;
-    myFullJid = me?.id || me?.lid || '5513991526878@s.whatsapp.net'; 
+    myFullJid = me?.id ? jidNormalizedUser(me.id) :  '5513991526878@s.whatsapp.net'; 
     
     //Acorda quando chega uma mensagem
     sock.ev.on('messages.upsert', async m => {
@@ -171,7 +182,9 @@ async function connectToWhatsApp() {
         //Verifica se por algum motivo a mensagem não chegou vazia
         if (texto) {
             const id_conversa = from; 
-            const id_remetente = msg.key.participant || from; 
+            
+            const rawParticipant = msg.key.participant || from;
+            const id_remetente = jidNormalizedUser(rawParticipant);
             const nome_remetente = msg.pushName || '';
             const id_mensagem_externo = msg.key.id;
             const timestamp = msg.messageTimestamp; 
@@ -500,14 +513,17 @@ async function connectToWhatsApp() {
                                 "[Midia/Sticker sem texto]";
 
             let response
+            const replyToUser = async (text) => {
+                await sendAndSave(sock, db, from, text, msg, [sender]);
+            };
+            const contextObj = {
+                from: from,
+                sender: sender,
+                command: command
+            };
             
             try {
-                const sender = msg.key.participant || msg.key.remoteJid;
-                const contextObj = {
-                    from: from,
-                    sender: sender,
-                    command: command
-                };
+
                 
                 response = await chatbot.handleMessageWithoutCommand(msg, sender, from, isGroup, command, quotedMessageText)
                 if (response && typeof response === 'string') {

@@ -300,7 +300,7 @@ async function connectToWhatsApp() {
                 const userDef = command.split(" ")[1]
                 let stickerQuality = 50
                 if(userDef == "baixa"){
-                    stickerQuality= 10
+                    stickerQuality = 1
                 }
                 else{
                     stickerQuality = 50

@@ -299,15 +299,16 @@ async function connectToWhatsApp() {
                 );
 
                 let finalBuffer = buffer;
+                let stickerQuality = 50
 
                 const args = command.trim().split(' ');
                 const param = args[1] ? args[1].toLowerCase() : null;
 
-                // Se tiver o parâmetro "1", "ruim" ou "pixel", a gente destrói a imagem
                 if (param === 'baixa') {
+                    stickerQuality = 1;
                     try {
                         finalBuffer = await sharp(buffer)
-                            .resize(64, null)
+                            .resize(32, null)
                             .resize(512, null, { 
                                 kernel: sharp.kernel.nearest
                             })
@@ -326,7 +327,7 @@ async function connectToWhatsApp() {
                     type: StickerTypes.FULL, 
                     categories: ['🤩', '🎉'],
                     id: '12345',
-                    quality: 50,
+                    quality: stickerQuality,
                     background: '#00000000'
                 });
 

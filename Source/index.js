@@ -1,5 +1,5 @@
 require('dotenv').config();
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
+const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, downloadMediaMessage } = require('@whiskeysockets/baileys');
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const qrcode = require('qrcode-terminal');
 const sqlite = require('sqlite'); 
@@ -8,6 +8,7 @@ const pino = require('pino');
 const ChatModel = require('./chatModel');
 const { handleBotError } = require('./errorHandler');
 const fs = require('fs');
+const { Sticker, StickerTypes } = require('wa-sticker-formatter');
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
@@ -94,6 +95,12 @@ const botCommands = {
     },
     '!lembrar': {
         emoji: '🧠'
+    },
+    '!sticker': {
+        emoji: '🪄'
+    },
+    '!s': {
+        emoji: '🪄'
     }
 };
 
@@ -245,6 +252,73 @@ async function connectToWhatsApp() {
         }
 
         const action = botCommands[commandName];
+
+        // Comando para criar figurinha (!s ou !sticker)
+        if (commandName === '!s' || commandName === '!sticker') {
+            try {
+                // Identifica se é uma imagem/video direto ou um quote
+                const isQuoted = !!msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+                const targetMessage = isQuoted ? msg.message.extendedTextMessage.contextInfo.quotedMessage : msg.message;
+                
+                // Verifica se existe mídia na mensagem alvo
+                // (imageMessage, videoMessage ou viewOnceMessage)
+                const mediaMessage = targetMessage?.imageMessage || 
+                                     targetMessage?.videoMessage ||
+                                     targetMessage?.viewOnceMessage?.message?.imageMessage ||
+                                     targetMessage?.viewOnceMessage?.message?.videoMessage;
+
+                if (!mediaMessage) {
+                    await sock.sendMessage(from, { text: '❌ Cadê a imagem? Manda uma foto com a legenda !s ou responde a uma foto com !s' }, { quoted: msg });
+                    return;
+                }
+
+                if (action) {
+                    if (action.emoji) {
+                        await sock.sendMessage(from, { react: { text: action.emoji, key: msg.key } });
+                    }
+
+                } else {
+                    await sock.sendMessage(from, { react: { text: '🤨', key: msg.key } });
+                }
+
+                // Baixa a mídia
+                // Nota: downloadMediaMessage precisa do objeto de mensagem completo se for quote,
+                // mas aqui fazemos um "truque" passando a estrutura correta pro helper do Baileys
+                const messageType = Object.keys(targetMessage)[0];
+                
+                // Se for quoted, precisamos simular a estrutura de uma message key para o download funcionar bem
+                const mediaKeys = {
+                    message: targetMessage
+                };
+
+                const buffer = await downloadMediaMessage(
+                    mediaKeys,
+                    'buffer',
+                    { logger: pino({ level: 'silent' }) } 
+                );
+
+                // Cria a figurinha
+                const sticker = new Sticker(buffer, {
+                    pack: 'Bostossauro Pack',
+                    author: 'Bostossauro', 
+                    type: StickerTypes.FULL, 
+                    categories: ['🤩', '🎉'],
+                    id: '12345',
+                    quality: 50,
+                    background: '#00000000'
+                });
+
+                await sock.sendMessage(from, await sticker.toMessage(), { quoted: msg });
+                await sock.sendMessage(from, { react: { text: '✅', key: msg.key } });
+                
+                return;
+
+            } catch (error) {
+                console.error("Erro ao criar figurinha:", error);
+                await sock.sendMessage(from, { text: '❌ Deu ruim na figurinha. Tenta com outra imagem.' }, { quoted: msg });
+                return;
+            }
+        }
 
         //Início da lógica geral do bot, se o texto começar com !, o chatbot estiver online
         //e o texto tenha mais de 1 caractere

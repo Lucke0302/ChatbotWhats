@@ -20,6 +20,8 @@ let myFullJid;
 //Insere as mensagens do bot no banco de dados.
 const saveBotMessage = async (database, from, text, externalId = null) => {
     const timestamp = Math.floor(Date.now() / 1000);
+
+    console.log("From no saveBotMessage: "+from);
     
     try {
         await database.run(
@@ -102,6 +104,9 @@ const botCommands = {
     },
     '!lol': {
         emoji: '🎮'
+    },
+    '!timeout': {
+        emoji: '✅'
     }
 };
 
@@ -168,6 +173,7 @@ async function connectToWhatsApp() {
 
         //Pega de quem é a mensagem e verifica se é de um grupo
         const from = msg.key.remoteJid;
+        console.log("From no index: "+ from)
         const isGroup = from.endsWith('@g.us');
         
         //Pega o texto da mensagem

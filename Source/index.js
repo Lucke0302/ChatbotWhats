@@ -317,14 +317,14 @@ async function connectToWhatsApp() {
                         console.log("✅ Imagem pixelada com sucesso!");
 
                         if(param === 'podi'){
-                            finalBuffer = await sharp(finalBuffer)
+                            finalBuffer = await sharp(buffer)
                             .resize(96, null) 
                             .toFormat('jpeg', { 
                                 quality: 1, 
                                 chromaSubsampling: '4:2:0',
                                 mozjpeg: false
                             })
-                            .blur(0.5) 
+                            .blur(0.7) 
                             .resize(512, null, { 
                                 kernel: sharp.kernel.nearest
                             })

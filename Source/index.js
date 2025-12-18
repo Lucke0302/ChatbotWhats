@@ -297,8 +297,9 @@ async function connectToWhatsApp() {
                     { logger: pino({ level: 'silent' }) } 
                 );
 
-                userDef = command.split[1]
-                if(userDef === "baixa"){
+                const userDef = command.split[1]
+                let stickerQuality = 50
+                if(userDef == "baixa"){
                     userDef = 10
                 }
                 else{

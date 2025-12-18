@@ -1,4 +1,6 @@
 const usage = require('./usageControl');
+const RIOT_API_KEY = process.env.RIOT_API_KEY;
+
 class ChatModel {
     constructor(db, genAI) {
         this.db = db;
@@ -14,6 +16,41 @@ class ChatModel {
             "gemma-3-4b": 9999
         };
         this.updateOnlineStatus();
+        this.lolChampionsMap = null;
+        this.lolVersion = '14.23.1';
+        setInterval(() => {
+            console.log("⏰ Atualizando versão e campeões do LoL (Rotina Diária)...");
+            this.initLoLData();
+        }, 1000 * 60 * 60 * 24);
+    }
+
+    //Atualiza os dados do LOL
+    async initLoLData() {
+        try {
+            const versionResp = await fetch('https://ddragon.leagueoflegends.com/api/versions.json');
+            const versions = await versionResp.json();
+            this.lolVersion = versions[0];
+            
+            console.log(`🎮 LoL DataDragon atualizado para versão: ${this.lolVersion}`);
+
+            //Busca o mapa de campeões
+            const champsResp = await fetch(`https://ddragon.leagueoflegends.com/cdn/${this.lolVersion}/data/pt_BR/champion.json`);
+            const champsJson = await champsResp.json();
+            
+            //Transforma em um objeto
+            this.lolChampionsMap = {};
+            for (const key in champsJson.data) {
+                const champ = champsJson.data[key];
+                this.lolChampionsMap[champ.key] = champ.name;
+            }
+            
+        } catch (error) {
+            console.error("❌ Erro ao inicializar dados do LoL:", error.message);
+        }
+    }
+
+    getChampName(id) {
+        return this.lolChampionsMap ? (this.lolChampionsMap[id] || `ID: ${id}`) : `ID: ${id}`;
     }
 
     updateOnlineStatus() {
@@ -272,6 +309,80 @@ class ChatModel {
         }
     }
 
+    // Responde o comando !lol
+    async handleLolCommand(command) {
+        const args = command.trim().split(' ');
+        args.shift();
+        
+        const fullArg = args.join(' ');
+        const [gameName, tagLine] = fullArg.split('#');
+
+        if (!gameName || !tagLine) {
+            return "❌ Formato inválido. Use: *!lol Nome #Tag* (Ex: !lol Faker #T1)";
+        }
+
+        const region = 'americas';
+        const platform = 'br1';
+
+        // Busca Conta (PUUID)
+        const accountResp = await fetch(`https://${region}.api.riotgames.com/riot/account/v1/accounts/by-riot-id/${encodeURIComponent(gameName.trim())}/${encodeURIComponent(tagLine.trim())}`, {
+            headers: { 'X-Riot-Token': RIOT_API_KEY }
+        });
+
+        if (!accountResp.ok) {
+            if (accountResp.status === 404) throw new Error(`NICKNAME_OR_TAGLINE_WRONG`);
+            if (accountResp.status === 403) throw new Error(`KEY_UNAVAILABLE`)
+        }
+
+        const accountData = await accountResp.json();
+        const puuid = accountData.puuid;
+
+        // Busca elo na solo e flex
+        const soloQueue = leagueData.find(q => q.queueType === 'RANKED_SOLO_5x5');
+        const flexQueue = leagueData.find(q => q.queueType === 'RANKED_FLEX_SR');
+        
+        let rankSolo = "Unranked";
+        if (soloQueue) {
+            rankSolo = `${soloQueue.tier} ${soloQueue.rank} (${soloQueue.leaguePoints} PDL)`;
+        }
+
+        let rankFlex = "Unranked";
+        if (flexQueue) {
+            rankFlex = `${flexQueue.tier} ${flexQueue.rank} (${flexQueue.leaguePoints} PDL)`;
+        }
+
+        // Busca Maestrias
+        const masteryResp = await fetch(`https://${platform}.api.riotgames.com/lol/champion-mastery/v4/champion-masteries/by-puuid/${puuid}/top?count=3`, {
+            headers: { 'X-Riot-Token': RIOT_API_KEY }
+        });
+        const masteryData = await masteryResp.json();
+
+        let response = `📊 *ESTATÍSTICAS LOZINHO*\n\n`;
+        response += `👤 *Jogador:* ${accountData.gameName} #${accountData.tagLine}\n`;
+        response += `🏆 *Elo Solo:* ${rankString}\n`;
+        
+        if (soloQueue) {
+            const winRate = Math.round((soloQueue.wins / (soloQueue.wins + soloQueue.losses)) * 100);
+            response += `📈 *Winrate:* ${winRate}% (${soloQueue.wins}V / ${soloQueue.losses}D)\n`;
+        }
+        
+        response += `👥 *Elo Flex:* ${rankFlex}\n`;
+
+        if(flexQueue){
+            const winRate = Math.round((flexQueue.wins / (flexQueue.wins + flexQueue.losses)) * 100);
+            response += `📈 *Winrate:* ${winRate}% (${flexQueue.wins}V / ${flexQueue.losses}D)\n`;
+        }
+
+        response += `\n⚔️ *Top 3 Maestrias:*\n`;
+        masteryData.forEach((m, i) => {
+            const nomeChamp = this.getChampName(m.championId);
+            const pontos = m.championPoints.toLocaleString('pt-BR');
+            response += `${i+1}º ${nomeChamp} - Nvl ${m.championLevel} (${pontos} pts)\n`;
+        });
+
+        return response;
+    }
+
     //Responde o comando !lembrar
     async handleLembrarCommand(from, sender, isGroup, command, complement){
             const pergunta = command.slice(8).trim()
@@ -350,6 +461,7 @@ class ChatModel {
         
         if(command.startsWith('!resumo') && isGroup || command.startsWith("!gpt") && isGroup) return await this.getAiResponse(from, sender, isGroup, command, await this.formulatePrompt(from, sender, isGroup, command, quotedMessage));
         
+        if(command.startsWith('!lol')) return await this.handleLolCommand(command);
         if(command.startsWith("!lembrar")){
             return await this.handleLembrarCommand(from, sender, isGroup, command)
         }

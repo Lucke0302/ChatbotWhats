@@ -209,8 +209,6 @@ class ChatModel {
 
     //Retorna a contagem total de mensagens de uma conversa
     async getMessageCount(from){
-        
-        console.log("From no getMessageCount: "+ from)
         const sqlQuery = `SELECT COUNT(*) AS total FROM mensagens WHERE id_conversa = '${from}'`;
         const result = await this.db.get(sqlQuery); 
         return result ? result.total : 0;
@@ -218,8 +216,7 @@ class ChatModel {
 
     //Retorna mensagens do banco de dados para um certo remetente (pessoa ou grupo) com um limite
     async getMessagesByLimit(from, limit){
-        
-        console.log("From no getMessagesByLimit: "+ from)
+    
         const sqlQuery = `SELECT nome_remetente, conteudo 
         FROM mensagens 
         WHERE id_conversa = '${from}' 

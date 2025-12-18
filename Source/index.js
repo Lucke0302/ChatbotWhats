@@ -308,7 +308,7 @@ async function connectToWhatsApp() {
                     stickerQuality = 1;
                     try {
                         finalBuffer = await sharp(buffer)
-                            .resize(32, null)
+                            .resize(16, null)
                             .resize(512, null, { 
                                 kernel: sharp.kernel.nearest
                             })

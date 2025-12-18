@@ -147,18 +147,18 @@ async initLoLData() {
     }
 
     //Retorna a contagem total de mensagens de uma conversa
-    async getMessageCount(sender){
-        const sqlQuery = `SELECT COUNT(*) AS total FROM mensagens WHERE id_conversa = '${sender}'`;
+    async getMessageCount(from){
+        const sqlQuery = `SELECT COUNT(*) AS total FROM mensagens WHERE id_conversa = '${from}'`;
         const result = await this.db.get(sqlQuery); 
         return result ? result.total : 0;
     };
 
     //Retorna mensagens do banco de dados para um certo remetente (pessoa ou grupo) com um limite
-    async getMessagesByLimit(sender, limit){
+    async getMessagesByLimit(from, limit){
         
         const sqlQuery = `SELECT nome_remetente, conteudo 
         FROM mensagens 
-        WHERE id_conversa = '${sender}' 
+        WHERE id_conversa = '${from}' 
         AND conteudo NOT LIKE '*Resumo da conversa*%'
         ORDER BY timestamp DESC 
         LIMIT ${limit}`;
@@ -263,7 +263,7 @@ async initLoLData() {
         }
 
         if(action !== "!lembrar") {
-            formatedMessages = await this.getMessagesByLimit(sender, limit);
+            formatedMessages = await this.getMessagesByLimit(from, limit);
             prompt += `\n\nContexto das últimas mensagens:\n${formatedMessages}`;
         }
         else{

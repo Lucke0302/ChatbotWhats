@@ -27,7 +27,7 @@ const saveBotMessage = async (database, from, text, externalId = null) => {
             `INSERT INTO mensagens 
             (id_conversa, timestamp, id_remetente, nome_remetente, conteudo, id_mensagem_externo)
             VALUES (?, ?, ?, ?, ?, ?)`,
-            [from, timestamp, myFullJid, 'Bot-Zap', text, externalId]            
+            [from, timestamp, myFullJid, 'Bostossauro', text, externalId]            
         );
         console.log(`✅ OUTGOING: Resposta do Bot salva no BD. (Conversa: ${from})`);
     } catch (error) {
@@ -67,19 +67,6 @@ async function initDatabase() {
     `);
     console.log('✅ Banco de dados SQLite inicializado e tabela `mensagens` verificada.');
 }
-
-//Recupera mensagens no banco de dados dado um limite
-const getMessagesByLimit = async (db, from, limit) => {
-    const sqlQuery = `SELECT nome_remetente, conteudo 
-        FROM mensagens 
-        WHERE id_conversa = '${from}' 
-        AND conteudo NOT LIKE '*Resumo da conversa*%'
-        ORDER BY timestamp DESC 
-        LIMIT ${limit}`;
-    
-    const messagesDb = await db.all(sqlQuery);
-    return messagesDb.map(m => `${m.nome_remetente || 'Desconhecido'}: ${m.conteudo}`).join('\n');
-};
 
 const botCommands = {
     '!d': {

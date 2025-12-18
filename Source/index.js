@@ -71,7 +71,7 @@ async function initDatabase() {
             nome TEXT,
             banido_ate INTEGER DEFAULT 0,
             uso_ia_diario INTEGER DEFAULT 0,
-            data_ultimo_uso TEXT DEFAULT '' )
+            data_ultimo_uso TEXT DEFAULT ''
         );
     `);
 

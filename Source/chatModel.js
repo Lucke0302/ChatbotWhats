@@ -1,41 +1,50 @@
-// chatModel.js
-
-const { error } = require("qrcode-terminal");
-
+const usage = require('./usageControl');
 class ChatModel {
-    constructor(sock, db, genAI) {
-        this.sock = sock;
+    constructor(db, genAI) {
         this.db = db;
         this.genAI = genAI;
-        this.myFullJid = sock.user.id || sock.user.lid; 
         this.isOnline = true;
         this.isTesting = true;
+        this.modelLimits = {
+            "gemini-2.5-flash": 20,
+            "gemini-2.5-flash-lite": 20,
+            "gemini-3.0-flash": 20,
+            "gemma-3-27b": 5000,
+            "gemma-3-12b": 5000,
+            "gemma-3-4b": 9999
+        };
+        this.updateOnlineStatus();
     }
 
-    //Envia o sticker desonline (vai ser modificada pra enviar qualquer sticker salvo na pasta assets dependendo do contexto)
-    /*async sendSticker(sock, db, from, sender){
-        const stickerFile = this.getSticker();
+    updateOnlineStatus() {
+        this.isOnline = usage.hasAnyQuotaAvailable(this.modelLimits);
+    }
 
-        if (!fs.existsSync(stickerFile)) {
-            await sendMessage(sock, db, from, '❌ Erro: O arquivo do sticker não foi encontrado no servidor.', null, [sender]);
-            return;
-        }
-    
-        try {
-            const stickerBuffer = fs.readFileSync("Assets/desonline.webp");
-    
-            const sentMessage = await sock.sendMessage(from, { 
-                sticker: stickerBuffer 
-            });
+    //Função de monitoramento de recursos
+    async getStatus() {
+        const stats = usage.getData(); // Pega os dados do usageControl.js
+        const date = stats.date;
+        const counts = stats.counts;
+
+        let report = `📊 *STATUS DO BOSTOSSAURO* - ${date}\n\n`;
+        report += `🌐 *Status:* ${this.isOnline ? '✅ ONLINE' : '❌ OFFLINE'}\n\n`;
+        
+        report += `🛡️ *Uso de Modelos:* (Usado / Limite)\n`;
+
+        for (const [model, limit] of Object.entries(this.modelLimits)) {
+            const used = counts[model] || 0;
+            const remaining = limit - used;
+            const icon = used >= limit ? '🔴' : (used > limit * 0.8 ? '🟡' : '🟢');
             
-            console.log(`✅ Sticker enviado com sucesso: ${sentMessage.key.id}`);
-    
-        } catch (error) {
-            console.error("❌ Erro ao enviar sticker:", error);
-            await sendMessage(sock, db, from, "Desonline... 😴", null, [sender]);
+            report += `${icon} *${model}:* ${used}/${limit}\n`;
         }
-    }*/
 
+        report += `\n⚠️ _Modelos com 🔴 serão ignorados no fallback._`;
+        
+        return report;
+    }
+
+    //Escolhe qual figurinha deve ser enviada (ou nenhuma)
     async getSticker(command) {
         let stickerPath = "Assets/";
         const cmd = command.split(' ')[0];
@@ -46,7 +55,7 @@ class ChatModel {
                 else return "eusabo"+await this.rollDice(2)+".webp"
             },
             '!resumo': async () =>{
-                return "resumo.webp"
+                return "resumo"+await this.rollDice(2)+".webp"
             }
         };
 
@@ -60,30 +69,8 @@ class ChatModel {
         
         else return null
 
-        console.log(stickerPath)
-
         return stickerPath;
     }      
-
-
-    //Salva mensagem no banco de dados
-    async saveBotMessage (database, from, text, externalId = null){
-        const timestamp = Math.floor(Date.now() / 1000);
-        
-        try {
-            await database.run(
-                `INSERT INTO mensagens 
-                (id_conversa, timestamp, id_remetente, nome_remetente, conteudo, id_mensagem_externo)
-                VALUES (?, ?, ?, ?, ?, ?)`,
-                [from, timestamp, myFullJid, 'Bot-Zap', text, externalId]            
-            );
-            console.log(`✅ OUTGOING: Resposta do Bot salva no BD. (Conversa: ${from})`);
-        } catch (error) {
-            if (error && !error.message.includes('UNIQUE constraint failed')) {
-                console.error("❌ Erro ao salvar mensagem do Bot no BD:", error);
-            }
-        }
-    };
 
     //Essa função verifica a quantidade de letras maiúsculas na mensagem pra responder
     //com a figurinha do "não grita"
@@ -109,135 +96,216 @@ class ChatModel {
         return capitalTotal > (onlyLetters.length / 4);
     }
 
+    //Verifica qual é a primeira palavra usando regex
     async verifyCommand(command){
         return command.trim().split(/\s+/)[0];
     }
 
     //Retorna a contagem total de mensagens de uma conversa
-    async getMessageCount(from){
-        const sqlQuery = `SELECT COUNT(*) AS total FROM mensagens WHERE id_conversa = '${from}'`;
+    async getMessageCount(sender){
+        const sqlQuery = `SELECT COUNT(*) AS total FROM mensagens WHERE id_conversa = '${sender}'`;
         const result = await this.db.get(sqlQuery); 
         return result ? result.total : 0;
     };
 
     //Retorna mensagens do banco de dados para um certo remetente (pessoa ou grupo) com um limite
-    async getMessagesByLimit(from, limit){
+    async getMessagesByLimit(sender, limit){
+        
         const sqlQuery = `SELECT nome_remetente, conteudo 
         FROM mensagens 
-        WHERE id_conversa = '${from}' 
+        WHERE id_conversa = '${sender}' 
         AND conteudo NOT LIKE '*Resumo da conversa*%'
         ORDER BY timestamp DESC 
         LIMIT ${limit}`;
         
         const messagesDb = await this.db.all(sqlQuery);
-
-        console.log(messagesDb.map(m => `${m.nome_remetente || 'Desconhecido'}: ${m.conteudo}`).join('\n'))
+        if (!messagesDb || messagesDb.length === 0) {
+            throw new Error("SQL_ERROR");
+        }
 
         return messagesDb.map(m => `${m.nome_remetente || 'Desconhecido'}: ${m.conteudo}`).join('\n');
     };
 
-    //Essa função concatena o prompt para para a IA por algumas condicionais
-    //Verifica se a mensagem veio de um grupo, quem enviou e uma série de fatores
-    //pra moldar a melhor resposta possível (lógica ainda em desenvolvimento)
-    async getAiResponse(from, sender, isGroup, command){        
-        let formatedMessages = await this.getMessagesByLimit(from, 50);
-
-        if(isGroup){
-            this.prompt = `Você é um bot de WhatsApp engraçado e sarcástico num grupo de amigos,
-            chamado Bostossauro. 
-            Nenhum deles vai achar qualquer brincadeira ruim, pode falar o que quiser e fazer piadas.`
+    //Função para o comando !resumo, retorna a resposta de um select feito pelo Gemini
+    async getMessagesByAiResponse(response){
+        const sqlQuery = response
+        
+        const messagesDb = await this.db.all(sqlQuery);
+        if (!messagesDb || messagesDb.length === 0) {
+            throw new Error("NO_AI_SQL_RESULT");
         }
-        else if(!isGroup && this.isTesting){
-            this.prompt = `Você é um bot de WhatsApp chamado Bostossauro, o usuário do WhatsApp
-            chamado "${sender}" te enviou a seguinte pergunta ou comando: "${command}".
-            Responda ele diretamente pelo nome. Seja criativo, útil e mantenha o tom 
-            de uma conversa de WhatsApp.
-            
-            Contexto da conversa (opcional):
-            ${formatedMessages}`
+
+        return messagesDb.map(m => `${m.nome_remetente || 'Desconhecido'}: ${m.conteudo}`).join('\n');        
+    }
+
+    // Define qual modelo usar baseado no comando, força e cota
+    selectBestModel(command, forceModel) {
+        let candidates = [];
+
+        if (forceModel) {
+            candidates.push(forceModel);
+            if (forceModel === "gemini-3-flash") candidates.push("gemini-2.5-flash");
+        } 
+        else if (command.startsWith("!resumo")){            
+            candidates = ["gemini-2.5-flash-lite", "gemini-3-flash", "gemini-2.5-flash", "gemma-3-27b","gemma-3-12b"]; 
+        }
+        else if (command.startsWith("!gpt")){            
+            candidates = ["gemini-2.5-flash-lite", "gemini-3-flash", "gemini-2.5-flash", "gemma-3-4b"]; 
+        }
+        else if (command.startsWith("!lembrar")) {
+            candidates = ["gemini-3-flash", "gemma-3-27b", "gemini-2.5-flash"]; 
+        } 
+        else {
+            candidates = [
+                "gemini-2.5-flash-lite",                
+                "gemini-3-flash",
+                "gemini-2.5-flash",
+                "gemma-3-4b"
+            ];
+        }
+
+        for (const model of candidates) {
+            const limit = this.modelLimits[model] || 20;            
+            if (usage.hasQuota(model, limit)) {
+                return model;
+            }            
+            console.log(`[QUOTA] Sem cota para ${model}, tentando próximo...`);
+        }
+
+        if (command.startsWith("!lembrar")) {
+            throw new Error("LEMBRAR_UNAVAILABLE");
+        }        
+
+        throw new Error("ALL_QUOTAS_EXHAUSTED");
+    }
+
+    //Modifica o prompt pra cada comando
+    async formulatePrompt(from, sender, isGroup, command, complement = "Vazio") {
+        let prompt = "";
+        let limit = 200;
+        
+        const args = command.split(" ");
+        const action = args[0].toLowerCase();
+        const subAction = args[1] ? args[1].toLowerCase() : null;
+        const num = parseInt(args[2]);
+
+        if (action === "!resumo" && !isNaN(num) && num > 0 && num <= 200) {
+            limit = num;
+        }
+
+        const msgCount = await this.getMessageCount(sender);
+        if (msgCount < 5) {
+            throw new Error("FEW_MESSAGES");
+        }
+        
+        let formatedMessages
+
+        prompt = `Você é um bot de WhatsApp engraçado e sarcástico, chamado Bostossauro.
+        O usuário "${sender}" te mandou: "${command}".
+        Não inicie a mensagem com "Bostossauro: " apenas escreva como se estivesse conversando normalmente com alguém.
+        Use emojis (pelo menos um dinossauro 🦖), mas nunca use o emoji de cocô.
+        Responda diretamente pelo nome. Seja criativo e mantenha o tom de uma conversa do whatsapp.
+        A mensagem não deve conter o "${sender}".`;
+
+        if (complement !== "Vazio" && action !== "!lembrar") {
+            prompt += `\nO usuário respondeu a esta mensagem: "${complement}". Não repita ela.`;
+        }
+
+        if (isGroup) {
+            prompt += `\nVocê está em um grupo de amigos. Pode zoar à vontade, ninguém se ofende.`;
+        } else {
+            prompt += `\nEste é um chat privado, aja como um amigo.`;
+        }
+
+        if(action !== "!lembrar") {
+            formatedMessages = await this.getMessagesByLimit(sender, limit);
+            prompt += `\n\nContexto das últimas mensagens:\n${formatedMessages}`;
         }
         else{
-            this.prompt = `Você é um bot de WhatsApp chamado Bostossauro, o usuário do WhatsApp
-            chamado "${sender}" te enviou a seguinte pergunta ou comando: "${command}".
-            Responda ele diretamente pelo nome. Seja criativo, útil e mantenha o tom 
-            de uma conversa de WhatsApp.
-            
-            Contexto da conversa (opcional):
-            ${formatedMessages}`
+            prompt += `Mensagens que o usuário te pediu para "lembrar":
+            ${complement}.
+            Resuma o que foi dito nas mensagens recuperadas e responda à mensagem do usuário diretamente.`
         }
 
-        try{
-            const model = this.genAI.getGenerativeModel({ model: "gemini-2.5-flash"});
+        if (action === "!resumo") {
+            prompt += `\n\n${sender} pediu um RESUMO da conversa acima.
+            Destaque os tópicos principais e quem falou mais besteira.`;
 
-            const result = await model.generateContent(this.prompt);
-            const response = await result.response;
-            const text = response.text();
+            switch (subAction) {
+                case "curto":
+                    prompt += "\nDiretriz: Resuma em 2 ou 3 parágrafos curtos (max 30 palavras cada).";
+                    break;
+                case "médio":
+                    prompt += "\nDiretriz: Resuma com moderação (max 60 palavras por parágrafo).";
+                    break;
+                case "completo":
+                    prompt += "\nDiretriz: Se aprofunde nos detalhes (até 60 palavras por assunto).";
+                    break;
+                default:
+                    prompt += "\nDiretriz: Faça um resumo equilibrado.";
+            }
+        }
+        else if(action === "!gpt"){
+            prompt += "Seja útil e responda diretamente a mensagem do usuário com dados que julgar importantes."
+        }
+        return prompt;
+    }
 
-            return text
+    //Recebe a resposta do Gemini utilizando o prompt recebido
+    async getAiResponse(from, sender, isGroup, command, prompt, forceModel = null) {
+        this.updateOnlineStatus();
+
+        let modelName = this.selectBestModel(command, forceModel);
+
+        try {
+            const model = this.genAI.getGenerativeModel({ model: modelName });
+            const result = await model.generateContent(prompt);
+            
+            usage.increment(modelName);
+
+            console.log(`Mensagem gerada usando o ${modelName}`)
+            
+            return result.response.text();
         } catch (error) {
-            console.error(error);
-            return 'Morri kkkkkkkkkk tenta de novo aí.'; 
+            // Se der erro 503 ou 429, você pode disparar aquela sua lógica de retry aqui
+            throw error;
         }
     }
 
-    //Controla o comando resumo
-    async handleResumoCommand(sender, from, command){
-        console.log(`Sender: ${sender}, from: ${from}`)
-        const tamanho = command.split(' ');
-        const numero = parseInt(tamanho[2]);
+    //Responde o comando !lembrar
+    async handleLembrarCommand(from, sender, isGroup, command, complement){
+            const pergunta = command.slice(8).trim()
+            const selectPrompt = `Você é um gerador de consulta SQL para SQLite. Sua única saída deve ser uma consulta SQL (SELECT), sem NENHUMA explicação ou texto adicional.
+            A tabela é 'mensagens' e o campo de tempo é 'timestamp' (UNIX time em segundos).
+            O ID da conversa atual é '${from}'.
+            O usuário quer recuperar mensagens que se encaixam no período de tempo da pergunta, limitando o resultado a 500 mensagens no máximo.
+            Recupere as colunas 'nome_remetente' e 'conteudo'.
+            Use a condição WHERE para filtrar pelo id_conversa = '${from}' E pelo intervalo de tempo (timestamp).
+            A ordenação deve ser por timestamp DESC, e o limite deve ser de 200. Se a pergunta não especificar um período de tempo, recupere as últimas 200 mensagens da conversa.
 
-        if (await this.getMessageCount(from) < 5) {
-            throw new Error("FEW_MESSAGES");
-        }   
+            Exemplo de saída para "o que rolou ontem": SELECT nome_remetente, conteudo FROM mensagens WHERE id_conversa = '${from}' AND timestamp BETWEEN 1764355200 AND 1764441600 ORDER BY timestamp DESC LIMIT 200;
 
-        let mensagensFormatadas;
+            Pergunta do usuário: ${pergunta}`
 
-        if(!isNaN(numero) && numero > 0 && numero <= 500){
-            mensagensFormatadas = await this.getMessagesByLimit(from, tamanho[2]);
-        }else{mensagensFormatadas = await this.getMessagesByLimit(from, 500);}    
+            let sqlQuery = await this.getAiResponse(from, sender, isGroup, command, selectPrompt, "gemini-2.5-flash")
 
-        mensagensFormatadas = await this.getMessagesByLimit(from, 500);
-
-        let complemento = " "; 
-
-        switch(tamanho[1]){
-            case "curto":
-                complemento = "Responda de maneira concisa, dois ou três parágrafos.";
-                break;
-            case "médio":
-                complemento = "Responda com certa concisão (até 2 linhas pra cada assunto), limite em no máximo 5 assuntos.";
-                break; 
-            case "completo":
-                complemento = "Se aprofunde (até 5 linhas) em cada assunto";
-                break;
-        }
-
-        try {
-            const model = this.genAI.getGenerativeModel({ model: "gemini-2.5-flash"});
+            // Remove blocos de código markdown (```sql e ```) e espaços extras
+            sqlQuery = sqlQuery.replace(/```sql/gi, '').replace(/```/g, '').trim(); 
             
-            const prompt = `Você é um bot de WhatsApp engraçado e sarcástico num grupo de amigos, chamado Bostossauro. 
-            No banco de dados, você é o Bot-Zap, não mencione esse nome na conversa, é irrelevante.
-            ${sender} te chamou para fazer um resumo da conversa.
-            Resuma a conversa abaixo destacando os tópicos principais e quem falou mais besteira.
-            Use tópicos para resumir a conversa.
-            Nenhum deles vai achar qualquer brincadeira ruim, pode falar o que quiser e fazer piadas.
-            Responda indicando, no primeiro parágrafo, quantas mensagens foram recuperadas.
-            Comece a resposta com "*Resumo da conversa* \\n".
-            ${complemento}
+            if (!sqlQuery.toLowerCase().startsWith('select')) {
+                console.log("IA gerou SQL inválido:", sqlQuery);
+                throw new Error("INVALID_SELECT");
+            }
             
-            Conversa:
-            ${mensagensFormatadas}`;
+            if (!sqlQuery.toLowerCase().includes('limit')) {
+                sqlQuery = sqlQuery.replace(/;?$/, ` LIMIT 200;`);
+            }
+            
+            let selectedMessages = await this.getMessagesByAiResponse(sqlQuery)
 
-            const result = await model.generateContent(prompt);
-            const response = await result.response;
-            const text = response.text();
-
-            return text;
-
-        } catch (error) {
-            console.error("Erro no Model:", error);
-            throw new Error("AI_ERROR"); 
-        }
+            let finalPrompt = await this.formulatePrompt(from, sender, isGroup, command, selectedMessages)
+            
+            return await this.getAiResponse(from, sender, isGroup, "any", finalPrompt)
     }
 
     //Responde o comando !menu
@@ -245,20 +313,16 @@ class ChatModel {
         return `📍 Os comandos até agora são: \n🎲 !d{número}: Número aleatório (ex: !d20)\n🤖 !gpt {texto}: Pergunta pra IA\n🧠 !lembrar: lembra de um certo período de tempo\n 🛎️!resumo: Resume a conversa - Parâmetros:\n1 - tamanho do resumo: curto, médio e completo\n2 - quantidade de mensagens a resumir (máximo 500)\n Ex: !resumo curto 100`;
     }
 
-    //Responde o comando !gpt
-    async handleGptCommand(){
-        return "Ainda vazio 😓"
-    }
-
     //Responde o comando !d
-    async handleDiceCommand(text, from){
+    async handleDiceCommand(text, sender){
         var num = text.slice(2).trim(); 
+        const max = parseInt(num);
 
         if(isNaN(num) || num === ""){
             return false
         }
         else{               
-            let val = await rollDice(num); 
+            let val = await this.rollDice(num); 
             let mssg = "";
             
             if(val == 1) mssg = "❌ FALHA CRÍTICA! Tomou gap..."
@@ -271,6 +335,7 @@ class ChatModel {
         }
     }
     
+    //Gera um número aleatório entre 1 e um número via parâmetro
     async rollDice(num){        
         const max = parseInt(num);
         const val = Math.floor(Math.random() * max) + 1;
@@ -278,17 +343,21 @@ class ChatModel {
     }
 
     //Faz o controle de todos os comandos
-    async handleCommand(msg, sender, from, isGroup, command) {
-        try{
-            if (command.startsWith('!d')) return await this.handleDiceCommand(command, from)
-            //if (command.startsWith('!gpt') && isGroup) return await this.handleGptCommand()
-            if (command.startsWith('!menu')) return await this.handleMenuCommand()
-            if (command.startsWith('!resumo') && isGroup) return await this.handleResumoCommand(sender, from, command)
-            if (!isGroup) return await this.getAiResponse(from, sender, isGroup, command)
+    async handleCommand(msg, sender, from, isGroup, command, quotedMessage) {
+        if(command.startsWith('!d')) return await this.handleDiceCommand(command, sender)
+        
+        if(command.startsWith('!menu')) return await this.handleMenuCommand()
+        
+        if(command.startsWith('!resumo') && isGroup || command.startsWith("!gpt") && isGroup) return await this.getAiResponse(from, sender, isGroup, command, await this.formulatePrompt(from, sender, isGroup, command, quotedMessage));
+        
+        if(command.startsWith("!lembrar")){
+            return await this.handleLembrarCommand(from, sender, isGroup, command)
         }
-        catch(error){
-            console.error("Tipo do erro:", error);
-        }
+    }
+
+    async handleMessageWithoutCommand(msg, sender, from, isGroup, command, quotedMessage){
+        let finalPrompt = await this.formulatePrompt(from, sender, isGroup, command, quotedMessage);
+        return await this.getAiResponse(from, sender, isGroup, command, finalPrompt)
     }
 }
 

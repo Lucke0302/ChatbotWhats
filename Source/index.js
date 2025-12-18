@@ -315,7 +315,7 @@ async function connectToWhatsApp() {
                                 mozjpeg: false
                             })
                             .modulate({
-                                saturation: 2.5,
+                                saturation: 1.5,
                                 brightness: 1.0
                             })
                             .resize(512, null, { 
@@ -341,7 +341,7 @@ async function connectToWhatsApp() {
                                 mozjpeg: false
                             })
                             .modulate({
-                                saturation: 2.5, 
+                                saturation: 1.5, 
                                 brightness: 1.0
                             })
                             .resize(512, null, { 

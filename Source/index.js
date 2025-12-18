@@ -304,7 +304,7 @@ async function connectToWhatsApp() {
                 const args = command.trim().split(' ');
                 const param = args[1] ? args[1].toLowerCase() : null;
 
-                if (param === 'baixa') {
+                if (param === 'baixa'  || param === 'podi') {
                     stickerQuality = 1;
                     try {
                         finalBuffer = await sharp(buffer)
@@ -313,9 +313,19 @@ async function connectToWhatsApp() {
                         .resize(512, null, { 
                             kernel: sharp.kernel.nearest
                         })
-                        .toBuffer();
-                        
+                        .toBuffer();               
                         console.log("✅ Imagem pixelada com sucesso!");
+
+                        if(param === 'podi'){
+                            finalBuffer = await sharp(finalBuffer)
+                            .resize(16, null)
+                            .toFormat('jpeg', { quality: 10 })
+                            .resize(512, null, { 
+                                kernel: sharp.kernel.nearest
+                            })
+                            .toBuffer();
+                            console.log("Tá podi")
+                        }
                     } catch (err) {
                         console.error("Erro ao pixelar imagem:", err);
                     }

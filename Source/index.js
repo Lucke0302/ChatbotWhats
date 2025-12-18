@@ -318,13 +318,18 @@ async function connectToWhatsApp() {
 
                         if(param === 'podi'){
                             finalBuffer = await sharp(finalBuffer)
-                            .resize(16, null)
-                            .toFormat('jpeg', { quality: 10 })
+                            .resize(96, null) 
+                            .toFormat('jpeg', { 
+                                quality: 1, 
+                                chromaSubsampling: '4:2:0',
+                                mozjpeg: false
+                            })
+                            .blur(0.5) 
                             .resize(512, null, { 
                                 kernel: sharp.kernel.nearest
                             })
                             .toBuffer();
-                            console.log("Tá podi")
+                            console.log("✅ Imagem destruída com sucesso");
                         }
                     } catch (err) {
                         console.error("Erro ao pixelar imagem:", err);

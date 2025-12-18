@@ -316,7 +316,7 @@ async function connectToWhatsApp() {
                             })
                             .modulate({
                                 saturation: 1.5,
-                                brightness: 1.0
+                                brightness: 1.1
                             })
                             .resize(512, null, { 
                                 kernel: sharp.kernel.mitchell 
@@ -342,7 +342,7 @@ async function connectToWhatsApp() {
                             })
                             .modulate({
                                 saturation: 1.5, 
-                                brightness: 1.0
+                                brightness: 1.1
                             })
                             .resize(512, null, { 
                                 kernel: sharp.kernel.mitchell 

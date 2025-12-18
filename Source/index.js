@@ -297,6 +297,13 @@ async function connectToWhatsApp() {
                     { logger: pino({ level: 'silent' }) } 
                 );
 
+                userDef = command.split[1]
+                if(userDef === "baixa"){
+                    userDef = 10
+                }
+                else{
+                    userDef = 50
+                }
                 // Cria a figurinha
                 const sticker = new Sticker(buffer, {
                     pack: 'Bostossauro Pack',
@@ -304,7 +311,7 @@ async function connectToWhatsApp() {
                     type: StickerTypes.FULL, 
                     categories: ['🤩', '🎉'],
                     id: '12345',
-                    quality: 50,
+                    quality: userDef,
                     background: '#00000000'
                 });
 

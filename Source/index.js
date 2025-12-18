@@ -175,17 +175,19 @@ async function connectToWhatsApp() {
             const id_mensagem_externo = msg.key.id;
             const timestamp = msg.messageTimestamp; 
 
-            try {
-                await db.run(
-                    `INSERT INTO mensagens 
-                    (id_conversa, timestamp, id_remetente, nome_remetente, conteudo, id_mensagem_externo)
-                    VALUES (?, ?, ?, ?, ?, ?)`,
-                    [id_conversa, timestamp, id_remetente, nome_remetente, texto, id_mensagem_externo]
-                );
-                console.log(`✅ INCOMING: Mensagem de "${nome_remetente}" salva no BD.`);
-            } catch (error) {
-                if (!error.message.includes('UNIQUE constraint failed')) {
-                    console.error("❌ Erro ao salvar mensagem no BD:", error);
+            if(!command.startsWith("!status")){
+                try {
+                    await db.run(
+                        `INSERT INTO mensagens 
+                        (id_conversa, timestamp, id_remetente, nome_remetente, conteudo, id_mensagem_externo)
+                        VALUES (?, ?, ?, ?, ?, ?)`,
+                        [id_conversa, timestamp, id_remetente, nome_remetente, texto, id_mensagem_externo]
+                    );
+                    console.log(`✅ INCOMING: Mensagem de "${nome_remetente}" salva no BD.`);
+                } catch (error) {
+                    if (!error.message.includes('UNIQUE constraint failed')) {
+                        console.error("❌ Erro ao salvar mensagem no BD:", error);
+                    }
                 }
             }
         }

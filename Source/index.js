@@ -175,6 +175,8 @@ async function connectToWhatsApp() {
             const id_mensagem_externo = msg.key.id;
             const timestamp = msg.messageTimestamp; 
 
+            //Joga o comando todo para letras minúsculas para evitar problemas com case-sensitive
+             const command = texto.trim().toLowerCase();
             if(!command.startsWith("!status")){
                 try {
                     await db.run(
@@ -217,8 +219,7 @@ async function connectToWhatsApp() {
             console.log(`   É pra mim? ${isReplyToBot ? 'SIM ✅' : 'NÃO ❌'}`);
         }
 
-        //Joga o comando todo para letras minúsculas para evitar problemas com case-sensitive
-        const command = texto.trim().toLowerCase();
+
 
         if (command === '!status') {
             const GRUPO_CONTROLE = '120363422821336011@g.us';

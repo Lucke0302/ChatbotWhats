@@ -337,6 +337,12 @@ class ChatModel {
         const accountData = await accountResp.json();
         const puuid = accountData.puuid;
 
+        const leagueResp = await fetch(`https://${platform}.api.riotgames.com/lol/league/v4/entries/by-puuid/${puuid}`, {
+                headers: { 'X-Riot-Token': RIOT_API_KEY }
+        });
+
+        const leagueData = await leagueResp.json();
+
         // Busca elo na solo e flex
         const soloQueue = leagueData.find(q => q.queueType === 'RANKED_SOLO_5x5');
         const flexQueue = leagueData.find(q => q.queueType === 'RANKED_FLEX_SR');

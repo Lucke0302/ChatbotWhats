@@ -25,7 +25,7 @@ class ChatModel {
     }
 
     //Atualiza os dados do LOL
-    async initLoLData() {
+    /*async initLoLData() {
         try {
             const versionResp = await fetch('https://ddragon.leagueoflegends.com/api/versions.json');
             const versions = await versionResp.json();
@@ -48,6 +48,56 @@ class ChatModel {
             
         } catch (error) {
             console.error("❌ Erro ao inicializar dados do LoL:", error.message);
+        }
+    }*/
+
+    async initLoLData() {
+        console.log("🛠️ INICIANDO initLoLData (DEBUG MODE)...");
+        try {
+            // PASSO 1: Versões
+            console.log("1️⃣ Buscando versões...");
+            const versionResp = await fetch('https://ddragon.leagueoflegends.com/api/versions.json');
+            
+            if (!versionResp.ok) throw new Error(`Erro ao buscar versões: ${versionResp.status}`);
+            
+            const versions = await versionResp.json();
+            this.lolVersion = versions[0];
+            console.log(`✅ Versão detectada: ${this.lolVersion}`);
+
+            // PASSO 2: URL dos Campeões
+            const champUrl = `https://ddragon.leagueoflegends.com/cdn/${this.lolVersion}/data/pt_BR/champion.json`;
+            console.log(`2️⃣ Baixando campeões de: ${champUrl}`);
+
+            const champsResp = await fetch(champUrl);
+            
+            if (!champsResp.ok) {
+                console.log(`❌ Erro na requisição dos campeões. Status: ${champsResp.status} - ${champsResp.statusText}`);
+                throw new Error(`Falha ao baixar champions: ${champsResp.status}`);
+            }
+
+            // PASSO 3: JSON
+            console.log("3️⃣ Convertendo resposta para JSON...");
+            const champsJson = await champsResp.json();
+            
+            // Verifica se o JSON tem o formato esperado
+            if (!champsJson.data) {
+                console.log("❌ O JSON veio vazio ou sem a propriedade 'data':", champsJson);
+                return;
+            }
+
+            console.log(`✅ JSON recebido! Total de chaves em 'data': ${Object.keys(champsJson.data).length}`);
+
+            // PASSO 4: Mapeamento
+            this.lolChampionsMap = {};
+            for (const key in champsJson.data) {
+                const champ = champsJson.data[key];
+                this.lolChampionsMap[champ.key] = champ.name;
+            }
+            
+            console.log(`🏁 MAPA CRIADO! Teste ID 157 (Yasuo): ${this.lolChampionsMap['157']}`);
+            
+        } catch (error) {
+            console.error("🔥 CRASH no initLoLData:", error);
         }
     }
 
@@ -365,7 +415,7 @@ class ChatModel {
         });
         const masteryData = await masteryResp.json();
 
-        let response = `📊 *ESTATÍSTICAS LOZINHO*\n\n`;
+        let response = `📊 *ESTATÍSTICAS LOLZINHO*\n\n`;
         response += `👤 *Jogador:* ${accountData.gameName} #${accountData.tagLine}\n`;
         response += `🏆 *Elo Solo:* ${rankSolo}\n`;
         

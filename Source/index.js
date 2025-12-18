@@ -21,8 +21,6 @@ let myFullJid;
 const saveBotMessage = async (database, from, text, externalId = null) => {
     const timestamp = Math.floor(Date.now() / 1000);
 
-    console.log("From no saveBotMessage: "+from);
-    
     try {
         await database.run(
             `INSERT INTO mensagens 
@@ -40,6 +38,7 @@ const saveBotMessage = async (database, from, text, externalId = null) => {
 
 //Envia a mensagem e chama saveBotMessage
 const sendAndSave = async (sock, database, from, text, msgKey = null, mentions = []) => {
+    console.log("From no sendAndSave: "+from);
     const sentMessage = await sock.sendMessage(from, { 
         text: text, 
         mentions: mentions 

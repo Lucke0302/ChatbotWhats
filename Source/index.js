@@ -310,7 +310,7 @@ async function connectToWhatsApp() {
                         finalBuffer = await sharp(buffer)
                             .resize(30, null) 
                             .toFormat('jpeg', { 
-                                quality: 1, 
+                                quality: 10, 
                                 //chromaSubsampling: '4:2:0',
                                 mozjpeg: false
                             })
@@ -336,7 +336,7 @@ async function connectToWhatsApp() {
                         finalBuffer = await sharp(buffer)
                             .resize(16, null) 
                             .toFormat('jpeg', { 
-                                quality: 1, 
+                                quality: 5, 
                                 //chromaSubsampling: '4:2:0', 
                                 mozjpeg: false
                             })

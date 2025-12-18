@@ -314,6 +314,10 @@ async function connectToWhatsApp() {
                                 //chromaSubsampling: '4:2:0',
                                 mozjpeg: false
                             })
+                            .modulate({
+                                saturation: 2.5,
+                                brightness: 1.0
+                            })
                             .resize(512, null, { 
                                 kernel: sharp.kernel.mitchell 
                             })                            
@@ -335,6 +339,10 @@ async function connectToWhatsApp() {
                                 quality: 1, 
                                 //chromaSubsampling: '4:2:0', 
                                 mozjpeg: false
+                            })
+                            .modulate({
+                                saturation: 2.5, 
+                                brightness: 1.0
                             })
                             .resize(512, null, { 
                                 kernel: sharp.kernel.mitchell 

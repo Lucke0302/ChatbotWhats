@@ -308,11 +308,12 @@ async function connectToWhatsApp() {
                     stickerQuality = 1;
                     try {
                         finalBuffer = await sharp(buffer)
-                            .resize(64, null)
-                            .resize(512, null, { 
-                                kernel: sharp.kernel.nearest
-                            })
-                            .toBuffer();
+                        .resize(16, null)
+                        .toFormat('jpeg', { quality: 10 })
+                        .resize(512, null, { 
+                            kernel: sharp.kernel.nearest
+                        })
+                        .toBuffer();
                         
                         console.log("✅ Imagem pixelada com sucesso!");
                     } catch (err) {

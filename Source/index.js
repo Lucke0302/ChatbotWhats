@@ -330,7 +330,7 @@ async function connectToWhatsApp() {
                 if(param === 'podi'){                    
                     try {
                         finalBuffer = await sharp(buffer)
-                            .resize(30, null) 
+                            .resize(16, null) 
                             .toFormat('jpeg', { 
                                 quality: 1, 
                                 //chromaSubsampling: '4:2:0', 

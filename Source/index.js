@@ -363,9 +363,10 @@ async function connectToWhatsApp() {
             const senderJid = sender.split('@')[0];
 
             const commandIntros = {
-                '!gpt': `🤖 @${senderJid}\n`,
-                '!resumo': `🦖 @${senderJid}\n*Resumo da conversa*\n`,
-                '!lembrar': `🧠\n`
+                '!gpt': `🤖 @${senderJid}\n\n`,
+                '!resumo': `🦖 @${senderJid}\n*Resumo da conversa*\n\n`,
+                '!lembrar': `🧠\n\n`,
+                'undefined': ''
             };
 
             //Bloco de controle NOVO, trata melhor os problemas e se comunica diretamente
@@ -388,8 +389,8 @@ async function connectToWhatsApp() {
                 //Pega a resposta do handleCommand do chatModel.js
                 const response = await chatbot.handleCommand(msg, sender, from, isGroup, command, quotedMessage);
 
-                const intro = commandIntros[commandName] || commandIntros['default'];
-                const finalResponse = `${intro}\n\n${response}`;
+                const intro = commandIntros[commandName] || commandIntros['undefined'];
+                const finalResponse = `${intro}${response}`;
                 
                 //Verifica se recebeu alguma resposta
                 if (response) {

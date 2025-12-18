@@ -306,7 +306,7 @@ async function connectToWhatsApp() {
                     stickerQuality = 50
                 }
 
-                console.log("Stickerquality: "+stickerQuality)
+                console.log("userDef: "+userDef+". Stickerquality: "+stickerQuality)
                 // Cria a figurinha
                 const sticker = new Sticker(buffer, {
                     pack: 'Bostossauro Pack',

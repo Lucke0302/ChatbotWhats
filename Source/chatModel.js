@@ -100,6 +100,7 @@ class ChatModel {
             console.error("🔥 CRASH no initLoLData:", error);
         }
     }
+    
 
     getChampName(id) {
         return this.lolChampionsMap ? (this.lolChampionsMap[id] || `ID: ${id}`) : `ID: ${id}`;

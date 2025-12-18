@@ -339,7 +339,7 @@ async function connectToWhatsApp() {
                             .resize(512, null, { 
                                 kernel: sharp.kernel.mitchell 
                             })
-                            .blur(10) 
+                            .blur(8) 
                             .toBuffer();
                         stickerQuality = 5; 
                         

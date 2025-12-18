@@ -29,7 +29,7 @@ class ChatModel {
 async initLoLData() {
         const versionResp = await fetch('https://ddragon.leagueoflegends.com/api/versions.json');
         
-        if (!versionResp.ok) throw new Error(`VERSION_ERROR`);
+        if (!versionResp.ok) throw new Error(`LOL_VERSION_ERROR`);
         
         const versions = await versionResp.json();
         this.lolVersion = versions[0];
@@ -46,8 +46,7 @@ async initLoLData() {
         const champsJson = await champsResp.json();
         
         if (!champsJson.data) {
-            console.log(`LOL_JSON_DATA_ERROR`);
-            return;
+            throw new Error(`LOL_JSON_DATA_ERROR`);
         }
 
         this.lolChampionsMap = {};

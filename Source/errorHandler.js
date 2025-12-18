@@ -10,7 +10,10 @@ const ERROR_DICTIONARY = {
     "AI_TIMEOUT": "⏳ A IA demorou demais pra pensar e eu desisti. Tenta algo mais simples.",
     "AI_OVERLOAD": "🔥 A IA tá fritando de tanta gente usando! Tenta de novo daqui 1 minutinho que ela esfria.",
     "LEMBRAR_UNAVAILABLE": "⏳ Comando !lembrar indisponível temporariamente",
-    "ALL_QUOTAS_EXHAUSTED": "😵 Minhas baterias (e cotas do Google) acabaram por hoje! Volto amanhã cedinho."
+    "ALL_QUOTAS_EXHAUSTED": "😵 Minhas baterias (e cotas do Google) acabaram por hoje! Volto amanhã cedinho.",
+    "LOL_VERSION_ERROR": "❌ Erro ao buscar versão do jogo.",
+    "CHAMPIONS_ERROR": "❌ Erro buscando os campeões.",
+    "LOL_JSON_DATA_ERROR": "❌ Erro convertendo o json dos campeões."
 };
 
 // Mensagem padrão para erros não mapeados (bugs reais)

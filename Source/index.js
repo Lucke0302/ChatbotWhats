@@ -516,13 +516,18 @@ async function connectToWhatsApp() {
             
             try {
                 const sender = msg.key.participant || msg.key.remoteJid;
+                const contextObj = {
+                    from: from,
+                    sender: sender,
+                    command: command
+                };
                 
                 response = await chatbot.handleMessageWithoutCommand(msg, sender, from, isGroup, command, quotedMessageText)
                 if (response && typeof response === 'string') {
                     await sendAndSave(sock, db, from, response, msg, [sender]); 
                 }
             } catch (error) {
-                console.error("Erro no Reply:", error);
+                await handleBotError(error, replyToUser, contextObj);
             }
         }
 

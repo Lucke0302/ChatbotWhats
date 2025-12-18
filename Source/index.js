@@ -407,6 +407,11 @@ async function connectToWhatsApp() {
                 '!lembrar': `🧠\n\n`,
                 'undefined': ''
             };
+            
+            const quotedMessageText = quotedMessage.conversation || 
+                                quotedMessage.extendedTextMessage?.text || 
+                                quotedMessage.imageMessage?.caption || 
+                                "[Midia/Sticker sem texto]";
 
             //Bloco de controle NOVO, trata melhor os problemas e se comunica diretamente
             //com o chatModel.js
@@ -426,7 +431,7 @@ async function connectToWhatsApp() {
                 await sendSticker(sock, db, from, msg, [sender], texto)
 
                 //Pega a resposta do handleCommand do chatModel.js
-                const response = await chatbot.handleCommand(msg, sender, from, isGroup, command, quotedMessage);
+                const response = await chatbot.handleCommand(msg, sender, from, isGroup, command, quotedMessageText);
 
                 const intro = commandIntros[commandName] || commandIntros['undefined'];
                 const finalResponse = `${intro}${response}`;
@@ -457,6 +462,10 @@ async function connectToWhatsApp() {
                 sender: sender,
                 command: command
             };
+            const quotedMessageText = quotedMessage.conversation || 
+                                quotedMessage.extendedTextMessage?.text || 
+                                quotedMessage.imageMessage?.caption || 
+                                "[Midia/Sticker sem texto]";
             try{
                 //Se não for grupo e o chatbot estiver online, responde a qualquer mensagem,
                 //sem precisar de quote ou comando
@@ -468,8 +477,8 @@ async function connectToWhatsApp() {
                     //Verifica se deve mandar um sticker
                     await sendSticker(sock, db, from, msg, [sender], texto)
                 
-                    //Pega a resposta do handleCommand do chatModel.js
-                    const response = await chatbot.handleMessageWithoutCommand(msg, sender, from, isGroup, command);
+                    //Pega a resposta do handleMessageWithoutCommand do chatModel.js
+                    const response = await chatbot.handleMessageWithoutCommand(msg, sender, from, isGroup, command, quotedMessageText);
 
                     await sendAndSave(sock, db, from, response, null, [sender]);
                 }

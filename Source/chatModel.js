@@ -17,7 +17,8 @@ class ChatModel {
         };
         this.updateOnlineStatus();
         this.lolChampionsMap = null;
-        this.lolVersion = '14.23.1';
+        this.lolVersion = '14.23.1';        
+        this.initLoLData();
         setInterval(() => {
             console.log("⏰ Atualizando versão e campeões do LoL (Rotina Diária)...");
             this.initLoLData();
@@ -100,7 +101,7 @@ class ChatModel {
             console.error("🔥 CRASH no initLoLData:", error);
         }
     }
-    
+
 
     getChampName(id) {
         return this.lolChampionsMap ? (this.lolChampionsMap[id] || `ID: ${id}`) : `ID: ${id}`;

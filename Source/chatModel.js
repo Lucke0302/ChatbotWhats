@@ -50,6 +50,7 @@ class ChatModel {
     }
 
     getChampName(id) {
+        console.log(this.lolChampionsMap)
         return this.lolChampionsMap ? (this.lolChampionsMap[id] || `ID: ${id}`) : `ID: ${id}`;
     }
 

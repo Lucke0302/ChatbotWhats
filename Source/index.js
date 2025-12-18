@@ -308,33 +308,45 @@ async function connectToWhatsApp() {
                     stickerQuality = 1;
                     try {
                         finalBuffer = await sharp(buffer)
-                        .resize(16, null)
-                        .toFormat('jpeg', { quality: 1 })
-                        .resize(512, null, { 
-                            kernel: sharp.kernel.nearest
-                        })
-                        .toBuffer();               
-                        console.log("✅ Imagem pixelada com sucesso!");
+                            .resize(30, null) 
+                            .toFormat('jpeg', { 
+                                quality: 1, 
+                                chromaSubsampling: '4:2:0',
+                                mozjpeg: false
+                            })
+                            .resize(512, null, { 
+                                kernel: sharp.kernel.mitchell 
+                            })                            
+                            .blur(3) 
+                            .toBuffer();                        
+                        stickerQuality = 5; 
+                        
+                        console.log("✅ Imagem destruída (Modo Batata baixo)");
                     } catch (err) {
-                        console.error("Erro ao pixelar imagem:", err);
+                        console.error("Erro ao destruir imagem:", err);
                     }
                 }
 
                 if(param === 'podi'){                    
-                    stickerQuality = 1;
-                    finalBuffer = await sharp(buffer)
-                    .resize(96, null) 
-                    .toFormat('jpeg', { 
-                        quality: 1, 
-                        chromaSubsampling: '4:2:0',
-                        mozjpeg: false
-                    })
-                    .blur(0.7) 
-                    .resize(512, null, { 
-                        kernel: sharp.kernel.nearest
-                    })
-                    .toBuffer();
-                    console.log("✅ Imagem destruída com sucesso");
+                    try {
+                        finalBuffer = await sharp(buffer)
+                            .resize(30, null) 
+                            .toFormat('jpeg', { 
+                                quality: 1, 
+                                chromaSubsampling: '4:2:0', 
+                                mozjpeg: false
+                            })
+                            .resize(512, null, { 
+                                kernel: sharp.kernel.mitchell 
+                            })
+                            .blur(10) 
+                            .toBuffer();
+                        stickerQuality = 5; 
+                        
+                        console.log("✅ Imagem destruída (Modo Batata podi)");
+                    } catch (err) {
+                        console.error("Erro ao destruir imagem:", err);
+                    }
                 }
 
                 // Cria a figurinha

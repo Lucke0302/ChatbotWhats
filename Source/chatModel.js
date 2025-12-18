@@ -250,7 +250,7 @@ class ChatModel {
 
         if (forceModel) {
             candidates.push(forceModel);
-            if (forceModel === "gemini-3-flash") candidates.push("gemini-2.5-flash");
+            if (forceModel === "gemini-2.5-flash") candidates.push("gemini-2.5-flash");
         } 
         else if (command.startsWith("!resumo")){            
             candidates = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemma-3-27b","gemma-3-12b"]; 

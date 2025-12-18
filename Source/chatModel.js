@@ -63,7 +63,7 @@ class ChatModel {
         }
     }
 
-    //Verifica cote de uso de IA
+    //Verifica cota de uso de IA
     async checkAndIncrementAiQuota(sender) {
         const user = await this.getUserData(sender);
         const today = new Date().toLocaleDateString('pt-BR');
@@ -386,12 +386,12 @@ class ChatModel {
     // Ex: !timeout @551199999999 10 (bane por 10 minutos)
     async handleTimeoutCommand(command, sender, isGroup, mentions) {
 
-        if(sender !== ""){
+        if(sender !== "266180732403881@lid"){
             return
         }
         
         const args = command.split(' ');
-        if (args.length < 3) return "❌ Uso: !timeout @usuario [minutos]";
+        if (args.length < 3) return;
 
         const targetUser = mentions[0];
         const minutes = parseInt(args[args.length - 1]); 
@@ -560,16 +560,32 @@ class ChatModel {
 
     //Faz o controle de todos os comandos
     async handleCommand(msg, sender, from, isGroup, command, quotedMessage) {
+        await this.checkTimeout(sender);
+
+        this.checkSpam(sender);
+
+        //ADM COMMAND
+        if (command.startsWith('!timeout')) {
+            const mentions = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
+            return await this.handleTimeoutCommand(command, sender, isGroup, mentions);
+        }
+
         if(command.startsWith('!d')) return await this.handleDiceCommand(command, sender)
         
         if(command.startsWith('!menu')) return await this.handleMenuCommand()
         
-        if(command.startsWith('!resumo') && isGroup || command.startsWith("!gpt") && isGroup) return await this.getAiResponse(from, sender, isGroup, command, await this.formulatePrompt(from, sender, isGroup, command, quotedMessage));
-        
-        if(command.startsWith('!lol')) return await this.handleLolCommand(command);
-        if(command.startsWith("!lembrar")){
-            return await this.handleLembrarCommand(from, sender, isGroup, command)
+        if (command.startsWith('!gpt') || command.startsWith('!resumo') || command.startsWith('!lembrar')) {
+            await this.checkAndIncrementAiQuota(sender, command);
+            
+            if(command.startsWith('!resumo') && isGroup || command.startsWith("!gpt") && isGroup) {
+                return await this.getAiResponse(from, sender, isGroup, command, await this.formulatePrompt(from, sender, isGroup, command, quotedMessage));
+            }
+            if(command.startsWith("!lembrar")){
+                return await this.handleLembrarCommand(from, sender, isGroup, command)
+            }
         }
+
+        if(command.startsWith('!lol')) return await this.handleLolCommand(command);
     }
 
     async handleMessageWithoutCommand(msg, sender, from, isGroup, command, quotedMessage){

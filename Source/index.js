@@ -521,9 +521,7 @@ async function connectToWhatsApp() {
                 command: command
             };
             
-            try {
-
-                
+            try {                
                 response = await chatbot.handleMessageWithoutCommand(msg, sender, from, isGroup, command, quotedMessageText)
                 if (response && typeof response === 'string') {
                     await sendAndSave(sock, db, from, response, msg, [sender]); 

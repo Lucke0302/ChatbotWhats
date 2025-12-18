@@ -13,7 +13,8 @@ const ERROR_DICTIONARY = {
     "ALL_QUOTAS_EXHAUSTED": "😵 Minhas baterias (e cotas do Google) acabaram por hoje! Volto amanhã cedinho.",
     "LOL_VERSION_ERROR": "❌ Erro ao buscar versão do jogo.",
     "CHAMPIONS_ERROR": "❌ Erro buscando os campeões.",
-    "LOL_JSON_DATA_ERROR": "❌ Erro convertendo o json dos campeões."
+    "LOL_JSON_DATA_ERROR": "❌ Erro convertendo o json dos campeões.",
+    "USER_QUOTA_EXCEEDED": "❌ Usou IA demais hoje, vai plantar uma árvore."
 };
 
 // Mensagem padrão para erros não mapeados (bugs reais)

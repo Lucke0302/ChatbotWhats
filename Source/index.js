@@ -304,7 +304,7 @@ async function connectToWhatsApp() {
                 const args = command.trim().split(' ');
                 const param = args[1] ? args[1].toLowerCase() : null;
 
-                if (param === 'baixa'  || param === 'podi') {
+                if (param === 'baixa') {
                     stickerQuality = 1;
                     try {
                         finalBuffer = await sharp(buffer)
@@ -315,25 +315,25 @@ async function connectToWhatsApp() {
                         })
                         .toBuffer();               
                         console.log("✅ Imagem pixelada com sucesso!");
-
-                        if(param === 'podi'){
-                            finalBuffer = await sharp(buffer)
-                            .resize(96, null) 
-                            .toFormat('jpeg', { 
-                                quality: 1, 
-                                chromaSubsampling: '4:2:0',
-                                mozjpeg: false
-                            })
-                            .blur(0.7) 
-                            .resize(512, null, { 
-                                kernel: sharp.kernel.nearest
-                            })
-                            .toBuffer();
-                            console.log("✅ Imagem destruída com sucesso");
-                        }
                     } catch (err) {
                         console.error("Erro ao pixelar imagem:", err);
                     }
+                }
+
+                if(param === 'podi'){
+                    finalBuffer = await sharp(buffer)
+                    .resize(96, null) 
+                    .toFormat('jpeg', { 
+                        quality: 1, 
+                        chromaSubsampling: '4:2:0',
+                        mozjpeg: false
+                    })
+                    .blur(0.7) 
+                    .resize(512, null, { 
+                        kernel: sharp.kernel.nearest
+                    })
+                    .toBuffer();
+                    console.log("✅ Imagem destruída com sucesso");
                 }
 
                 // Cria a figurinha

@@ -311,7 +311,7 @@ async function connectToWhatsApp() {
                             .resize(30, null) 
                             .toFormat('jpeg', { 
                                 quality: 1, 
-                                chromaSubsampling: '4:2:0',
+                                //chromaSubsampling: '4:2:0',
                                 mozjpeg: false
                             })
                             .resize(512, null, { 
@@ -333,7 +333,7 @@ async function connectToWhatsApp() {
                             .resize(30, null) 
                             .toFormat('jpeg', { 
                                 quality: 1, 
-                                chromaSubsampling: '4:2:0', 
+                                //chromaSubsampling: '4:2:0', 
                                 mozjpeg: false
                             })
                             .resize(512, null, { 

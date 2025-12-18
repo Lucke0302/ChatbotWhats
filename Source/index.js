@@ -102,6 +102,9 @@ const botCommands = {
     },
     '!s': {
         emoji: '🪄'
+    },
+    '!lol': {
+        emoji: '🎮'
     }
 };
 

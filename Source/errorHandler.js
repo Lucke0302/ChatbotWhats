@@ -17,7 +17,9 @@ const ERROR_DICTIONARY = {
     "NICKNAME_OR_TAGLINE_WRONG": " 🎮❌ Player não existe",
     "KEY_UNAVAILABLE": "🔑 Erro na chave da API (fala com o dev)",
     "USER_QUOTA_EXCEEDED": "❌ Usou IA demais hoje, vai plantar uma árvore.",
-    "USER_SELECT_ERROR": "❌ Erro na hora de buscar o usuário."
+    "USER_SELECT_ERROR": "❌ Erro na hora de buscar o usuário.",
+    "NON-EXISTENT_CITY": "🗺️ Essa cidade aí não existe não.",
+    "WEATHER_API_ERROR": "⛈️ Ocorreu um erro ao consultar a previsão. Acho que choveu no servidor."
 };
 
 // Mensagem padrão para erros não mapeados (bugs reais)

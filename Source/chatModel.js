@@ -1,4 +1,5 @@
 const usage = require('./usageControl');
+const weatherCommandHandler = require('./weatherCommand');
 const RIOT_API_KEY = process.env.RIOT_API_KEY;
 
 class ChatModel {
@@ -325,7 +326,10 @@ async getUserMemory(name, sender) {
         }
         else if (command.startsWith("!lembrar")) {
             candidates = ["gemma-3-27b", "gemini-2.5-flash"]; 
-        } 
+        }
+        else if (command.startsWith("!ouvir")){
+            candidates = ["gemini-2.5-flash-native-audio-dialog"]
+        }
         else {
             candidates = [
                 "gemini-2.5-flash",
@@ -696,6 +700,11 @@ async getUserMemory(name, sender) {
         if(command.startsWith('!lol')) return await this.handleLolCommand(command);
 
         if(command.startsWith('!notas')) return await this.handleNotasCommand(sender);
+
+        if (command.startsWith('!clima')) {
+            const city = command.replace(/!clima/i, '').trim();
+            return await weatherCommandHandler.getWeather(city);
+        }
     }
 
     async handleMessageWithoutCommand(msg, sender, from, isGroup, command, quotedMessage){

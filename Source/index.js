@@ -1,4 +1,6 @@
 require('dotenv').config();
+const schedule = require('node-schedule');
+const weatherCommandHandler = require('./weatherCommand');
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, downloadMediaMessage, jidNormalizedUser } = require('@whiskeysockets/baileys');
 const { GoogleGenAI } = require("@google/genai");
 const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
@@ -117,6 +119,9 @@ const botCommands = {
     },
     '!notas': {
         emoji: '✏️'
+    },
+    '!clima': {
+        emoji: '🌡️'
     }
 };
 
@@ -130,6 +135,27 @@ async function connectToWhatsApp() {
         auth: state,
         logger: pino({ level: 'warn' }), 
     });
+
+    // Função para enviar mensagem para todos os grupos
+    async function broadcastToAllGroups(sock, text) {
+        try {
+            console.log("📢 Iniciando transmissão para todos os grupos...");
+            
+            const groups = await sock.groupFetchAllParticipating();
+            const groupIds = Object.keys(groups);
+
+            console.log(`📊 Encontrados ${groupIds.length} grupos.`);
+
+            for (const id of groupIds) {
+                await sock.sendMessage(id, { text: text });
+                await new Promise(resolve => setTimeout(resolve, 2000)); 
+            }
+
+            console.log("✅ Transmissão finalizada com sucesso!");
+        } catch (error) {
+            console.error("❌ Erro ao enviar broadcast:", error);
+        }
+    }
 
     //Instancia o chatbot
     const chatbot = new ChatModel(db, genAI)
@@ -167,6 +193,12 @@ async function connectToWhatsApp() {
             if (shouldReconnect) connectToWhatsApp();
         } else if (connection === 'open') {
             console.log('✅ Bot conectado e pronto!');
+            let weatherComplement
+            // Agenda para todo dia às 08:00 da manhã
+            schedule.scheduleJob('0 0 8 * * *', async function(){
+                weatherComplement = await weatherCommandHandler.getWeather(city);
+                broadcastToAllGroups(sock, "Bom dia, grupo! 🦖 O Bostossauro acordou e escolheu a violência.\n"+weatherComplement);
+            });
         }
     });
 
@@ -175,7 +207,8 @@ async function connectToWhatsApp() {
     //Pega as informações do bot
     const me = state.creds.me;
     myFullJid = me?.id ? jidNormalizedUser(me.id) :  '5513991526878@s.whatsapp.net'; 
-    
+
+
     //Acorda quando chega uma mensagem
     sock.ev.on('messages.upsert', async m => {
         const msg = m.messages[0];

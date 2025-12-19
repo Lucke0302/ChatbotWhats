@@ -241,17 +241,40 @@ async getUserMemory(name, sender) {
 
     //Retorna mensagens do banco de dados para um certo remetente (pessoa ou grupo) com um limite
     async getMessagesByLimit(from, limit){
-    
+
         const sqlQuery = `SELECT nome_remetente, conteudo 
         FROM mensagens 
-        WHERE id_conversa = '${from}' 
+        WHERE id_conversa = ? 
         AND conteudo NOT LIKE '*Resumo da conversa*%'
         ORDER BY timestamp DESC 
-        LIMIT ${limit}`;
+        LIMIT ?`;
         
-        const messagesDb = await this.db.all(sqlQuery);
+        const messagesDb = await this.db.all(sqlQuery, [from, limit]);
+
         if (!messagesDb || messagesDb.length === 0) {
-            throw new Error("SQL_ERROR");
+            return "";
+        }
+
+        return messagesDb.map(m => `${m.nome_remetente || 'Desconhecido'}: ${m.conteudo}`).reverse().join('\n');
+    };
+
+    //Retorna mensagens do banco de dados para um certo remetente (pessoa ou grupo) com um limite
+    async getUserMessagesInGroup(from, sender){
+        if(from == sender){
+            return ""
+        }
+
+        const sqlQuery = `SELECT nome_remetente, conteudo 
+        FROM mensagens 
+        WHERE id_conversa = ? AND id_remetente = ?
+        AND conteudo NOT LIKE '*Resumo da conversa*%'
+        ORDER BY timestamp DESC 
+        LIMIT 20`;
+
+        const messagesDb = await this.db.all(sqlQuery, [from, sender]);
+        
+        if (!messagesDb || messagesDb.length === 0) {
+            return ""; 
         }
 
         return messagesDb.map(m => `${m.nome_remetente || 'Desconhecido'}: ${m.conteudo}`).join('\n');
@@ -330,7 +353,7 @@ async getUserMemory(name, sender) {
             throw new Error("FEW_MESSAGES");
         }
         
-        let formatedMessages
+        let formatedMessages, userFormatedMessages
 
         prompt = `Você é um bot de WhatsApp engraçado e sarcástico, chamado Bostossauro.
         O usuário "${sender}" te mandou: "${command}".
@@ -393,6 +416,12 @@ async getUserMemory(name, sender) {
             Se nada mudou, repita a memória antiga. Não adicione anotações de informações subjetivas, apenas dados que você
             tem certeza. O usuário não verá a anotação.
             Exemplo de saída: "Beleza, te ajudo com isso! ${separador} Usuário é técnico de TI, gosta de LoL e usa gírias."`;
+
+        
+        if(from != sender){
+            userFormatedMessages = await this.getUserMessagesInGroup(from, sender);
+            prompt +=  `As últimas 20 mensagens do usuário no grupo foram (ignore se estiver vazio): \n${userFormatedMessages}`
+        }
 
         return prompt;
     }

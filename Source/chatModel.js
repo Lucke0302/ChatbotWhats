@@ -61,13 +61,18 @@ class ChatModel {
     }
 
     async getUserData(name, sender) {
+        await this.db.run(
+            `INSERT OR IGNORE INTO usuarios (id_usuario, nome, banido_ate, uso_ia_diario, data_ultimo_uso, anotacoes) 
+             VALUES (?, ?, 0, 0, '', '')`, 
+            [sender, name]
+        );
+
         let user = await this.db.get(`SELECT * FROM usuarios WHERE id_usuario = ?`, [sender]);
         
-        // Cria usuário se não existir
         if (!user) {
-            await this.db.run(`INSERT INTO usuarios (id_usuario) VALUES (?)`, [sender]);
-            user = { id_usuario: sender, nome: name, banido_ate: 0, uso_ia_diario: 0, data_ultimo_uso: '', anotacoes: '' };
+             user = { id_usuario: sender, nome: name, banido_ate: 0, uso_ia_diario: 0, data_ultimo_uso: '', anotacoes: '' };
         }
+        
         return user;
     }
 
@@ -614,9 +619,9 @@ class ChatModel {
     //Faz o controle de todos os comandos
     async handleCommand(msg, sender, from, isGroup, command, quotedMessage) {
         let name = msg.pushName || ''
-        await this.checkTimeout(name, sender);
 
-        this.checkSpam(sender);
+        const user = await this.getUserData(name, sender);
+        await this.checkTimeout(user);
 
         //ADM COMMAND
         if (command.startsWith('!timeout')) {

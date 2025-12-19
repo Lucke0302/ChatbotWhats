@@ -72,7 +72,7 @@ class ChatModel {
     }
 
     //Verifica Timeout
-    async checkTimeout(sender) {
+    async checkTimeout(name, sender) {
         const user = await this.getUserData(name, sender);
         const now = Math.floor(Date.now() / 1000);
 

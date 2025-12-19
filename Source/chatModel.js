@@ -25,7 +25,7 @@ class ChatModel {
         }, 1000 * 60 * 60 * 24);
         this.spamCooldowns = new Map(); 
         this.SPAM_DELAY_SECONDS = 10;
-        this.DAILY_AI_LIMIT = 20;
+        this.DAILY_AI_LIMIT = 10;
     }
 
     checkSpam(sender) {

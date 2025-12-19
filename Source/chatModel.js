@@ -36,16 +36,19 @@ class ChatModel {
     async saveUserMemory(name, sender, newMemory) {
         if (!newMemory) return;
         try {
-            await this.getUserData(name, sender);
-            await this.db.run(
-                `INSERT OR IGNORE INTO usuarios (id_usuario, nome, banido_ate, uso_ia_diario, data_ultimo_uso, anotacoes) 
-                VALUES (?, ?, 0, 0, '', '')`, 
-                [sender, name]
-            );
-            await this.db.run(
-                `UPDATE usuarios SET anotacoes = ? WHERE id_usuario = ?`,
-                [newMemory, sender]
-            );
+            if (!await this.getUserData(name, sender)){
+                await this.db.run(
+                    `INSERT OR IGNORE INTO usuarios (id_usuario, nome, banido_ate, uso_ia_diario, data_ultimo_uso, anotacoes) 
+                    VALUES (?, ?, 0, 0, '', '')`, 
+                    [sender, name]
+                );
+            }
+            else{                    
+                await this.db.run(
+                    `UPDATE usuarios SET anotacoes = ? WHERE id_usuario = ?`,
+                    [newMemory, sender]
+                );
+            }
             console.log(`🧠 Memória atualizada para ${sender}`);
         } catch (error) {
             console.error("❌ Erro ao salvar memória:", error);
@@ -71,9 +74,10 @@ class ChatModel {
         
         if (!user) {
              user = { id_usuario: sender, nome: name, banido_ate: 0, uso_ia_diario: 0, data_ultimo_uso: '', anotacoes: '' };
+             return false
         }
         
-        return user;
+        return true;
     }
 
     //Verifica Timeout

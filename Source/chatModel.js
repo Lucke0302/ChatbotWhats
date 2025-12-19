@@ -36,6 +36,7 @@ class ChatModel {
     async saveUserMemory(sender, newMemory) {
         if (!newMemory) return;
         try {
+            await this.getUserData(sender);
             await this.db.run(
                 `UPDATE usuarios SET anotacoes = ? WHERE id_usuario = ?`,
                 [newMemory, sender]

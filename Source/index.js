@@ -179,8 +179,24 @@ async function connectToWhatsApp() {
         if (!msg.message || msg.key.fromMe) return;
 
         //Pega de quem é a mensagem e verifica se é de um grupo
-        const from = msg.key.remoteJid;
+        const from = msg.key.remoteJid;        
         const isGroup = from.endsWith('@g.us');
+
+        const getSenderJid = (msg) => {
+            const key = msg.key;
+            
+            if (key.participant) {
+                if (key.participant.includes('@lid') && key.participantAlt) {
+                    return jidNormalizedUser(key.participantAlt);
+                }
+                return jidNormalizedUser(key.participant);
+            } else {
+                if (key.remoteJid && key.remoteJid.includes('@lid') && key.remoteJidAlt) {
+                    return jidNormalizedUser(key.remoteJidAlt);
+                }
+                return jidNormalizedUser(key.remoteJid);
+            }
+        };
         
         //Pega o texto da mensagem
         const texto = msg.message.conversation || 
@@ -193,13 +209,10 @@ async function connectToWhatsApp() {
         //Verifica se por algum motivo a mensagem não chegou vazia
         if (texto) {
             const id_conversa = from; 
-
-            const rawParticipant = msg.key.participant || from;
-            const id_remetente = jidNormalizedUser(rawParticipant);
+            const id_remetente = getSenderJid(msg);
             const nome_remetente = msg.pushName || '';
             const id_mensagem_externo = msg.key.id;
             const timestamp = msg.messageTimestamp; 
-
 
             if(!command.startsWith("!status") && !command.startsWith("!s") && !command.startsWith("sticker")){
                 try {
@@ -398,7 +411,7 @@ async function connectToWhatsApp() {
         //e o texto tenha mais de 1 caractere
         if(command.startsWith("!") &&  chatbot.isOnline && command.length > 1){
             
-            const sender = msg.key.participant || msg.key.remoteJid;
+            const sender = getSenderJid(msg);
 
             const contextObj = {
                 from: from,
@@ -458,13 +471,13 @@ async function connectToWhatsApp() {
 
         //Se o chatbot não estiver online e receber um comando
         else if(command.startsWith("!") &&  !chatbot.isOnline){
-            const sender = msg.key.participant || msg.key.remoteJid;            
+            const sender = getSenderJid(msg);        
             await sendSticker(sock, db, from, msg, [sender], texto)
             return
         }
 
         else{
-            const sender = msg.key.participant || msg.key.remoteJid;
+            const sender = getSenderJid(msg);
             const replyToUser = async (text) => {
                 await sendAndSave(sock, db, from, text, msg, [sender]);
             };
@@ -482,7 +495,7 @@ async function connectToWhatsApp() {
                 //sem precisar de quote ou comando
                 if(!isGroup && chatbot.isOnline){
                     const mensagem = texto.trim(); 
-                    const sender = msg.key.participant || msg.key.remoteJid;
+                    const sender = getSenderJid(msg);
                     const senderJid = sender.split('@')[0];
 
                     //Verifica se deve mandar um sticker
@@ -496,7 +509,7 @@ async function connectToWhatsApp() {
                 
                 //Se não estiver online, manda o sticker "desonline"
                 if(!isGroup && !chatbot.isOnline){    
-                    const sender = msg.key.participant || msg.key.remoteJid;   
+                    const sender = getSenderJid(msg);
                     await sendSticker(sock, db, from, msg, [sender], texto)
                     return
                 }
@@ -508,7 +521,7 @@ async function connectToWhatsApp() {
         //Se é um quote para o bot e ele está online, responde
         //e reage com emoji de olho
         if (quotedMessage && isReplyToBot && chatbot.isOnline) {
-            const sender = msg.key.participant || msg.key.remoteJid;
+            const sender = getSenderJid(msg);
 
             console.log("✅ REPLY DETECTADO! Respondendo...");
 
@@ -545,14 +558,14 @@ async function connectToWhatsApp() {
 
         //Se for um quote para o bot e ele não estiver online, manda o desonline
         if (quotedMessage && isReplyToBot && !chatbot.isOnline){
-            const sender = msg.key.participant || msg.key.remoteJid;
+            const sender = getSenderJid(msg);
             await sendSticker(sock, db, from, msg, [sender], texto)
             return
         }
 
         //Se receber um comando e não estiver online, manda o desonline
         if(command.startsWith("!") && !chatbot.isOnline){
-            const sender = msg.key.participant || msg.key.remoteJid;
+            const sender = getSenderJid(msg);
             await sendSticker(sock, db, from, msg, [sender], texto)
             return
         }

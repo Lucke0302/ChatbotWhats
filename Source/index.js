@@ -114,6 +114,9 @@ const botCommands = {
     },
     '!timeout': {
         emoji: '✅'
+    },
+    '!notas': {
+        emoji: '✏️'
     }
 };
 

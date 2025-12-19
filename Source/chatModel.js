@@ -258,6 +258,23 @@ async getUserMemory(name, sender) {
         return messagesDb.map(m => `${m.nome_remetente || 'Desconhecido'}: ${m.conteudo}`).reverse().join('\n');
     };
 
+    //Comando que retorna as anotações do bot sobre você
+    async handleNotasCommand(sender){
+
+        const sqlQuery = `SELECT nome, anotacoes
+        FROM usuarios 
+        WHERE id_usuario = ?`;
+        
+        const messagesDb = await this.db.all(sqlQuery, [sender]);
+
+        if (!messagesDb || messagesDb.length === 0) {
+            throw new Error("USER_SELECT_ERROR")
+        }
+
+        return messagesDb.map(m => `${m.nome || 'Desconhecido'}: ${m.anotacoes}`).reverse().join('\n');
+    };
+
+
     //Retorna mensagens do banco de dados para um certo remetente (pessoa ou grupo) com um limite
     async getUserMessagesInGroup(from, sender){
         if(from == sender){
@@ -614,7 +631,7 @@ async getUserMemory(name, sender) {
 
     //Responde o comando !menu
     async handleMenuCommand(){
-        return `📍 Os comandos até agora são: \n🎲 !d{número}: Número aleatório (ex: !d20)\n🤖 !gpt {texto}: Pergunta pra IA\n🧠 !lembrar: lembra de um certo período de tempo\n🖼️ !s (ou !sticker): cria um sticker para a imagem/gif quotado ou na própria mensagem - Parâmetros:\npodi: qualidade absurdamente baixa\nbaixa: em baixa qualidade\nnormal(ou sem parâmetro nenhum): qualidade normal\n🛎️ !resumo: Resume a conversa - Parâmetros:\n1 - tamanho do resumo: curto, médio e completo\n2 - quantidade de mensagens a resumir (máximo 200)\n Ex: !resumo curto 100`;
+        return `📍 Os comandos até agora são: \n🎲 !d{número}: Número aleatório (ex: !d20)\n🤖 !gpt {texto}: Pergunta pra IA\n🧠 !lembrar: lembra de um certo período de tempo\n✏️!notas: mostra as anotações que a IA fez sobre você\n🖼️ !s (ou !sticker): cria um sticker para a imagem/gif quotado ou na própria mensagem - Parâmetros:\npodi: qualidade absurdamente baixa\nbaixa: em baixa qualidade\nnormal(ou sem parâmetro nenhum): qualidade normal\n🛎️ !resumo: Resume a conversa - Parâmetros:\n1 - tamanho do resumo: curto, médio e completo\n2 - quantidade de mensagens a resumir (máximo 200)\n Ex: !resumo curto 100`;
     }
 
     //Responde o comando !d
@@ -677,6 +694,8 @@ async getUserMemory(name, sender) {
         }
 
         if(command.startsWith('!lol')) return await this.handleLolCommand(command);
+
+        if(command.startsWith('!notas')) return await this.handleNotasCommand(sender);
     }
 
     async handleMessageWithoutCommand(msg, sender, from, isGroup, command, quotedMessage){

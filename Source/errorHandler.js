@@ -16,7 +16,8 @@ const ERROR_DICTIONARY = {
     "LOL_JSON_DATA_ERROR": "❌ Erro convertendo o json dos campeões.",
     "NICKNAME_OR_TAGLINE_WRONG": " 🎮❌ Player não existe",
     "KEY_UNAVAILABLE": "🔑 Erro na chave da API (fala com o dev)",
-    "USER_QUOTA_EXCEEDED": "❌ Usou IA demais hoje, vai plantar uma árvore."
+    "USER_QUOTA_EXCEEDED": "❌ Usou IA demais hoje, vai plantar uma árvore.",
+    "USER_SELECT_ERROR": "❌ Erro na hora de buscar o usuário."
 };
 
 // Mensagem padrão para erros não mapeados (bugs reais)

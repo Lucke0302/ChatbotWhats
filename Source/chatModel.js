@@ -649,7 +649,8 @@ class ChatModel {
 
     async handleMessageWithoutCommand(msg, sender, from, isGroup, command, quotedMessage){
         let name = msg.pushName || ''
-        await this.checkTimeout(name, sender);
+        const user = await this.getUserData(name, sender);
+        await this.checkTimeout(user);
         await this.checkAndIncrementAiQuota(name, sender, command);
         let finalPrompt = await this.formulatePrompt(from, sender, isGroup, command, quotedMessage);
         return await this.getAiResponse(from, sender, isGroup, command, finalPrompt)

@@ -23,10 +23,96 @@ class ChatModel {
             console.log("⏰ Atualizando versão e campeões do LoL (Rotina Diária)...");
             this.initLoLData();
         }, 1000 * 60 * 60 * 24);
+        this.spamCooldowns = new Map(); 
+        this.SPAM_DELAY_SECONDS = 10;
+        this.DAILY_AI_LIMIT = 10;
+    }
+
+async getUserMemory(name, sender) {
+        const user = await this.getUserData(name, sender);
+        return user ? (user.anotacoes || "") : "";
+    }
+
+    async saveUserMemory(name, sender, newMemory) {
+        if (!newMemory) return;
+        try {
+            if (!await this.getUserData(name, sender)){
+                await this.db.run(
+                    `INSERT OR IGNORE INTO usuarios (id_usuario, nome, banido_ate, uso_ia_diario, data_ultimo_uso, anotacoes) 
+                    VALUES (?, ?, 0, 0, '', '')`, 
+                    [sender, name]
+                );
+            }
+            else{                    
+                await this.db.run(
+                    `UPDATE usuarios SET anotacoes = ? WHERE id_usuario = ?`,
+                    [newMemory, sender]
+                );
+            }
+            console.log(`🧠 Memória atualizada para ${sender}`);
+        } catch (error) {
+            console.error("❌ Erro ao salvar memória:", error);
+        }
+    }
+
+    checkSpam(sender) {
+        const now = Date.now();
+        const lastTime = this.spamCooldowns.get(sender) || 0;
+        const diffSeconds = (now - lastTime) / 1000;
+
+        if (diffSeconds < this.SPAM_DELAY_SECONDS) {
+            const waitTime = Math.ceil(this.SPAM_DELAY_SECONDS - diffSeconds);
+            throw new Error(`SPAM_DETECTED|${waitTime}`);
+        }
+
+        this.spamCooldowns.set(sender, now);
+    }
+
+    async getUserData(name, sender) {
+        await this.db.run(
+            `INSERT OR IGNORE INTO usuarios (id_usuario, nome, banido_ate, uso_ia_diario, data_ultimo_uso, anotacoes) 
+             VALUES (?, ?, 0, 0, '', '')`, 
+            [sender, name]
+        );
+
+        const user = await this.db.get(`SELECT * FROM usuarios WHERE id_usuario = ?`, [sender]);
+        return user;
+    }
+
+    //Verifica Timeout
+    checkTimeout(user) {
+        const now = Math.floor(Date.now() / 1000);
+
+        if (user.banido_ate > now) {
+            const timeLeft = Math.ceil((user.banido_ate - now) / 60);
+            throw new Error(`USER_BANNED|${timeLeft}`);
+        }
+    }
+
+    // Verifica cota de uso de IA
+    async checkAndIncrementAiQuota(user, sender, command) {
+        const today = new Date().toLocaleDateString('pt-BR');
+
+        if (user.data_ultimo_uso !== today) {
+            await this.db.run(
+                `UPDATE usuarios SET uso_ia_diario = 0, data_ultimo_uso = ? WHERE id_usuario = ?`,
+                [today, sender]
+            );
+            user.uso_ia_diario = 0; 
+        }
+
+        if (user.uso_ia_diario >= this.DAILY_AI_LIMIT) {
+            throw new Error("USER_QUOTA_EXCEEDED");
+        }
+
+        await this.db.run(
+            `UPDATE usuarios SET uso_ia_diario = uso_ia_diario + 1 WHERE id_usuario = ?`,
+            [sender]
+        );
     }
 
     //Atualiza os dados do LOL
-async initLoLData() {
+    async initLoLData() {
         const versionResp = await fetch('https://ddragon.leagueoflegends.com/api/versions.json');
         
         if (!versionResp.ok) throw new Error(`LOL_VERSION_ERROR`);
@@ -147,25 +233,65 @@ async initLoLData() {
     }
 
     //Retorna a contagem total de mensagens de uma conversa
-    async getMessageCount(sender){
-        const sqlQuery = `SELECT COUNT(*) AS total FROM mensagens WHERE id_conversa = '${sender}'`;
+    async getMessageCount(from){
+        const sqlQuery = `SELECT COUNT(*) AS total FROM mensagens WHERE id_conversa = '${from}'`;
         const result = await this.db.get(sqlQuery); 
         return result ? result.total : 0;
     };
 
     //Retorna mensagens do banco de dados para um certo remetente (pessoa ou grupo) com um limite
-    async getMessagesByLimit(sender, limit){
-        
+    async getMessagesByLimit(from, limit){
+
         const sqlQuery = `SELECT nome_remetente, conteudo 
         FROM mensagens 
-        WHERE id_conversa = '${sender}' 
+        WHERE id_conversa = ? 
         AND conteudo NOT LIKE '*Resumo da conversa*%'
         ORDER BY timestamp DESC 
-        LIMIT ${limit}`;
+        LIMIT ?`;
         
-        const messagesDb = await this.db.all(sqlQuery);
+        const messagesDb = await this.db.all(sqlQuery, [from, limit]);
+
         if (!messagesDb || messagesDb.length === 0) {
-            throw new Error("SQL_ERROR");
+            return "";
+        }
+
+        return messagesDb.map(m => `${m.nome_remetente || 'Desconhecido'}: ${m.conteudo}`).reverse().join('\n');
+    };
+
+    //Comando que retorna as anotações do bot sobre você
+    async handleNotasCommand(sender){
+
+        const sqlQuery = `SELECT nome, anotacoes
+        FROM usuarios 
+        WHERE id_usuario = ?`;
+        
+        const messagesDb = await this.db.all(sqlQuery, [sender]);
+
+        if (!messagesDb || messagesDb.length === 0) {
+            throw new Error("USER_SELECT_ERROR")
+        }
+
+        return messagesDb.map(m => `${m.nome || 'Desconhecido'}: ${m.anotacoes}`).reverse().join('\n');
+    };
+
+
+    //Retorna mensagens do banco de dados para um certo remetente (pessoa ou grupo) com um limite
+    async getUserMessagesInGroup(from, sender){
+        if(from == sender){
+            return ""
+        }
+
+        const sqlQuery = `SELECT nome_remetente, conteudo 
+        FROM mensagens 
+        WHERE id_conversa = ? AND id_remetente = ?
+        AND conteudo NOT LIKE '*Resumo da conversa*%'
+        ORDER BY timestamp DESC 
+        LIMIT 20`;
+
+        const messagesDb = await this.db.all(sqlQuery, [from, sender]);
+        
+        if (!messagesDb || messagesDb.length === 0) {
+            return ""; 
         }
 
         return messagesDb.map(m => `${m.nome_remetente || 'Desconhecido'}: ${m.conteudo}`).join('\n');
@@ -189,20 +315,19 @@ async initLoLData() {
 
         if (forceModel) {
             candidates.push(forceModel);
-            if (forceModel === "gemini-3-flash") candidates.push("gemini-2.5-flash");
+            if (forceModel === "gemini-2.5-flash") candidates.push("gemini-2.5-flash");
         } 
         else if (command.startsWith("!resumo")){            
-            candidates = ["gemini-3-flash", "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemma-3-27b","gemma-3-12b"]; 
+            candidates = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemma-3-27b","gemma-3-12b"]; 
         }
         else if (command.startsWith("!gpt")){            
-            candidates = ["gemini-3-flash", "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemma-3-4b"]; 
+            candidates = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemma-3-4b"]; 
         }
         else if (command.startsWith("!lembrar")) {
-            candidates = ["gemini-3-flash", "gemma-3-27b", "gemini-2.5-flash"]; 
+            candidates = ["gemma-3-27b", "gemini-2.5-flash"]; 
         } 
         else {
-            candidates = [              
-                "gemini-3-flash",
+            candidates = [
                 "gemini-2.5-flash",
                 "gemini-2.5-flash-lite",  
                 "gemma-3-4b"
@@ -225,10 +350,12 @@ async initLoLData() {
     }
 
     //Modifica o prompt pra cada comando
-    async formulatePrompt(from, sender, isGroup, command, complement = "Vazio") {
+    async formulatePrompt(from, sender, name, isGroup, command, complement = "Vazio") {
         let prompt = "";
         let limit = 200;
-        
+
+        const currentMemory = await this.getUserMemory(name, sender);
+
         const args = command.split(" ");
         const action = args[0].toLowerCase();
         const subAction = args[1] ? args[1].toLowerCase() : null;
@@ -238,12 +365,12 @@ async initLoLData() {
             limit = num;
         }
 
-        const msgCount = await this.getMessageCount(sender);
+        const msgCount = await this.getMessageCount(from);
         if (msgCount < 5) {
             throw new Error("FEW_MESSAGES");
         }
         
-        let formatedMessages
+        let formatedMessages, userFormatedMessages
 
         prompt = `Você é um bot de WhatsApp engraçado e sarcástico, chamado Bostossauro.
         O usuário "${sender}" te mandou: "${command}".
@@ -263,7 +390,7 @@ async initLoLData() {
         }
 
         if(action !== "!lembrar") {
-            formatedMessages = await this.getMessagesByLimit(sender, limit);
+            formatedMessages = await this.getMessagesByLimit(from, limit);
             prompt += `\n\nContexto das últimas mensagens:\n${formatedMessages}`;
         }
         else{
@@ -293,28 +420,97 @@ async initLoLData() {
         else if(action === "!gpt"){
             prompt += "Seja útil e responda diretamente a mensagem do usuário com dados que julgar importantes."
         }
+
+        if (currentMemory) {
+            prompt += `\n\n[O QUE VOCÊ JÁ SABE SOBRE ${sender}]:\n"${currentMemory}"\nUse isso para personalizar a resposta.`;
+        }
+
+        const separador = "||MEMORIA||";
+        prompt += `\n\n---------------------------------------------------
+            [INSTRUÇÃO OCULTA DE MEMÓRIA]
+            Além de responder ao usuário, você DEVE atualizar o perfil do que sabe sobre ele.
+            No final da sua resposta, adicione estritamente o separador "${separador}" seguido de um resumo atualizado sobre quem é o usuário, gostos, profissão ou detalhes mencionados agora.
+            Se nada mudou, repita a memória antiga. Não adicione anotações de informações subjetivas, apenas dados que você
+            tem certeza. O usuário não verá a anotação.
+            Exemplo de saída: "Beleza, te ajudo com isso! ${separador} Usuário é técnico de TI, gosta de LoL e usa gírias."`;
+
+        
+        if(from != sender){
+            userFormatedMessages = await this.getUserMessagesInGroup(from, sender);
+            prompt +=  `As últimas 20 mensagens do usuário no grupo foram (ignore se estiver vazio): \n${userFormatedMessages}`
+        }
+
         return prompt;
     }
 
     //Recebe a resposta do Gemini utilizando o prompt recebido
-    async getAiResponse(from, sender, isGroup, command, prompt, forceModel = null) {
+    async getAiResponse(from, sender, name, isGroup, command, prompt, forceModel = null) {
         this.updateOnlineStatus();
 
         let modelName = this.selectBestModel(command, forceModel);
 
+        const separator = "||MEMORIA||";
+
         try {
-            const model = this.genAI.getGenerativeModel({ model: modelName });
-            const result = await model.generateContent(prompt);
+            const response = await this.genAI.models.generateContent({
+                model: modelName,
+                contents: prompt,
+                config: {}
+            });
             
             usage.increment(modelName);
 
-            console.log(`Mensagem gerada usando o ${modelName}`)
-            
-            return result.response.text();
+            console.log(`Mensagem gerada usando o ${modelName}`);
+
+            let fullText = response.text || (response.response ? response.response.text() : "");
+
+            // Lógica de corte do separador
+            if (fullText.includes(separator)) {
+                const parts = fullText.split(separator);
+                
+                const replyText = parts[0].trim();
+                const memoryText = parts[1].trim(); 
+                
+                if (memoryText.length > 0) {
+                    await this.saveUserMemory(name, sender, memoryText);
+                }
+
+                return replyText;
+            }
+
+            return fullText
+
         } catch (error) {
-            // Se der erro 503 ou 429, você pode disparar aquela sua lógica de retry aqui
+            // Se der erro 503 ou 429, o errorHandler pega lá na frente
+            console.error("Erro na requisição IA:", error);
             throw error;
         }
+    }
+
+    // 5. Comando para aplicar Timeout (!timeout @pessoa tempo)
+    // Ex: !timeout @551199999999 10 (bane por 10 minutos)
+    async handleTimeoutCommand(name, command, sender, isGroup, mentions) {
+
+        if(sender !== "266180732403881@lid"){
+            return
+        }
+        
+        const args = command.split(' ');
+        if (args.length < 3) return;
+
+        const targetUser = mentions[0];
+        const minutes = parseInt(args[args.length - 1]); 
+
+        if (!targetUser) return;
+        if (isNaN(minutes) || minutes <= 0) return;
+
+        const banUntil = Math.floor(Date.now() / 1000) + (minutes * 60);
+        
+        await this.getUserData(name, targetUser); 
+        
+        await this.db.run(`UPDATE usuarios SET banido_ate = ? WHERE id_usuario = ?`, [banUntil, targetUser]);
+
+        return `🚫 Usuário silenciado por ${minutes} minutos. Fica pianinho aí.`;
     }
 
     // Responde o comando !lol
@@ -398,7 +594,7 @@ async initLoLData() {
     }
 
     //Responde o comando !lembrar
-    async handleLembrarCommand(from, sender, isGroup, command, complement){
+    async handleLembrarCommand(from, sender, name, isGroup, command, complement){
             const pergunta = command.slice(8).trim()
             const selectPrompt = `Você é um gerador de consulta SQL para SQLite. Sua única saída deve ser uma consulta SQL (SELECT), sem NENHUMA explicação ou texto adicional.
             A tabela é 'mensagens' e o campo de tempo é 'timestamp' (UNIX time em segundos).
@@ -412,7 +608,7 @@ async initLoLData() {
 
             Pergunta do usuário: ${pergunta}`
 
-            let sqlQuery = await this.getAiResponse(from, sender, isGroup, command, selectPrompt, "gemini-2.5-flash")
+            let sqlQuery = await this.getAiResponse(from, sender, name, isGroup, command, selectPrompt, "gemini-2.5-flash")
 
             // Remove blocos de código markdown (```sql e ```) e espaços extras
             sqlQuery = sqlQuery.replace(/```sql/gi, '').replace(/```/g, '').trim(); 
@@ -428,14 +624,14 @@ async initLoLData() {
             
             let selectedMessages = await this.getMessagesByAiResponse(sqlQuery)
 
-            let finalPrompt = await this.formulatePrompt(from, sender, isGroup, command, selectedMessages)
+            let finalPrompt = await this.formulatePrompt(from, sender, name, isGroup, command, selectedMessages)
             
-            return await this.getAiResponse(from, sender, isGroup, "any", finalPrompt)
+            return await this.getAiResponse(from, sender, name, isGroup, "any", finalPrompt)
     }
 
     //Responde o comando !menu
     async handleMenuCommand(){
-        return `📍 Os comandos até agora são: \n🎲 !d{número}: Número aleatório (ex: !d20)\n🤖 !gpt {texto}: Pergunta pra IA\n🧠 !lembrar: lembra de um certo período de tempo\n🖼️ !s (ou !sticker): cria um sticker para a imagem/gif quotado ou na própria mensagem - Parâmetros:\npodi: qualidade absurdamente baixa\nbaixa: em baixa qualidade\nnormal(ou sem parâmetro nenhum): qualidade normal\n🛎️ !resumo: Resume a conversa - Parâmetros:\n1 - tamanho do resumo: curto, médio e completo\n2 - quantidade de mensagens a resumir (máximo 200)\n Ex: !resumo curto 100`;
+        return `📍 Os comandos até agora são: \n🎲 !d{número}: Número aleatório (ex: !d20)\n🤖 !gpt {texto}: Pergunta pra IA\n🧠 !lembrar: lembra de um certo período de tempo\n🎮 !lol Mostra ranking (Solo/Flex), winrate e suas maestrias - Parâmetros:\nnickname #tagline Ex: Yasuo de Ionia #Yasuo.\n✏️ !notas: mostra as anotações que a IA fez sobre você\n🖼️ !s (ou !sticker): cria um sticker para a imagem/gif quotado ou na própria mensagem - Parâmetros:\npodi: qualidade absurdamente baixa\nbaixa: em baixa qualidade\nnormal(ou sem parâmetro nenhum): qualidade normal\n🛎️ !resumo: Resume a conversa - Parâmetros:\n1 - tamanho do resumo: curto, médio e completo\n2 - quantidade de mensagens a resumir (máximo 200)\n Ex: !resumo curto 100`;
     }
 
     //Responde o comando !d
@@ -467,23 +663,51 @@ async initLoLData() {
         return val
     }
 
-    //Faz o controle de todos os comandos
+    // Faz o controle de todos os comandos
     async handleCommand(msg, sender, from, isGroup, command, quotedMessage) {
+        let name = msg.pushName || '';
+        
+        const user = await this.getUserData(name, sender);
+
+        this.checkTimeout(user); 
+        this.checkSpam(sender);
+
+        // ADM COMMAND
+        if (command.startsWith('!timeout')) {
+            const mentions = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
+            return await this.handleTimeoutCommand(name, command, sender, isGroup, mentions);
+        }
+
         if(command.startsWith('!d')) return await this.handleDiceCommand(command, sender)
         
         if(command.startsWith('!menu')) return await this.handleMenuCommand()
         
-        if(command.startsWith('!resumo') && isGroup || command.startsWith("!gpt") && isGroup) return await this.getAiResponse(from, sender, isGroup, command, await this.formulatePrompt(from, sender, isGroup, command, quotedMessage));
-        
-        if(command.startsWith('!lol')) return await this.handleLolCommand(command);
-        if(command.startsWith("!lembrar")){
-            return await this.handleLembrarCommand(from, sender, isGroup, command)
+        if (command.startsWith('!gpt') || command.startsWith('!resumo') || command.startsWith('!lembrar')) {
+            await this.checkAndIncrementAiQuota(user, sender, command);
+            
+            if(command.startsWith('!resumo') && isGroup || command.startsWith("!gpt") && isGroup) {
+                return await this.getAiResponse(from, sender, name, isGroup, command, await this.formulatePrompt(from, sender, name, isGroup, command, quotedMessage));
+            }
+            if(command.startsWith("!lembrar")){
+                return await this.handleLembrarCommand(from, sender, name, isGroup, command)
+            }
         }
+
+        if(command.startsWith('!lol')) return await this.handleLolCommand(command);
+
+        if(command.startsWith('!notas')) return await this.handleNotasCommand(sender);
     }
 
     async handleMessageWithoutCommand(msg, sender, from, isGroup, command, quotedMessage){
-        let finalPrompt = await this.formulatePrompt(from, sender, isGroup, command, quotedMessage);
-        return await this.getAiResponse(from, sender, isGroup, command, finalPrompt)
+        let name = msg.pushName || '';
+        
+        const user = await this.getUserData(name, sender);
+
+        this.checkTimeout(user);
+        await this.checkAndIncrementAiQuota(user, sender, command);
+
+        let finalPrompt = await this.formulatePrompt(from, sender, name, isGroup, command, quotedMessage);
+        return await this.getAiResponse(from, sender, name, isGroup, command, finalPrompt)
     }
 }
 

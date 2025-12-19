@@ -13,7 +13,11 @@ const ERROR_DICTIONARY = {
     "ALL_QUOTAS_EXHAUSTED": "😵 Minhas baterias (e cotas do Google) acabaram por hoje! Volto amanhã cedinho.",
     "LOL_VERSION_ERROR": "❌ Erro ao buscar versão do jogo.",
     "CHAMPIONS_ERROR": "❌ Erro buscando os campeões.",
-    "LOL_JSON_DATA_ERROR": "❌ Erro convertendo o json dos campeões."
+    "LOL_JSON_DATA_ERROR": "❌ Erro convertendo o json dos campeões.",
+    "NICKNAME_OR_TAGLINE_WRONG": " 🎮❌ Player não existe",
+    "KEY_UNAVAILABLE": "🔑 Erro na chave da API (fala com o dev)",
+    "USER_QUOTA_EXCEEDED": "❌ Usou IA demais hoje, vai plantar uma árvore.",
+    "USER_SELECT_ERROR": "❌ Erro na hora de buscar o usuário."
 };
 
 // Mensagem padrão para erros não mapeados (bugs reais)
@@ -33,6 +37,24 @@ const handleBotError = async (error, replyFunction, context = {}) => {
     console.error(`   Detalhes:`, error);
 
     let errorKey = typeof error === 'string' ? error : error.message;
+
+    // Timeout
+    if (errorKey.startsWith("USER_BANNED|")) {
+        const minutos = errorKey.split('|')[1];
+        if (replyFunction) {
+            await replyFunction(`🚫 *Tá de castigo!* \nFica pianinho aí e espera mais *${minutos} minutos* antes de usar o bot de novo.`);
+        }
+        return;
+    }
+
+    // Anti-Spam (SPAM_DETECTED|8)
+    if (errorKey.startsWith("SPAM_DETECTED|")) {
+        const segundos = errorKey.split('|')[1];
+        if (replyFunction) {
+            await replyFunction(`✋ *Calma, Flash!* \nEspera *${segundos} segundos* pra mandar outro comando.`);
+        }
+        return;
+    }
 
     // DETECÇÃO INTELIGENTE DE ERROS DA API
     if (errorKey.includes("overloaded") || errorKey.includes("503")) {

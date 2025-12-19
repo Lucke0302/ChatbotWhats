@@ -28,15 +28,20 @@ class ChatModel {
         this.DAILY_AI_LIMIT = 10;
     }
 
-    async getUserMemory(sender) {
+    async getUserMemory(name, sender) {
         const user = await this.getUserData(sender);
         return user ? (user.anotacoes || "") : "";
     }
 
-    async saveUserMemory(sender, newMemory) {
+    async saveUserMemory(name, sender, newMemory) {
         if (!newMemory) return;
         try {
-            await this.getUserData(sender);
+            await this.getUserData(name, sender);
+            await this.db.run(
+                `INSERT OR IGNORE INTO usuarios (id_usuario, nome, banido_ate, uso_ia_diario, data_ultimo_uso, anotacoes) 
+                VALUES (?, ?, 0, 0, '', '')`, 
+                [sender, name]
+            );
             await this.db.run(
                 `UPDATE usuarios SET anotacoes = ? WHERE id_usuario = ?`,
                 [newMemory, sender]
@@ -61,11 +66,6 @@ class ChatModel {
     }
 
     async getUserData(name, sender) {
-        await this.db.run(
-            `INSERT OR IGNORE INTO usuarios (id_usuario, nome, banido_ate, uso_ia_diario, data_ultimo_uso, anotacoes) 
-             VALUES (?, ?, 0, 0, '', '')`, 
-            [sender, name]
-        );
 
         let user = await this.db.get(`SELECT * FROM usuarios WHERE id_usuario = ?`, [sender]);
         
@@ -309,11 +309,11 @@ class ChatModel {
     }
 
     //Modifica o prompt pra cada comando
-    async formulatePrompt(from, sender, isGroup, command, complement = "Vazio") {
+    async formulatePrompt(from, sender, name, isGroup, command, complement = "Vazio") {
         let prompt = "";
         let limit = 200;
 
-        const currentMemory = await this.getUserMemory(sender);
+        const currentMemory = await this.getUserMemory(name, sender);
 
         const args = command.split(" ");
         const action = args[0].toLowerCase();
@@ -397,7 +397,7 @@ class ChatModel {
     }
 
     //Recebe a resposta do Gemini utilizando o prompt recebido
-    async getAiResponse(from, sender, isGroup, command, prompt, forceModel = null) {
+    async getAiResponse(from, sender, name, isGroup, command, prompt, forceModel = null) {
         this.updateOnlineStatus();
 
         let modelName = this.selectBestModel(command, forceModel);
@@ -425,7 +425,7 @@ class ChatModel {
                 const memoryText = parts[1].trim(); 
                 
                 if (memoryText.length > 0) {
-                    await this.saveUserMemory(sender, memoryText);
+                    await this.saveUserMemory(name, sender, memoryText);
                 }
 
                 return replyText;
@@ -547,7 +547,7 @@ class ChatModel {
     }
 
     //Responde o comando !lembrar
-    async handleLembrarCommand(from, sender, isGroup, command, complement){
+    async handleLembrarCommand(from, sender, name, isGroup, command, complement){
             const pergunta = command.slice(8).trim()
             const selectPrompt = `Você é um gerador de consulta SQL para SQLite. Sua única saída deve ser uma consulta SQL (SELECT), sem NENHUMA explicação ou texto adicional.
             A tabela é 'mensagens' e o campo de tempo é 'timestamp' (UNIX time em segundos).
@@ -561,7 +561,7 @@ class ChatModel {
 
             Pergunta do usuário: ${pergunta}`
 
-            let sqlQuery = await this.getAiResponse(from, sender, isGroup, command, selectPrompt, "gemini-2.5-flash")
+            let sqlQuery = await this.getAiResponse(from, sender, name, isGroup, command, selectPrompt, "gemini-2.5-flash")
 
             // Remove blocos de código markdown (```sql e ```) e espaços extras
             sqlQuery = sqlQuery.replace(/```sql/gi, '').replace(/```/g, '').trim(); 
@@ -577,9 +577,9 @@ class ChatModel {
             
             let selectedMessages = await this.getMessagesByAiResponse(sqlQuery)
 
-            let finalPrompt = await this.formulatePrompt(from, sender, isGroup, command, selectedMessages)
+            let finalPrompt = await this.formulatePrompt(from, sender, name, isGroup, command, selectedMessages)
             
-            return await this.getAiResponse(from, sender, isGroup, "any", finalPrompt)
+            return await this.getAiResponse(from, sender, name, isGroup, "any", finalPrompt)
     }
 
     //Responde o comando !menu
@@ -637,10 +637,10 @@ class ChatModel {
             await this.checkAndIncrementAiQuota(name, sender, command);
             
             if(command.startsWith('!resumo') && isGroup || command.startsWith("!gpt") && isGroup) {
-                return await this.getAiResponse(from, sender, isGroup, command, await this.formulatePrompt(from, sender, isGroup, command, quotedMessage));
+                return await this.getAiResponse(from, sender, name, isGroup, command, await this.formulatePrompt(from, sender, name, isGroup, command, quotedMessage));
             }
             if(command.startsWith("!lembrar")){
-                return await this.handleLembrarCommand(from, sender, isGroup, command)
+                return await this.handleLembrarCommand(from, sender, name, isGroup, command)
             }
         }
 
@@ -651,8 +651,8 @@ class ChatModel {
         let name = msg.pushName || ''
         await this.checkTimeout(name, sender);
         await this.checkAndIncrementAiQuota(name, sender, command);
-        let finalPrompt = await this.formulatePrompt(from, sender, isGroup, command, quotedMessage);
-        return await this.getAiResponse(from, sender, isGroup, command, finalPrompt)
+        let finalPrompt = await this.formulatePrompt(from, sender, name, isGroup, command, quotedMessage);
+        return await this.getAiResponse(from, sender, name, isGroup, command, finalPrompt)
     }
 }
 

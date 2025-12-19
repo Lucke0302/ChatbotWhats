@@ -2,6 +2,8 @@ require('dotenv').config();
 
 const WEATHER_API_KEY = process.env.WEATHER_API_KEY;
 
+console.log("Api key:"+WEATHER_API_KEY)
+
 /**
  * Busca o clima na OpenWeatherMap
  * @param {string} city

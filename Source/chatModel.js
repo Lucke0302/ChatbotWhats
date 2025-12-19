@@ -28,6 +28,24 @@ class ChatModel {
         this.DAILY_AI_LIMIT = 10;
     }
 
+    async getUserMemory(sender) {
+        const user = await this.getUserData(sender);
+        return user ? (user.anotacoes || "") : "";
+    }
+
+    async saveUserMemory(sender, newMemory) {
+        if (!newMemory) return;
+        try {
+            await this.db.run(
+                `UPDATE usuarios SET anotacoes = ? WHERE id_usuario = ?`,
+                [newMemory, sender]
+            );
+            console.log(`🧠 Memória atualizada para ${sender}`);
+        } catch (error) {
+            console.error("❌ Erro ao salvar memória:", error);
+        }
+    }
+
     checkSpam(sender) {
         const now = Date.now();
         const lastTime = this.spamCooldowns.get(sender) || 0;
@@ -41,20 +59,20 @@ class ChatModel {
         this.spamCooldowns.set(sender, now);
     }
 
-    async getUserData(sender) {
+    async getUserData(name, sender) {
         let user = await this.db.get(`SELECT * FROM usuarios WHERE id_usuario = ?`, [sender]);
         
         // Cria usuário se não existir
         if (!user) {
             await this.db.run(`INSERT INTO usuarios (id_usuario) VALUES (?)`, [sender]);
-            user = { id_usuario: sender, banido_ate: 0, uso_ia_diario: 0, data_ultimo_uso: '' };
+            user = { id_usuario: sender, nome: name, banido_ate: 0, uso_ia_diario: 0, data_ultimo_uso: '', anotacoes: '' };
         }
         return user;
     }
 
     //Verifica Timeout
     async checkTimeout(sender) {
-        const user = await this.getUserData(sender);
+        const user = await this.getUserData(name, sender);
         const now = Math.floor(Date.now() / 1000);
 
         if (user.banido_ate > now) {
@@ -64,8 +82,8 @@ class ChatModel {
     }
 
     //Verifica cota de uso de IA
-    async checkAndIncrementAiQuota(sender) {
-        const user = await this.getUserData(sender);
+    async checkAndIncrementAiQuota(name, sender, command) {
+        const user = await this.getUserData(name, sender);
         const today = new Date().toLocaleDateString('pt-BR');
 
         if (user.data_ultimo_uso !== today) {
@@ -288,7 +306,9 @@ class ChatModel {
     async formulatePrompt(from, sender, isGroup, command, complement = "Vazio") {
         let prompt = "";
         let limit = 200;
-        
+
+        const currentMemory = await this.getUserMemory(sender);
+
         const args = command.split(" ");
         const action = args[0].toLowerCase();
         const subAction = args[1] ? args[1].toLowerCase() : null;
@@ -353,6 +373,20 @@ class ChatModel {
         else if(action === "!gpt"){
             prompt += "Seja útil e responda diretamente a mensagem do usuário com dados que julgar importantes."
         }
+
+        if (currentMemory) {
+            prompt += `\n\n[O QUE VOCÊ JÁ SABE SOBRE ${sender}]:\n"${currentMemory}"\nUse isso para personalizar a resposta.`;
+        }
+
+        const separador = "||MEMORIA||";
+        prompt += `\n\n---------------------------------------------------
+            [INSTRUÇÃO OCULTA DE MEMÓRIA]
+            Além de responder ao usuário, você DEVE atualizar o perfil do que sabe sobre ele.
+            No final da sua resposta, adicione estritamente o separador "${separador}" seguido de um resumo atualizado sobre quem é o usuário, gostos, profissão ou detalhes mencionados agora.
+            Se nada mudou, repita a memória antiga. Não adicione anotações de informações subjetivas, apenas dados que você
+            tem certeza. O usuário não verá a anotação.
+            Exemplo de saída: "Beleza, te ajudo com isso! ${separador} Usuário é técnico de TI, gosta de LoL e usa gírias."`;
+
         return prompt;
     }
 
@@ -361,6 +395,8 @@ class ChatModel {
         this.updateOnlineStatus();
 
         let modelName = this.selectBestModel(command, forceModel);
+
+        const separator = "||MEMORIA||";
 
         try {
             const response = await this.genAI.models.generateContent({
@@ -372,8 +408,24 @@ class ChatModel {
             usage.increment(modelName);
 
             console.log(`Mensagem gerada usando o ${modelName}`);
-            
-            return response.text || (response.response ? response.response.text() : "");
+
+            let fullText = response.text || (response.response ? response.response.text() : "");
+
+            // Lógica de corte do separador
+            if (fullText.includes(separator)) {
+                const parts = fullText.split(separator);
+                
+                const replyText = parts[0].trim();
+                const memoryText = parts[1].trim(); 
+                
+                if (memoryText.length > 0) {
+                    await this.saveUserMemory(sender, memoryText);
+                }
+
+                return replyText;
+            }
+
+            return fullText
 
         } catch (error) {
             // Se der erro 503 ou 429, o errorHandler pega lá na frente
@@ -401,7 +453,7 @@ class ChatModel {
 
         const banUntil = Math.floor(Date.now() / 1000) + (minutes * 60);
         
-        await this.getUserData(targetUser); 
+        await this.getUserData(name, targetUser); 
         
         await this.db.run(`UPDATE usuarios SET banido_ate = ? WHERE id_usuario = ?`, [banUntil, targetUser]);
 
@@ -560,7 +612,8 @@ class ChatModel {
 
     //Faz o controle de todos os comandos
     async handleCommand(msg, sender, from, isGroup, command, quotedMessage) {
-        await this.checkTimeout(sender);
+        let name = msg.pushName || ''
+        await this.checkTimeout(name, sender);
 
         this.checkSpam(sender);
 
@@ -575,7 +628,7 @@ class ChatModel {
         if(command.startsWith('!menu')) return await this.handleMenuCommand()
         
         if (command.startsWith('!gpt') || command.startsWith('!resumo') || command.startsWith('!lembrar')) {
-            await this.checkAndIncrementAiQuota(sender, command);
+            await this.checkAndIncrementAiQuota(name, sender, command);
             
             if(command.startsWith('!resumo') && isGroup || command.startsWith("!gpt") && isGroup) {
                 return await this.getAiResponse(from, sender, isGroup, command, await this.formulatePrompt(from, sender, isGroup, command, quotedMessage));

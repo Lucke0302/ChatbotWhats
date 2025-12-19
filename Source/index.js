@@ -75,6 +75,15 @@ async function initDatabase() {
         );
     `);
 
+    try {
+        await db.exec(`ALTER TABLE usuarios ADD COLUMN anotacoes TEXT DEFAULT '';`);
+        console.log("✅ Coluna 'anotacoes' adicionada com sucesso!");
+    } catch (error) {
+        if (!error.message.includes("duplicate column name")) {
+            console.error("⚠️ Erro na migração (pode ignorar se a coluna já existir):", error.message);
+        }
+    }
+
     console.log('✅ Banco de dados SQLite inicializado e tabelas `mensagens` e `usuarios` verificadas.');
 }
 

@@ -28,8 +28,8 @@ class ChatModel {
         this.DAILY_AI_LIMIT = 10;
     }
 
-    async getUserMemory(name, sender) {
-        const user = await this.getUserData(sender);
+async getUserMemory(name, sender) {
+        const user = await this.getUserData(name, sender);
         return user ? (user.anotacoes || "") : "";
     }
 
@@ -69,31 +69,28 @@ class ChatModel {
     }
 
     async getUserData(name, sender) {
+        await this.db.run(
+            `INSERT OR IGNORE INTO usuarios (id_usuario, nome, banido_ate, uso_ia_diario, data_ultimo_uso, anotacoes) 
+             VALUES (?, ?, 0, 0, '', '')`, 
+            [sender, name]
+        );
 
-        let user = await this.db.get(`SELECT * FROM usuarios WHERE id_usuario = ?`, [sender]);
-        
-        if (!user) {
-             user = { id_usuario: sender, nome: name, banido_ate: 0, uso_ia_diario: 0, data_ultimo_uso: '', anotacoes: '' };
-             return false
-        }
-        
-        return true;
+        const user = await this.db.get(`SELECT * FROM usuarios WHERE id_usuario = ?`, [sender]);
+        return user;
     }
 
     //Verifica Timeout
-    async checkTimeout(name, sender) {
-        const user = await this.getUserData(name, sender);
+    checkTimeout(user) {
         const now = Math.floor(Date.now() / 1000);
 
         if (user.banido_ate > now) {
-            const timeLeft = Math.ceil((user.banido_ate - now) / 60); // Em minutos
+            const timeLeft = Math.ceil((user.banido_ate - now) / 60);
             throw new Error(`USER_BANNED|${timeLeft}`);
         }
     }
 
-    //Verifica cota de uso de IA
-    async checkAndIncrementAiQuota(name, sender, command) {
-        const user = await this.getUserData(name, sender);
+    // Verifica cota de uso de IA
+    async checkAndIncrementAiQuota(user, sender, command) {
         const today = new Date().toLocaleDateString('pt-BR');
 
         if (user.data_ultimo_uso !== today) {
@@ -101,7 +98,7 @@ class ChatModel {
                 `UPDATE usuarios SET uso_ia_diario = 0, data_ultimo_uso = ? WHERE id_usuario = ?`,
                 [today, sender]
             );
-            user.uso_ia_diario = 0;
+            user.uso_ia_diario = 0; 
         }
 
         if (user.uso_ia_diario >= this.DAILY_AI_LIMIT) {
@@ -446,7 +443,7 @@ class ChatModel {
 
     // 5. Comando para aplicar Timeout (!timeout @pessoa tempo)
     // Ex: !timeout @551199999999 10 (bane por 10 minutos)
-    async handleTimeoutCommand(command, sender, isGroup, mentions) {
+    async handleTimeoutCommand(name, command, sender, isGroup, mentions) {
 
         if(sender !== "266180732403881@lid"){
             return
@@ -620,17 +617,19 @@ class ChatModel {
         return val
     }
 
-    //Faz o controle de todos os comandos
+    // Faz o controle de todos os comandos
     async handleCommand(msg, sender, from, isGroup, command, quotedMessage) {
-        let name = msg.pushName || ''
-        await this.checkTimeout(name, sender);
+        let name = msg.pushName || '';
+        
+        const user = await this.getUserData(name, sender);
 
+        this.checkTimeout(user); 
         this.checkSpam(sender);
 
-        //ADM COMMAND
+        // ADM COMMAND
         if (command.startsWith('!timeout')) {
             const mentions = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
-            return await this.handleTimeoutCommand(command, sender, isGroup, mentions);
+            return await this.handleTimeoutCommand(name, command, sender, isGroup, mentions);
         }
 
         if(command.startsWith('!d')) return await this.handleDiceCommand(command, sender)
@@ -638,7 +637,7 @@ class ChatModel {
         if(command.startsWith('!menu')) return await this.handleMenuCommand()
         
         if (command.startsWith('!gpt') || command.startsWith('!resumo') || command.startsWith('!lembrar')) {
-            await this.checkAndIncrementAiQuota(name, sender, command);
+            await this.checkAndIncrementAiQuota(user, sender, command);
             
             if(command.startsWith('!resumo') && isGroup || command.startsWith("!gpt") && isGroup) {
                 return await this.getAiResponse(from, sender, name, isGroup, command, await this.formulatePrompt(from, sender, name, isGroup, command, quotedMessage));
@@ -652,9 +651,13 @@ class ChatModel {
     }
 
     async handleMessageWithoutCommand(msg, sender, from, isGroup, command, quotedMessage){
-        let name = msg.pushName || ''
-        await this.checkTimeout(name, sender);
-        await this.checkAndIncrementAiQuota(name, sender, command);
+        let name = msg.pushName || '';
+        
+        const user = await this.getUserData(name, sender);
+
+        this.checkTimeout(user);
+        await this.checkAndIncrementAiQuota(user, sender, command);
+
         let finalPrompt = await this.formulatePrompt(from, sender, name, isGroup, command, quotedMessage);
         return await this.getAiResponse(from, sender, name, isGroup, command, finalPrompt)
     }

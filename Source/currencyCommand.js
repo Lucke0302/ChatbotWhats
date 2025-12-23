@@ -1,17 +1,8 @@
-/**
- * Realiza a conversão de moedas usando AwesomeAPI
- * @param {string} command
- * @returns {string}
- */
+// Source/currencyCommand.js
 
 const currencySymbols = {
-    'BRL': 'R$',
-    'USD': '$',
-    'EUR': '€',
-    'GBP': '£',
-    'JPY': '¥',
-    'ARS': '$',
-    'BTC': '₿'
+    'BRL': 'R$', 'USD': 'US$', 'EUR': '€', 'GBP': '£',
+    'JPY': '¥', 'ARS': '$', 'BTC': '₿'
 };
 
 const quoteCache = {};
@@ -30,10 +21,9 @@ async function convertCurrency(command) {
     const amount = parseFloat(amountStr);
 
     if (isNaN(amount)) {
-        throw new Error("NOT_A_NUMBER");
+        throw new Error("NOT_A_NUMBER")
     }
 
-    // Mapa de apelidos
     const currencyMap = {
         'real': 'BRL', 'reais': 'BRL', 'brl': 'BRL',
         'dolar': 'USD', 'dólar': 'USD', 'dolares': 'USD', 'usd': 'USD',
@@ -47,47 +37,30 @@ async function convertCurrency(command) {
     const fromCode = currencyMap[fromName];
     const toCode = currencyMap[toName];
 
+    if (!fromCode || !toCode) throw new Error("NON-EXISTENT_CURRENCY")
 
-
-    if (!fromCode || !toCode) {
-        throw new Error("NON-EXISTENT_CURRENCY")
-    }
-
-    if (fromCode === toCode) {
-        throw new Error("SAME_CURRENCY")
-    }
+    if (fromCode === toCode) throw new Error("SAME_CURRENCY")
 
     try {
         const pairKey = `${fromCode}-${toCode}`;
-
         let rate, lastUpdate;
         let fromCache = false;
 
         const cachedData = quoteCache[pairKey];
         const now = Date.now();
 
-        const key = fromCode + toCode; 
-        
-        if (!data[key]) {
-            return "💵 Não consegui fazer essa conversão específica agora.";
-        }
-
         if (cachedData && (now - cachedData.time < CACHE_DURATION_MINUTES * 60 * 1000)) {
             rate = cachedData.rate;
             lastUpdate = cachedData.dateStr;
             fromCache = true;
             console.log(`[CACHE] Usando cotação salva para ${pairKey}`);
-        }
-
-        else {
+        } else {
             const url = `https://economia.awesomeapi.com.br/last/${pairKey}`;
             const response = await fetch(url);
-
+            
             if (response.status === 429) {
                 console.warn("[API] Bloqueio 429 detectado.");
                 return "⏳ O servidor de cotação pediu um tempo (muitas requisições). Tente daqui a alguns minutos.";
-            } else if (!response.ok) {
-                throw new Error(`API_ERROR: ${response.status}`);
             }
 
             if (!response.ok) throw new Error(`API_ERROR: ${response.status}`);
@@ -100,27 +73,23 @@ async function convertCurrency(command) {
             rate = parseFloat(data[apiDataKey].bid);
             lastUpdate = new Date(data[apiDataKey].create_date).toLocaleString('pt-BR');
             
+            // SALVA NO CACHE
             quoteCache[pairKey] = { rate: rate, time: now, dateStr: lastUpdate };
         }
-        const result = amount * rate;
-        const date = new Date(data[key].create_date).toLocaleString('pt-BR');
 
+        const result = amount * rate;
         const symbolFrom = currencySymbols[fromCode] || fromCode;
         const symbolTo = currencySymbols[toCode] || toCode;
-
         const formatNumber = (val) => val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-        const amountFormatted = `${symbolFrom} ${formatNumber(amount)}`;
-        const resultFormatted = `${symbolTo} ${formatNumber(result)}`;
 
         return `💸 *Conversão Direta*\n` +
                `📉 Cotação: ${fromCode} = ${rate.toFixed(4)} ${toCode}\n` +
-               `💰 *${amountFormatted}* vale aproximadamente *${resultFormatted}*\n` +
-               `_Atualizado em: ${date}_`;
+               `💰 *${symbolFrom} ${formatNumber(amount)}* vale aproximadamente *${symbolTo} ${formatNumber(result)}*\n` +
+               `_Atualizado em: ${lastUpdate}${fromCache ? " (Cache)" : ""}_`;
 
     } catch (error) {
-        console.error("[CurrencyHandler] Erro:", error);
-        return "⛓️‍💥 Erro na API. A bolsa deve ter quebrado.";
+        console.error("[CurrencyHandler] Erro:", error.message);
+        return "❌ Erro ao consultar a API (Serviço indisponível).";
     }
 }
 

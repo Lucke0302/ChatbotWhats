@@ -683,11 +683,9 @@ async getUserMemory(name, sender) {
     }
 
     async handleTradutorCommand(from, sender, name, isGroup, command) {
-        const text = command.split(' ')[1]
         console.log("Text: "+text+"\n")
-        if (!text) throw new Error("MISSING_ARGS");
 
-        const args = text.split(' '); 
+        const args = command.split(' '); 
         const language = args[0];
         const content = args.slice(1).join(' ');
 
@@ -697,7 +695,7 @@ async getUserMemory(name, sender) {
         const prompt = `Você é um tradutor profissional. 
         Traduza o seguinte texto para ${language}
         Apenas a tradução, sem explicações extras.
-        Texto: "${text}"`;
+        Texto: "${content}"`;
 
         return await this.getAiResponse(from, sender, name, isGroup, "!traduzir", prompt, "gemma-3-12b");
     }

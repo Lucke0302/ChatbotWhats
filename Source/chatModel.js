@@ -660,7 +660,7 @@ async getUserMemory(name, sender) {
         }
     }
 
-    async handleClimaCommand(command, sender){       
+    async handleClimaCommand(text, sender){       
         if (text.toLowerCase().endsWith('amanhã')) {
                 const city = text.replace(/amanhã$/i, '').trim()
                 return await weatherCommandHandler.getNextDayForecast(city)

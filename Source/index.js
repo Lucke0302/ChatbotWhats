@@ -133,6 +133,9 @@ const botCommands = {
     },
     '!tradutor': {
         emoji: '🧐'
+    },
+    '!cotacao': {
+        emoji: '💵'
     }
 };
 
@@ -488,6 +491,7 @@ async function connectToWhatsApp() {
                 '!resumo': `🦖 @${senderJid}\n*Resumo da conversa*\n\n`,
                 '!lembrar': `🧠\n\n`,
                 '!tradutor': `🧐 *Mensagem traduzida*:\n\n`,
+                '!converter': `💸 *Conversão Direta*\n`,
                 'undefined': ''
             };
 

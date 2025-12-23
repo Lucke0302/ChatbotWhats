@@ -20,7 +20,10 @@ const ERROR_DICTIONARY = {
     "USER_SELECT_ERROR": "❌ Erro na hora de buscar o usuário.",
     "NON-EXISTENT_CITY": "🗺️ Essa cidade aí não existe não.",
     "WEATHER_API_ERROR": "⛈️ Ocorreu um erro ao consultar a previsão. Acho que choveu no servidor.",
-    "USER_TRANSLATE_EXCEEDED": "❌ Traduziu demais hoje"
+    "USER_TRANSLATE_EXCEEDED": "❌ Traduziu demais hoje",
+    "NOT_A_NUMBER": "🔢 O parâmetro precisa ser um número",
+    "NON-EXISTENT_CURRENCY": "💵 A moeda digitada não está disponível para cotação.",
+    "SAME_CURRENCY": "🤡 Trocar seis por meia dúzia dá no mesmo, né, gênio."
 };
 
 // Mensagem padrão para erros não mapeados (bugs reais)

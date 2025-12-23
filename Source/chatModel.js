@@ -1,5 +1,6 @@
 const usage = require('./usageControl');
 const weatherCommandHandler = require('./weatherCommand');
+const currencyCommandHandler = require('./currencyCommand');
 const RIOT_API_KEY = process.env.RIOT_API_KEY;
 
 class ChatModel {
@@ -743,12 +744,9 @@ async getUserMemory(name, sender) {
         if (command.startsWith('!gpt') || command.startsWith('!resumo') || command.startsWith('!lembrar')) {
             await this.checkAndIncrementAiQuota(user, sender, command)
             
-            if(command.startsWith('!resumo') && isGroup || command.startsWith("!gpt") && isGroup) {
-                return await this.getAiResponse(from, sender, name, isGroup, command, await this.formulatePrompt(from, sender, name, isGroup, command, quotedMessage));
-            }
-            if(command.startsWith("!lembrar")){
-                return await this.handleLembrarCommand(from, sender, name, isGroup, command)
-            }
+            if(command.startsWith('!resumo') && isGroup || command.startsWith("!gpt") && isGroup) return await this.getAiResponse(from, sender, name, isGroup, command, await this.formulatePrompt(from, sender, name, isGroup, command, quotedMessage));
+            
+            if(command.startsWith("!lembrar")) return await this.handleLembrarCommand(from, sender, name, isGroup, command)
         }
 
         if (command.startsWith('!tradutor')) {
@@ -760,9 +758,9 @@ async getUserMemory(name, sender) {
 
         if(command.startsWith('!notas')) return await this.handleNotasCommand(sender)
 
-        if (command.startsWith('!clima')) {
-            return await this.handleClimaCommand(command, sender)
-        }
+        if (command.startsWith('!clima')) return await this.handleClimaCommand(command, sender)
+
+        if (command.startsWith('!cotacao')) return await currencyCommandHandler.convertCurrency(command);
     }
 
     async handleMessageWithoutCommand(msg, sender, from, isGroup, command, quotedMessage){

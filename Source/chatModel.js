@@ -661,12 +661,13 @@ async getUserMemory(name, sender) {
     }
 
     async handleClimaCommand(text, sender){       
+        let cleanText = text.replace(/^!clima\s*/i, '').trim()
         if (text.toLowerCase().endsWith('amanhã')) {
-                const city = text.replace(/amanhã$/i, '').trim()
+                const city = cleanText.replace(/amanhã$/i, '').trim()
                 return await weatherCommandHandler.getNextDayForecast(city)
         }
         else{            
-            const city = command.replace(/!clima/i, '').trim()
+            const city = cleanText
             return await weatherCommandHandler.getWeather(city)
         }
     }

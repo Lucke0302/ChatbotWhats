@@ -1,6 +1,7 @@
 const usage = require('./usageControl');
 const weatherCommandHandler = require('./weatherCommand');
 const currencyCommandHandler = require('./currencyCommand');
+const helpCommandHandler = require('./helpCommand');
 const RIOT_API_KEY = process.env.RIOT_API_KEY;
 
 class ChatModel {
@@ -658,7 +659,7 @@ async getUserMemory(name, sender) {
 
     //Responde o comando !menu
     async handleMenuCommand(){
-        return `📍 Os comandos até agora são: \n🌡️ !clima: Retorna o clima em determinada cidade - Parâmetros:\nCidade: o nome da cidade\nMomento: hoje (ou vazio) ou amanhã. Ex: !clima Santos amanhã\n🎲 !d{número}: Número aleatório (ex: !d20)\n🤖 !gpt {texto}: Pergunta pra IA\n🧠 !lembrar: lembra de um certo período de tempo\n🎮 !lol Mostra ranking (Solo/Flex), winrate e suas maestrias - Parâmetros:\nnickname #tagline Ex: Yasuo de Ionia #Yasuo.\n✏️ !notas: mostra as anotações que a IA fez sobre você\n🖼️ !s (ou !sticker): cria um sticker para a imagem/gif quotado ou na própria mensagem - Parâmetros:\npodi: qualidade absurdamente baixa\nbaixa: em baixa qualidade\nnormal(ou sem parâmetro nenhum): qualidade normal\n🛎️ !resumo: Resume a conversa - Parâmetros:\n1 - tamanho do resumo: curto, médio e completo\n2 - quantidade de mensagens a resumir (máximo 200)\n Ex: !resumo curto 100\n🧐 !tradutor: traduz a mensagem para qualquer (ou quase qualquer) língua - Parâmetros:\n1 - língua: ex: inglês.\n2 - mensagem. \nEx: !tradutor inglês bom dia.`;
+        return `📍 Os comandos até agora são: \n🌡️ !clima: Retorna o clima em determinada cidade - Parâmetros:\nCidade: o nome da cidade\nMomento: hoje (ou vazio) ou amanhã. Ex: !clima Santos amanhã\n💵 !cotacao: realiza a conversão de um valor entre duas moedas - Parâmetros:\n1- moeda original. Ex: real ou BRL.\n2 - moeda para conversão. Ex: dolar/dólar ou USD.\n3 - Valor a ser convertido.\n Ex: !cotacao real dolar 10000\n🎲 !d{número}: Número aleatório (ex: !d20)\n🤖 !gpt {texto}: Pergunta pra IA\n🧠 !lembrar: lembra de um certo período de tempo\n🎮 !lol Mostra ranking (Solo/Flex), winrate e suas maestrias - Parâmetros:\nnickname #tagline Ex: Yasuo de Ionia #Yasuo.\n✏️ !notas: mostra as anotações que a IA fez sobre você\n🖼️ !s (ou !sticker): cria um sticker para a imagem/gif quotado ou na própria mensagem - Parâmetros:\npodi: qualidade absurdamente baixa\nbaixa: em baixa qualidade\nnormal(ou sem parâmetro nenhum): qualidade normal\n🛎️ !resumo: Resume a conversa - Parâmetros:\n1 - tamanho do resumo: curto, médio e completo\n2 - quantidade de mensagens a resumir (máximo 200)\n Ex: !resumo curto 100\n🧐 !tradutor: traduz a mensagem para qualquer (ou quase qualquer) língua - Parâmetros:\n1 - língua: ex: inglês.\n2 - mensagem. \nEx: !tradutor inglês bom dia.`;
     }
 
     //Responde o comando !d
@@ -745,7 +746,7 @@ async getUserMemory(name, sender) {
             await this.checkAndIncrementAiQuota(user, sender, command)
             
             if(command.startsWith('!resumo') && isGroup || command.startsWith("!gpt") && isGroup) return await this.getAiResponse(from, sender, name, isGroup, command, await this.formulatePrompt(from, sender, name, isGroup, command, quotedMessage));
-            
+
             if(command.startsWith("!lembrar")) return await this.handleLembrarCommand(from, sender, name, isGroup, command)
         }
 
@@ -761,6 +762,10 @@ async getUserMemory(name, sender) {
         if (command.startsWith('!clima')) return await this.handleClimaCommand(command, sender)
 
         if (command.startsWith('!cotacao')) return await currencyCommandHandler.convertCurrency(command);
+        if (command.startsWith('!help') || command.startsWith('!ajuda')) {
+            const args = command.split(/\s+/).slice(1).join(' ');
+            return helpCommandHandler.getHelp(args);
+        }
     }
 
     async handleMessageWithoutCommand(msg, sender, from, isGroup, command, quotedMessage){

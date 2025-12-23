@@ -136,6 +136,12 @@ const botCommands = {
     },
     '!cotacao': {
         emoji: '💵'
+    },
+    '!ajuda': { 
+        emoji: '🆘' 
+    },
+    '!help': {
+        emoji: '🆘' 
     }
 };
 
@@ -239,7 +245,7 @@ async function connectToWhatsApp() {
         if (m.type !== 'notify') {
             return;
         }
-        
+
         const msg = m.messages[0];
         if (!msg.message || msg.key.fromMe) return;
 

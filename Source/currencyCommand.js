@@ -72,10 +72,10 @@ async function convertCurrency(command) {
     try {
         pairKey = `${fromCode}-${toCode}`;
         let rate, lastUpdate;
-        let fromCache = false;
+        fromCache = false;
 
-        const cachedData = quoteCache[pairKey];
-        const now = Date.now();
+        cachedData = quoteCache[pairKey];
+        now = Date.now();
 
         if (cachedData && (now - cachedData.time < CACHE_DURATION_MINUTES * 60 * 1000)) {
             rate = cachedData.rate;

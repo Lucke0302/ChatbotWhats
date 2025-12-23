@@ -130,6 +130,9 @@ const botCommands = {
     },
     '!clima': {
         emoji: '🌡️'
+    },
+    '!tradutor': {
+        emoji: '🧐'
     }
 };
 
@@ -484,6 +487,7 @@ async function connectToWhatsApp() {
                 '!gpt': `🤖 @${senderJid}\n\n`,
                 '!resumo': `🦖 @${senderJid}\n*Resumo da conversa*\n\n`,
                 '!lembrar': `🧠\n\n`,
+                '!tradutor': `🧐 *Mensagem traduzida*:\n\n`,
                 'undefined': ''
             };
 

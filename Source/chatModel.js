@@ -659,6 +659,18 @@ async getUserMemory(name, sender) {
             return `🎲 O dado caiu em: *${val}* \n${mssg}`;
         }
     }
+
+    async handleClimaCommand(command, sender){        
+        const city = command.replace(/!clima/i, '').trim()
+        const day = command.split(" ")[2]
+
+        if(day == "amanhã"){
+            return await weatherCommandHandler.getNextDayForecast(city)
+        }
+        else{
+            return await weatherCommandHandler.getWeather(city)
+        }
+    }
     
     //Gera um número aleatório entre 1 e um número via parâmetro
     async rollDice(num){        
@@ -669,17 +681,17 @@ async getUserMemory(name, sender) {
 
     // Faz o controle de todos os comandos
     async handleCommand(msg, sender, from, isGroup, command, quotedMessage) {
-        let name = msg.pushName || '';
+        let name = msg.pushName || ''
         
-        const user = await this.getUserData(name, sender);
+        const user = await this.getUserData(name, sender)
 
-        this.checkTimeout(user); 
-        this.checkSpam(sender);
+        this.checkTimeout(user)
+        this.checkSpam(sender)
 
         // ADM COMMAND
         if (command.startsWith('!timeout')) {
-            const mentions = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
-            return await this.handleTimeoutCommand(name, command, sender, isGroup, mentions);
+            const mentions = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid || []
+            return await this.handleTimeoutCommand(name, command, sender, isGroup, mentions)
         }
 
         if(command.startsWith('!d')) return await this.handleDiceCommand(command, sender)
@@ -687,7 +699,7 @@ async getUserMemory(name, sender) {
         if(command.startsWith('!menu')) return await this.handleMenuCommand()
         
         if (command.startsWith('!gpt') || command.startsWith('!resumo') || command.startsWith('!lembrar')) {
-            await this.checkAndIncrementAiQuota(user, sender, command);
+            await this.checkAndIncrementAiQuota(user, sender, command)
             
             if(command.startsWith('!resumo') && isGroup || command.startsWith("!gpt") && isGroup) {
                 return await this.getAiResponse(from, sender, name, isGroup, command, await this.formulatePrompt(from, sender, name, isGroup, command, quotedMessage));
@@ -697,25 +709,24 @@ async getUserMemory(name, sender) {
             }
         }
 
-        if(command.startsWith('!lol')) return await this.handleLolCommand(command);
+        if(command.startsWith('!lol')) return await this.handleLolCommand(command)
 
-        if(command.startsWith('!notas')) return await this.handleNotasCommand(sender);
+        if(command.startsWith('!notas')) return await this.handleNotasCommand(sender)
 
         if (command.startsWith('!clima')) {
-            const city = command.replace(/!clima/i, '').trim();
-            return await weatherCommandHandler.getWeather(city);
+            return await this.handleClimaCommand(command, sender)
         }
     }
 
     async handleMessageWithoutCommand(msg, sender, from, isGroup, command, quotedMessage){
         let name = msg.pushName || '';
         
-        const user = await this.getUserData(name, sender);
+        const user = await this.getUserData(name, sender)
 
         this.checkTimeout(user);
-        await this.checkAndIncrementAiQuota(user, sender, command);
+        await this.checkAndIncrementAiQuota(user, sender, command)
 
-        let finalPrompt = await this.formulatePrompt(from, sender, name, isGroup, command, quotedMessage);
+        let finalPrompt = await this.formulatePrompt(from, sender, name, isGroup, command, quotedMessage)
         return await this.getAiResponse(from, sender, name, isGroup, command, finalPrompt)
     }
 }

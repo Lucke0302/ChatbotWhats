@@ -194,13 +194,18 @@ async function connectToWhatsApp() {
         } else if (connection === 'open') {
             console.log('✅ Bot conectado e pronto!');
             let weatherComplement
-            // Agenda para todo dia às 08:00 da manhã
-            schedule.scheduleJob('0 0 8 * * *', async function(){
-                try{
-                    weatherComplement = await weatherCommandHandler.getWeather("Santos");
-                    broadcastToAllGroups(sock, "Bom dia, grupo! 🦖 O Bostossauro acordou e escolheu a violência.\n\n"+weatherComplement);
-                }catch(error){
-                    console.error("Erro no broadcast: ", error)
+            if (dailyJob) {
+                dailyJob.cancel();
+            }
+
+            dailyJob = schedule.scheduleJob('0 0 8 * * *', async function(){
+                const targetCity = "Santos"; 
+                
+                try {
+                    const weatherComplement = await weatherCommandHandler.getWeather(targetCity);
+                    await broadcastToAllGroups(sock, "Bom dia, grupo! 🦖 O Bostossauro acordou e escolheu a violência.\n" + weatherComplement);
+                } catch (error) {
+                    console.error("❌ Erro no envio do clima agendado:", error);
                 }
             });
         }

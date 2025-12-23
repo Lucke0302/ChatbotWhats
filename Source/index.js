@@ -237,8 +237,9 @@ async function connectToWhatsApp() {
     //Acorda quando chega uma mensagem
     sock.ev.on('messages.upsert', async m => {
 
-        if (m.type !== 'notify') return;
+        console.log(`[DEBUG] Tipo de evento: ${m.type} | Mensagens: ${m.messages.length}`);
         
+        if (m.type !== 'notify') return;
         const msg = m.messages[0];
         if (!msg.message || msg.key.fromMe) return;
 

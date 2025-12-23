@@ -27,6 +27,7 @@ class ChatModel {
         this.spamCooldowns = new Map(); 
         this.SPAM_DELAY_SECONDS = 10;
         this.DAILY_AI_LIMIT = 10;
+        this.DAILY_LIMIT_GEMMA = 100;
     }
 
 async getUserMemory(name, sender) {
@@ -96,7 +97,7 @@ async getUserMemory(name, sender) {
 
         if (user.data_ultimo_uso !== today) {
             await this.db.run(
-                `UPDATE usuarios SET uso_ia_diario = 0, data_ultimo_uso = ? WHERE id_usuario = ?`,
+                `UPDATE usuarios SET uso_ia_diario = 0, uso_gemma_diario = 0, data_ultimo_uso = ? WHERE id_usuario = ?`,
                 [today, sender]
             );
             user.uso_ia_diario = 0; 
@@ -108,6 +109,27 @@ async getUserMemory(name, sender) {
 
         await this.db.run(
             `UPDATE usuarios SET uso_ia_diario = uso_ia_diario + 1 WHERE id_usuario = ?`,
+            [sender]
+        );
+    }
+
+    async checkAndIncrementTranslateQuota(user, sender, command){
+        const today = new Date().toLocaleDateString('pt-BR');
+
+        if (user.data_ultimo_uso !== today) {
+            await this.db.run(
+                `UPDATE usuarios SET uso_ia_diario = 0, uso_gemma_diario = 0, data_ultimo_uso = ? WHERE id_usuario = ?`,
+                [today, sender]
+            );
+            user.uso_gemma_diario = 0; 
+        }
+
+        if (user.uso_gemma_diario >= this.DAILY_AI_LIMIT) {
+            throw new Error("USER_TRANSLATE_EXCEEDED");
+        }
+
+        await this.db.run(
+            `UPDATE usuarios SET uso_gemma_diario = uso_gemma_diario + 1 WHERE id_usuario = ?`,
             [sender]
         );
     }
@@ -660,6 +682,24 @@ async getUserMemory(name, sender) {
         }
     }
 
+    async handleTradutorCommand(from, sender, name, isGroup, command) {
+        const text = command.split(' ')[1]
+        if (!text) throw new Error("MISSING_ARGS");
+
+        const args = text.split(' '); 
+        const language = args[0];
+        const content = args.slice(1).join(' ');
+
+        if (!content) throw new Error("MISSING_ARGS");
+
+        const prompt = `Você é um tradutor profissional. 
+        Traduza o seguinte texto para ${language}
+        Apenas a tradução, sem explicações extras.
+        Texto: "${text}"`;
+
+        return await this.getAiResponse(from, sender, name, isGroup, "!traduzir", prompt, "gemma-3-12b");
+    }
+
     async handleClimaCommand(text, sender){       
         let cleanText = text.replace(/^!clima\s*/i, '').trim()
         if (text.toLowerCase().endsWith('amanhã')) {
@@ -711,6 +751,11 @@ async getUserMemory(name, sender) {
             if(command.startsWith("!lembrar")){
                 return await this.handleLembrarCommand(from, sender, name, isGroup, command)
             }
+        }
+
+        if (command.startsWith('!tradutor')) {
+            await this.checkAndIncrementTranslateQuota(user, sender, command);
+            return await this.handleTradutorCommand(from, sender, name, isGroup, command);
         }
 
         if(command.startsWith('!lol')) return await this.handleLolCommand(command)

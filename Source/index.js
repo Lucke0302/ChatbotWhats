@@ -82,7 +82,15 @@ async function initDatabase() {
         console.log("✅ Coluna 'anotacoes' adicionada com sucesso!");
     } catch (error) {
         if (!error.message.includes("duplicate column name")) {
-            console.error("⚠️ Erro na migração (pode ignorar se a coluna já existir):", error.message);
+            console.error("⚠️ Erro na migração:", error.message);
+        }
+    }
+    try {
+        await db.exec(`ALTER TABLE usuarios ADD COLUMN uso_gemma_diario INTEGER DEFAULT 0;`);
+        console.log("✅ Coluna 'uso_gemma_diario' adicionada com sucesso!");
+    } catch (error) {
+        if (!error.message.includes("duplicate column name")) {
+            console.error("⚠️ Erro ao criar coluna Gemma:", error.message);
         }
     }
 

@@ -19,7 +19,8 @@ const ERROR_DICTIONARY = {
     "USER_QUOTA_EXCEEDED": "❌ Usou IA demais hoje, vai plantar uma árvore.",
     "USER_SELECT_ERROR": "❌ Erro na hora de buscar o usuário.",
     "NON-EXISTENT_CITY": "🗺️ Essa cidade aí não existe não.",
-    "WEATHER_API_ERROR": "⛈️ Ocorreu um erro ao consultar a previsão. Acho que choveu no servidor."
+    "WEATHER_API_ERROR": "⛈️ Ocorreu um erro ao consultar a previsão. Acho que choveu no servidor.",
+    "USER_TRANSLATE_EXCEEDED": "❌ Traduziu demais hoje"
 };
 
 // Mensagem padrão para erros não mapeados (bugs reais)

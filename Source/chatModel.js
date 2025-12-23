@@ -683,8 +683,6 @@ async getUserMemory(name, sender) {
     }
 
     async handleTradutorCommand(from, sender, name, isGroup, command) {
-        console.log("Text: "+text+"\n")
-
         const args = command.split(' '); 
         const language = args[0];
         const content = args.slice(1).join(' ');

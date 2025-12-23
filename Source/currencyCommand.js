@@ -26,7 +26,7 @@ async function fetchFallback(fromCode, toCode, amount) {
         return {
             rate: rate,
             result: result,
-            dateStr: lastUpdate + " (Fonte: Reserva)"
+            dateStr: lastUpdate
         };
 
     } catch (error) {
@@ -129,7 +129,7 @@ async function convertCurrency(command) {
     return `💸 *Conversão Direta*\n` +
            `📉 Cotação: 1 ${fromCode} = ${rate.toFixed(4)} ${toCode}\n` +
            `💰 *${symbolFrom} ${formatNumber(amount)}* vale aproximadamente *${symbolTo} ${formatNumber(result)}*\n` +
-           `_Atualizado em: ${lastUpdate}}_`;
+           `_Atualizado em: ${lastUpdate}_`;
 }
 
 module.exports = { convertCurrency };

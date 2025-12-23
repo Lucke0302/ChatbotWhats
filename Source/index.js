@@ -194,10 +194,23 @@ async function connectToWhatsApp() {
         } else if (connection === 'open') {
             console.log('✅ Bot conectado e pronto!');
             let weatherComplement
+            const broadcastToGroups = async function(){
+                try{
+                    weatherComplement = await weatherCommandHandler.getWeather("Santos");
+                    broadcastToAllGroups(sock, "Bom dia, grupo! 🦖 O Bostossauro acordou e escolheu a violência.\n"+weatherComplement);
+                }catch(error){
+                    console.error("Erro no broadcast: ", error)
+                }
+            };
+            broadcastToGroups()
             // Agenda para todo dia às 08:00 da manhã
             schedule.scheduleJob('0 0 8 * * *', async function(){
-                weatherComplement = await weatherCommandHandler.getWeather(city);
-                broadcastToAllGroups(sock, "Bom dia, grupo! 🦖 O Bostossauro acordou e escolheu a violência.\n"+weatherComplement);
+                try{
+                    weatherComplement = await weatherCommandHandler.getWeather("Santos");
+                    broadcastToAllGroups(sock, "Bom dia, grupo! 🦖 O Bostossauro acordou e escolheu a violência.\n"+weatherComplement);
+                }catch(error){
+                    console.error("Erro no broadcast: ", error)
+                }
             });
         }
     });

@@ -1,4 +1,6 @@
 const usage = require('./usageControl');
+const weatherCommandHandler = require('./weatherCommand');
+const currencyCommandHandler = require('./currencyCommand');
 const RIOT_API_KEY = process.env.RIOT_API_KEY;
 
 class ChatModel {
@@ -11,9 +13,9 @@ class ChatModel {
             "gemini-2.5-flash": 20,
             "gemini-2.5-flash-lite": 20,
             "gemini-3.0-flash": 20,
-            "gemma-3-27b": 5000,
-            "gemma-3-12b": 5000,
-            "gemma-3-4b": 9999
+            "gemma-3-27b-it": 5000,
+            "gemma-3-12b-it": 5000,
+            "gemma-3-4b-it": 9999
         };
         this.updateOnlineStatus();
         this.lolChampionsMap = null;
@@ -26,6 +28,7 @@ class ChatModel {
         this.spamCooldowns = new Map(); 
         this.SPAM_DELAY_SECONDS = 10;
         this.DAILY_AI_LIMIT = 10;
+        this.DAILY_LIMIT_GEMMA = 100;
     }
 
 async getUserMemory(name, sender) {
@@ -95,7 +98,7 @@ async getUserMemory(name, sender) {
 
         if (user.data_ultimo_uso !== today) {
             await this.db.run(
-                `UPDATE usuarios SET uso_ia_diario = 0, data_ultimo_uso = ? WHERE id_usuario = ?`,
+                `UPDATE usuarios SET uso_ia_diario = 0, uso_gemma_diario = 0, data_ultimo_uso = ? WHERE id_usuario = ?`,
                 [today, sender]
             );
             user.uso_ia_diario = 0; 
@@ -107,6 +110,27 @@ async getUserMemory(name, sender) {
 
         await this.db.run(
             `UPDATE usuarios SET uso_ia_diario = uso_ia_diario + 1 WHERE id_usuario = ?`,
+            [sender]
+        );
+    }
+
+    async checkAndIncrementTranslateQuota(user, sender, command){
+        const today = new Date().toLocaleDateString('pt-BR');
+
+        if (user.data_ultimo_uso !== today) {
+            await this.db.run(
+                `UPDATE usuarios SET uso_ia_diario = 0, uso_gemma_diario = 0, data_ultimo_uso = ? WHERE id_usuario = ?`,
+                [today, sender]
+            );
+            user.uso_gemma_diario = 0; 
+        }
+
+        if (user.uso_gemma_diario >= this.DAILY_AI_LIMIT) {
+            throw new Error("USER_TRANSLATE_EXCEEDED");
+        }
+
+        await this.db.run(
+            `UPDATE usuarios SET uso_gemma_diario = uso_gemma_diario + 1 WHERE id_usuario = ?`,
             [sender]
         );
     }
@@ -318,19 +342,22 @@ async getUserMemory(name, sender) {
             if (forceModel === "gemini-2.5-flash") candidates.push("gemini-2.5-flash");
         } 
         else if (command.startsWith("!resumo")){            
-            candidates = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemma-3-27b","gemma-3-12b"]; 
+            candidates = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemma-3-27b-it","gemma-3-12b-it"]; 
         }
         else if (command.startsWith("!gpt")){            
-            candidates = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemma-3-4b"]; 
+            candidates = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemma-3-4b-it"]; 
         }
         else if (command.startsWith("!lembrar")) {
-            candidates = ["gemma-3-27b", "gemini-2.5-flash"]; 
-        } 
+            candidates = ["gemma-3-27b-it", "gemini-2.5-flash"]; 
+        }
+        else if (command.startsWith("!ouvir")){
+            candidates = ["gemini-2.5-flash-native-audio-dialog"]
+        }
         else {
             candidates = [
                 "gemini-2.5-flash",
                 "gemini-2.5-flash-lite",  
-                "gemma-3-4b"
+                "gemma-3-4b-it"
             ];
         }
 
@@ -631,7 +658,7 @@ async getUserMemory(name, sender) {
 
     //Responde o comando !menu
     async handleMenuCommand(){
-        return `📍 Os comandos até agora são: \n🎲 !d{número}: Número aleatório (ex: !d20)\n🤖 !gpt {texto}: Pergunta pra IA\n🧠 !lembrar: lembra de um certo período de tempo\n🎮 !lol Mostra ranking (Solo/Flex), winrate e suas maestrias - Parâmetros:\nnickname #tagline Ex: Yasuo de Ionia #Yasuo.\n✏️ !notas: mostra as anotações que a IA fez sobre você\n🖼️ !s (ou !sticker): cria um sticker para a imagem/gif quotado ou na própria mensagem - Parâmetros:\npodi: qualidade absurdamente baixa\nbaixa: em baixa qualidade\nnormal(ou sem parâmetro nenhum): qualidade normal\n🛎️ !resumo: Resume a conversa - Parâmetros:\n1 - tamanho do resumo: curto, médio e completo\n2 - quantidade de mensagens a resumir (máximo 200)\n Ex: !resumo curto 100`;
+        return `📍 Os comandos até agora são: \n🌡️ !clima: Retorna o clima em determinada cidade - Parâmetros:\nCidade: o nome da cidade\nMomento: hoje (ou vazio) ou amanhã. Ex: !clima Santos amanhã\n🎲 !d{número}: Número aleatório (ex: !d20)\n🤖 !gpt {texto}: Pergunta pra IA\n🧠 !lembrar: lembra de um certo período de tempo\n🎮 !lol Mostra ranking (Solo/Flex), winrate e suas maestrias - Parâmetros:\nnickname #tagline Ex: Yasuo de Ionia #Yasuo.\n✏️ !notas: mostra as anotações que a IA fez sobre você\n🖼️ !s (ou !sticker): cria um sticker para a imagem/gif quotado ou na própria mensagem - Parâmetros:\npodi: qualidade absurdamente baixa\nbaixa: em baixa qualidade\nnormal(ou sem parâmetro nenhum): qualidade normal\n🛎️ !resumo: Resume a conversa - Parâmetros:\n1 - tamanho do resumo: curto, médio e completo\n2 - quantidade de mensagens a resumir (máximo 200)\n Ex: !resumo curto 100\n🧐 !tradutor: traduz a mensagem para qualquer (ou quase qualquer) língua - Parâmetros:\n1 - língua: ex: inglês.\n2 - mensagem. \nEx: !tradutor inglês bom dia.`;
     }
 
     //Responde o comando !d
@@ -655,27 +682,59 @@ async getUserMemory(name, sender) {
             return `🎲 O dado caiu em: *${val}* \n${mssg}`;
         }
     }
+
+    async handleTradutorCommand(from, sender, name, isGroup, command) {
+        const args = command.split(' '); 
+        const language = args[0];
+        const content = args.slice(1).join(' ');
+
+        console.log("Content: "+content+"\n")
+        if (!content) throw new Error("MISSING_ARGS");
+
+        const prompt = `Você é um tradutor profissional. 
+        Traduza o seguinte texto para ${language}
+        Apenas a tradução, sem explicações extras.
+        Texto: "${content}"`;
+
+        return await this.getAiResponse(from, sender, name, isGroup, "!traduzir", prompt, "gemma-3-12b-it");
+    }
+
+    async handleClimaCommand(text, sender){       
+        let cleanText = text.replace(/^!clima\s*/i, '').trim()
+        if (text.toLowerCase().endsWith('amanhã')) {
+                const city = cleanText.replace(/amanhã$/i, '').trim()
+                return await weatherCommandHandler.getNextDayForecast(city)
+        }
+        else if (text.toLowerCase().endsWith('hoje')){            
+            const city = cleanText.replace(/hoje$/i, '').trim
+            return await weatherCommandHandler.getWeather(city)
+        }
+        else{             
+            const city = cleanText
+            return await weatherCommandHandler.getWeather(city)
+        }
+    }
     
     //Gera um número aleatório entre 1 e um número via parâmetro
     async rollDice(num){        
         const max = parseInt(num);
-        const val = Math.floor(Math.random() * max) + 1;
+        const val = Math.floor(Math.random() * max) + 1
         return val
     }
 
     // Faz o controle de todos os comandos
     async handleCommand(msg, sender, from, isGroup, command, quotedMessage) {
-        let name = msg.pushName || '';
+        let name = msg.pushName || ''
         
-        const user = await this.getUserData(name, sender);
+        const user = await this.getUserData(name, sender)
 
-        this.checkTimeout(user); 
-        this.checkSpam(sender);
+        this.checkTimeout(user)
+        this.checkSpam(sender)
 
         // ADM COMMAND
         if (command.startsWith('!timeout')) {
-            const mentions = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
-            return await this.handleTimeoutCommand(name, command, sender, isGroup, mentions);
+            const mentions = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid || []
+            return await this.handleTimeoutCommand(name, command, sender, isGroup, mentions)
         }
 
         if(command.startsWith('!d')) return await this.handleDiceCommand(command, sender)
@@ -683,30 +742,36 @@ async getUserMemory(name, sender) {
         if(command.startsWith('!menu')) return await this.handleMenuCommand()
         
         if (command.startsWith('!gpt') || command.startsWith('!resumo') || command.startsWith('!lembrar')) {
-            await this.checkAndIncrementAiQuota(user, sender, command);
+            await this.checkAndIncrementAiQuota(user, sender, command)
             
-            if(command.startsWith('!resumo') && isGroup || command.startsWith("!gpt") && isGroup) {
-                return await this.getAiResponse(from, sender, name, isGroup, command, await this.formulatePrompt(from, sender, name, isGroup, command, quotedMessage));
-            }
-            if(command.startsWith("!lembrar")){
-                return await this.handleLembrarCommand(from, sender, name, isGroup, command)
-            }
+            if(command.startsWith('!resumo') && isGroup || command.startsWith("!gpt") && isGroup) return await this.getAiResponse(from, sender, name, isGroup, command, await this.formulatePrompt(from, sender, name, isGroup, command, quotedMessage));
+            
+            if(command.startsWith("!lembrar")) return await this.handleLembrarCommand(from, sender, name, isGroup, command)
         }
 
-        if(command.startsWith('!lol')) return await this.handleLolCommand(command);
+        if (command.startsWith('!tradutor')) {
+            await this.checkAndIncrementTranslateQuota(user, sender, command);
+            return await this.handleTradutorCommand(from, sender, name, isGroup, command);
+        }
 
-        if(command.startsWith('!notas')) return await this.handleNotasCommand(sender);
+        if(command.startsWith('!lol')) return await this.handleLolCommand(command)
+
+        if(command.startsWith('!notas')) return await this.handleNotasCommand(sender)
+
+        if (command.startsWith('!clima')) return await this.handleClimaCommand(command, sender)
+
+        if (command.startsWith('!cotacao')) return await currencyCommandHandler.convertCurrency(command);
     }
 
     async handleMessageWithoutCommand(msg, sender, from, isGroup, command, quotedMessage){
         let name = msg.pushName || '';
         
-        const user = await this.getUserData(name, sender);
+        const user = await this.getUserData(name, sender)
 
         this.checkTimeout(user);
-        await this.checkAndIncrementAiQuota(user, sender, command);
+        await this.checkAndIncrementAiQuota(user, sender, command)
 
-        let finalPrompt = await this.formulatePrompt(from, sender, name, isGroup, command, quotedMessage);
+        let finalPrompt = await this.formulatePrompt(from, sender, name, isGroup, command, quotedMessage)
         return await this.getAiResponse(from, sender, name, isGroup, command, finalPrompt)
     }
 }

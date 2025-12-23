@@ -6,7 +6,7 @@ Bem-vindo ao repositório oficial do **Bostossauro**, o bot de WhatsApp mais sar
 ## 🧠 O Que Ele Faz? (Funcionalidades)
 O Bostossauro não é apenas um bot, é um estilo de vida. Aqui estão as skills atuais:
 
-- Ele responde qualquer mensagem enviada via DM, utilizando o Gemini para gerar as respostas, buscando as últimas 50 mensagens da conversa para contextualizar.
+* **✉️ Conversa Contextual:** Ele responde qualquer mensagem (especialmente no privado) usando o Gemini, lembrando das últimas mensagens para não parecer um peixinho dourado.
 
 * **🎲 !d[número] (ex: !d20):** Rola dados para suas sessões de RPG. Se cair 1, ele vai rir da sua cara (tá no código, eu juro).
 
@@ -14,15 +14,30 @@ O Bostossauro não é apenas um bot, é um estilo de vida. Aqui estão as skills
 
 * **🧠 !lembrar [contexto]:** Uma feature state-of-the-art que usa SQL Injection do bem (mentira, é só um SELECT gerado por IA) para buscar mensagens antigas no banco de dados e lembrar o que o João falou semana passada.
 
+* **🎮 !lol [Nick #Tag]:** Integração direta com a API da Riot Games pra humilhar o seu elo publicamente. Mostra ranking (Solo/Flex), winrate e suas maestrias. Ex: `!lol Faker #T1`.
+
 * **📝 !resumo [curto/médio/completo]:** Perdeu 200 mensagens no grupo? O bot lê o histórico, fofoca sobre quem falou mais besteira e resume tudo pra você.
 
+* **🖼️ !s (ou !sticker):** Faz figurinhas estáticas. Tem suporte a parâmetros de "qualidade" para os amantes de shitpost:
+    * `!s`: Qualidade normal.
+    * `!s baixa`: Qualidade duvidosa.
+    * `!s podi`: Modo *deep fried*, destrói a imagem até virar arte abstrata.
+
 * **😴 Modo Desonline:** Se o bot estiver em manutenção, ele manda uma figurinha do macaco desmaiado pra você não ficar no vácuo.
+
+* **🐘 Memória de Longo Prazo:** Agora o bot "anota" fatos sobre você (nome, gostos, profissão) no banco de dados para personalizar as respostas futuras. Cuidado com o que fala.
+
+* **🚫 !timeout @usuario [minutos]:** (Admin Only) O martelo do ban. Silencia o usuário chato por X minutos. Se tentar falar, toma gap.
+
+* **💸 Sistema de Cotas:** Implementamos um controle de uso diário por usuário e rotação de modelos de IA (Gemini Flash, Flash-Lite, Gemma), porque a API é de graça mas tem limite e a gente não quer pagar.
 
 ## 🛠️ Tecnologias (A.K.A. A Gambiarra)
 Este projeto é sustentado por fita crepe digital e as seguintes tecnologias:
 
 * **Baileys:** A biblioteca que faz a magia de conectar ao WhatsApp sem precisar de um navegador aberto.
 * **Google Gemini AI:** O cérebro por trás do sarcasmo.
+* **Riot Games API:** Para buscar dados do LoL (e passar raiva com a autenticação).
+* **Sharp:** Para processamento de imagem e criação de stickers crocantes.
 * **Node.js:** O motor do caos.
 * **PM2:** A ama-seca que reinicia o bot toda vez que ele tropeça nos próprios pés.
 * **SQLite:** Um banco de dados leve (porque a nossa VM não aguenta um Postgres) para guardar cada "bom dia" que você mandar.
@@ -39,7 +54,7 @@ Quer testar localmente antes de colocar na sua própria batata na nuvem? Consult
 Resumo rápido:
 1.  Clonar o repositório.
 2.  `npm install`
-3.  Configurar o `.env` com a tua `GEMINI_API_KEY`.
+3.  Configurar o `.env` com a tua `GEMINI_API_KEY` e, opcionalmente, a `RIOT_API_KEY` (se quiser que o comando !lol funcione).
 4.  `npm start` e ler o QR Code.
 
 ## 🤝 Contribua (Por favor, sério)

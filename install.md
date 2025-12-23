@@ -11,7 +11,7 @@ Antes de começar, certifique-se de que o seu ambiente (seja local ou uma VPS/VM
 2.  **Git**: Para clonar o repositório.
 3.  **NPM**: Gerenciador de pacotes (geralmente vem com o Node.js).
 4.  **Uma chave de API do Google Gemini**: Você pode obter uma gratuitamente no [Google AI Studio](https://aistudio.google.com/).
-
+5.  **Uma chave da API da Riot Games** (Opcional): Necessária apenas se quiser usar o comando `!lol`. Obtenha no [Riot Developer Portal](https://developer.riotgames.com/).
 ---
 
 ## 🚀 Passo a Passo da Instalação
@@ -30,7 +30,8 @@ Instale as bibliotecas necessárias listadas no package.json:
 
 ```bash
 npm install
-npm install --platform=linux --arch=x64 sharp #(se não instalar o sharp)
+#Se estiver rodando em Linux (Debian/Ubuntu/Google Cloud)
+npm install --platform=linux --arch=x64 sharp
 ```
 
 ### 3. Configurar Variáveis de Ambiente (.env)
@@ -45,18 +46,24 @@ New-Item .env -ItemType File
 
 #### Dentro do arquivo configure sua variável de ambiente
 ```bash
-GEMINI_API_KEY=COLE_SUA_CHAVE_DO_GOOGLE_AISTUDIO_AQUI
+GEMINI_API_KEY=Sua_Chave_Gemini_Aqui
+RIOT_API_KEY=Sua_Chave_Riot_Aqui
 ```
 
 ### 4. Verificar Estrutura de Pastas
-Para garantir que o comando de sticker de ***"Desonline"*** funcione, verifique se a imagem existe no local correto. A estrutura deve ser:
+Para que os ***comandos de sticker (!s)*** e as reações automáticas funcionem, a pasta Assets deve existir na raiz com as imagens corretas.
 
 ```plaintext
 ChatbotWhats/
 ├── Assets/
-│   └── desonline.webp
+│   ├── desonline.webp      (Essencial: enviado quando o bot tá off)
+│   ├── naogrita1.webp      (Opcional: reações de grito)
+│   ├── eusabo1.webp        (Opcional: reações de inteligência)
+│   └── resumo1.webp        (Opcional: sticker de resumo)
 ├── Source/
 │   ├── chatModel.js
+│   ├── usageControl.js
+│   ├── errorHandler.js
 │   └── index.js
 ├── .env
 └── package.json
@@ -97,26 +104,22 @@ module.exports = {
     name: 'bostossauro',
     script: 'Source/index.js',
     watch: true,
-    // Garanta que esta lista de arquivos e pastas está correta
-    // Essa parte ignora a observação de modificações nesses aquivos,
-    //que são arquivos que mudam muito, mas não modificam o funcionamento do bot
-    // Toda vez que arquivos são modificados no diretório, o pm2 reinicia o bot 
-    // para colocar as alterações em vigor
+    // Ignora arquivos que mudam constantemente para evitar restarts infinitos
     ignore_watch : [
+        "usage_stats.json",
         "auth_info_baileys/.", 
         "chat_history.db", 
         "chat_history.db-journal", 
         "chat_history.db-wal"
     ],
+    env: {
+        NODE_ENV: "production",
+    }
   }]
 };
 ```
 
 * **3.** Inicie o bot:
-
-```bash
-pm2 start ecosystem.config.js
-```
 
 ### 🆒 Comandos úteis do PM2:
 
@@ -141,10 +144,15 @@ auth_info_baileys/
 npm-debug.log
 ``` 
 
-## 📂 Banco de Dados e Sessão
-Sessão do WhatsApp: Após o login, uma pasta chamada auth_info_baileys será criada automaticamente na raiz. Não apague esta pasta, a menos que queira desconectar o bot e escanear o QR Code novamente.
 
-Histórico de Conversas: Um arquivo chat_history.db (SQLite) será criado automaticamente na raiz para armazenar o contexto das conversas.
+
+### 📂 Dados e Persistência (Onde fica tudo?)
+
+#### auth_info_baileys/: Guarda sua sessão do WhatsApp. Se apagar, tem que escanear o QR Code de novo.
+
+#### chat_history.db: Seu banco de dados SQLite. Guarda mensagens, usuários e cotas.
+
+#### usage_stats.json: Controle simples de cotas da IA para rotação de modelos.
 
 ## ⚠️ Solução de Problemas Comuns
 ### Erro: "Module not found"
@@ -167,4 +175,16 @@ Histórico de Conversas: Um arquivo chat_history.db (SQLite) será criado automa
 
 * Memória RAM Alta
 O bot armazena histórico em memória para o baileys e processa dados com o sharp. Em VMs com 1GB de RAM (como a free tier do Google Cloud), recomenda-se adicionar Swap file.
+
+### "SQL_ERROR" ou "Database locked"
+
+* O SQLite não gosta de concorrência massiva de escrita. Se acontecer muito, verifique se não tem duas instâncias do bot rodando (ex: uma no terminal e outra no PM2).
+
+* Solução: pm2 stop all e verifique se tem algum node rodando (killall node se necessário), depois inicie apenas um.
+
+### Erro: "KEY_UNAVAILABLE" no comando !lol
+
+* Sua chave da Riot expirou (elas duram 24h se for chave de desenvolvimento) ou não foi configurada.
+
+* Solução: Gere uma nova chave no site da Riot e atualize o .env. É necessário reiniciar o bot (pm2 restart bostossauro) para pegar a nova chave.
  

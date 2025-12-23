@@ -1,4 +1,6 @@
 require('dotenv').config();
+const schedule = require('node-schedule');
+const weatherCommandHandler = require('./weatherCommand');
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, downloadMediaMessage, jidNormalizedUser } = require('@whiskeysockets/baileys');
 const { GoogleGenAI } = require("@google/genai");
 const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
@@ -80,7 +82,15 @@ async function initDatabase() {
         console.log("✅ Coluna 'anotacoes' adicionada com sucesso!");
     } catch (error) {
         if (!error.message.includes("duplicate column name")) {
-            console.error("⚠️ Erro na migração (pode ignorar se a coluna já existir):", error.message);
+            console.error("⚠️ Erro na migração:", error.message);
+        }
+    }
+    try {
+        await db.exec(`ALTER TABLE usuarios ADD COLUMN uso_gemma_diario INTEGER DEFAULT 0;`);
+        console.log("✅ Coluna 'uso_gemma_diario' adicionada com sucesso!");
+    } catch (error) {
+        if (!error.message.includes("duplicate column name")) {
+            console.error("⚠️ Erro ao criar coluna Gemma:", error.message);
         }
     }
 
@@ -117,6 +127,15 @@ const botCommands = {
     },
     '!notas': {
         emoji: '✏️'
+    },
+    '!clima': {
+        emoji: '🌡️'
+    },
+    '!tradutor': {
+        emoji: '🧐'
+    },
+    '!cotacao': {
+        emoji: '💵'
     }
 };
 
@@ -130,6 +149,27 @@ async function connectToWhatsApp() {
         auth: state,
         logger: pino({ level: 'warn' }), 
     });
+
+    // Função para enviar mensagem para todos os grupos
+    async function broadcastToAllGroups(sock, text) {
+        try {
+            console.log("📢 Iniciando transmissão para todos os grupos...");
+            
+            const groups = await sock.groupFetchAllParticipating();
+            const groupIds = Object.keys(groups);
+
+            console.log(`📊 Encontrados ${groupIds.length} grupos.`);
+
+            for (const id of groupIds) {
+                await sock.sendMessage(id, { text: text });
+                await new Promise(resolve => setTimeout(resolve, 2000)); 
+            }
+
+            console.log("✅ Transmissão finalizada com sucesso!");
+        } catch (error) {
+            console.error("❌ Erro ao enviar broadcast:", error);
+        }
+    }
 
     //Instancia o chatbot
     const chatbot = new ChatModel(db, genAI)
@@ -167,6 +207,22 @@ async function connectToWhatsApp() {
             if (shouldReconnect) connectToWhatsApp();
         } else if (connection === 'open') {
             console.log('✅ Bot conectado e pronto!');
+            
+            if (dailyJob) {
+                dailyJob.cancel();
+            }
+
+            dailyJob = schedule.scheduleJob('0 0 8 * * *', async function(){
+                const targetCity = "Santos"; 
+                
+                try {
+                    const weatherComplement = await weatherCommandHandler.getWeather(targetCity);
+                    const weatherForecastComplement = await weatherCommandHandler.getNextDayForecast(targetCity);
+                    await broadcastToAllGroups(sock, "Bom dia, grupo! 🦖 O Bostossauro acordou e escolheu a violência.\n" + weatherComplement + "\n" + weatherForecastComplement);
+                } catch (error) {
+                    console.error("❌ Erro no envio do clima agendado:", error);
+                }
+            });
         }
     });
 
@@ -175,19 +231,24 @@ async function connectToWhatsApp() {
     //Pega as informações do bot
     const me = state.creds.me;
     myFullJid = me?.id ? jidNormalizedUser(me.id) :  '5513991526878@s.whatsapp.net'; 
-    
+    let dailyJob;
+
+
     //Acorda quando chega uma mensagem
     sock.ev.on('messages.upsert', async m => {
+        if (m.type !== 'notify') {
+            return;
+        }
+        
         const msg = m.messages[0];
         if (!msg.message || msg.key.fromMe) return;
 
-        //Pega de quem é a mensagem e verifica se é de um grupo
+        // Pega de quem é a mensagem e verifica se é de um grupo
         const from = msg.key.remoteJid;        
         const isGroup = from.endsWith('@g.us');
 
         const getSenderJid = (msg) => {
             const key = msg.key;
-            
             if (key.participant) {
                 if (key.participant.includes('@lid') && key.participantAlt) {
                     return jidNormalizedUser(key.participantAlt);
@@ -432,6 +493,8 @@ async function connectToWhatsApp() {
                 '!gpt': `🤖 @${senderJid}\n\n`,
                 '!resumo': `🦖 @${senderJid}\n*Resumo da conversa*\n\n`,
                 '!lembrar': `🧠\n\n`,
+                '!tradutor': `🧐 *Mensagem traduzida*:\n\n`,
+                '!converter': `💸 *Conversão Direta*\n`,
                 'undefined': ''
             };
 

@@ -1,5 +1,3 @@
-// Source/currencyCommand.js
-
 const currencySymbols = {
     'BRL': 'R$', 'USD': 'US$', 'EUR': '€', 'GBP': '£',
     'JPY': '¥', 'ARS': '$', 'BTC': '₿'
@@ -8,10 +6,10 @@ const currencySymbols = {
 const quoteCache = {};
 const CACHE_DURATION_MINUTES = 10;
 
+
 async function fetchFallback(fromCode, toCode, amount) {
     try {
         console.log(`[Currency] Tentando API Reserva para ${fromCode}-${toCode}...`);
-        // API Open Source que não exige chave (atualizada diariamente)
         const response = await fetch(`https://api.exchangerate-api.com/v4/latest/${fromCode}`);
         
         if (!response.ok) throw new Error("Fallback API Error");
@@ -22,7 +20,8 @@ async function fetchFallback(fromCode, toCode, amount) {
         if (!rate) throw new Error("Rate not found in fallback");
 
         const result = amount * rate;
-        const lastUpdate = new Date(data.date).toLocaleDateString('pt-BR');
+
+        const lastUpdate = new Date().toLocaleDateString('pt-BR'); 
 
         return {
             rate: rate,
@@ -40,7 +39,7 @@ async function convertCurrency(command) {
     const args = command.trim().split(/\s+/);
     
     if (args.length < 4) {
-        throw new Error("MISSING_ARGS")
+        throw new Error("MISSING_ARGS");
     }
 
     const fromName = args[1].toLowerCase();
@@ -49,7 +48,7 @@ async function convertCurrency(command) {
     const amount = parseFloat(amountStr);
 
     if (isNaN(amount)) {
-        throw new Error("NOT_A_NUMBER")
+        throw new Error("NOT_A_NUMBER");
     }
 
     const currencyMap = {
@@ -65,21 +64,28 @@ async function convertCurrency(command) {
     const fromCode = currencyMap[fromName];
     const toCode = currencyMap[toName];
 
-    if (!fromCode || !toCode) throw new Error("NON-EXISTENT_CURRENCY")
+    if (!fromCode || !toCode) throw new Error("NON-EXISTENT_CURRENCY");
+    if (fromCode === toCode) throw new Error("SAME_CURRENCY");
 
-    if (fromCode === toCode) throw new Error("SAME_CURRENCY")
+    let rate = 0;
+    let result = 0;
+    let lastUpdate = "";
+    let fromCache = false;
+
+    const symbolFrom = currencySymbols[fromCode] || fromCode;
+    const symbolTo = currencySymbols[toCode] || toCode;
+    const formatNumber = (val) => val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    
+    const pairKey = `${fromCode}-${toCode}`;
 
     try {
-        pairKey = `${fromCode}-${toCode}`;
-        let rate, lastUpdate;
-        fromCache = false;
-
-        cachedData = quoteCache[pairKey];
-        now = Date.now();
+        const cachedData = quoteCache[pairKey];
+        const now = Date.now();
 
         if (cachedData && (now - cachedData.time < CACHE_DURATION_MINUTES * 60 * 1000)) {
             rate = cachedData.rate;
             lastUpdate = cachedData.dateStr;
+            result = amount * rate; 
             fromCache = true;
             console.log(`[CACHE] Usando cotação salva para ${pairKey}`);
         } else {
@@ -99,16 +105,12 @@ async function convertCurrency(command) {
 
             rate = parseFloat(data[apiDataKey].bid);
             lastUpdate = new Date(data[apiDataKey].create_date).toLocaleString('pt-BR');
+            result = amount * rate;
 
             quoteCache[pairKey] = { rate: rate, time: now, dateStr: lastUpdate };
         }
 
-        result = amount * rate;
-        symbolFrom = currencySymbols[fromCode] || fromCode;
-        symbolTo = currencySymbols[toCode] || toCode;
-        formatNumber = (val) => val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-    }catch (error) {
+    } catch (error) {
         console.warn(`[API Principal falhou] Motivo: ${error.message}. Tentando reserva...`);
         
         const fallbackData = await fetchFallback(fromCode, toCode, amount);
@@ -117,15 +119,17 @@ async function convertCurrency(command) {
             rate = fallbackData.rate;
             result = fallbackData.result;
             lastUpdate = fallbackData.dateStr;
-            quoteCache[pairKey] = { rate, time: now, dateStr: lastUpdate };
+            
+            quoteCache[pairKey] = { rate: rate, time: Date.now(), dateStr: lastUpdate };
         } else {
             return "⏳ Todas as APIs de cotação estão ocupadas ou indisponíveis. Tente mais tarde.";
         }
     }
+
     return `💸 *Conversão Direta*\n` +
-        `📉 Cotação: ${fromCode} = ${rate.toFixed(4)} ${toCode}\n` +
-        `💰 *${symbolFrom} ${formatNumber(amount)}* vale aproximadamente *${symbolTo} ${formatNumber(result)}*\n` +
-        `_Atualizado em: ${lastUpdate}${fromCache ? " (Cache)" : ""}_`;
+           `📉 Cotação: 1 ${fromCode} = ${rate.toFixed(4)} ${toCode}\n` +
+           `💰 *${symbolFrom} ${formatNumber(amount)}* vale aproximadamente *${symbolTo} ${formatNumber(result)}*\n` +
+           `_Atualizado em: ${lastUpdate}${fromCache ? " (Cache)" : ""}_`;
 }
 
 module.exports = { convertCurrency };

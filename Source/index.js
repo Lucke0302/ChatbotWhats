@@ -236,20 +236,23 @@ async function connectToWhatsApp() {
 
     //Acorda quando chega uma mensagem
     sock.ev.on('messages.upsert', async m => {
-
         console.log(`[DEBUG] Tipo de evento: ${m.type} | Mensagens: ${m.messages.length}`);
-        
-        if (m.type !== 'notify') return;
+
+        if (m.type !== 'notify') {
+            console.log("⛔ Evento ignorado pelo filtro (Não é notify).");
+            return;
+        }
+        // -----------------------------
+
         const msg = m.messages[0];
         if (!msg.message || msg.key.fromMe) return;
 
-        //Pega de quem é a mensagem e verifica se é de um grupo
+        // Pega de quem é a mensagem e verifica se é de um grupo
         const from = msg.key.remoteJid;        
         const isGroup = from.endsWith('@g.us');
 
         const getSenderJid = (msg) => {
             const key = msg.key;
-            
             if (key.participant) {
                 if (key.participant.includes('@lid') && key.participantAlt) {
                     return jidNormalizedUser(key.participantAlt);

@@ -129,7 +129,7 @@ async function convertCurrency(command) {
     return `💸 *Conversão Direta*\n` +
            `📉 Cotação: 1 ${fromCode} = ${rate.toFixed(4)} ${toCode}\n` +
            `💰 *${symbolFrom} ${formatNumber(amount)}* vale aproximadamente *${symbolTo} ${formatNumber(result)}*\n` +
-           `_Atualizado em: ${lastUpdate}${fromCache ? " (Cache)" : ""}_`;
+           `_Atualizado em: ${lastUpdate}}_`;
 }
 
 module.exports = { convertCurrency };

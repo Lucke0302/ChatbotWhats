@@ -8,8 +8,6 @@ const WEATHER_API_KEY = process.env.WEATHER_API_KEY;
  * @returns {string}
  */
 async function getWeather(city) {
-
-    console.log("Api key:"+WEATHER_API_KEY)
     
     if (!city) {
         throw new Error("MISSING_ARGS")

@@ -203,7 +203,8 @@ async function connectToWhatsApp() {
                 
                 try {
                     const weatherComplement = await weatherCommandHandler.getWeather(targetCity);
-                    await broadcastToAllGroups(sock, "Bom dia, grupo! 🦖 O Bostossauro acordou e escolheu a violência.\n" + weatherComplement);
+                    const weatherForecastComplement = await weatherCommandHandler.getNextDayForecast(targetCity);
+                    await broadcastToAllGroups(sock, "Bom dia, grupo! 🦖 O Bostossauro acordou e escolheu a violência.\n" + weatherComplement + "\n" +);
                 } catch (error) {
                     console.error("❌ Erro no envio do clima agendado:", error);
                 }

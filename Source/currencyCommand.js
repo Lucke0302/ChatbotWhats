@@ -14,6 +14,9 @@ const currencySymbols = {
     'BTC': '₿'
 };
 
+const quoteCache = {};
+const CACHE_DURATION_MINUTES = 10;
+
 async function convertCurrency(command) {
     const args = command.trim().split(/\s+/);
     
@@ -56,22 +59,49 @@ async function convertCurrency(command) {
 
     try {
         const pair = `${fromCode}-${toCode}`;
-        const url = `https://economia.awesomeapi.com.br/last/${pair}`;
-        
-        const response = await fetch(url);
-        
-        if (!response.ok) {
-            throw new Error(`API_ERROR: ${response.status}`);
-        }
 
-        const data = await response.json();
+        let rate, lastUpdate;
+        let fromCache = false;
+
+        const cachedData = quoteCache[pairKey];
+        const now = Date.now();
+
         const key = fromCode + toCode; 
         
         if (!data[key]) {
             return "💵 Não consegui fazer essa conversão específica agora.";
         }
 
-        const rate = parseFloat(data[key].bid);
+        if (cachedData && (now - cachedData.time < CACHE_DURATION_MINUTES * 60 * 1000)) {
+            rate = cachedData.rate;
+            lastUpdate = cachedData.dateStr;
+            fromCache = true;
+            console.log(`[CACHE] Usando cotação salva para ${pairKey}`);
+        }
+
+        else {
+            const url = `https://economia.awesomeapi.com.br/last/${pairKey}`;
+            const response = await fetch(url);
+
+            if (response.status === 429) {
+                console.warn("[API] Bloqueio 429 detectado.");
+                return "⏳ O servidor de cotação pediu um tempo (muitas requisições). Tente daqui a alguns minutos.";
+            } else if (!response.ok) {
+                throw new Error(`API_ERROR: ${response.status}`);
+            }
+
+            if (!response.ok) throw new Error(`API_ERROR: ${response.status}`);
+
+            const data = await response.json();
+            const apiDataKey = fromCode + toCode; 
+            
+            if (!data[apiDataKey]) return "❌ Conversão não disponível no momento.";
+
+            rate = parseFloat(data[apiDataKey].bid);
+            lastUpdate = new Date(data[apiDataKey].create_date).toLocaleString('pt-BR');
+            
+            quoteCache[pairKey] = { rate: rate, time: now, dateStr: lastUpdate };
+        }
         const result = amount * rate;
         const date = new Date(data[key].create_date).toLocaleString('pt-BR');
 

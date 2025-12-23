@@ -216,6 +216,7 @@ async function connectToWhatsApp() {
     //Pega as informações do bot
     const me = state.creds.me;
     myFullJid = me?.id ? jidNormalizedUser(me.id) :  '5513991526878@s.whatsapp.net'; 
+    let dailyJob;
 
 
     //Acorda quando chega uma mensagem

@@ -236,10 +236,7 @@ async function connectToWhatsApp() {
 
     //Acorda quando chega uma mensagem
     sock.ev.on('messages.upsert', async m => {
-        console.log(`[DEBUG] Tipo de evento: ${m.type} | Mensagens: ${m.messages.length}`);
-
         if (m.type !== 'notify') {
-            console.log("⛔ Evento ignorado pelo filtro (Não é notify).");
             return;
         }
         // -----------------------------

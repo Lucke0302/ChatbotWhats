@@ -12,9 +12,9 @@ class ChatModel {
             "gemini-2.5-flash": 20,
             "gemini-2.5-flash-lite": 20,
             "gemini-3.0-flash": 20,
-            "gemma-3-27b": 5000,
-            "gemma-3-12b": 5000,
-            "gemma-3-4b": 9999
+            "gemma-3-27b-it": 5000,
+            "gemma-3-12b-it": 5000,
+            "gemma-3-4b-it": 9999
         };
         this.updateOnlineStatus();
         this.lolChampionsMap = null;
@@ -341,13 +341,13 @@ async getUserMemory(name, sender) {
             if (forceModel === "gemini-2.5-flash") candidates.push("gemini-2.5-flash");
         } 
         else if (command.startsWith("!resumo")){            
-            candidates = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemma-3-27b","gemma-3-12b"]; 
+            candidates = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemma-3-27b-it","gemma-3-12b-it"]; 
         }
         else if (command.startsWith("!gpt")){            
-            candidates = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemma-3-4b"]; 
+            candidates = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemma-3-4b-it"]; 
         }
         else if (command.startsWith("!lembrar")) {
-            candidates = ["gemma-3-27b", "gemini-2.5-flash"]; 
+            candidates = ["gemma-3-27b-it", "gemini-2.5-flash"]; 
         }
         else if (command.startsWith("!ouvir")){
             candidates = ["gemini-2.5-flash-native-audio-dialog"]
@@ -356,7 +356,7 @@ async getUserMemory(name, sender) {
             candidates = [
                 "gemini-2.5-flash",
                 "gemini-2.5-flash-lite",  
-                "gemma-3-4b"
+                "gemma-3-4b-it"
             ];
         }
 
@@ -695,7 +695,7 @@ async getUserMemory(name, sender) {
         Apenas a tradução, sem explicações extras.
         Texto: "${content}"`;
 
-        return await this.getAiResponse(from, sender, name, isGroup, "!traduzir", prompt, "gemma-3-12b");
+        return await this.getAiResponse(from, sender, name, isGroup, "!traduzir", prompt, "gemma-3-12b-it");
     }
 
     async handleClimaCommand(text, sender){       

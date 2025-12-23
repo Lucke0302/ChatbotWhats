@@ -193,7 +193,7 @@ async function connectToWhatsApp() {
             if (shouldReconnect) connectToWhatsApp();
         } else if (connection === 'open') {
             console.log('✅ Bot conectado e pronto!');
-            let weatherComplement
+            
             if (dailyJob) {
                 dailyJob.cancel();
             }

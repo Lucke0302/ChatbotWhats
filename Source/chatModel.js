@@ -660,14 +660,13 @@ async getUserMemory(name, sender) {
         }
     }
 
-    async handleClimaCommand(command, sender){        
-        const city = command.replace(/!clima/i, '').trim()
-        const day = command.split(" ")[2]
-
-        if(day == "amanhã"){
-            return await weatherCommandHandler.getNextDayForecast(city)
+    async handleClimaCommand(command, sender){       
+        if (text.toLowerCase().endsWith('amanhã')) {
+                const city = text.replace(/amanhã$/i, '').trim()
+                return await weatherCommandHandler.getNextDayForecast(city)
         }
-        else{
+        else{            
+            const city = command.replace(/!clima/i, '').trim()
             return await weatherCommandHandler.getWeather(city)
         }
     }
@@ -675,7 +674,7 @@ async getUserMemory(name, sender) {
     //Gera um número aleatório entre 1 e um número via parâmetro
     async rollDice(num){        
         const max = parseInt(num);
-        const val = Math.floor(Math.random() * max) + 1;
+        const val = Math.floor(Math.random() * max) + 1
         return val
     }
 

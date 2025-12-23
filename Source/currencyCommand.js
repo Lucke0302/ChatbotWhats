@@ -70,7 +70,7 @@ async function convertCurrency(command) {
     if (fromCode === toCode) throw new Error("SAME_CURRENCY")
 
     try {
-        const pairKey = `${fromCode}-${toCode}`;
+        pairKey = `${fromCode}-${toCode}`;
         let rate, lastUpdate;
         let fromCache = false;
 
@@ -103,10 +103,10 @@ async function convertCurrency(command) {
             quoteCache[pairKey] = { rate: rate, time: now, dateStr: lastUpdate };
         }
 
-        const result = amount * rate;
-        const symbolFrom = currencySymbols[fromCode] || fromCode;
-        const symbolTo = currencySymbols[toCode] || toCode;
-        const formatNumber = (val) => val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        result = amount * rate;
+        symbolFrom = currencySymbols[fromCode] || fromCode;
+        symbolTo = currencySymbols[toCode] || toCode;
+        formatNumber = (val) => val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
     }catch (error) {
         console.warn(`[API Principal falhou] Motivo: ${error.message}. Tentando reserva...`);

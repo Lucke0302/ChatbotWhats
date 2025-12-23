@@ -58,7 +58,7 @@ async function convertCurrency(command) {
     }
 
     try {
-        const pair = `${fromCode}-${toCode}`;
+        const pairKey = `${fromCode}-${toCode}`;
 
         let rate, lastUpdate;
         let fromCache = false;

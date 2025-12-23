@@ -87,8 +87,7 @@ async function convertCurrency(command) {
             const response = await fetch(url);
             
             if (response.status === 429) {
-                console.warn("[API] Bloqueio 429 detectado.");
-                return "⏳ O servidor de cotação pediu um tempo (muitas requisições). Tente daqui a alguns minutos.";
+                throw new Error("[API] Bloqueio 429 detectado.");
             }
 
             if (!response.ok) throw new Error(`API_ERROR: ${response.status}`);
@@ -96,12 +95,11 @@ async function convertCurrency(command) {
             const data = await response.json();
             const apiDataKey = fromCode + toCode; 
             
-            if (!data[apiDataKey]) return "❌ Conversão não disponível no momento.";
+            if (!data[apiDataKey]) throw new Error("❌ Conversão não disponível no momento.");
 
             rate = parseFloat(data[apiDataKey].bid);
             lastUpdate = new Date(data[apiDataKey].create_date).toLocaleString('pt-BR');
-            
-            // SALVA NO CACHE
+
             quoteCache[pairKey] = { rate: rate, time: now, dateStr: lastUpdate };
         }
 

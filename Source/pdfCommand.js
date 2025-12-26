@@ -15,6 +15,9 @@ function createPdfKitDocument(conteudo, tipo, caminhoSaida) {
             const stream = fs.createWriteStream(caminhoSaida);
 
             doc.pipe(stream);
+            
+            doc.fontSize(8).fillColor('grey').text('Gerado por Bostossauro Bot', { align: 'right' });
+            doc.moveDown();
 
             if (tipo === 'imagem') {
                 try {
@@ -46,30 +49,27 @@ function createPdfKitDocument(conteudo, tipo, caminhoSaida) {
     });
 }
 
-async function convertOfficeToPdf(bufferEntrada) {
-    return await convertAsync(bufferEntrada, '.pdf', undefined);
+async function convertOfficeToPdf(buffer) {
+    return await convertAsync(buffer, '.pdf', undefined);
 }
 
 async function handlePdfCommand(sock, msg, from) {
-    // 1. Identificar o contexto (é quote? é imagem? é texto?)
     const isQuoted = !!msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
     const targetMessage = isQuoted ? msg.message.extendedTextMessage.contextInfo.quotedMessage : msg.message;
     
-    // Texto direto (!pdf meu texto)
     const conversationText = msg.message?.conversation || msg.message?.extendedTextMessage?.text || "";
-    const hasTextArg = conversationText.trim().length > 5; 
 
-    // Tipos de mídia suportados
+    const textToConvert = conversationText.replace(/^!pdf\s*/i, '').trim();
+
     const imageMessage = targetMessage?.imageMessage;
     const documentMessage = targetMessage?.documentMessage;
 
-    const tempFileName = `./PDF/temp_pdf_${Date.now()}.pdf`;
+    const tempFileName = `./temp_pdf_${Date.now()}.pdf`;
 
     try {
         await sock.sendMessage(from, { react: { text: '⚙️', key: msg.key } });
 
         if (imageMessage) {
-
             const mediaKeys = { message: targetMessage };
             const buffer = await downloadMediaMessage(mediaKeys, 'buffer', { logger: pino({ level: 'silent' }) });
 
@@ -84,7 +84,7 @@ async function handlePdfCommand(sock, msg, from) {
             const supported = ['docx', 'doc', 'xlsx', 'xls', 'pptx', 'ppt', 'odt', 'ods', 'txt'];
 
             if (!supported.includes(ext)) {
-                await sock.sendMessage(from, { text: `❌ Extensão .${ext} não suportada. Tenta Word, Excel ou Texto.` }, { quoted: msg });
+                await sock.sendMessage(from, { text: `❌ Extensão .${ext} não suportada. Tente Word, Excel ou Texto.` }, { quoted: msg });
                 return;
             }
 
@@ -98,8 +98,7 @@ async function handlePdfCommand(sock, msg, from) {
             return;
         }
 
-        if (hasTextArg) {
-            const textToConvert = conversationText.replace(/^!pdf\s*/i, '').trim();
+        if (textToConvert.length > 0) {
             await createPdfKitDocument(textToConvert, 'texto', tempFileName);
             await sendPdfAndCleanup(sock, from, tempFileName, 'Texto.pdf', msg);
             return;
@@ -109,21 +108,23 @@ async function handlePdfCommand(sock, msg, from) {
 
     } catch (error) {
         console.error("Erro no Handler PDF:", error);
-        await sock.sendMessage(from, { text: '❌ Deu ruim na conversão.' }, { quoted: msg });
+        await sock.sendMessage(from, { text: '❌ Ocorreu um erro ao gerar o PDF.' }, { quoted: msg });
     }
 }
 
 async function sendPdfAndCleanup(sock, from, filePath, fileName, quotedMsg) {
-    await sock.sendMessage(from, { 
-        document: fs.readFileSync(filePath), 
-        mimetype: 'application/pdf', 
-        fileName: fileName,
-        caption: '🦖 Tá na mão seu PDF.'
-    }, { quoted: quotedMsg });
+    if (fs.existsSync(filePath)) {
+        await sock.sendMessage(from, { 
+            document: fs.readFileSync(filePath), 
+            mimetype: 'application/pdf', 
+            fileName: fileName,
+            caption: '🦖 Tá na mão seu PDF.'
+        }, { quoted: quotedMsg });
 
-    await sock.sendMessage(from, { react: { text: '✅', key: quotedMsg.key } });
+        await sock.sendMessage(from, { react: { text: '✅', key: quotedMsg.key } });
 
-    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+        fs.unlinkSync(filePath);
+    }
 }
 
 module.exports = { handlePdfCommand };

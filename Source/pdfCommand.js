@@ -8,17 +8,20 @@ const pino = require('pino');
 
 const convertAsync = util.promisify(libre.convert);
 
-function createPdfKitDocument(content, type, filePath) {
+function createPdfKitDocument(conteudo, tipo, caminhoSaida) {
     return new Promise((resolve, reject) => {
         try {
             const doc = new PDFDocument({ margin: 50, size: 'A4' });
-            const stream = fs.createWriteStream(filePath);
+            const stream = fs.createWriteStream(caminhoSaida);
 
             doc.pipe(stream);
+            
+            doc.fontSize(8).fillColor('grey').text('Gerado por Bostossauro Bot', { align: 'right' });
+            doc.moveDown();
 
-            if (type === 'imagem') {
+            if (tipo === 'imagem') {
                 try {
-                    doc.image(content, {
+                    doc.image(conteudo, {
                         fit: [495, 700],
                         align: 'center',
                         valign: 'center'
@@ -27,8 +30,8 @@ function createPdfKitDocument(content, type, filePath) {
                     doc.fontSize(14).fillColor('red').text('Erro: Imagem inválida ou corrompida.');
                 }
             } 
-            else if (type === 'texto') {
-                doc.fontSize(12).fillColor('black').text(content, {
+            else if (tipo === 'texto') {
+                doc.fontSize(12).fillColor('black').text(conteudo, {
                     align: 'justify',
                     indent: 20,
                     lineGap: 5
@@ -37,7 +40,7 @@ function createPdfKitDocument(content, type, filePath) {
 
             doc.end();
 
-            stream.on('finish', () => resolve(filePath));
+            stream.on('finish', () => resolve(caminhoSaida));
             stream.on('error', (err) => reject(err));
 
         } catch (error) {
@@ -83,18 +86,12 @@ async function handlePdfCommand(sock, msg, from) {
         }
 
         if (documentMessage) {
-            const fileNameOriginal = documentMessage.fileName || "documento";
-            
-            const parsed = path.parse(fileNameOriginal);
-            
-            const nomeSemExtensao = parsed.name; 
-            
-            const ext = (parsed.ext || '').replace('.', '').toLowerCase();
-
+            const fileName = documentMessage.fileName || "documento";
+            const ext = fileName.split('.').pop().toLowerCase();
             const supported = ['docx', 'doc', 'xlsx', 'xls', 'pptx', 'ppt', 'odt', 'ods', 'txt'];
 
             if (!supported.includes(ext)) {
-                await sock.sendMessage(from, { text: `❌ Extensão .${ext} não suportada. Tenta Word, Excel ou Texto.` }, { quoted: msg });
+                await sock.sendMessage(from, { text: `❌ Extensão .${ext} não suportada. Tente Word, Excel ou Texto.` }, { quoted: msg });
                 return;
             }
 
@@ -105,7 +102,7 @@ async function handlePdfCommand(sock, msg, from) {
             const pdfBuffer = await convertOfficeToPdf(buffer);
             
             fs.writeFileSync(tempFileName, pdfBuffer);
-            await sendPdfAndCleanup(sock, from, tempFileName, `${nomeSemExtensao}.pdf`, msg);
+            await sendPdfAndCleanup(sock, from, tempFileName, `${fileName}.pdf`, msg);
             return;
         }
 

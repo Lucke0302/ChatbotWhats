@@ -9,7 +9,12 @@ Pra saber os detalhes de um comando, digita:
 
 🎨 *ARTE DUVIDOSA*
 • *!sticker (!s)* ➝ Faço figurinha. Se sua foto for feia, a culpa não é minha.
+
+🎲 *JOGATINA*
 • *!d* ➝ Dado. Pra ver se você tem sorte no jogo (já que no amor tá difícil).
+
+📙 *ÚTIL*
+• *!pdf* ➝ Converto suas imagens e documentos em pdf.
 
 💸 *CRISE FINANCEIRA*
 • *!cotacao* ➝ Pra você converter dinheiro e chorar no banho.
@@ -104,6 +109,13 @@ Eu busco no banco de dados algo que falaram no passado.
     'notas': `📝 *COMANDO: !notas*
 Mostra o que eu, em minha infinita sabedoria, anotei sobre você.
 Se tiver escrito que você é chato, não reclama.`,
+
+    'pdf' : `📙 *Comando: !pdf*
+Transforma a imagem/documento que você enviou pra mim em um pdf.
+
+*Como usar:* Envia a imagem/documento com !pdf na mensagem ou 
+responde ela com o !pdf.
+`,
 
     'timeout': `🚫 *COMANDO: !timeout* (Só Admin)
 Manda o engraçadinho ficar pianinho por um tempo.

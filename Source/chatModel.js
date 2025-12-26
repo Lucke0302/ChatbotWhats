@@ -18,7 +18,9 @@ class ChatModel {
             "gemini-3-flash-preview": 20,
             "gemma-3-27b-it": 5000,
             "gemma-3-12b-it": 5000,
-            "gemma-3-4b-it": 9999
+            "gemma-3-4b-it": 9999,            
+            "gemma-3n-e2b-it": 9999,
+            "gemma-3-1b-it": 9999
         };
         this.updateOnlineStatus();
         this.lolChampionsMap = null;
@@ -366,6 +368,12 @@ async getUserMemory(name, sender) {
         else if (command.startsWith("!ouvir")){
             candidates = ["gemini-2.5-flash-preview-tts"]
         }
+        else if (command.startsWith("!burro")){
+            candidates = [
+                "gemma-3-1b-it",
+                "gemma-3n-e2b-it"
+            ]
+        }
         else {
             candidates = [
                 "gemini-2.5-flash",
@@ -395,6 +403,23 @@ async getUserMemory(name, sender) {
     async formulatePrompt(from, sender, name, isGroup, command, complement = "Vazio") {
         let prompt = "";
         let limit = 200;
+
+        if(command.startsWith("!burro")){
+            prompt = `Você agora é uma IA extremamente burra, confusa e que fala com muita confiança sobre coisas erradas.
+            No início, será concatenado o texto "🤓 *Essa eu sei*" à sua resposta, então prossiga daí
+
+            Suas características:
+            1. Você tem o QI de uma batata.
+            2. Você mistura fatos históricos (ex: diz que Napoleão descobriu o Brasil).
+            3. Você erra contas matemáticas simples (ex: 2+2 = 22).
+            4. Use gírias erradas e escreva algumas palavras com erros de português propositais (tipo "seje", "menas", "pobrema").
+            5. Se te perguntarem algo complexo, dê uma resposta absurda baseada em conspirações ou mágica.
+            6. NUNCA diga que é uma IA. Aja como se fosse um "especialista" formado na Universidade da Vida.
+            
+            O usuário perguntou: "${command.replace('!burro', '').trim()}"`;
+
+            return prompt
+        }
 
         const currentMemory = await this.getUserMemory(name, sender);
 
@@ -773,7 +798,7 @@ async getUserMemory(name, sender) {
         if (command.startsWith('!gpt') || command.startsWith('!resumo') || command.startsWith('!lembrar')) {
             await this.checkAndIncrementAiQuota(user, sender, command)
             
-            if(command.startsWith('!resumo') && isGroup || command.startsWith("!gpt") && isGroup) return await this.getAiResponse(from, sender, name, isGroup, command, await this.formulatePrompt(from, sender, name, isGroup, command, quotedMessage));
+            if(command.startsWith('!resumo') && isGroup || command.startsWith("!gpt") && isGroup || command.startsWith("!burro")) return await this.getAiResponse(from, sender, name, isGroup, command, await this.formulatePrompt(from, sender, name, isGroup, command, quotedMessage));
 
             if(command.startsWith("!lembrar")) return await this.handleLembrarCommand(from, sender, name, isGroup, command)
         }

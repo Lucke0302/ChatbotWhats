@@ -145,7 +145,10 @@ const botCommands = {
     },
     '!pdf': {
         emoji: '⚙️'
-    }
+    },
+    '!burro': {
+        emoji: '🤓'
+    },
 };
 
 //Inicia a conexão com mo Whatsapp para fazer todas as operações
@@ -507,6 +510,7 @@ async function connectToWhatsApp() {
                 '!lembrar': `🧠\n\n`,
                 '!tradutor': `🧐 *Mensagem traduzida*:\n\n`,
                 '!converter': `💸 *Conversão Direta*\n`,
+                '!burro': `🤓 *Essa eu sei*\n\n`,
                 'undefined': ''
             };
 

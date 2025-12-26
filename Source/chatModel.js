@@ -673,7 +673,7 @@ async getUserMemory(name, sender) {
 
     //Responde o comando !menu
     async handleMenuCommand(){
-        return `📍 Os comandos até agora são: \n🌡️ !clima: Retorna o clima em determinada cidade - Parâmetros:\nCidade: o nome da cidade\nMomento: hoje (ou vazio) ou amanhã. Ex: !clima Santos amanhã\n💵 !cotacao: realiza a conversão de um valor entre duas moedas - Parâmetros:\n1- moeda original. Ex: real ou BRL.\n2 - moeda para conversão. Ex: dolar/dólar ou USD.\n3 - Valor a ser convertido.\n Ex: !cotacao real dolar 10000\n🎲 !d{número}: Número aleatório (ex: !d20)\n🤖 !gpt {texto}: Pergunta pra IA\n🧠 !lembrar: lembra de um certo período de tempo\n🎮 !lol Mostra ranking (Solo/Flex), winrate e suas maestrias - Parâmetros:\nnickname #tagline Ex: Yasuo de Ionia #Yasuo.\n✏️ !notas: mostra as anotações que a IA fez sobre você\n🖼️ !s (ou !sticker): cria um sticker para a imagem/gif quotado ou na própria mensagem - Parâmetros:\npodi: qualidade absurdamente baixa\nbaixa: em baixa qualidade\nnormal(ou sem parâmetro nenhum): qualidade normal\n🛎️ !resumo: Resume a conversa - Parâmetros:\n1 - tamanho do resumo: curto, médio e completo\n2 - quantidade de mensagens a resumir (máximo 200)\n Ex: !resumo curto 100\n🧐 !tradutor: traduz a mensagem para qualquer (ou quase qualquer) língua - Parâmetros:\n1 - língua: ex: inglês.\n2 - mensagem. \nEx: !tradutor inglês bom dia.`;
+        return `📍 Os comandos até agora são: \n🌡️ !clima\n💵 !cotacao\n🎲 !d{número}\n🤖 !gpt {texto}\n🧠 !lembrar\n🎮 !lol\n✏️ !notas\n!pdf\n🖼️ !s (ou !sticker)\n🛎️ !resumo\n🧐 !tradutor`;
     }
 
     //Responde o comando !d

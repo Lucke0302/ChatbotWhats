@@ -673,7 +673,7 @@ async getUserMemory(name, sender) {
 
     //Responde o comando !menu
     async handleMenuCommand(){
-        return `📍 Os comandos até agora são: \n🌡️ !clima\n💵 !cotacao\n🎲 !d{número}\n🤖 !gpt {texto}\n🧠 !lembrar\n🎮 !lol\n✏️ !notas\n!pdf\n🖼️ !s (ou !sticker)\n🛎️ !resumo\n🧐 !tradutor`;
+        return `📍 Os comandos até agora são: \n🌡️ !clima\n💵 !cotacao\n🎲 !d{número}\n🤖 !gpt {texto}\n🧠 !lembrar\n🎮 !lol\n✏️ !notas\n📙 !pdf\n🖼️ !s (ou !sticker)\n🛎️ !resumo\n🧐 !tradutor`;
     }
 
     //Responde o comando !d

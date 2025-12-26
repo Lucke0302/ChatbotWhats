@@ -2,6 +2,8 @@ const usage = require('./usageControl');
 const weatherCommandHandler = require('./weatherCommand');
 const currencyCommandHandler = require('./currencyCommand');
 const helpCommandHandler = require('./helpCommand');
+const pdfCommandHandler = require('./pdfCommand');
+const fs = require('fs');
 const RIOT_API_KEY = process.env.RIOT_API_KEY;
 
 class ChatModel {
@@ -736,7 +738,7 @@ async getUserMemory(name, sender) {
     }
 
     // Faz o controle de todos os comandos
-    async handleCommand(msg, sender, from, isGroup, command, quotedMessage) {
+    async handleCommand(msg, sender, from, isGroup, command, quotedMessage, sock) {
         let name = msg.pushName || ''
         
         const user = await this.getUserData(name, sender)
@@ -776,8 +778,13 @@ async getUserMemory(name, sender) {
         if (command.startsWith('!cotacao')) return await currencyCommandHandler.convertCurrency(command);
         if (command.startsWith('!help') || command.startsWith('!ajuda')) {
             const args = command.split(/\s+/).slice(1).join(' ');
-            return helpCommandHandler.getHelp(args);
+            return helpCommandHandler.getHlp(args);
         }
+        if (commandName === '!pdf') {
+            await pdfCommandHandler.handlePdfCommand(sock, msg, from);
+            return;
+        }
+
     }
 
     async handleMessageWithoutCommand(msg, sender, from, isGroup, command, quotedMessage){

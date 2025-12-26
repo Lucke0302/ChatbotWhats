@@ -54,7 +54,7 @@ async function convertOfficeToPdf(buffer) {
 }
 
 async function handlePdfCommand(sock, msg, from) {
-    const isQuoted = !!msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+    const isQuoted = !! msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
     
     const targetMessage = isQuoted ? msg.message.extendedTextMessage.contextInfo.quotedMessage : msg.message;
     
@@ -62,8 +62,6 @@ async function handlePdfCommand(sock, msg, from) {
                              msg.message?.extendedTextMessage?.text || 
                              msg.message?.documentMessage?.caption || 
                              msg.message?.imageMessage?.caption || "";
-                             
-    const textToConvert = conversationText.replace(/^!pdf\s*/i, '').trim();
 
     const imageMessage = targetMessage?.imageMessage || targetMessage?.viewOnceMessage?.message?.imageMessage;
 
@@ -73,7 +71,6 @@ async function handlePdfCommand(sock, msg, from) {
     const tempFileName = `./temp_pdf_${Date.now()}.pdf`;
 
     try {
-        await sock.sendMessage(from, { react: { text: '⚙️', key: msg.key } });
 
         if (imageMessage) {
             const mediaKeys = { message: targetMessage }; 
@@ -103,12 +100,6 @@ async function handlePdfCommand(sock, msg, from) {
             
             fs.writeFileSync(tempFileName, pdfBuffer);
             await sendPdfAndCleanup(sock, from, tempFileName, `${fileName}.pdf`, msg);
-            return;
-        }
-
-        if (textToConvert.length > 0) {
-            await createPdfKitDocument(textToConvert, 'texto', tempFileName);
-            await sendPdfAndCleanup(sock, from, tempFileName, 'Texto.pdf', msg);
             return;
         }
 

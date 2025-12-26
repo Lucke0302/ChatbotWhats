@@ -142,6 +142,9 @@ const botCommands = {
     },
     '!help': {
         emoji: '🆘' 
+    },
+    '!pdf': {
+        emoji: '⚙️'
     }
 };
 

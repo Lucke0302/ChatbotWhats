@@ -13,7 +13,7 @@ class ChatModel {
         this.modelLimits = {
             "gemini-2.5-flash": 20,
             "gemini-2.5-flash-lite": 20,
-            "gemini-3.0-flash": 20,
+            "gemini-3-flash-preview": 20,
             "gemma-3-27b-it": 5000,
             "gemma-3-12b-it": 5000,
             "gemma-3-4b-it": 9999
@@ -340,24 +340,36 @@ async getUserMemory(name, sender) {
 
         if (forceModel) {
             candidates.push(forceModel);
-            if (forceModel === "gemini-2.5-flash") candidates.push("gemini-2.5-flash");
+            if (forceModel === "gemini-2.5-flash") candidates.push("gemini-3-flash-preview", "gemini-2.5-flash");
         } 
         else if (command.startsWith("!resumo")){            
-            candidates = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemma-3-27b-it","gemma-3-12b-it"]; 
+            candidates = ["gemini-2.5-flash", 
+                          "gemini-3-flash-preview", 
+                          "gemini-2.5-flash-lite", 
+                          "gemma-3-27b-it","gemma-3-12b-it"]; 
         }
         else if (command.startsWith("!gpt")){            
-            candidates = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemma-3-4b-it"]; 
+            candidates = ["gemini-2.5-flash", 
+                          "gemini-3-flash-preview", 
+                          "gemini-2.5-flash-lite",
+                          "gemma-3-27b-it",
+                          "gemma-3-12b-it", 
+                          "gemma-3-4b-it"]; 
         }
         else if (command.startsWith("!lembrar")) {
-            candidates = ["gemma-3-27b-it", "gemini-2.5-flash"]; 
+            candidates = ["gemma-3-27b-it", 
+                          "gemini-2.5-flash", 
+                          "gemini-3-flash-preview"]; 
         }
         else if (command.startsWith("!ouvir")){
-            candidates = ["gemini-2.5-flash-native-audio-dialog"]
+            candidates = ["gemini-2.5-flash-preview-tts"]
         }
         else {
             candidates = [
                 "gemini-2.5-flash",
+                "gemini-3-flash-preview",
                 "gemini-2.5-flash-lite",  
+                "gemma-3-12b-it",
                 "gemma-3-4b-it"
             ];
         }

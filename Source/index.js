@@ -218,13 +218,13 @@ async function connectToWhatsApp() {
                 dailyJob.cancel();
             }
 
-            dailyJob = schedule.scheduleJob('0 0 8 * * *', async function(){
+            dailyJob = schedule.scheduleJob('0 0 10 * * *', async function(){
                 const targetCity = "Santos"; 
                 
                 try {
                     const weatherComplement = await weatherCommandHandler.getWeather(targetCity);
                     const weatherForecastComplement = await weatherCommandHandler.getNextDayForecast(targetCity);
-                    await broadcastToAllGroups(sock, "Bom dia, grupo! 🦖 O Bostossauro acordou e escolheu a violência.\n" + weatherComplement + "\n" + weatherForecastComplement);
+                    await broadcastToAllGroups(sock, "Bom dia, grupo! 🦖 O Bostossauro acordou e escolheu a violência.\n" + weatherComplement + "\n\n" + weatherForecastComplement);
                 } catch (error) {
                     console.error("❌ Erro no envio do clima agendado:", error);
                 }

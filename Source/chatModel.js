@@ -792,7 +792,7 @@ async getUserMemory(name, sender) {
         if (command.startsWith('!cotacao')) return await currencyCommandHandler.convertCurrency(command);
         if (command.startsWith('!help') || command.startsWith('!ajuda')) {
             const args = command.split(/\s+/).slice(1).join(' ');
-            return helpCommandHandler.getHlp(args);
+            return helpCommandHandler.getHelp(args);
         }
         if (command === '!pdf') {
             await pdfCommandHandler.handlePdfCommand(sock, msg, from);

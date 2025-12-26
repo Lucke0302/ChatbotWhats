@@ -795,8 +795,8 @@ async getUserMemory(name, sender) {
         
         if(command.startsWith('!menu')) return await this.handleMenuCommand()
         
-        if (command.startsWith('!gpt') || command.startsWith('!resumo') || command.startsWith('!lembrar')) {
-            await this.checkAndIncrementAiQuota(user, sender, command)
+        if (command.startsWith('!gpt') || command.startsWith('!resumo') || command.startsWith('!lembrar') || command.startsWith("!burro")) {
+            if (!command.startsWith("!burro"))await this.checkAndIncrementAiQuota(user, sender, command)
             
             if(command.startsWith('!resumo') && isGroup || command.startsWith("!gpt") && isGroup || command.startsWith("!burro")) return await this.getAiResponse(from, sender, name, isGroup, command, await this.formulatePrompt(from, sender, name, isGroup, command, quotedMessage));
 

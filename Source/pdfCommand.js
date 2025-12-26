@@ -55,14 +55,20 @@ async function convertOfficeToPdf(buffer) {
 
 async function handlePdfCommand(sock, msg, from) {
     const isQuoted = !!msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+    
     const targetMessage = isQuoted ? msg.message.extendedTextMessage.contextInfo.quotedMessage : msg.message;
     
-    const conversationText = msg.message?.conversation || msg.message?.extendedTextMessage?.text || "";
-
+    const conversationText = msg.message?.conversation || 
+                             msg.message?.extendedTextMessage?.text || 
+                             msg.message?.documentMessage?.caption || 
+                             msg.message?.imageMessage?.caption || "";
+                             
     const textToConvert = conversationText.replace(/^!pdf\s*/i, '').trim();
 
-    const imageMessage = targetMessage?.imageMessage;
-    const documentMessage = targetMessage?.documentMessage;
+    const imageMessage = targetMessage?.imageMessage || targetMessage?.viewOnceMessage?.message?.imageMessage;
+
+    const documentMessage = targetMessage?.documentMessage || 
+                            targetMessage?.documentWithCaptionMessage?.message?.documentMessage;
 
     const tempFileName = `./temp_pdf_${Date.now()}.pdf`;
 
@@ -70,9 +76,10 @@ async function handlePdfCommand(sock, msg, from) {
         await sock.sendMessage(from, { react: { text: '⚙️', key: msg.key } });
 
         if (imageMessage) {
-            const mediaKeys = { message: targetMessage };
-            const buffer = await downloadMediaMessage(mediaKeys, 'buffer', { logger: pino({ level: 'silent' }) });
+            const mediaKeys = { message: targetMessage }; 
+            if(targetMessage.viewOnceMessage) mediaKeys.message = targetMessage.viewOnceMessage.message;
 
+            const buffer = await downloadMediaMessage(mediaKeys, 'buffer', { logger: pino({ level: 'silent' }) });
             await createPdfKitDocument(buffer, 'imagem', tempFileName);
             await sendPdfAndCleanup(sock, from, tempFileName, 'Imagem_Convertida.pdf', msg);
             return;
@@ -88,8 +95,9 @@ async function handlePdfCommand(sock, msg, from) {
                 return;
             }
 
-            const mediaKeys = { message: targetMessage };
-            const buffer = await downloadMediaMessage(mediaKeys, 'buffer', { logger: pino({ level: 'silent' }) });
+            const mediaToDownload = documentMessage ? { message: { documentMessage: documentMessage } } : { message: targetMessage };
+
+            const buffer = await downloadMediaMessage(mediaToDownload, 'buffer', { logger: pino({ level: 'silent' }) });
 
             const pdfBuffer = await convertOfficeToPdf(buffer);
             
@@ -104,7 +112,7 @@ async function handlePdfCommand(sock, msg, from) {
             return;
         }
 
-        await sock.sendMessage(from, { text: '📄 *Como usar o !pdf:*\n1. Mande imagem com legenda !pdf\n2. Responda imagem/doc com !pdf\n3. Escreva !pdf [seu texto]' }, { quoted: msg });
+        await sock.sendMessage(from, { text: '📄 *Como usar o !pdf:*\n1. Mande imagem/doc com legenda !pdf\n2. Responda imagem/doc com !pdf\n3. Escreva !pdf [seu texto]' }, { quoted: msg });
 
     } catch (error) {
         console.error("Erro no Handler PDF:", error);

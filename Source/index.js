@@ -270,8 +270,11 @@ async function connectToWhatsApp() {
         
         //Pega o texto da mensagem
         const texto = msg.message.conversation || 
-                      msg.message.extendedTextMessage?.text || 
-                      msg.message.imageMessage?.caption || '';
+              msg.message.extendedTextMessage?.text || 
+              msg.message.imageMessage?.caption ||
+              msg.message.videoMessage?.caption ||
+              msg.message.documentMessage?.caption ||
+              '';
 
         //Joga o comando todo para letras minúsculas para evitar problemas com case-sensitive
         const command = texto.trim().toLowerCase();

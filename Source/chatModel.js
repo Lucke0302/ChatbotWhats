@@ -674,20 +674,20 @@ async getUserMemory(name, sender) {
     //Responde o comando !menu
     async handleMenuCommand(){
         return `📍 Os comandos até agora são: \n\n
-                🆘 !ajuda (ou !help)\n
-                🌡️ !clima\n
-                💵 !cotacao\n
-                🎲 !d{número}\n
-                🤖 !gpt {texto}\n
-                🧠 !lembrar\n
-                🎮 !lol\n
-                📄 !menu\n
-                ✏️ !notas\n
-                📙 !pdf\n
-                🖼️ !s (ou !sticker)\n
-                🛎️ !resumo\n
-                🧐 !tradutor
-                 \n\nPara mais infos, use o comando !ajuda (ou !help)`;
+        🆘 !ajuda (ou !help)\n
+        🌡️ !clima\n
+        💵 !cotacao\n
+        🎲 !d{número}\n
+        🤖 !gpt {texto}\n
+        🧠 !lembrar\n
+        🎮 !lol\n
+        📄 !menu\n
+        ✏️ !notas\n
+        📙 !pdf\n
+        🖼️ !s (ou !sticker)\n
+        🛎️ !resumo\n
+        🧐 !tradutor
+        \n\nPara mais infos, use o comando !ajuda (ou !help)`;
     }
 
     //Responde o comando !d

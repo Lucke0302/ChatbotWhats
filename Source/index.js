@@ -527,7 +527,7 @@ async function connectToWhatsApp() {
                 await sendSticker(sock, db, from, msg, [sender], texto)
 
                 //Pega a resposta do handleCommand do chatModel.js
-                const response = await chatbot.handleCommand(msg, sender, from, isGroup, command, quotedMessageText);
+                const response = await chatbot.handleCommand(msg, sender, from, isGroup, command, quotedMessageText, sock);
 
                 const intro = commandIntros[commandName] || commandIntros['undefined'];
                 const finalResponse = `${intro}${response}`;

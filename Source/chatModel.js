@@ -780,7 +780,7 @@ async getUserMemory(name, sender) {
             const args = command.split(/\s+/).slice(1).join(' ');
             return helpCommandHandler.getHlp(args);
         }
-        if (commandName === '!pdf') {
+        if (command === '!pdf') {
             await pdfCommandHandler.handlePdfCommand(sock, msg, from);
             return;
         }

@@ -115,7 +115,7 @@ async function handlePdfCommand(sock, msg, from) {
             return;
         }
 
-        await sock.sendMessage(from, { text: '📄 *Como usar o !pdf:*\n1. Mande imagem/doc com legenda !pdf\n2. Responda imagem/doc com !pdf\n3. Escreva !pdf [seu texto]' }, { quoted: msg });
+        await sock.sendMessage(from, { text: '📄 *Como usar o !pdf:*\n1. Mande imagem/doc com legenda !pdf\n2. Responda imagem/doc com !pdf' }, { quoted: msg });
 
     } catch (error) {
         console.error("Erro no Handler PDF:", error);

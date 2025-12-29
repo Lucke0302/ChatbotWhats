@@ -614,7 +614,7 @@ class ChatModel {
                 return "🦗 *Cri... Cri...* Ninguém falou nada hoje ainda, seus cansados.";
             }
 
-            let message = `🗣️ *TOP 3 FALADORES DE HOJE*\n\n`;
+            let message = `🗣️ *TOP FALADORES DE HOJE*\n\n`;
             const medals = ["🥇", "🥈", "🥉"];
 
             leaders.forEach((user, index) => {

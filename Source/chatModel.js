@@ -807,7 +807,7 @@ class ChatModel {
         }
 
         if (command.startsWith('!falador')) {
-            return await this.handleFaladorCommand()
+            return await this.handleFaladorCommand(from)
         }
 
     }

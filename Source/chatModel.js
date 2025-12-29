@@ -941,7 +941,9 @@ class ChatModel {
         }
 
         if (command.startsWith('!toxico')) {
-            const groupId = command.split(" ")[1]
+            let groupId
+            if(isGroup) groupId = from
+            else groupId = command.split(" ")[1]
             return await this.getToxicPodium(groupId);
         }
 

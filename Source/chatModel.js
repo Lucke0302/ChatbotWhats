@@ -37,7 +37,7 @@ class ChatModel {
         this.DICIONARIO_OFENSAS = [
         /\b(puta|puto|corno|corna|trouxa|trouxão|trouxona|inutil|inútil|idiota|imbecil|burro|burra|burrão|burrona|jumento|jumenta|anta|asno|analfabeto|analfabeta|arrombado|arrombada|otario|otário|otaria|otária|babaca|escroto|escrota|pilantra|vagabundo|vagabunda|cadela|piranha|vadia|vacilão|vacilona|boçal|estupido|estúpido|estupida|estúpida|retardado|retardada|mongol|mongoloide)\b/gi,
         /\b(merda|merdinha|bosta|bostinha|caralho|caralha|carai|krai|krl|krlh|crl|crlh|porra|poha|porrra|cacete|kct|buceta|bct|xota|xana|cu|cus|cuzinho|cuzão|pica|piroca|rola|grelo|sifude|sifuder|fuder|fude|foder|fode|fodida|fodido|fudida|fudido|boquete|siririca|punheta|gozar|gozo)\b/gi,
-        /\b(vsf|tnc|vtnc|vtc|fdp|pqp|pnc|vtmnc|tmncvai se foder|vai a merda|resto de aborto|imundo|imunda)\b/gi];
+        /\b(vsf|tnc|vtnc|vtc|fdp|pqp|pnc|vtmnc|tmnc|se foda|fodase|foda se|foda-se|vai se foder|vai a merda|resto de aborto|imundo|imunda)\b/gi];
     }
 
     async getUserMemory(name, sender) {

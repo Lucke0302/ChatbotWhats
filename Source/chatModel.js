@@ -33,6 +33,36 @@ class ChatModel {
         this.toxicHandler = new ToxicHandler(db);
     }
 
+    //
+
+    async countMessage(name, sender, from) {
+        try {
+            await this.db.run(
+                `INSERT OR IGNORE INTO usuarios (id_usuario, nome, banido_ate, uso_ia_diario, data_ultimo_uso, anotacoes) 
+                 VALUES (?, ?, 0, 0, '', '')`, 
+                [sender, name]
+            );
+
+            const today = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+
+            await this.db.run(
+                `INSERT INTO ranking_ofensas (id_conversa, id_usuario, quantidade, total_mensagens, data_ultima_mensagem) 
+                 VALUES (?, ?, 0, 1, ?)
+                 ON CONFLICT(id_conversa, id_usuario) 
+                 DO UPDATE SET 
+                    total_mensagens = CASE 
+                        WHEN data_ultima_mensagem != excluded.data_ultima_mensagem THEN 1 
+                        ELSE total_mensagens + 1 
+                    END,
+                    data_ultima_mensagem = excluded.data_ultima_mensagem`,
+                [from, sender, today]
+            );
+
+        } catch (error) {
+            console.error("Erro contando mensagem:", error.message);
+        }
+    }
+
     async getUserMemory(name, sender) {
         const user = await this.getUserData(name, sender);
         return user ? (user.anotacoes || "") : "";
@@ -567,6 +597,43 @@ class ChatModel {
 
         return `🚫 Usuário silenciado por ${minutes} minutos. Fica pianinho aí.`;
     }
+    
+    async handleFaladorCommand(from){
+        try {
+            const leaders = await this.db.all(
+                `SELECT u.nome, r.total_mensagens 
+                 FROM ranking_ofensas r
+                 JOIN usuarios u ON r.id_usuario = u.id_usuario
+                 WHERE r.id_conversa = ? AND r.total_mensagens > 0
+                 ORDER BY r.total_mensagens DESC 
+                 LIMIT 3`,
+                [from]
+            );
+
+            if (!leaders || leaders.length === 0) {
+                return "🦗 *Cri... Cri...* Ninguém falou nada hoje ainda, seus cansados.";
+            }
+
+            let message = `🗣️ *TOP 3 FALADORES DE HOJE* 🗣️\n\n`;
+            const medals = ["🥇", "🥈", "🥉"];
+
+            leaders.forEach((user, index) => {
+                let name = user.nome || "Anônimo";
+                if (name === 'Desconhecido') nome = "Sem Nome";
+                
+                const medal = medals[index] || "🏅";
+                message += `${medal} *${name}*: ${user.total_mensagens} mensagens\n`;
+            });
+
+            message += `\n_Contagem diária._`;
+
+            return message;
+
+        } catch (error) {
+            console.error("Erro no ranking de faladores:", error);
+            return "❌ Ixi, quebrei.";
+        }
+    }
 
     //Responde o comando !lembrar
     async handleLembrarCommand(from, sender, name, isGroup, command, complement){
@@ -737,6 +804,10 @@ class ChatModel {
             if(isGroup && from != "120363422821336011@g.us") groupId = from
             else groupId = command.split(" ")[1]
             return await this.getToxicPodium(groupId);
+        }
+
+        if (command.startsWith('!falador')) {
+            return await this.handleFaladorCommand()
         }
 
     }

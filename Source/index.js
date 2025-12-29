@@ -94,6 +94,25 @@ async function initDatabase() {
             console.error("⚠️ Erro ao criar coluna Gemma:", error.message);
         }
     }
+
+    try {
+        await db.exec(`ALTER TABLE ranking_ofensas ADD COLUMN total_mensagens INTEGER DEFAULT 0;`);
+        console.log("✅ Coluna 'total_mensagens' adicionada com sucesso!");
+    } catch (error) {
+        if (!error.message.includes("duplicate column name")) {
+            console.error("⚠️ Erro ao criar coluna Gemma:", error.message);
+        }
+    }
+
+    try {
+        await db.exec(`ALTER TABLE ranking_ofensas ADD COLUMN data_ultima_mensagem TEXT DEFAULT '';`);
+        console.log("✅ Coluna 'data_ultima_mensagem' adicionada com sucesso!");
+    } catch (error) {
+        if (!error.message.includes("duplicate column name")) {
+            console.error("⚠️ Erro ao criar coluna data_ultima_mensagem:", error.message);
+        }
+    }
+    
     
     await db.exec(`
         CREATE TABLE IF NOT EXISTS ranking_ofensas (
@@ -337,6 +356,13 @@ async function connectToWhatsApp() {
         //Joga o comando todo para letras minúsculas para evitar problemas com case-sensitive
         const command = texto.trim().toLowerCase();
 
+        
+        const name = msg.pushName || '';
+
+        const sender = getSenderJid(msg);
+
+        chatbot.countMessage(name, sender, from)
+
         //Verifica se por algum motivo a mensagem não chegou vazia
         if (texto) {
             const id_conversa = from; 
@@ -345,7 +371,6 @@ async function connectToWhatsApp() {
             const id_mensagem_externo = msg.key.id;
             const timestamp = msg.messageTimestamp; 
             if (!msg.key.fromMe) {
-                let name = msg.pushName || '';
                 chatbot.trackOffenses(name, id_remetente, from, texto);
             }
 

@@ -147,7 +147,7 @@ class ChatModel {
     async trackOffenses(name, sender, from, text) {
         let offenseCount = 0;
         
-        DICIONARIO_OFENSAS.forEach(regex => {
+        this.DICIONARIO_OFENSAS.forEach(regex => {
             const matches = text.match(regex);
             if (matches) offenseCount += matches.length;
         });

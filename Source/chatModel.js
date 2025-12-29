@@ -4,7 +4,6 @@ const currencyCommandHandler = require('./currencyCommand');
 const helpCommandHandler = require('./helpCommand');
 const pdfCommandHandler = require('./pdfCommand');
 const fs = require('fs');
-const usage = require('./usageControl');
 const ToxicHandler = require('./toxicHandler');
 const RIOT_API_KEY = process.env.RIOT_API_KEY;
 

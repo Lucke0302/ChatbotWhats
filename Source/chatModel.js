@@ -942,7 +942,7 @@ class ChatModel {
 
         if (command.startsWith('!toxico')) {
             let groupId
-            if(isGroup && from != "120363422821336011@g.us" && sender != "5513991008854@s.whatsapp.net") groupId = from
+            if(isGroup && from != "120363422821336011@g.us") groupId = from
             else groupId = command.split(" ")[1]
             return await this.getToxicPodium(groupId);
         }

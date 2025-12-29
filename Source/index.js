@@ -85,6 +85,7 @@ async function initDatabase() {
             console.error("⚠️ Erro na migração:", error.message);
         }
     }
+
     try {
         await db.exec(`ALTER TABLE usuarios ADD COLUMN uso_gemma_diario INTEGER DEFAULT 0;`);
         console.log("✅ Coluna 'uso_gemma_diario' adicionada com sucesso!");
@@ -93,6 +94,15 @@ async function initDatabase() {
             console.error("⚠️ Erro ao criar coluna Gemma:", error.message);
         }
     }
+    
+    await db.exec(`
+        CREATE TABLE IF NOT EXISTS ranking_ofensas (
+            id_conversa TEXT NOT NULL,
+            id_usuario TEXT NOT NULL,
+            quantidade INTEGER DEFAULT 0,
+            PRIMARY KEY (id_conversa, id_usuario)
+        );
+    `);
 
     console.log('✅ Banco de dados SQLite inicializado e tabelas `mensagens` e `usuarios` verificadas.');
 }
@@ -136,6 +146,21 @@ const botCommands = {
     },
     '!cotacao': {
         emoji: '💵'
+    },
+    '!ajuda': { 
+        emoji: '🆘' 
+    },
+    '!help': {
+        emoji: '🆘' 
+    },
+    '!pdf': {
+        emoji: '⚙️'
+    },
+    '!burro': {
+        emoji: '🤓'
+    },
+    '!toxico': {
+        emoji: '☢️'
     }
 };
 
@@ -212,15 +237,54 @@ async function connectToWhatsApp() {
                 dailyJob.cancel();
             }
 
-            dailyJob = schedule.scheduleJob('0 0 8 * * *', async function(){
+            dailyJob = schedule.scheduleJob('0 0 10 * * *', async function(){
                 const targetCity = "Santos"; 
                 
                 try {
                     const weatherComplement = await weatherCommandHandler.getWeather(targetCity);
                     const weatherForecastComplement = await weatherCommandHandler.getNextDayForecast(targetCity);
-                    await broadcastToAllGroups(sock, "Bom dia, grupo! 🦖 O Bostossauro acordou e escolheu a violência.\n" + weatherComplement + "\n" + weatherForecastComplement);
+                    await broadcastToAllGroups(sock, "Bom dia, grupo! 🦖 O Bostossauro acordou e escolheu a violência.\nSe quiser usar alguma das minhas funções, dá um !ajuda (ou !help).\a" + weatherComplement + "\n\n" + weatherForecastComplement);
                 } catch (error) {
                     console.error("❌ Erro no envio do clima agendado:", error);
+                }
+            });
+            dailyJob = schedule.scheduleJob('0 0 10 * * *', async function(){
+                const targetCity = "Santos"; 
+                
+                try {
+                    console.log("⏰ Iniciando rotina de Bom Dia...");
+
+                    const weatherComplement = await weatherCommandHandler.getWeather(targetCity);
+                    const weatherForecastComplement = await weatherCommandHandler.getNextDayForecast(targetCity);
+                    
+                    let baseMessage = "Bom dia, grupo! 🦖 O Bostossauro acordou e escolheu a violência.\n" + 
+                                      "Se quiser usar alguma das minhas funções, dá um !ajuda (ou !help).\n\n" + 
+                                      weatherComplement + "\n\n" + 
+                                      weatherForecastComplement;
+
+                    const groups = await sock.groupFetchAllParticipating();
+                    const groupIds = Object.keys(groups);
+
+                    console.log(`📊 Enviando bom dia para ${groupIds.length} grupos.`);
+                    let toxicReport = ""
+
+                    for (const groupId of groupIds) {
+                        if(groupId == "120363422139578370@g.us"){
+                            baseMessage += "\n\n------------------------------\n";                            
+                            toxicReport = await chatbot.getAndResetToxicPodium(groupId);
+                        }
+                        
+                        const finalMessage = baseMessage + toxicReport;
+
+                        await sock.sendMessage(groupId, { text: finalMessage });
+                        
+                        await new Promise(resolve => setTimeout(resolve, 2000)); 
+                    }
+
+                    console.log("✅ Transmissão de Bom Dia finalizada!");
+
+                } catch (error) {
+                    console.error("❌ Erro no envio do clima/toxicidade agendado:", error);
                 }
             });
         }
@@ -239,7 +303,7 @@ async function connectToWhatsApp() {
         if (m.type !== 'notify') {
             return;
         }
-        
+
         const msg = m.messages[0];
         if (!msg.message || msg.key.fromMe) return;
 
@@ -264,8 +328,11 @@ async function connectToWhatsApp() {
         
         //Pega o texto da mensagem
         const texto = msg.message.conversation || 
-                      msg.message.extendedTextMessage?.text || 
-                      msg.message.imageMessage?.caption || '';
+              msg.message.extendedTextMessage?.text || 
+              msg.message.imageMessage?.caption ||
+              msg.message.videoMessage?.caption ||
+              msg.message.documentMessage?.caption ||
+              '';
 
         //Joga o comando todo para letras minúsculas para evitar problemas com case-sensitive
         const command = texto.trim().toLowerCase();
@@ -277,6 +344,11 @@ async function connectToWhatsApp() {
             const nome_remetente = msg.pushName || '';
             const id_mensagem_externo = msg.key.id;
             const timestamp = msg.messageTimestamp; 
+            if (!msg.key.fromMe) {
+                let name = msg.pushName || '';
+                chatbot.trackOffenses(name, id_remetente, from, texto);
+            }
+
 
             if(!command.startsWith("!status") && !command.startsWith("!s") && !command.startsWith("sticker")){
                 try {
@@ -495,6 +567,7 @@ async function connectToWhatsApp() {
                 '!lembrar': `🧠\n\n`,
                 '!tradutor': `🧐 *Mensagem traduzida*:\n\n`,
                 '!converter': `💸 *Conversão Direta*\n`,
+                '!burro': `🤓 *Essa eu sei*\n\n`,
                 'undefined': ''
             };
 
@@ -521,7 +594,7 @@ async function connectToWhatsApp() {
                 await sendSticker(sock, db, from, msg, [sender], texto)
 
                 //Pega a resposta do handleCommand do chatModel.js
-                const response = await chatbot.handleCommand(msg, sender, from, isGroup, command, quotedMessageText);
+                const response = await chatbot.handleCommand(msg, sender, from, isGroup, command, quotedMessageText, sock);
 
                 const intro = commandIntros[commandName] || commandIntros['undefined'];
                 const finalResponse = `${intro}${response}`;

@@ -1,6 +1,9 @@
 const usage = require('./usageControl');
 const weatherCommandHandler = require('./weatherCommand');
 const currencyCommandHandler = require('./currencyCommand');
+const helpCommandHandler = require('./helpCommand');
+const pdfCommandHandler = require('./pdfCommand');
+const fs = require('fs');
 const RIOT_API_KEY = process.env.RIOT_API_KEY;
 
 class ChatModel {
@@ -12,10 +15,12 @@ class ChatModel {
         this.modelLimits = {
             "gemini-2.5-flash": 20,
             "gemini-2.5-flash-lite": 20,
-            "gemini-3.0-flash": 20,
+            "gemini-3-flash-preview": 20,
             "gemma-3-27b-it": 5000,
             "gemma-3-12b-it": 5000,
-            "gemma-3-4b-it": 9999
+            "gemma-3-4b-it": 9999,            
+            "gemma-3n-e2b-it": 9999,
+            "gemma-3-1b-it": 9999
         };
         this.updateOnlineStatus();
         this.lolChampionsMap = null;
@@ -29,9 +34,13 @@ class ChatModel {
         this.SPAM_DELAY_SECONDS = 10;
         this.DAILY_AI_LIMIT = 10;
         this.DAILY_LIMIT_GEMMA = 100;
+        this.DICIONARIO_OFENSAS = [
+        /\b(puta|puto|corno|corna|trouxa|trouxão|trouxona|inutil|inútil|idiota|imbecil|burro|burra|burrão|burrona|jumento|jumenta|anta|asno|analfabeto|analfabeta|arrombado|arrombada|otario|otário|otaria|otária|babaca|escroto|escrota|pilantra|vagabundo|vagabunda|cadela|piranha|vadia|vacilão|vacilona|boçal|estupido|estúpido|estupida|estúpida|retardado|retardada|mongol|mongoloide)\b/gi,
+        /\b(merda|merdinha|bosta|bostinha|caralho|caralha|carai|krai|krl|krlh|crl|crlh|porra|poha|porrra|cacete|kct|buceta|bct|xota|xana|cu|cus|cuzinho|cuzão|pica|piroca|rola|grelo|sifude|sifuder|fuder|fude|foder|fode|fodida|fodido|fudida|fudido|boquete|siririca|punheta|gozar|gozo)\b/gi,
+        /\b(vsf|tnc|vtnc|vtc|fdp|pqp|pnc|vtmnc|tmnc|se foda|fodase|foda se|se fude|se fuder|foda-se|resto de aborto|imundo|imunda)\b/gi];
     }
 
-async getUserMemory(name, sender) {
+    async getUserMemory(name, sender) {
         const user = await this.getUserData(name, sender);
         return user ? (user.anotacoes || "") : "";
     }
@@ -133,6 +142,107 @@ async getUserMemory(name, sender) {
             `UPDATE usuarios SET uso_gemma_diario = uso_gemma_diario + 1 WHERE id_usuario = ?`,
             [sender]
         );
+    }
+
+    async trackOffenses(name, sender, from, text) {
+        let offenseCount = 0;
+        
+        this.DICIONARIO_OFENSAS.forEach(regex => {
+            const matches = text.match(regex);
+            if (matches) offenseCount += matches.length;
+        });
+
+        if (offenseCount > 0) {
+            try {
+                await this.db.run(
+                    `INSERT OR IGNORE INTO usuarios (id_usuario, nome, banido_ate, uso_ia_diario, data_ultimo_uso, anotacoes) 
+                     VALUES (?, ?, 0, 0, '', '')`, 
+                    [sender, name]
+                );
+
+                await this.db.run(
+                    `INSERT INTO ranking_ofensas (id_conversa, id_usuario, quantidade) 
+                     VALUES (?, ?, ?)
+                     ON CONFLICT(id_conversa, id_usuario) 
+                     DO UPDATE SET quantidade = quantidade + ?`,
+                    [from, sender, offenseCount, offenseCount]
+                );
+
+                console.log(`🤬 +${offenseCount} ofensas para ${sender} no grupo ${from}`);
+            } catch (error) {
+                console.error("Erro ao computar ofensas:", error);
+            }
+        }
+    }
+
+    async getAndResetToxicPodium(groupId) {
+        try {
+            const leaders = await this.db.all(
+                `SELECT u.nome, r.quantidade 
+                 FROM ranking_ofensas r
+                 JOIN usuarios u ON r.id_usuario = u.id_usuario
+                 WHERE r.id_conversa = ? AND r.quantidade > 0
+                 ORDER BY r.quantidade DESC 
+                 LIMIT 3`,
+                [groupId]
+            );
+
+            await this.db.run(`DELETE FROM ranking_ofensas WHERE id_conversa = ?`, [groupId]);
+
+            if (!leaders || leaders.length === 0) {
+                return "🕊️ *Relatório de Toxicidade:* Ontem a paz reinou neste grupo.";
+            }
+
+            let message = `☢️ *TROFÉU BOCA SUJA)* ☢️\n\n`;
+            const medals = ["🥇", "🥈", "🥉"];
+
+            leaders.forEach((user, index) => {
+                let name = user.nome || "Anônimo";
+                if(name === 'Desconhecido') name = "Sem Nome";
+                const medal = medals[index] || "🏅";
+                message += `${medal} *${name}*: ${user.quantidade} ofensas\n`;
+            });
+
+            return message;
+
+        } catch (error) {
+            console.error("Erro no ranking:", error);
+            return "❌ Erro ao calcular toxicidade.";
+        }
+    }
+
+    async getToxicPodium(groupId) {
+        try {
+            const leaders = await this.db.all(
+                `SELECT u.nome, r.quantidade 
+                 FROM ranking_ofensas r
+                 JOIN usuarios u ON r.id_usuario = u.id_usuario
+                 WHERE r.id_conversa = ? AND r.quantidade > 0
+                 ORDER BY r.quantidade DESC 
+                 LIMIT 3`,
+                [groupId]
+            );
+
+            if (!leaders || leaders.length === 0) {
+                return "🕊️ *Relatório de Toxicidade:* Ontem a paz reinou neste grupo.";
+            }
+
+            let message = `☢️ *TROFÉU BOCA SUJA* ☢️\n\n`;
+            const medals = ["🥇", "🥈", "🥉"];
+
+            leaders.forEach((user, index) => {
+                let name = user.nome || "Anônimo";
+                if(name === 'Desconhecido') name = "Sem Nome";
+                const medal = medals[index] || "🏅";
+                message += `${medal} *${name}*: ${user.quantidade} ofensas\n`;
+            });
+
+            return message;
+
+        } catch (error) {
+            console.error("Erro no ranking:", error);
+            return "❌ Erro ao calcular toxicidade.";
+        }
     }
 
     //Atualiza os dados do LOL
@@ -339,24 +449,42 @@ async getUserMemory(name, sender) {
 
         if (forceModel) {
             candidates.push(forceModel);
-            if (forceModel === "gemini-2.5-flash") candidates.push("gemini-2.5-flash");
+            if (forceModel === "gemini-2.5-flash") candidates.push("gemini-3-flash-preview", "gemini-2.5-flash");
         } 
         else if (command.startsWith("!resumo")){            
-            candidates = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemma-3-27b-it","gemma-3-12b-it"]; 
+            candidates = ["gemini-2.5-flash", 
+                          "gemini-3-flash-preview", 
+                          "gemini-2.5-flash-lite", 
+                          "gemma-3-27b-it","gemma-3-12b-it"]; 
         }
         else if (command.startsWith("!gpt")){            
-            candidates = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemma-3-4b-it"]; 
+            candidates = ["gemini-2.5-flash", 
+                          "gemini-3-flash-preview", 
+                          "gemini-2.5-flash-lite",
+                          "gemma-3-27b-it",
+                          "gemma-3-12b-it", 
+                          "gemma-3-4b-it"]; 
         }
         else if (command.startsWith("!lembrar")) {
-            candidates = ["gemma-3-27b-it", "gemini-2.5-flash"]; 
+            candidates = ["gemma-3-27b-it", 
+                          "gemini-2.5-flash", 
+                          "gemini-3-flash-preview"]; 
         }
         else if (command.startsWith("!ouvir")){
-            candidates = ["gemini-2.5-flash-native-audio-dialog"]
+            candidates = ["gemini-2.5-flash-preview-tts"]
+        }
+        else if (command.startsWith("!burro")){
+            candidates = [
+                "gemma-3-1b-it",
+                "gemma-3n-e2b-it"
+            ]
         }
         else {
             candidates = [
                 "gemini-2.5-flash",
+                "gemini-3-flash-preview",
                 "gemini-2.5-flash-lite",  
+                "gemma-3-12b-it",
                 "gemma-3-4b-it"
             ];
         }
@@ -380,6 +508,34 @@ async getUserMemory(name, sender) {
     async formulatePrompt(from, sender, name, isGroup, command, complement = "Vazio") {
         let prompt = "";
         let limit = 200;
+
+        if(command.startsWith("!burro")){
+            prompt = `Você agora é uma IA extremamente burra, confusa e que fala com muita confiança sobre coisas erradas.
+             
+             IMPORTANTE: Comece a sua resposta DIRETAMENTE, sem cumprimentos e sem repetir a pergunta.
+
+             SUA MISSÃO: Responder a pergunta do usuário da forma mais errada, confusa e mal escrita possível.
+             
+             DIRETRIZES DE PERSONALIDADE:
+             - NÃO use pontuação correta. NÃO use letras maiúsculas no começo de frase (só se for pra gritar).
+             - Escreva palavras errado de propósito:.
+             - Se a pergunta for difícil, invente uma teoria da conspiração absurda.
+             - Misture assuntos nada a ver (Ex: falar de futebol no meio de história).
+
+             Suas características:
+             1. Você tem o QI de uma batata.
+             2. Você mistura fatos históricos.
+             3. Você erra contas matemáticas simples.
+             4. Se te perguntarem algo complexo, dê uma resposta absurda baseada em conspirações.
+             5. NUNCA diga que é uma IA. Aja como se fosse um "especialista" formado na Universidade da Vida.
+             6. Você escreve pouco, no máximo 3 parágrafos de até 40 palavras.
+             7. Você nunca responde à pergunta corretamente, nem que seja pra desmentir depois.
+             8. Suas respostas sempre são engraçadas.
+             
+             O usuário perguntou: "${command.replace('!burro', '').trim()}"`;
+             
+             return prompt;
+        }
 
         const currentMemory = await this.getUserMemory(name, sender);
 
@@ -459,6 +615,7 @@ async getUserMemory(name, sender) {
             No final da sua resposta, adicione estritamente o separador "${separador}" seguido de um resumo atualizado sobre quem é o usuário, gostos, profissão ou detalhes mencionados agora.
             Se nada mudou, repita a memória antiga. Não adicione anotações de informações subjetivas, apenas dados que você
             tem certeza. O usuário não verá a anotação.
+            Não anote informações que possam ferir a LGPD.
             Exemplo de saída: "Beleza, te ajudo com isso! ${separador} Usuário é técnico de TI, gosta de LoL e usa gírias."`;
 
         
@@ -658,7 +815,21 @@ async getUserMemory(name, sender) {
 
     //Responde o comando !menu
     async handleMenuCommand(){
-        return `📍 Os comandos até agora são: \n🌡️ !clima: Retorna o clima em determinada cidade - Parâmetros:\nCidade: o nome da cidade\nMomento: hoje (ou vazio) ou amanhã. Ex: !clima Santos amanhã\n🎲 !d{número}: Número aleatório (ex: !d20)\n🤖 !gpt {texto}: Pergunta pra IA\n🧠 !lembrar: lembra de um certo período de tempo\n🎮 !lol Mostra ranking (Solo/Flex), winrate e suas maestrias - Parâmetros:\nnickname #tagline Ex: Yasuo de Ionia #Yasuo.\n✏️ !notas: mostra as anotações que a IA fez sobre você\n🖼️ !s (ou !sticker): cria um sticker para a imagem/gif quotado ou na própria mensagem - Parâmetros:\npodi: qualidade absurdamente baixa\nbaixa: em baixa qualidade\nnormal(ou sem parâmetro nenhum): qualidade normal\n🛎️ !resumo: Resume a conversa - Parâmetros:\n1 - tamanho do resumo: curto, médio e completo\n2 - quantidade de mensagens a resumir (máximo 200)\n Ex: !resumo curto 100\n🧐 !tradutor: traduz a mensagem para qualquer (ou quase qualquer) língua - Parâmetros:\n1 - língua: ex: inglês.\n2 - mensagem. \nEx: !tradutor inglês bom dia.`;
+        return `📍 Os comandos até agora são: \n\n
+        🆘 !ajuda (ou !help)\n
+        🌡️ !clima\n
+        💵 !cotacao\n
+        🎲 !d{número}\n
+        🤖 !gpt {texto}\n
+        🧠 !lembrar\n
+        🎮 !lol\n
+        📄 !menu\n
+        ✏️ !notas\n
+        📙 !pdf\n
+        🖼️ !s (ou !sticker)\n
+        🛎️ !resumo\n
+        🧐 !tradutor
+        \n\nPara mais infos, use o comando !ajuda (ou !help)`;
     }
 
     //Responde o comando !d
@@ -723,7 +894,7 @@ async getUserMemory(name, sender) {
     }
 
     // Faz o controle de todos os comandos
-    async handleCommand(msg, sender, from, isGroup, command, quotedMessage) {
+    async handleCommand(msg, sender, from, isGroup, command, quotedMessage, sock) {
         let name = msg.pushName || ''
         
         const user = await this.getUserData(name, sender)
@@ -741,11 +912,11 @@ async getUserMemory(name, sender) {
         
         if(command.startsWith('!menu')) return await this.handleMenuCommand()
         
-        if (command.startsWith('!gpt') || command.startsWith('!resumo') || command.startsWith('!lembrar')) {
-            await this.checkAndIncrementAiQuota(user, sender, command)
+        if (command.startsWith('!gpt') || command.startsWith('!resumo') || command.startsWith('!lembrar') || command.startsWith("!burro")) {
+            if (!command.startsWith("!burro"))await this.checkAndIncrementAiQuota(user, sender, command)
             
-            if(command.startsWith('!resumo') && isGroup || command.startsWith("!gpt") && isGroup) return await this.getAiResponse(from, sender, name, isGroup, command, await this.formulatePrompt(from, sender, name, isGroup, command, quotedMessage));
-            
+            if(command.startsWith('!resumo') && isGroup || command.startsWith("!gpt") && isGroup || command.startsWith("!burro")) return await this.getAiResponse(from, sender, name, isGroup, command, await this.formulatePrompt(from, sender, name, isGroup, command, quotedMessage));
+
             if(command.startsWith("!lembrar")) return await this.handleLembrarCommand(from, sender, name, isGroup, command)
         }
 
@@ -761,6 +932,22 @@ async getUserMemory(name, sender) {
         if (command.startsWith('!clima')) return await this.handleClimaCommand(command, sender)
 
         if (command.startsWith('!cotacao')) return await currencyCommandHandler.convertCurrency(command);
+        if (command.startsWith('!help') || command.startsWith('!ajuda')) {
+            const args = command.split(/\s+/).slice(1).join(' ');
+            return helpCommandHandler.getHelp(args);
+        }
+        if (command === '!pdf') {
+            await pdfCommandHandler.handlePdfCommand(sock, msg, from);
+            return;
+        }
+
+        if (command.startsWith('!toxico')) {
+            let groupId
+            if(isGroup && from != "120363422821336011@g.us") groupId = from
+            else groupId = command.split(" ")[1]
+            return await this.getToxicPodium(groupId);
+        }
+
     }
 
     async handleMessageWithoutCommand(msg, sender, from, isGroup, command, quotedMessage){

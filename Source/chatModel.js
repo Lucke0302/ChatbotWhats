@@ -615,6 +615,7 @@ class ChatModel {
             No final da sua resposta, adicione estritamente o separador "${separador}" seguido de um resumo atualizado sobre quem é o usuário, gostos, profissão ou detalhes mencionados agora.
             Se nada mudou, repita a memória antiga. Não adicione anotações de informações subjetivas, apenas dados que você
             tem certeza. O usuário não verá a anotação.
+            Não anote informações que possam ferir a LGPD.
             Exemplo de saída: "Beleza, te ajudo com isso! ${separador} Usuário é técnico de TI, gosta de LoL e usa gírias."`;
 
         

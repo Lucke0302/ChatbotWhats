@@ -159,6 +159,9 @@ const botCommands = {
     '!burro': {
         emoji: '🤓'
     },
+    '!toxico': {
+        emoji: '☢️'
+    }
 };
 
 //Inicia a conexão com mo Whatsapp para fazer todas as operações

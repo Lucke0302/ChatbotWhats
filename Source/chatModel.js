@@ -614,7 +614,7 @@ class ChatModel {
                 return "🦗 *Cri... Cri...* Ninguém falou nada hoje ainda, seus cansados.";
             }
 
-            let message = `🗣️ *TOP 3 FALADORES DE HOJE* 🗣️\n\n`;
+            let message = `🗣️ *TOP 3 FALADORES DE HOJE*\n\n`;
             const medals = ["🥇", "🥈", "🥉"];
 
             leaders.forEach((user, index) => {
@@ -624,8 +624,6 @@ class ChatModel {
                 const medal = medals[index] || "🏅";
                 message += `${medal} *${name}*: ${user.total_mensagens} mensagens\n`;
             });
-
-            message += `\n_Contagem diária._`;
 
             return message;
 

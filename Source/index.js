@@ -180,6 +180,9 @@ const botCommands = {
     },
     '!toxico': {
         emoji: '☢️'
+    },
+    '!falador': {
+        emoji: '🗣️'
     }
 };
 

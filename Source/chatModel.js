@@ -676,9 +676,11 @@ class ChatModel {
     async handleMenuCommand(){
         return `📍 Os comandos até agora são: \n\n
         🆘 !ajuda (ou !help)\n
+        🗣️ !audio\n
         🌡️ !clima\n
         💵 !cotacao\n
         🎲 !d{número}\n
+        🗣️ !falador\n
         🤖 !gpt {texto}\n
         🧠 !lembrar\n
         🎮 !lol\n
@@ -686,7 +688,8 @@ class ChatModel {
         ✏️ !notas\n
         📙 !pdf\n
         🖼️ !s (ou !sticker)\n
-        🛎️ !resumo\n
+        🛎️ !resumo\n        
+        ☢️ !toxico\n
         🧐 !tradutor
         \n\nPara mais infos, use o comando !ajuda (ou !help)`;
     }

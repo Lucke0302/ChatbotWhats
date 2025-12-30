@@ -14,6 +14,12 @@ async function fetchPokemonData() {
             const response = await axios.get(`https://pokeapi.co/api/v2/pokemon/${i}`);
             const data = response.data;
 
+            const speciesRes = await axios.get(data.species.url);
+            const sp = speciesRes.data;
+
+            let rarity = 'common';
+            if (sp.is_legendary || sp.is_mythical) rarity = 'rare';
+
             const stats = {};
             data.stats.forEach(s => {
                 stats[s.stat.name] = s.base_stat;
@@ -58,5 +64,55 @@ async function fetchPokemonData() {
     fs.writeFileSync('pokedex_clean.json', JSON.stringify(pokedex, null, 2));
     console.log('Pokédex salva com sucesso!');
 }
+
+function traverseEvolutionChain(chainNode, tier, familyId, list) {
+    let minLevel = null;
+    let trigger = null;
+    let item = null;
+
+    if (chainNode.evolution_details && chainNode.evolution_details.length > 0) {
+        const detail = chainNode.evolution_details[0];
+        trigger = detail.trigger.name;
+        minLevel = detail.min_level;
+        item = detail.item ? detail.item.name : null;
+    }
+
+    list.push({
+        species_name: chainNode.species.name,
+        tier: tier,
+        family_id: familyId,
+        evolves_at_level: minLevel,
+        evolution_trigger: trigger,
+        evolution_item: item
+    });
+
+    if (chainNode.evolves_to.length > 0) {
+        chainNode.evolves_to.forEach(childNode => {
+            traverseEvolutionChain(childNode, tier + 1, familyId, list);
+        });
+    }
+}
+
+async function getEvolutionData(pokemonId) {
+    try {
+        const speciesRes = await axios.get(`https://pokeapi.co/api/v2/pokemon-species/${pokemonId}/`);
+        const chainUrl = speciesRes.data.evolution_chain.url;
+        const familyId = chainUrl.split('/').slice(-2, -1)[0];
+
+        const chainRes = await axios.get(chainUrl);
+        const chainData = chainRes.data.chain;
+
+        const flatList = [];
+        traverseEvolutionChain(chainData, 1, familyId, flatList);
+
+        return flatList;
+
+    } catch (error) {
+        console.error("Erro:", error.message);
+        return [];
+    }
+}
+
+getEvolutionData(60).then(data => console.log(JSON.stringify(data, null, 2)));
 
 fetchPokemonData();

@@ -162,6 +162,49 @@ async function initDatabase() {
         );
     `);
 
+    await db.exec(`
+        CREATE TABLE IF NOT EXISTS moves (
+            id INTEGER PRIMARY KEY,
+            name TEXT,
+            type TEXT,
+            power INTEGER,
+            accuracy INTEGER,
+            pp INTEGER,
+            damage_class TEXT -- 'physical', 'special' ou 'status'
+        );
+    `);
+
+    await db.exec(`
+        CREATE TABLE IF NOT EXISTS pokemon_moves (
+            pokemon_id INTEGER,
+            move_id INTEGER,
+            level_learned INTEGER,
+            FOREIGN KEY(pokemon_id) REFERENCES pokedex(id),
+            FOREIGN KEY(move_id) REFERENCES moves(id)
+        );
+    `);
+
+    const columnsToAdd = ['move1', 'move2', 'move3', 'move4'];
+    for (const col of columnsToAdd) {
+        try {
+            await db.exec(`ALTER TABLE user_pokemons ADD COLUMN ${col} INTEGER DEFAULT NULL;`);
+        } catch (e) {}
+    }
+
+    try {
+        await db.exec(`ALTER TABLE user_pokemons ADD COLUMN current_hp INTEGER DEFAULT 20;`);
+        console.log("✅ Coluna 'current_hp' adicionada com sucesso!");
+    } catch (error) {
+        if (!error.message.includes("duplicate column name")) console.error(error.message);
+    }
+
+    try {
+        await db.exec(`ALTER TABLE user_pokemons ADD COLUMN max_hp INTEGER DEFAULT 20;`);
+        console.log("✅ Coluna 'max_hp' adicionada com sucesso!");
+    } catch (error) {
+        if (!error.message.includes("duplicate column name")) console.error(error.message);
+    }
+
     try {
         await db.exec(`ALTER TABLE usuarios ADD COLUMN pokeballs INTEGER DEFAULT 20;`);
         console.log("✅ Coluna 'pokeballs' adicionada com sucesso!");

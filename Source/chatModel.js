@@ -811,7 +811,7 @@ class ChatModel {
             return await this.handleFaladorCommand(from)
         }
 
-        if (command.startsWith('audio')) {
+        if (command.startsWith('!audio')) {
             await ttsCommandHandler.handleAudioCommand(sock, from, command, msg);
             return;
         }

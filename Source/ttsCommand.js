@@ -1,11 +1,10 @@
-// Source/ttsCommand.js
 const googleTTS = require('google-tts-api');
 
 /**
  * Transforma texto em áudio usando Google TTS (Baixando o buffer)
  */
 async function handleAudioCommand(sock, from, command, msg) {
-    // 1. Tratamento do texto
+
     let text = command.replace(/^!audio\s*/i, '').trim();
 
     const isQuoted = !!msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
@@ -19,7 +18,6 @@ async function handleAudioCommand(sock, from, command, msg) {
         return;
     }
 
-    // 2. Detecção de idioma (Gambiarra inteligente)
     let lang = 'pt';
     const firstWord = text.split(' ')[0];
     const commonLangs = ['pt', 'en', 'es', 'ja', 'fr', 'de', 'it', 'ru', 'ko', 'zh'];

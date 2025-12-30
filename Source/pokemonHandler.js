@@ -1,5 +1,6 @@
 const axios = require('axios');
 const STARTER_IDS = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+const RARE_POKE = [25]
 const POKEMON_COUNT = 151;
 const GAME_VERSION = 'sword-shield';
 
@@ -98,7 +99,22 @@ class PokemonHandler {
         const action = args[1] ? args[1].toLowerCase() : 'ajuda';
         const param = args[2];
 
+        const allowedWithoutPoke = ['comecar', 'start', 'escolher', 'choose', 'ajuda', 'help'];
+        const hasPokemon = await this.checkIfUserHasPokemon(sender);
+
+        if (!hasPokemon && !allowedWithoutPoke.includes(action)) {
+            return "🚫 Você ainda não é um treinador! Digite *!poke comecar* para pegar seu primeiro Pokémon.";
+        }
+
         switch (action) {
+            case 'comecar':
+            case 'start':
+                return await this.showStarters(sender);
+
+            case 'escolher':
+            case 'choose':
+                return await this.chooseStarter(sender, param);
+
             case 'fugir': return await this.fleeBattle(from);
             case 'atacar': return await this.battleTurn(from, sender, param);
 
@@ -127,15 +143,96 @@ class PokemonHandler {
         }
     }
 
+    async checkIfUserHasPokemon(userId) {
+        const result = await this.db.get("SELECT id FROM user_pokemons WHERE user_id = ? LIMIT 1", [userId]);
+        return !!result;
+    }
+
+    async showStarters(sender) {
+        if (await this.checkIfUserHasPokemon(sender)) {
+            return "Tu é ganancioso hein? Você já tem Pokémon!";
+        }
+
+        return `👨‍🔬 *PROFESSOR CARVALHO:* \n"Olá! Bem-vindo ao mundo Pokémon! Você precisa de um companheiro."\n\n` +
+               `Escolha com sabedoria (digite o comando):\n\n` +
+               `🍃 *!poke escolher bulbasaur*\n` +
+               `🔥 *!poke escolher charmander*\n` +
+               `💧 *!poke escolher squirtle*`;
+    }
+
+    async chooseStarter(userId, choice) {
+        if (await this.checkIfUserHasPokemon(userId)) {
+            return "Você já escolheu seu inicial!";
+        }
+
+        if (!choice) return "Mas qual? Digite o nome! (Ex: !poke escolher charmander)";
+
+        const selected = choice.toLowerCase();
+        let pokemonId = 0;
+        let message = "";
+
+        if (selected === 'bulbasaur' || selected === 'bulbasauro') {
+            pokemonId = 1;
+            message = "🍃 Ótima escolha! *Bulbasaur* é leal e forte.";
+        } 
+        else if (selected === 'charmander') {
+            pokemonId = 4;
+            message = "🔥 Queimando de energia! *Charmander* é o seu parceiro.";
+        } 
+        else if (selected === 'squirtle') {
+            pokemonId = 7;
+            message = "💧 SIMPLESMENTE O GOAT! *Squirtle* será um grande amigo.";
+        }
+
+        else if (selected === 'pikachu') {
+            pokemonId = 25;
+            message = "⚡ *ATRASADO!* Todos os iniciais já foram levados...\nMas sobrou este *Pikachu* um pouco rebelde. Cuide bem dele!";
+        } 
+        else {
+            return "❌ Esse Pokémon não está disponível com o Professor. Escolha Bulbasaur, Charmander ou Squirtle (talvez tenha um escondido).";
+        }
+
+        const pk = await this.db.get("SELECT * FROM pokedex WHERE id = ?", [pokemonId]);
+        
+        if (!pk) return "Erro interno: Pokémon não encontrado no banco.";
+
+        const randIv = () => Math.floor(Math.random() * 32);
+
+        const moves = await this.getMovesForLevel(pk.id, 5);
+
+        await this.db.run(`
+            INSERT INTO user_pokemons (
+                user_id, pokedex_id, nickname, level, 
+                iv_hp, iv_atk, iv_def, iv_spa, iv_spd, iv_spe, 
+                move1, move2, move3, move4, 
+                obtained_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+                userId, pk.id, pk.name, 5,
+                randIv(), randIv(), randIv(), randIv(), randIv(), randIv(),
+                moves[0]?.id || null, moves[1]?.id || null, moves[2]?.id || null, moves[3]?.id || null,
+                Date.now()
+            ]
+        );
+
+        await this.db.run(`UPDATE usuarios SET pokeballs = 20 WHERE id_usuario = ?`, [userId]);
+
+        return `🎉 *PARABÉNS!* Você recebeu seu primeiro Pokémon!\n\n${message}\n\n(Você também ganhou 20 Pokébolas para começar sua jornada!)`;
+    }
+
     async spawnWildPokemon(groupId, userId) {
         const currentEncounter = this.activeEncounters.get(groupId);
         if (currentEncounter && (Date.now() - currentEncounter.timestamp < 120000)) {
             return `🌿 Já tem um *${currentEncounter.pokemon.name.toUpperCase()}* selvagem aqui! Use *!poke capturar* rápido!`;
         }
 
-        let findPokemon = function() {
-            return Math.random() < 0.5; 
-        }
+        // Funções de Probabilidade
+        const findPokemon = () => Math.random() < 0.5;
+        const isRare = () => Math.random() < 0.01;
+        const checkShiny = () => Math.random() < 0.00024
+
+        let isShiny = checkShiny()
 
         const lvlResult = await this.db.get(`
             SELECT AVG(level) as media FROM user_pokemons
@@ -143,24 +240,37 @@ class PokemonHandler {
         `, [userId]);
 
         const baseLevel = lvlResult && lvlResult.media ? Math.floor(lvlResult.media) : 5;
-
         const minLevel = Math.max(1, baseLevel - 3); 
         const maxLevel = baseLevel + 3;
-
         const wildLevel = Math.floor(Math.random() * (maxLevel - minLevel + 1)) + minLevel;
 
-        let pokemon = "";
+        let pokemon = null;
         
-        if(findPokemon()){
-            pokemon = await this.db.get(`
-                SELECT * FROM pokedex 
-                WHERE is_starter = 0 AND rarity = 'common' AND tier = 1
-                ORDER BY RANDOM() LIMIT 1
-            `);
+        if (findPokemon()) {
+            if (isRare()) {
+                const randomRareId = RARE_POKE[Math.floor(Math.random() * RARE_POKE.length)];
+                
+                pokemon = await this.db.get(`SELECT * FROM pokedex WHERE id = ?`, [randomRareId]);
+                
+                console.log(`🌟 SORTE GRANDE! Spawnou um Raro (ID: ${randomRareId})`);
+            }
+
+            if (!pokemon) {
+                pokemon = await this.db.get(`
+                    SELECT * FROM pokedex 
+                    WHERE is_starter = 0 AND rarity = 'common' AND tier = 1
+                    ORDER BY RANDOM() LIMIT 1
+                `);
+            }
+
         } else {
-             return "🦗 Você andou no matinho mas só achou grilos.";
+            return "🦗 Você andou no matinho mas só achou grilos.";
         }
             
+        // 4. Configuração da Batalha (Moves, HP, etc)
+        // Garante que o pokemon existe antes de prosseguir
+        if (!pokemon) return "Erro ao buscar Pokémon no banco de dados.";
+
         const wildMoves = await this.getMovesForLevel(pokemon.id, wildLevel);
 
         this.activeEncounters.set(groupId, {
@@ -169,12 +279,21 @@ class PokemonHandler {
             maxHp: pokemon.base_hp + (wildLevel * 2),
             level: wildLevel,
             moves: wildMoves,
+            isShiny: isShiny,
             timestamp: Date.now()
         });
 
+        let emoji = "⚔️";
+        if (RARE_POKE.includes(pokemon.id)) emoji = "🌟";
+        if (isShiny) emoji = "✨✨✨";
+
+        const sprite = isShiny ? pokemon.sprite_url.replace("front_default", "front_shiny") : pokemon.sprite_url;
+
+        const shinyText = isShiny ? " (✨ SHINY ✨)" : "";
+
         return {
-            text: `⚔️ Um *${pokemon.name.toUpperCase()}* (Lvl ${wildLevel}) apareceu!\nHP: ${pokemon.base_hp + (wildLevel * 2)}/${pokemon.base_hp + (wildLevel * 2)}\n\nO que fará? (!poke atacar / !poke fugir / !poke capturar)`,
-            image: pokemon.sprite_url
+            text: `${emoji} Um *${pokemon.name.toUpperCase()}*${shinyText} (Lvl ${wildLevel}) selvagem apareceu!\nHP: ${pokemon.base_hp + (wildLevel * 2)}/${pokemon.base_hp + (wildLevel * 2)}\n\nO que fará? (!poke atacar / !poke fugir / !poke capturar)`,
+            image: sprite
         };
     }
 
@@ -206,6 +325,8 @@ class PokemonHandler {
             const pk = encounter.pokemon;
             
             const randIv = () => Math.floor(Math.random() * 32);
+
+            const isShinyValue = encounter.isShiny ? 1 : 0;
             
             const moves = encounter.moves || [];
             
@@ -214,18 +335,20 @@ class PokemonHandler {
                     user_id, pokedex_id, nickname, level, 
                     iv_hp, iv_atk, iv_def, iv_spa, iv_spd, iv_spe, 
                     move1, move2, move3, move4, 
-                    obtained_at
+                    obtained_at, is_shiny
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [
                     userId, pk.id, pk.name, encounter.level || 5,
                     randIv(), randIv(), randIv(), randIv(), randIv(), randIv(),
                     moves[0]?.id || null, moves[1]?.id || null, moves[2]?.id || null, moves[3]?.id || null,
-                    Date.now()
+                    Date.now(), 
+                    isShinyValue
                 ]
             );
             this.activeEncounters.delete(groupId);
-            return `🎉 *PARABÉNS!* Você capturou o *${pk.name.toUpperCase()}*!\nVocê tem agora ${balls - 1} Pokébolas.`;
+            const shinyMsg = encounter.isShiny ? " ✨ SHINY ✨" : "";
+            return `🎉 *PARABÉNS!* Você capturou o *${pk.name.toUpperCase()}* ${shinyMsg}!\nVocê tem agora ${balls - 1} Pokébolas.`;
         } else {
             return `💢 O *${encounter.pokemon.name.toUpperCase()}* escapou da pokebola!\nTente de novo! (Bolas restantes: ${balls - 1})`;
         }
@@ -363,8 +486,8 @@ class PokemonHandler {
     }
 
     async getUserProfile(userId) {
-        const pokemons = await this.db.all(`
-            SELECT p.name, up.level, up.nickname 
+        const pokemon = await this.db.all(`
+            SELECT p.name, up.level, up.nickname, up.is_shiny
             FROM user_pokemons up
             JOIN pokedex p ON up.pokedex_id = p.id
             WHERE up.user_id = ?
@@ -374,11 +497,12 @@ class PokemonHandler {
         const user = await this.db.get("SELECT pokeballs FROM usuarios WHERE id_usuario = ?", [userId]);
         const balls = user ? user.pokeballs : 0;
 
-        if (!pokemons.length) return `🎒 *MOCHILA*\nPokébolas: ${balls}\n\nVocê ainda não tem Pokémon. Use *!poke explorar*!`;
+        if (!pokemon.length) return `🎒 *MOCHILA*\nPokébolas: ${balls}\n\nVocê ainda não tem Pokémon. Use *!poke explorar*!`;
 
         let msg = `🎒 *MOCHILA DE TREINADOR* (Bolas: ${balls})\n\n`;
-        pokemons.forEach(p => {
-            msg += `🔴 *${p.name}* (Lvl ${p.level})\n`;
+        pokemon.forEach(p => {
+            const shinyIcon = p.is_shiny ? "✨" : "🔴";
+            msg += `${shinyIcon} *${p.name}* (Lvl ${p.level})\n`;
         });
         
         return msg;

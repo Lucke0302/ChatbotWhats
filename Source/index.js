@@ -206,6 +206,13 @@ async function initDatabase() {
     }
 
     try {
+        await db.exec(`ALTER TABLE user_pokemons ADD COLUMN is_shiny BOOLEAN DEFAULT 0;`);
+        console.log("✅ Coluna 'is_shiny' adicionada com sucesso!");
+    }  catch (error) {
+        if (!error.message.includes("duplicate column name")) console.error(error.message);
+    }
+
+    try {
         await db.exec(`ALTER TABLE usuarios ADD COLUMN pokeballs INTEGER DEFAULT 20;`);
         console.log("✅ Coluna 'pokeballs' adicionada com sucesso!");
     } catch (error) {

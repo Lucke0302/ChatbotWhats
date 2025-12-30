@@ -197,27 +197,6 @@ async function connectToWhatsApp() {
         logger: pino({ level: 'warn' }), 
     });
 
-    // Função para enviar mensagem para todos os grupos
-    async function broadcastToAllGroups(sock, text) {
-        try {
-            console.log("📢 Iniciando transmissão para todos os grupos...");
-            
-            const groups = await sock.groupFetchAllParticipating();
-            const groupIds = Object.keys(groups);
-
-            console.log(`📊 Encontrados ${groupIds.length} grupos.`);
-
-            for (const id of groupIds) {
-                await sock.sendMessage(id, { text: text });
-                await new Promise(resolve => setTimeout(resolve, 2000)); 
-            }
-
-            console.log("✅ Transmissão finalizada com sucesso!");
-        } catch (error) {
-            console.error("❌ Erro ao enviar broadcast:", error);
-        }
-    }
-
     //Instancia o chatbot
     const chatbot = new ChatModel(db, genAI)
     
@@ -258,18 +237,7 @@ async function connectToWhatsApp() {
             if (dailyJob) {
                 dailyJob.cancel();
             }
-
-            dailyJob = schedule.scheduleJob('0 0 10 * * *', async function(){
-                const targetCity = "Santos"; 
-                
-                try {
-                    const weatherComplement = await weatherCommandHandler.getWeather(targetCity);
-                    const weatherForecastComplement = await weatherCommandHandler.getNextDayForecast(targetCity);
-                    await broadcastToAllGroups(sock, "Bom dia, grupo! 🦖 O Bostossauro acordou e escolheu a violência.\nSe quiser usar alguma das minhas funções, dá um !ajuda (ou !help).\a" + weatherComplement + "\n\n" + weatherForecastComplement);
-                } catch (error) {
-                    console.error("❌ Erro no envio do clima agendado:", error);
-                }
-            });
+            
             dailyJob = schedule.scheduleJob('0 0 10 * * *', async function(){
                 const targetCity = "Santos"; 
                 

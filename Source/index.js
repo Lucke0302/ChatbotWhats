@@ -239,6 +239,9 @@ const botCommands = {
     },
     '!audio': {
         emoji: '🗣️'
+    },
+    '!poke': {
+        emoji: '🎮'
     }
 };
 

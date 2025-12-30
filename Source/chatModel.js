@@ -7,6 +7,7 @@ const fs = require('fs');
 const ToxicHandler = require('./toxicHandler');
 const lolCommandHandler = require('./lolCommand');
 const ttsCommandHandler = require('./ttsCommand');
+const PokemonHandler = require('./pokemonHandler');
 const RIOT_API_KEY = process.env.RIOT_API_KEY;
 
 class ChatModel {
@@ -32,6 +33,8 @@ class ChatModel {
         this.DAILY_AI_LIMIT = 10;
         this.DAILY_LIMIT_GEMMA = 100;
         this.toxicHandler = new ToxicHandler(db);
+        this.pokemonHandler = new PokemonHandler(db);
+        this.pokemonHandler.init();
     }
 
     //
@@ -817,6 +820,18 @@ class ChatModel {
         if (command.startsWith('!audio')) {
             await ttsCommandHandler.handleAudioCommand(sock, from, command, msg);
             return;
+        }
+
+        if (command.startsWith('!poke')) {
+            const result = await this.pokemonHandler.handleCommand(from, sender, command);
+            if (typeof result === 'object' && result.image) {
+                 await sock.sendMessage(from, { 
+                    image: { url: result.image }, 
+                    caption: result.text 
+                }, { quoted: msg });
+                return;
+            }
+            return result;
         }
 
     }

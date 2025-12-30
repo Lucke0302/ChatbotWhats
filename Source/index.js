@@ -123,6 +123,59 @@ async function initDatabase() {
         );
     `);
 
+    await db.exec(`
+        CREATE TABLE IF NOT EXISTS pokedex (
+            id INTEGER PRIMARY KEY,
+            name TEXT,
+            type1 TEXT,
+            type2 TEXT,
+            base_hp INTEGER,
+            base_atk INTEGER,
+            base_def INTEGER,
+            base_spa INTEGER,
+            base_spd INTEGER,
+            base_spe INTEGER,
+            rarity TEXT,
+            tier INTEGER,
+            is_starter BOOLEAN,
+            sprite_url TEXT,
+            base_xp INTEGER
+        );
+    `);
+
+    await db.exec(`
+        CREATE TABLE IF NOT EXISTS user_pokemons (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT NOT NULL,
+            pokedex_id INTEGER NOT NULL,
+            nickname TEXT,
+            level INTEGER DEFAULT 1,
+            exp INTEGER DEFAULT 0,
+            iv_hp INTEGER,
+            iv_atk INTEGER,
+            iv_def INTEGER,
+            iv_spa INTEGER,
+            iv_spd INTEGER,
+            iv_spe INTEGER,
+            obtained_at INTEGER,
+            FOREIGN KEY(pokedex_id) REFERENCES pokedex(id)
+        );
+    `);
+
+    try {
+        await db.exec(`ALTER TABLE usuarios ADD COLUMN pokeballs INTEGER DEFAULT 20;`);
+        console.log("✅ Coluna 'pokeballs' adicionada com sucesso!");
+    } catch (error) {
+        if (!error.message.includes("duplicate column name")) console.error(error.message);
+    }
+
+        try {
+        await db.exec(`ALTER TABLE usuarios ADD COLUMN pokecoins INTEGER DEFAULT 1000;`);
+        console.log("✅ Coluna 'pokecoins' adicionada com sucesso!");
+    } catch (error) {
+        if (!error.message.includes("duplicate column name")) console.error(error.message);
+    }
+
     console.log('✅ Banco de dados SQLite inicializado e tabelas `mensagens` e `usuarios` verificadas.');
 }
 

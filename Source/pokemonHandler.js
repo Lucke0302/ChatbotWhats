@@ -1,118 +1,182 @@
 const axios = require('axios');
-const fs = require('fs');
+const STARTER_IDS = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+const POKEMON_COUNT = 151;
 
-const POKEMON_COUNT = 151; 
-const GAME_VERSION = 'sword-shield';
+class PokemonHandler {
+    constructor(db) {
+        this.db = db;
+        this.activeEncounters = new Map();
+    }
 
-async function fetchPokemonData() {
-    const pokedex = [];
-
-    console.log(`Iniciando download de ${POKEMON_COUNT} pokémon...`);
-
-    for (let i = 1; i <= POKEMON_COUNT; i++) {
-        try {
-            const response = await axios.get(`https://pokeapi.co/api/v2/pokemon/${i}`);
-            const data = response.data;
-
-            const speciesRes = await axios.get(data.species.url);
-            const sp = speciesRes.data;
-
-            let rarity = 'common';
-            if (sp.is_legendary || sp.is_mythical) rarity = 'rare';
-
-            const stats = {};
-            data.stats.forEach(s => {
-                stats[s.stat.name] = s.base_stat;
-            });
-
-            const moves = data.moves
-                .map(m => {
-                    const versionDetail = m.version_group_details.find(
-                        v => v.version_group.name === GAME_VERSION && v.move_learn_method.name === 'level-up'
-                    );
-
-                    if (versionDetail) {
-                        return {
-                            name: m.move.name,
-                            level: versionDetail.level_learned_at,
-                            url: m.move.url
-                        };
-                    }
-                    return null;
-                })
-                .filter(m => m !== null) 
-                .sort((a, b) => a.level - b.level);
-
-            const cleanPokemon = {
-                id: data.id,
-                name: data.name,
-                types: data.types.map(t => t.type.name),
-                base_stats: stats,
-                moves: moves,
-                sprite: data.sprites.front_default,
-                base_xp: data.base_experience
-            };
-
-            pokedex.push(cleanPokemon);
-            console.log(`[${i}/${POKEMON_COUNT}] ${data.name} processado.`);
-
-        } catch (error) {
-            console.error(`Erro no ID ${i}:`, error.message);
+    async init() {
+        const count = await this.db.get('SELECT COUNT(*) as total FROM pokedex');
+        if (count.total === 0) {
+            console.log("⚠️ Pokédex vazia! Iniciando download da PokéAPI (isso pode demorar)...");
+            await this.seedDatabase();
+        } else {
+            console.log(`✅ Pokédex carregada com ${count.total} registros.`);
         }
     }
 
-    fs.writeFileSync('pokedex_clean.json', JSON.stringify(pokedex, null, 2));
-    console.log('Pokédex salva com sucesso!');
-}
+    async seedDatabase() {
+        for (let i = 1; i <= POKEMON_COUNT; i++) {
+            try {
+                const pk = (await axios.get(`https://pokeapi.co/api/v2/pokemon/${i}`)).data;
+                const sp = (await axios.get(pk.species.url)).data;
 
-function traverseEvolutionChain(chainNode, tier, familyId, list) {
-    let minLevel = null;
-    let trigger = null;
-    let item = null;
+                let rarity = (sp.is_legendary || sp.is_mythical) ? 'rare' : 'common';
 
-    if (chainNode.evolution_details && chainNode.evolution_details.length > 0) {
-        const detail = chainNode.evolution_details[0];
-        trigger = detail.trigger.name;
-        minLevel = detail.min_level;
-        item = detail.item ? detail.item.name : null;
+                let tier = (sp.evolves_from_species === null) ? 1 : 2; 
+                
+                const stats = {};
+                pk.stats.forEach(s => stats[s.stat.name] = s.base_stat);
+
+                await this.db.run(
+                    `INSERT INTO pokedex (id, name, type1, type2, base_hp, base_atk, base_def, base_spa, base_spd, base_spe, rarity, tier, is_starter, sprite_url, base_xp)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    [
+                        pk.id, 
+                        pk.name, 
+                        pk.types[0]?.type.name, 
+                        pk.types[1]?.type.name || null,
+                        stats['hp'], stats['attack'], stats['defense'], stats['special-attack'], stats['special-defense'], stats['speed'],
+                        rarity,
+                        tier,
+                        STARTER_IDS.includes(pk.id),
+                        pk.sprites.front_default,
+                        pk.base_experience
+                    ]
+                );
+                console.log(`[SEED] ${pk.name} salvo.`);
+            } catch (e) {
+                console.error(`Erro ao baixar ID ${i}:`, e.message);
+            }
+        }
+        console.log("✅ Seed da Pokédex concluído!");
     }
 
-    list.push({
-        species_name: chainNode.species.name,
-        tier: tier,
-        family_id: familyId,
-        evolves_at_level: minLevel,
-        evolution_trigger: trigger,
-        evolution_item: item
-    });
+    async handleCommand(from, sender, command) {
+        const args = command.trim().split(' ');
+        const action = args[1] ? args[1].toLowerCase() : 'ajuda';
 
-    if (chainNode.evolves_to.length > 0) {
-        chainNode.evolves_to.forEach(childNode => {
-            traverseEvolutionChain(childNode, tier + 1, familyId, list);
+        switch (action) {
+            case 'explorar':
+            case 'hunt':
+                return await this.spawnWildPokemon(from, sender);
+            
+            case 'capturar':
+            case 'catch':
+            case 'ball':
+                return await this.catchPokemon(from, sender);
+
+            case 'perfil':
+            case 'box':
+            case 'team':
+                return await this.getUserProfile(sender);
+
+            case 'ajuda':
+            default:
+                return `🦕 *POKÉMON - GUIA*\n\n` +
+                       `🌿 *!poke explorar* - Procura um Pokémon selvagem.\n` +
+                       `🔴 *!poke capturar* - Tenta pegar o bicho que apareceu.\n` +
+                       `👤 *!poke perfil* - Mostra seus Pokémon.\n` +
+                       `\n_Dica: Pokémon evoluídos só aparecem se você tiver nível alto._`;
+        }
+    }
+
+    async spawnWildPokemon(groupId, userId) {
+        const currentEncounter = this.activeEncounters.get(groupId);
+        if (currentEncounter && (Date.now() - currentEncounter.timestamp < 120000)) {
+            return `🌿 Já tem um *${currentEncounter.pokemon.name.toUpperCase()}* selvagem aqui! Use *!poke capturar* rápido!`;
+        }
+
+        let findPokemon = function() {
+            return Math.random() < 0.5; 
+        }
+
+        let pokemon = ""
+        
+        if(findPokemon){
+            pokemon = await this.db.get(`
+                SELECT * FROM pokedex 
+                WHERE is_starter = 0 AND rarity = 'common' AND tier = 1
+                ORDER BY RANDOM() LIMIT 1
+            `);
+        }
+        else return "🦗 Você andou no matinho mas só achou grilos.";
+
+        if(pokemon != ""){
+
+            this.activeEncounters.set(groupId, {
+                pokemon: pokemon,
+                timestamp: Date.now()
+            });
+        }
+
+        return {
+            text: `⚔️ Um *${pokemon.name.toUpperCase()}* selvagem apareceu!\nTier: ${pokemon.tier} | Tipo: ${pokemon.type1}\n\nUse *!poke capturar* para tentar pegar!`,
+            image: pokemon.sprite_url
+        };
+    }
+
+    async catchPokemon(groupId, userId) {
+        const encounter = this.activeEncounters.get(groupId);
+        
+        if (!encounter) return "🤷 Não tem nenhum Pokémon selvagem aqui agora. Use *!poke explorar*.";
+        if (Date.now() - encounter.timestamp > 120000) {
+            this.activeEncounters.delete(groupId);
+            return "💨 O Pokémon fugiu! Você demorou demais.";
+        }
+
+        const user = await this.db.get("SELECT pokeballs FROM usuarios WHERE id_usuario = ?", [userId]);
+        const balls = user ? user.pokeballs : 0;
+        
+        if (balls <= 0) return "🚫 Você está sem Pokébolas! Use *!poke loja* para comprar mais.";
+
+        await this.db.run("UPDATE usuarios SET pokeballs = pokeballs - 1 WHERE id_usuario = ?", [userId]);
+
+        // Cálculo de Chance (Simplificado: 50% fixo por enquanto)
+        const success = Math.random() < 0.5;
+
+        if (success) {
+            const pk = encounter.pokemon;
+            
+            const randIv = () => Math.floor(Math.random() * 32);
+            
+            await this.db.run(`
+                INSERT INTO user_pokemons (user_id, pokedex_id, nickname, iv_hp, iv_atk, iv_def, iv_spa, iv_spd, iv_spe, obtained_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [userId, pk.id, pk.name, randIv(), randIv(), randIv(), randIv(), randIv(), randIv(), Date.now()]
+            );
+
+            this.activeEncounters.delete(groupId);
+            return `🎉 *PARABÉNS!* Você capturou o *${pk.name.toUpperCase()}*!\nVocê tem agora ${balls - 1} Pokébolas.`;
+        } else {
+            return `💢 O *${encounter.pokemon.name.toUpperCase()}* escapou da pokebola!\nTente de novo! (Bolas restantes: ${balls - 1})`;
+        }
+    }
+
+    async getUserProfile(userId) {
+        const pokemons = await this.db.all(`
+            SELECT p.name, up.level, up.nickname 
+            FROM user_pokemons up
+            JOIN pokedex p ON up.pokedex_id = p.id
+            WHERE up.user_id = ?
+            LIMIT 6
+        `, [userId]);
+
+        const user = await this.db.get("SELECT pokeballs FROM usuarios WHERE id_usuario = ?", [userId]);
+        const balls = user ? user.pokeballs : 0;
+
+        if (!pokemons.length) return `🎒 *MOCHILA*\nPokébolas: ${balls}\n\nVocê ainda não tem Pokémons. Use *!poke explorar*!`;
+
+        let msg = `🎒 *MOCHILA DE TREINADOR* (Bolas: ${balls})\n\n`;
+        pokemons.forEach(p => {
+            msg += `🔴 *${p.name}* (Lvl ${p.level})\n`;
         });
+        
+        return msg;
     }
 }
 
-async function getEvolutionData(pokemonId) {
-    try {
-        const speciesRes = await axios.get(`https://pokeapi.co/api/v2/pokemon-species/${pokemonId}/`);
-        const chainUrl = speciesRes.data.evolution_chain.url;
-        const familyId = chainUrl.split('/').slice(-2, -1)[0];
-
-        const chainRes = await axios.get(chainUrl);
-        const chainData = chainRes.data.chain;
-
-        const flatList = [];
-        traverseEvolutionChain(chainData, 1, familyId, flatList);
-
-        return flatList;
-
-    } catch (error) {
-        console.error("Erro:", error.message);
-        return [];
-    }
-}
-
-getEvolutionData(60).then(data => console.log(JSON.stringify(data, null, 2)));
-
-fetchPokemonData();
+module.exports = PokemonHandler;

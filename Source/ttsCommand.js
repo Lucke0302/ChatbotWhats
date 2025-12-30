@@ -1,9 +1,11 @@
+// Source/ttsCommand.js
 const googleTTS = require('google-tts-api');
 
 /**
- * Transforma texto em áudio usando Google TTS (Free)
+ * Transforma texto em áudio usando Google TTS (Baixando o buffer)
  */
 async function handleAudioCommand(sock, from, command, msg) {
+    // 1. Tratamento do texto
     let text = command.replace(/^!audio\s*/i, '').trim();
 
     const isQuoted = !!msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
@@ -13,13 +15,13 @@ async function handleAudioCommand(sock, from, command, msg) {
     }
 
     if (!text) {
-        await sock.sendMessage(from, { text: '❌ Digita o texto ou responde uma mensagem: *!audio {linguagem} {O que você quer que eu fale}*' }, { quoted: msg });
+        await sock.sendMessage(from, { text: '❌ Digita o texto ou responde uma mensagem: *!audio O que você quer que eu fale*' }, { quoted: msg });
         return;
     }
 
+    // 2. Detecção de idioma (Gambiarra inteligente)
     let lang = 'pt';
     const firstWord = text.split(' ')[0];
-    
     const commonLangs = ['pt', 'en', 'es', 'ja', 'fr', 'de', 'it', 'ru', 'ko', 'zh'];
 
     if (firstWord.length === 2 && commonLangs.includes(firstWord.toLowerCase())) {
@@ -28,26 +30,33 @@ async function handleAudioCommand(sock, from, command, msg) {
     }
 
     if (text.length > 200) {
-        await sock.sendMessage(from, { text: '❌ Texto muito longo! O limite do Google Free é 200 caracteres (se quiser mais, patrocina o dev).' }, { quoted: msg });
-        return;
+        text = text.substring(0, 200);
+        await sock.sendMessage(from, { text: '❌ Mensagem cortada no caracter 200 (se quiser mais, patrocina o dev).' }, { quoted: msg });
     }
 
     try {
-        const url = googleTTS.getAudioUrl(text, {
+        const base64Audio = await googleTTS.getAudioBase64(text, {
             lang: lang,
             slow: false,
             host: 'https://translate.google.com',
+            timeout: 10000,
         });
 
+        const audioBuffer = Buffer.from(base64Audio, 'base64');
+
         await sock.sendMessage(from, { 
-            audio: { url: url }, 
-            mimetype: 'audio/mp4',
+            audio: audioBuffer, 
+            mimetype: 'audio/mpeg',
             ptt: true 
         }, { quoted: msg });
 
     } catch (error) {
         console.error("Erro no TTS:", error);
-        await sock.sendMessage(from, { text: '❌ Erro ao gerar áudio.' }, { quoted: msg });
+        if(error.message.includes("text should be less than")) {
+             await sock.sendMessage(from, { text: '❌ Texto muito grande pro Google, ele cansou (se quiser mais cota, patrocina o dev).' }, { quoted: msg });
+        } else {
+             await sock.sendMessage(from, { text: '❌ Não consegui gerar o áudio. O Google tá de mal.' }, { quoted: msg });
+        }
     }
 }
 

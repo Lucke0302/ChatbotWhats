@@ -183,6 +183,9 @@ const botCommands = {
     },
     '!falador': {
         emoji: '🗣️'
+    },
+    '!audio': {
+        emoji: '🗣️'
     }
 };
 
@@ -237,7 +240,7 @@ async function connectToWhatsApp() {
             if (dailyJob) {
                 dailyJob.cancel();
             }
-            
+
             dailyJob = schedule.scheduleJob('0 0 10 * * *', async function(){
                 const targetCity = "Santos"; 
                 

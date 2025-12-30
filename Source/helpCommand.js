@@ -17,6 +17,7 @@ Pra saber os detalhes de um comando, digita:
 • *!pdf* ➝ Converto suas imagens e documentos em pdf.
 • *!menu* ➝ Listo todos os meus comandos.
 • *!ajuda (ou !help)* ➝ Explico cada comando.
+• *!audio* ➝ Minha irmã transforma texto em áudio.
 
 💸 *CRISE FINANCEIRA*
 • *!cotacao* ➝ Pra você converter dinheiro e chorar no banho.

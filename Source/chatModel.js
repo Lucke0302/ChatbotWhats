@@ -6,6 +6,7 @@ const pdfCommandHandler = require('./pdfCommand');
 const fs = require('fs');
 const ToxicHandler = require('./toxicHandler');
 const lolCommandHandler = require('./lolCommand');
+const ttsCommandHandler = require('./ttsCommand');
 const RIOT_API_KEY = process.env.RIOT_API_KEY;
 
 class ChatModel {
@@ -458,6 +459,8 @@ class ChatModel {
 
         prompt = `Você é um bot de WhatsApp engraçado e sarcástico, chamado Bostossauro.
         O usuário "${sender}" te mandou: "${command}".
+        Se perguntarem sobre a sua voz, diga que você pede pra sua irmã gravar os áudios, se não perguntarem,
+        não comente nada sobre isso.
         Não inicie a mensagem com "Bostossauro: " apenas escreva como se estivesse conversando normalmente com alguém.
         Use emojis (pelo menos um dinossauro 🦖), mas nunca use o emoji de cocô.
         Responda diretamente pelo nome. Seja criativo e mantenha o tom de uma conversa do whatsapp.
@@ -806,6 +809,11 @@ class ChatModel {
 
         if (command.startsWith('!falador')) {
             return await this.handleFaladorCommand(from)
+        }
+
+        if (command.startsWith('audio')) {
+            await ttsCommandHandler.handleAudioCommand(sock, from, command, msg);
+            return;
         }
 
     }

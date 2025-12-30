@@ -7,8 +7,14 @@ Eu tô aqui processando bit igual um condenado e você pedindo ajuda... Tá, tom
 Pra saber os detalhes de um comando, digita:
 👉 *!ajuda (ou !help) [nome_do_comando]* (Ex: _!ajuda sticker_)
 
-🎨 *ARTE DUVIDOSA*
+🎨 *MÍDIA & UTILITÁRIOS*
 • *!sticker (!s)* ➝ Faço figurinha. Se sua foto for feia, a culpa não é minha.
+• *!audio* ➝ Transformo texto em áudio (Google).
+• *!pdf* ➝ Converto imagens/docs em PDF.
+• *!tradutor* ➝ Traduzo gringo pra português (ou o contrário).
+
+📊 *ESTATÍSTICAS*
+• *!falador* ➝ Ranking de quem não cala a boca hoje.
 
 🎲 *JOGATINA*
 • *!d* ➝ Dado. Pra ver se você tem sorte no jogo (já que no amor tá difícil).
@@ -29,7 +35,6 @@ Pra saber os detalhes de um comando, digita:
 • *!resumo* ➝ Fofoca resumida pra quem tem preguiça de ler.
 • *!lembrar* ➝ Eu puxo a capivara do que falaram aqui.
 • *!notas* ➝ O que eu anotei sobre sua pessoa (medo).
-• *!tradutor* ➝ Traduzo gringo pra português (ou o contrário).
 
 🎮 *GAMES*
 • *!lol* ➝ Exponho seu elo de papelão e seus mains horrríveis em praça pública.
@@ -44,6 +49,29 @@ Não vem mandar vídeo de 2 horas que eu não sou cinema, hein!
 *Modos de destruição (Parâmetros):*
 • *!s baixa* ➝ Qualidade Tekpix (4k do paraguai).
 • *!s podi* ➝ Destruo a imagem até ela pedir socorro.`,
+
+    'falador': `🗣️ *COMANDO: !falador*
+Mostra o TOP 3 das pessoas que mais mandaram mensagem *hoje*.
+O contador zera automaticamente quando vira o dia.
+Se ninguém falou nada, eu aviso.`,
+
+    'audio': `🗣️ *COMANDO: !audio*
+Minha irmã mais nova lê a sua mensagem em voz alta (ou a que você respondeu)
+
+*Como usar:*
+!audio [língua (abreviação)] [conteúdo (limite de 200 caracteres, se quiser mais, patrocina o dev)]
+
+*Línguagens suportadas - abreviações:*
+Português - pt
+Inglês - en
+Espanhol - es
+Japonês - ja
+Francês - fr
+Alemão - de
+Italiano - it
+Russo - ru
+Coreano - ko
+Chinês - zh`,
 
     'cotacao': `💸 *COMANDO: !cotacao*
 Calculadora de depressão. Vê quanto seu dinheiro não vale nada.

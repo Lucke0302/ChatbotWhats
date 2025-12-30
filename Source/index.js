@@ -94,6 +94,25 @@ async function initDatabase() {
             console.error("⚠️ Erro ao criar coluna Gemma:", error.message);
         }
     }
+
+    try {
+        await db.exec(`ALTER TABLE ranking_ofensas ADD COLUMN total_mensagens INTEGER DEFAULT 0;`);
+        console.log("✅ Coluna 'total_mensagens' adicionada com sucesso!");
+    } catch (error) {
+        if (!error.message.includes("duplicate column name")) {
+            console.error("⚠️ Erro ao criar coluna Gemma:", error.message);
+        }
+    }
+
+    try {
+        await db.exec(`ALTER TABLE ranking_ofensas ADD COLUMN data_ultima_mensagem TEXT DEFAULT '';`);
+        console.log("✅ Coluna 'data_ultima_mensagem' adicionada com sucesso!");
+    } catch (error) {
+        if (!error.message.includes("duplicate column name")) {
+            console.error("⚠️ Erro ao criar coluna data_ultima_mensagem:", error.message);
+        }
+    }
+    
     
     await db.exec(`
         CREATE TABLE IF NOT EXISTS ranking_ofensas (
@@ -161,6 +180,12 @@ const botCommands = {
     },
     '!toxico': {
         emoji: '☢️'
+    },
+    '!falador': {
+        emoji: '🗣️'
+    },
+    '!audio': {
+        emoji: '🗣️'
     }
 };
 
@@ -174,27 +199,6 @@ async function connectToWhatsApp() {
         auth: state,
         logger: pino({ level: 'warn' }), 
     });
-
-    // Função para enviar mensagem para todos os grupos
-    async function broadcastToAllGroups(sock, text) {
-        try {
-            console.log("📢 Iniciando transmissão para todos os grupos...");
-            
-            const groups = await sock.groupFetchAllParticipating();
-            const groupIds = Object.keys(groups);
-
-            console.log(`📊 Encontrados ${groupIds.length} grupos.`);
-
-            for (const id of groupIds) {
-                await sock.sendMessage(id, { text: text });
-                await new Promise(resolve => setTimeout(resolve, 2000)); 
-            }
-
-            console.log("✅ Transmissão finalizada com sucesso!");
-        } catch (error) {
-            console.error("❌ Erro ao enviar broadcast:", error);
-        }
-    }
 
     //Instancia o chatbot
     const chatbot = new ChatModel(db, genAI)
@@ -237,17 +241,6 @@ async function connectToWhatsApp() {
                 dailyJob.cancel();
             }
 
-            dailyJob = schedule.scheduleJob('0 0 10 * * *', async function(){
-                const targetCity = "Santos"; 
-                
-                try {
-                    const weatherComplement = await weatherCommandHandler.getWeather(targetCity);
-                    const weatherForecastComplement = await weatherCommandHandler.getNextDayForecast(targetCity);
-                    await broadcastToAllGroups(sock, "Bom dia, grupo! 🦖 O Bostossauro acordou e escolheu a violência.\nSe quiser usar alguma das minhas funções, dá um !ajuda (ou !help).\a" + weatherComplement + "\n\n" + weatherForecastComplement);
-                } catch (error) {
-                    console.error("❌ Erro no envio do clima agendado:", error);
-                }
-            });
             dailyJob = schedule.scheduleJob('0 0 10 * * *', async function(){
                 const targetCity = "Santos"; 
                 
@@ -337,6 +330,13 @@ async function connectToWhatsApp() {
         //Joga o comando todo para letras minúsculas para evitar problemas com case-sensitive
         const command = texto.trim().toLowerCase();
 
+        
+        const name = msg.pushName || '';
+
+        const sender = getSenderJid(msg);
+
+        chatbot.countMessage(name, sender, from)
+
         //Verifica se por algum motivo a mensagem não chegou vazia
         if (texto) {
             const id_conversa = from; 
@@ -345,7 +345,6 @@ async function connectToWhatsApp() {
             const id_mensagem_externo = msg.key.id;
             const timestamp = msg.messageTimestamp; 
             if (!msg.key.fromMe) {
-                let name = msg.pushName || '';
                 chatbot.trackOffenses(name, id_remetente, from, texto);
             }
 

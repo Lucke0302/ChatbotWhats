@@ -1,6 +1,6 @@
 const { jidNormalizedUser } = require('@whiskeysockets/baileys');
 
-async function handleMigrationCommand(sock, command, sender) {
+async function handleMigrationCommand(sock, from, command, sender) {
     const args = command.trim().split(/\s+/);
 
     if (args.length < 3) {
@@ -15,7 +15,7 @@ async function handleMigrationCommand(sock, command, sender) {
         return cleanNum.includes('@s.whatsapp.net') ? cleanNum : `${cleanNum}@s.whatsapp.net`;
     });
 
-    console.log(`\n🚀 [MIGRAÇÃO] Iniciada por: ${sender}`);
+    console.log(`\n🚀 [MIGRAÇÃO] Iniciada por: ${sender} na conversa ${from}`);
 
     try {
         console.log(`🔍 [MIGRAÇÃO] Checando grupo origem: ${sourceId}`);
@@ -54,8 +54,6 @@ async function handleMigrationCommand(sock, command, sender) {
             return "⛔ *ERRO DE PERMISSÃO:*\nEu preciso ser **ADMINISTRADOR** no grupo de destino para adicionar pessoas.\nMe promove lá e tenta de novo.";
         }
 
-        console.log(`✅ [MIGRAÇÃO] Permissão de Admin confirmada!`);
-
         const targetParticipantsSet = new Set(targetMetadata.participants.map(p => {
              return p.phoneNumber ? jidNormalizedUser(p.phoneNumber) : jidNormalizedUser(p.id);
         }));
@@ -83,7 +81,10 @@ async function handleMigrationCommand(sock, command, sender) {
 
         for (let i = 0; i < participantsToMigrate.length; i += batchSize) {
             const batch = participantsToMigrate.slice(i, i + batchSize);
-            console.log(`⏳ [MIGRAÇÃO] Processando lote ${Math.floor(i/batchSize) + 1}...`);
+            const batchNumber = Math.floor(i/batchSize) + 1;
+            console.log(`⏳ [MIGRAÇÃO] Processando lote ${batchNumber}...`);
+            
+            const addedInThisBatch = []; 
 
             try {
                 const response = await sock.groupParticipantsUpdate(targetId, batch, 'add');
@@ -92,22 +93,38 @@ async function handleMigrationCommand(sock, command, sender) {
                     response.forEach(res => {
                         if (res.status === '200') {
                             results.success++;
+                            addedInThisBatch.push(res.jid); 
                         } else {
                             results.failed++;
                             let reason = res.status;
-                            if(res.status === '403') reason = 'Privacidade/Bloqueado';
+                            if(res.status === '403') reason = 'Privacidade'; // Muito comum
                             if(res.status === '400') reason = 'Inválido';
-                            if(res.status === '409') reason = 'Já no grupo';
+                            if(res.status === '409') {
+                                reason = 'Já no grupo';
+                                results.failed--; 
+                                results.success++; 
+                            }
                             
                             if (res.status !== '409') {
                                 results.errors.push(`${res.jid.split('@')[0]} (${reason})`);
-                            } else {
-                                results.success++;
                             }
                         }
                     });
                 } else {
                     results.success += batch.length;
+                    addedInThisBatch.push(...batch);
+                }
+
+                if (addedInThisBatch.length > 0) {
+                    const text = `*Lote ${batchNumber} Processado*\n` + 
+                                 `Foram adicionados ao grupo de destino:\n` +
+                                 addedInThisBatch.map(jid => `+${jid.split('@')[0]}`).join(', ');
+                    
+                    try {
+                        await sock.sendMessage(from, { text: text });
+                    } catch (msgError) {
+                        console.error("Erro ao enviar progresso do lote:", msgError);
+                    }
                 }
 
                 await new Promise(r => setTimeout(r, 2000));
@@ -124,14 +141,14 @@ async function handleMigrationCommand(sock, command, sender) {
             }
         }
 
-        let report = `🏁 *Relatório de Migração*\n\n` +
-                     `👥 *Novos Tentados:* ${participantsToMigrate.length}\n` +
-                     `✅ *Sucesso:* ${results.success}\n` +
-                     `❌ *Falhas:* ${results.failed}`;
+        let report = `*Relatório Final de Migração*\n\n` +
+                     `*Tentativas:* ${participantsToMigrate.length}\n` +
+                     `*Sucesso:* ${results.success}\n` +
+                     `*Falhas:* ${results.failed}`;
 
         if (results.errors.length > 0) {
             const errPreview = results.errors.slice(0, 5).join('\n');
-            report += `\n\n⚠️ *Falhas (Top 5):*\n${errPreview}`;
+            report += `\n\n⚠️ *Principais Falhas:*\n${errPreview}`;
             if(results.errors.length > 5) report += `\n...e mais ${results.errors.length - 5}.`;
         }
 

@@ -9,7 +9,7 @@ async function handleMigrationCommand(sock, command, sender) {
 
     const sourceId = args[1].endsWith('@g.us') ? args[1] : `${args[1]}@g.us`;
     const targetId = args[2].endsWith('@g.us') ? args[2] : `${args[2]}@g.us`;
-
+    
     const exceptions = args.slice(3).map(num => {
         const cleanNum = num.replace(/\D/g, '');
         return cleanNum.includes('@s.whatsapp.net') ? cleanNum : `${cleanNum}@s.whatsapp.net`;
@@ -38,23 +38,32 @@ async function handleMigrationCommand(sock, command, sender) {
 
         const botId = jidNormalizedUser(sock.user.id);
 
-        const botInTarget = targetMetadata.participants.find(p => jidNormalizedUser(p.id) === botId);
+        const botInTarget = targetMetadata.participants.find(p => {
+            const pId = jidNormalizedUser(p.id);
+            const pPhone = p.phoneNumber ? jidNormalizedUser(p.phoneNumber) : null;
+            return pId === botId || pPhone === botId;
+        });
         
         if (!botInTarget) {
-            console.log(`botId - ${botId}.\n`)
-            console.log(`📋 Lista de Participantes (Raw): \n${JSON.stringify(targetMetadata.participants, null, 2)}`);
-            return "❌ Eu não estou no grupo de destino!";
+            console.log(`❌ ERRO DEBUG: Bot ID (${botId}) não encontrado na lista do destino.`);
+            return "❌ Eu não estou no grupo de destino (ou não consegui me identificar na lista)!";
         }
 
-        if (!botInTarget.admin) {
-            console.warn(`⛔ [MIGRAÇÃO] Bot não é admin no destino.`);
+        if (botInTarget.admin !== 'admin' && botInTarget.admin !== 'superadmin') {
+            console.warn(`⛔ [MIGRAÇÃO] Bot consta no grupo mas não é admin.`);
             return "⛔ *ERRO DE PERMISSÃO:*\nEu preciso ser **ADMINISTRADOR** no grupo de destino para adicionar pessoas.\nMe promove lá e tenta de novo.";
         }
 
-        const targetParticipantsSet = new Set(targetMetadata.participants.map(p => jidNormalizedUser(p.id)));
+        console.log(`✅ [MIGRAÇÃO] Permissão de Admin confirmada!`);
+
+        const targetParticipantsSet = new Set(targetMetadata.participants.map(p => {
+             return p.phoneNumber ? jidNormalizedUser(p.phoneNumber) : jidNormalizedUser(p.id);
+        }));
 
         const participantsToMigrate = sourceMetadata.participants
-            .map(p => jidNormalizedUser(p.id))
+            .map(p => {
+                return p.phoneNumber ? jidNormalizedUser(p.phoneNumber) : jidNormalizedUser(p.id);
+            })
             .filter(id => {
                 const isBot = id === botId;
                 const isException = exceptions.includes(id);
@@ -78,6 +87,7 @@ async function handleMigrationCommand(sock, command, sender) {
 
             try {
                 const response = await sock.groupParticipantsUpdate(targetId, batch, 'add');
+                
                 if (Array.isArray(response)) {
                     response.forEach(res => {
                         if (res.status === '200') {
@@ -87,8 +97,13 @@ async function handleMigrationCommand(sock, command, sender) {
                             let reason = res.status;
                             if(res.status === '403') reason = 'Privacidade/Bloqueado';
                             if(res.status === '400') reason = 'Inválido';
+                            if(res.status === '409') reason = 'Já no grupo';
                             
-                            results.errors.push(`${res.jid.split('@')[0]} (${reason})`);
+                            if (res.status !== '409') {
+                                results.errors.push(`${res.jid.split('@')[0]} (${reason})`);
+                            } else {
+                                results.success++;
+                            }
                         }
                     });
                 } else {

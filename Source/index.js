@@ -413,21 +413,29 @@ async function connectToWhatsApp() {
         }
 
         const msg = m.messages[0];
-
-        if (msg.key.fromMe) {
-            const isPoll = msg.message.pollCreationMessage || 
-                           msg.message.viewOnceMessage?.message?.pollCreationMessage;
+    if (msg.key.fromMe) {   
+            const pollCreation = msg.message.pollCreationMessage || 
+                                msg.message.viewOnceMessage?.message?.pollCreationMessage ||
+                                msg.message.documentWithCaptionMessage?.message?.pollCreationMessage;
             
-            if (isPoll) {
+            if (pollCreation) {
                 const pollId = msg.key.id;
-                pollCache.set(pollId, msg);
-                setTimeout(() => pollCache.delete(pollId), 2 * 60 * 60 * 1000);
-                console.log(`💾 Enquete salva na memória manual: ${pollId}`);
+                
+                const secret = msg.message.messageContextInfo?.messageSecret || 
+                            msg.message.viewOnceMessage?.message?.messageContextInfo?.messageSecret;
+
+                if (secret) {
+                    pollCache.set(pollId, msg); 
+                    setTimeout(() => pollCache.delete(pollId), 2 * 60 * 60 * 1000);
+                    console.log(`💾 [AUTO-SAVE] Enquete salva via Upsert! ID: ${pollId}`);
+                    console.log(`🔑 [AUTO-SAVE] Segredo encontrado? SIM`);
+                } else {
+                    console.log(`⚠️ [AUTO-SAVE] Enquete detectada, mas SEM messageSecret. Votos não poderão ser lidos.`);
+                }
             }
-            return; 
+            return;
         }
 
-        // --- BLOCO DE LEITURA RECONSTRUÍDA (A SOLUÇÃO DEFINITIVA) ---
         if (msg.message.pollUpdateMessage) {
             console.log("🔍 [DEBUG] Processando voto...");
             
@@ -436,7 +444,6 @@ async function connectToWhatsApp() {
             const pollCreationKey = msg.message.pollUpdateMessage.pollCreationMessageKey;
             const pollId = pollCreationKey.id;
 
-            // 1. Busca no Cache
             const pollMessageRaw = pollCache.get(pollId);
             
             if (!pollMessageRaw) {
@@ -444,30 +451,24 @@ async function connectToWhatsApp() {
                 return;
             }
 
-            // 2. EXTRAÇÃO CIRÚRGICA DOS DADOS
-            // Vamos pegar só o que importa e ignorar o resto da estrutura
-            
-            // A. Acha a enquete (pode estar dentro de viewOnce ou solta)
             const creationMsg = pollMessageRaw.message?.pollCreationMessage || 
                                 pollMessageRaw.message?.viewOnceMessage?.message?.pollCreationMessage ||
-                                pollMessageRaw.message?.documentWithCaptionMessage?.message?.pollCreationMessage; // Raro, mas acontece
+                                pollMessageRaw.message?.documentWithCaptionMessage?.message?.pollCreationMessage; 
 
             if (!creationMsg) {
                 console.log("❌ [ERRO] Estrutura da enquete inválida no cache.");
                 return;
             }
 
-            // B. Acha e Trata o Segredo (Chave de Criptografia)
             let secret = pollMessageRaw.message?.messageContextInfo?.messageSecret || 
                          pollMessageRaw.message?.viewOnceMessage?.message?.messageContextInfo?.messageSecret;
 
-            // Converter para Buffer na marra (mesmo se vier como JSON ou Uint8Array)
             try {
                 if (secret) {
                     if (secret.type === 'Buffer' && Array.isArray(secret.data)) {
-                        secret = Buffer.from(secret.data); // Converte de JSON {type:'Buffer', data:[...]}
+                        secret = Buffer.from(secret.data); 
                     } else if (!Buffer.isBuffer(secret)) {
-                        secret = Buffer.from(secret); // Converte de Uint8Array ou Array
+                        secret = Buffer.from(secret); 
                     }
                 }
             } catch (err) {
@@ -479,27 +480,23 @@ async function connectToWhatsApp() {
                 return;
             }
 
-            // 3. RECONSTRUÇÃO DO OBJETO PERFEITO
-            // Criamos um objeto "fake" limpo que o Baileys entende 100%
             const cleanPollMessage = {
                 key: pollMessageRaw.key,
                 message: {
                     pollCreationMessage: creationMsg,
                     messageContextInfo: {
-                        messageSecret: secret // Aqui garantimos que é um Buffer
+                        messageSecret: secret
                     }
                 }
             };
 
-            // 4. TENTATIVA DE LEITURA
             try {
                 if (getAggregateVotesInPollMessage) {
                     const votos = getAggregateVotesInPollMessage({
-                        message: cleanPollMessage, // Passamos o objeto limpo
+                        message: cleanPollMessage,
                         pollUpdates: [msg],
                     });
                     
-                    // Busca flexível de usuário (ignora @lid vs @s.whatsapp.net)
                     const senderClean = sender.split('@')[0];
                     const votoUsuario = votos.find(v => 
                         v.voters.some(voter => voter.includes(senderClean))
@@ -509,7 +506,6 @@ async function connectToWhatsApp() {
                         const acao = votoUsuario.name;
                         console.log(`🎉 VOTO DECRIPTADO COM SUCESSO: "${acao}"`);
                         
-                        // --- COMANDOS DO POKÉMON ---
                         const comandoLimpo = acao.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
 
                         if (chatbot.pokemonHandler.activeEncounters.has(from)) {

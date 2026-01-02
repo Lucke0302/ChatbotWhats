@@ -311,13 +311,8 @@ class PokemonHandler {
                     image: { url: sprite }, 
                     caption: "" 
                 });
-
-                const msgEnviada = await sock.sendMessage(groupId, pollMessage);
     
-                if (sock.pollCache) {
-                    sock.pollCache.set(msgEnviada.key.id, msgEnviada);
-                    console.log("💾 Enquete salva manualmente (Spawn):", msgEnviada.key.id);
-                }
+                await sock.sendMessage(groupId, pollMessage);
                 
                 return null; 
             }
@@ -356,11 +351,7 @@ class PokemonHandler {
             }
         };
 
-        const msgEnviada = await sock.sendMessage(groupId, enqueteGolpes);
-
-        if (sock.pollCache) {
-            sock.pollCache.set(msgEnviada.key.id, msgEnviada);
-        }
+        await sock.sendMessage(groupId, pollMessage);
     }
 
     async catchPokemon(groupId, userId) {
@@ -528,12 +519,8 @@ class PokemonHandler {
                     selectableCount: 1
                 }
             };
-            
-            const msgEnviada = await sock.sendMessage(groupId, menuPrincipal);
 
-            if (sock.pollCache) {
-                sock.pollCache.set(msgEnviada.key.id, msgEnviada);
-            }
+            await sock.sendMessage(groupId, pollMessage);
         }
 
         return resultadoFinal;

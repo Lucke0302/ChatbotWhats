@@ -427,62 +427,85 @@ async function connectToWhatsApp() {
         }
 
         if (msg.message.pollUpdateMessage) {
+            console.log("🔍 [DEBUG] Recebi um voto (PollUpdate). Processando...");
+            
             const from = msg.key.remoteJid;
             const sender = jidNormalizedUser(msg.key.participant || msg.key.remoteJid);
             const pollCreationKey = msg.message.pollUpdateMessage.pollCreationMessageKey;
             const pollId = pollCreationKey.id;
 
+            console.log(`🔍 [DEBUG] ID da Enquete Votada: ${pollId}`);
+            console.log(`🔍 [DEBUG] Quem votou: ${sender}`);
+
             const pollMessage = pollCache.get(pollId);
+            
+            if (!pollMessage) {
+                console.log(`❌ [DEBUG] Enquete ${pollId} NÃO ENCONTRADA no cache.`);
+                console.log(`ℹ️ [DEBUG] IDs disponíveis no cache:`, Array.from(pollCache.keys()));
+                return;
+            } else {
+                console.log(`✅ [DEBUG] Enquete encontrada no cache!`);
+            }
 
-            if (pollMessage && getAggregateVotesInPollMessage) {
-                try {
-                    const votos = getAggregateVotesInPollMessage({
-                        message: pollMessage,
-                        pollUpdates: [msg],
-                    });
+            if (!getAggregateVotesInPollMessage) {
+                console.error("❌ [CRÍTICO] Função 'getAggregateVotesInPollMessage' não foi importada ou é undefined.");
+                return;
+            }
+
+            try {
+                const votos = getAggregateVotesInPollMessage({
+                    message: pollMessage,
+                    pollUpdates: [msg],
+                });
+
+                console.log(`🔍 [DEBUG] Votos decifrados:`, JSON.stringify(votos, null, 2));
+                
+                const votoDoUsuario = votos.find(v => v.voters.includes(sender));
+                
+                if (votoDoUsuario) {
+                    const acao = votoDoUsuario.name;
+                    const comandoLimpo = acao.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
                     
-                    const votoDoUsuario = votos.find(v => v.voters.includes(sender));
-                    
-                    if (votoDoUsuario) {
-                        const acao = votoDoUsuario.name;
-                        const comandoLimpo = acao.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
-                        
-                        console.log(`🗳️ Voto Manual Detectado: ${acao} de ${sender}`);
+                    console.log(`🗳️ [DEBUG] Ação escolhida: "${acao}" (Comando: ${comandoLimpo})`);
 
-                        if (chatbot.pokemonHandler.activeEncounters.has(from)) {
-                            
-                            if (comandoLimpo.includes('atacar')) {
-                                await chatbot.pokemonHandler.solicitarAtaque(sock, from, sender);
-                            }
-                            else if (comandoLimpo.includes('capturar')) {
-                                const res = await chatbot.pokemonHandler.catchPokemon(from, sender);
-                                await sendAndSave(sock, db, from, res);
-                            }
-                            else if (comandoLimpo.includes('fugir')) {
-                                const res = await chatbot.pokemonHandler.fleeBattle(from);
-                                await sendAndSave(sock, db, from, res);
-                            }
+                    if (chatbot.pokemonHandler.activeEncounters.has(from)) {
+                        console.log(`⚔️ [DEBUG] Batalha ativa encontrada. Enviando comando...`);
 
-                            else if (/^[1-4]/.test(acao)) {
-                                const slot = acao.split('.')[0];
-                                const res = await chatbot.pokemonHandler.battleTurn(from, sender, slot, sock);
-                                await sendAndSave(sock, db, from, res);
-                            }
-
-                            else if (comandoLimpo.includes('voltar')) {
-                                await sock.sendMessage(from, {
-                                    poll: {
-                                        name: "O que fará?",
-                                        values: ["👊 Atacar", "🔴 Capturar", "🏃 Fugir"],
-                                        selectableCount: 1
-                                    }
-                                });
-                            }
+                        if (comandoLimpo.includes('atacar')) {
+                            await chatbot.pokemonHandler.solicitarAtaque(sock, from, sender);
                         }
+                        else if (comandoLimpo.includes('capturar')) {
+                            const res = await chatbot.pokemonHandler.catchPokemon(from, sender);
+                            await sendAndSave(sock, db, from, res);
+                        }
+                        else if (comandoLimpo.includes('fugir')) {
+                            const res = await chatbot.pokemonHandler.fleeBattle(from);
+                            await sendAndSave(sock, db, from, res);
+                        }
+                        else if (/^[1-4]/.test(acao)) {
+                            const slot = acao.split('.')[0];
+                            const res = await chatbot.pokemonHandler.battleTurn(from, sender, slot, sock);
+                            await sendAndSave(sock, db, from, res);
+                        }
+                        else if (comandoLimpo.includes('voltar')) {
+                             await sock.sendMessage(from, {
+                                poll: {
+                                    name: "O que fará?",
+                                    values: ["👊 Atacar", "🔴 Capturar", "🏃 Fugir"],
+                                    selectableCount: 1
+                                }
+                            });
+                        } else {
+                            console.log(`⚠️ [DEBUG] Comando não mapeado: ${comandoLimpo}`);
+                        }
+                    } else {
+                        console.log(`⚠️ [DEBUG] Nenhuma batalha ativa encontrada para o grupo ${from}.`);
                     }
-                } catch (err) {
-                    console.error("Erro ao processar voto manual:", err);
+                } else {
+                    console.log(`⚠️ [DEBUG] Não encontrei o voto do usuário ${sender} na lista agregada.`);
                 }
+            } catch (err) {
+                console.error("❌ [ERRO NO PROCESSAMENTO DO VOTO]:", err);
             }
             return; 
         }

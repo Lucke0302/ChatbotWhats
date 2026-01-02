@@ -315,8 +315,6 @@ async function connectToWhatsApp() {
         logger: pino({ level: 'warn' }), 
     });
 
-    store.bind(sock.ev);
-
     //Instancia o chatbot
     const chatbot = new ChatModel(db, genAI)
     

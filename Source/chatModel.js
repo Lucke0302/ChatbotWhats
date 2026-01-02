@@ -847,9 +847,6 @@ class ChatModel {
         this.checkTimeout(user)
         this.checkSpam(sender)
 
-        this.checkTimeout(user);
-        this.checkSpam(sender);
-
         let rootCommand = command.split(' ')[0].toLowerCase();
 
         if (/^!d\d+$/.test(rootCommand)) {

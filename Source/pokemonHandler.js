@@ -246,19 +246,41 @@ class PokemonHandler {
         const selectedMove = (await this.getUserMoves(userPoke))[parseInt(moveSlot) - 1];
         if (!selectedMove) return "Golpe inválido!";
 
-        const calcDmg = (lvl, pwr, atk, def) => Math.floor(((2 * lvl / 5 + 2) * pwr * (atk / def)) / 50 + 2);
-        
+        const calcDmg = (lvl, pwr, atk, def) => {
+            return Math.floor(((2 * lvl / 5 + 2) * pwr * (atk / def)) / 50 + 2);
+        };
+
         let log = "";
         let damageToWild = 0;
+
+        // ============================================================
+        // TURNO DO JOGADOR
+        // ============================================================
 
         if (selectedMove.damage_class === 'status') {
             log += `✨ ${userPoke.nickname} usou *${selectedMove.name}*!\n`;
         } else {
-            let atk = (selectedMove.damage_class === 'special') ? userPoke.base_spa : userPoke.base_atk;
-            let def = (selectedMove.damage_class === 'special') ? encounter.pokemon.base_spd : encounter.pokemon.base_def;
-            damageToWild = calcDmg(userPoke.level, selectedMove.power, atk, def);
+            const userAtkReal = Math.floor(((2 * userPoke.base_atk + (userPoke.iv_atk || 15)) * userPoke.level) / 100 + 5);
+            const userSpaReal = Math.floor(((2 * userPoke.base_spa + (userPoke.iv_spa || 15)) * userPoke.level) / 100 + 5);
+
+            let atkFinal = (selectedMove.damage_class === 'special') ? userSpaReal : userAtkReal;
+
+            const enemyDefReal = Math.floor(((2 * encounter.pokemon.base_def + 15) * encounter.level) / 100 + 5);
+            const enemySpdReal = Math.floor(((2 * encounter.pokemon.base_spd + 15) * encounter.level) / 100 + 5);
+            
+            let defFinal = (selectedMove.damage_class === 'special') ? enemySpdReal : enemyDefReal;
+
+            damageToWild = calcDmg(userPoke.level, selectedMove.power, atkFinal, defFinal);
+
+            if (Math.random() < 0.05) {
+                damageToWild = Math.floor(damageToWild * 2);
+                log += `🎯 *GOLPE CRÍTICO!* 🎯\n`;
+            }
+
+            damageToWild = Math.floor(damageToWild * ((Math.random() * 0.15) + 0.85));
+
             encounter.currentHp -= damageToWild;
-            log += `🗡️ ${userPoke.nickname} causou **${damageToWild}** de dano.\n`;
+            log += `🗡️ ${userPoke.nickname} usou *${selectedMove.name}* e causou **${damageToWild}** de dano.\n`;
         }
 
         if (encounter.currentHp <= 0) {
@@ -276,17 +298,38 @@ class PokemonHandler {
             return `${log}\n💀 O inimigo desmaiou!\n${xpMsg}\n💰 +${coins} coins.`;
         }
 
-        const wildMove = encounter.moves[Math.floor(Math.random() * encounter.moves.length)] || {name:"Investida", power:40, damage_class:'physical'};
-        let dmgToUser = 0;
+        // ============================================================
+        // TURNO DO INIMIGO
+        // ============================================================
+        
+        const wildMove = encounter.moves[Math.floor(Math.random() * encounter.moves.length)] || {name: "Investida", power: 40, damage_class: 'physical', type: 'normal'};
+        let damageToUser = 0;
 
         if (wildMove.damage_class === 'status') {
-            log += `✨ Inimigo usou *${wildMove.name}*!`;
+            log += `\n✨ O ${encounter.pokemon.name} selvagem usou *${wildMove.name}*!`;
         } else {
-            let wAtk = (wildMove.damage_class === 'special') ? encounter.pokemon.base_spa : encounter.pokemon.base_atk;
-            let uDef = (wildMove.damage_class === 'special') ? userPoke.base_spd : userPoke.base_def;
-            dmgToUser = calcDmg(encounter.level, wildMove.power, wAtk, uDef);
-            await this.db.run(`UPDATE user_pokemons SET current_hp = current_hp - ? WHERE id = ?`, [dmgToUser, userPoke.id]);
-            log += `\n💢 Inimigo usou *${wildMove.name}* e tirou **${dmgToUser}** HP.`;
+            const wildAtkReal = Math.floor(((2 * encounter.pokemon.base_atk + 15) * encounter.level) / 100 + 5);
+            const wildSpaReal = Math.floor(((2 * encounter.pokemon.base_spa + 15) * encounter.level) / 100 + 5);
+
+            let wildAtkFinal = (wildMove.damage_class === 'special') ? wildSpaReal : wildAtkReal;
+
+            const userDefReal = Math.floor(((2 * userPoke.base_def + (userPoke.iv_def || 15)) * userPoke.level) / 100 + 5);
+            const userSpdReal = Math.floor(((2 * userPoke.base_spd + (userPoke.iv_spd || 15)) * userPoke.level) / 100 + 5);
+
+            let userDefFinal = (wildMove.damage_class === 'special') ? userSpdReal : userDefReal;
+
+            damageToUser = calcDmg(encounter.level, wildMove.power, wildAtkFinal, userDefFinal);
+
+            if (Math.random() < 0.05) {
+                damageToUser = Math.floor(damageToUser * 2);
+                log += `\n⚠️ *CRÍTICO DO INIMIGO!* ⚠️`;
+            }
+
+            damageToUser = Math.floor(damageToUser * ((Math.random() * 0.15) + 0.85));
+
+            await this.db.run(`UPDATE user_pokemons SET current_hp = current_hp - ? WHERE id = ?`, [damageToUser, userPoke.id]);
+            
+            log += `\n💢 ${encounter.pokemon.name} usou *${wildMove.name}*!\nTe causou **${damageToUser}** de dano.`;
         }
 
         const updatedUserPoke = await this.db.get("SELECT current_hp, max_hp FROM user_pokemons WHERE id = ?", [userPoke.id]);

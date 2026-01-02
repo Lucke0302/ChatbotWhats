@@ -847,7 +847,7 @@ class ChatModel {
                 return "🔒 *Acesso Negado.* Só o chefe pode fazer o êxodo.";
             }
             
-            return await migrationCommandHandler.handleMigrationCommand(sock, command, sender);
+            return await migrationCommandHandler.handleMigrationCommand(sock, from, command, sender);
         }
     }
 

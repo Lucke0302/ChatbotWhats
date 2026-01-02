@@ -290,44 +290,37 @@ class PokemonHandler {
         if (RARE_POKE.includes(pokemon.id)) emoji = "🌟";
         if (isShiny) emoji = "✨✨✨";
 
-        const sprite = isShiny ? pokemon.sprite_url.replace("front_default", "front_shiny") : pokemon.sprite_url;
         const shinyText = isShiny ? " (✨ SHINY ✨)" : "";
 
         const caption = `${emoji} Um *${pokemon.name.toUpperCase()}* ${shinyText}(Lvl ${wildLevel}) selvagem apareceu!\n` +
-                    ` HP: ${wildHp}/${wildHp}`;
+                        `❤️ HP: ${wildHp}/${wildHp}\n\n` +
+                        `👇 *O que fará?*\n` +
+                        `👊 *!poke atacar* - Iniciar combate\n` +
+                        `🔴 *!poke capturar* - Jogar Pokébola\n` +
+                        `🏃 *!poke fugir* - Sair correndo`;
 
-        const pollMessage = {
-            poll: {
-                name: caption,
-                values: ["👊 Atacar", "🔴 Capturar", "🏃 Fugir"],
-                selectableCount: 1
-            }
-        };
         try {
             if (sock) {
                 const sprite = isShiny ? pokemon.sprite_url.replace("front_default", "front_shiny") : pokemon.sprite_url;
                 
-                await sock.sendMessage(groupId, { 
-                    image: { url: sprite }, 
-                    caption: "" 
-                });
-    
-                await sock.sendMessage(groupId, pollMessage);
-                
+                try {
+                    await sock.sendMessage(groupId, { 
+                        image: { url: sprite }, 
+                        caption: caption 
+                    });
+                } catch (imgErr) {to
+                    await sock.sendMessage(groupId, { text: caption });
+                }
                 return null; 
             }
         } catch (err) {
-            console.error("Erro ao enviar enquete:", err);
+            console.error("Erro ao iniciar batalha:", err);
             return "Erro ao iniciar batalha.";
         }
-
-        return `Um ${pokemon.name} apareceu! (Modo texto)`;
+        return caption;
     }
 
     async solicitarAtaque(sock, groupId, userId) {
-        const encounter = this.activeEncounters.get(groupId);
-        if (!encounter) return;
-
         const userPoke = await this.db.get(`
             SELECT up.*, p.name 
             FROM user_pokemons up
@@ -339,19 +332,15 @@ class PokemonHandler {
 
         const moves = await this.getUserMoves(userPoke);
         
-        const opcoesGolpes = moves.map((m, index) => `${index + 1}. ${m.name}`);
+        let msg = `⚔️ *Ataques de ${userPoke.nickname}*:\n\n`;
         
-        opcoesGolpes.push("🔙 Voltar");
+        moves.forEach((m, index) => {
+            msg += `${index + 1}. *${m.name}* (${m.type}) - PWR: ${m.power}\n`;
+        });
 
-        const enqueteGolpes = {
-            poll: {
-                name: `⚔️ O que ${userPoke.nickname} deve fazer?`,
-                values: opcoesGolpes,
-                selectableCount: 1
-            }
-        };
+        msg += `\nDigite o comando:\n👉 *!poke atacar 1* (ou 2, 3, 4)`;
 
-        await sock.sendMessage(groupId, pollMessage);
+        await sock.sendMessage(groupId, { text: msg });
     }
 
     async catchPokemon(groupId, userId) {
@@ -512,15 +501,12 @@ class PokemonHandler {
         let resultadoFinal = log; 
 
         if (this.activeEncounters.has(groupId)) {
-            const menuPrincipal = {
-                poll: {
-                    name: `🔥 A batalha continua!\nHP Inimigo: ${encounter.currentHp}/${encounter.maxHp}\nSeu HP: ${userCurrentHp}/${userMaxHp}`,
-                    values: ["👊 Atacar", "🔴 Capturar", "🏃 Fugir"],
-                    selectableCount: 1
-                }
-            };
-
-            await sock.sendMessage(groupId, pollMessage);
+            resultadoFinal += `\n\n➖➖➖➖➖➖➖➖\n` +
+                              `❤️ Inimigo: ${Math.max(0, encounter.currentHp)}/${encounter.maxHp}\n` +
+                              `💚 Seu: ${Math.max(0, userCurrentHp)}/${userMaxHp}\n\n` +
+                              `👊 *!poke atacar [n]*\n` +
+                              `🔴 *!poke capturar*\n` +
+                              `🏃 *!poke fugir*`;
         }
 
         return resultadoFinal;

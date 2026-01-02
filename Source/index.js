@@ -191,6 +191,24 @@ async function initDatabase() {
         );
     `);
 
+    await db.exec(`
+        CREATE TABLE IF NOT EXISTS active_encounters (
+            user_id TEXT PRIMARY KEY,
+            group_id TEXT,
+            pokedex_id INTEGER,
+            current_hp INTEGER,
+            max_hp INTEGER,
+            level INTEGER,
+            is_shiny BOOLEAN,
+            moves TEXT,
+            battle_type TEXT,
+            extra_data TEXT,
+            started_at INTEGER,
+            FOREIGN KEY(pokedex_id) REFERENCES pokedex(id)
+        );
+    `);
+    console.log("✅ Tabela 'active_encounters' verificada.");
+
     const columnsToAdd = ['move1', 'move2', 'move3', 'move4'];
     for (const col of columnsToAdd) {
         try {
@@ -226,12 +244,22 @@ async function initDatabase() {
         if (!error.message.includes("duplicate column name")) console.error(error.message);
     }
 
-        try {
+    try {
         await db.exec(`ALTER TABLE usuarios ADD COLUMN pokecoins INTEGER DEFAULT 1000;`);
         console.log("✅ Coluna 'pokecoins' adicionada com sucesso!");
     } catch (error) {
         if (!error.message.includes("duplicate column name")) console.error(error.message);
     }
+
+    try {
+        await db.exec(`ALTER TABLE usuarios ADD COLUMN potions INTEGER DEFAULT 0;`);
+        console.log("✅ Coluna 'potions' adicionada!");
+    } catch (e) {}
+
+    try {
+        await db.exec(`ALTER TABLE usuarios ADD COLUMN badges INTEGER DEFAULT 0;`);
+        console.log("✅ Coluna 'badges' adicionada!");
+    } catch (e) {}
 
     console.log('✅ Banco de dados SQLite inicializado e tabelas `mensagens` e `usuarios` verificadas.');
 }

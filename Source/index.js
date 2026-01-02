@@ -18,9 +18,6 @@ const { handleBotError } = require('./errorHandler');
 const fs = require('fs');
 const { Sticker, StickerTypes } = require('wa-sticker-formatter');
 const sharp = require('sharp');
-setInterval(() => {
-    store.writeToFile('./baileys_store.json');
-}, 10_000);
 
 const pollCache = new Map();
 

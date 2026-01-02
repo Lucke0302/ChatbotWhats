@@ -41,9 +41,8 @@ async function handleMigrationCommand(sock, command, sender) {
         const botInTarget = targetMetadata.participants.find(p => jidNormalizedUser(p.id) === botId);
         
         if (!botInTarget) {
-            console.log(`botId - ${botId}.\n
-            targetMetadata.participants:\n
-            ${targetMetadata.participants}`)
+            console.log(`botId - ${botId}.\n`)
+            console.log(`📋 Lista de Participantes (Raw): \n${JSON.stringify(targetMetadata.participants, null, 2)}`);
             return "❌ Eu não estou no grupo de destino!";
         }
 

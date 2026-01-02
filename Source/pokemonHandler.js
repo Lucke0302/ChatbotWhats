@@ -240,8 +240,11 @@ class PokemonHandler {
         `, [userId]);
 
         const baseLevel = lvlResult && lvlResult.media ? Math.floor(lvlResult.media) : 5;
-        const minLevel = Math.max(1, baseLevel - 3); 
-        const maxLevel = baseLevel + 3;
+        const variation = Math.max(1, Math.floor(baseLevel * 0.20));
+        
+        const minLevel = Math.max(1, baseLevel - variation);
+        const maxLevel = baseLevel + variation;
+
         const wildLevel = Math.floor(Math.random() * (maxLevel - minLevel + 1)) + minLevel;
 
         let pokemon = null;
@@ -267,16 +270,18 @@ class PokemonHandler {
             return "🦗 Você andou no matinho mas só achou grilos.";
         }
             
-        // 4. Configuração da Batalha (Moves, HP, etc)
+        // Configuração da Batalha (Moves, HP, etc)
         // Garante que o pokemon existe antes de prosseguir
         if (!pokemon) return "Erro ao buscar Pokémon no banco de dados.";
 
         const wildMoves = await this.getMovesForLevel(pokemon.id, wildLevel);
 
+        const hpFormula = Math.floor(((2 * pokemon.base_hp + 15 + 100) * wildLevel) / 100 + 10);
+
         this.activeEncounters.set(groupId, {
             pokemon: pokemon,
-            currentHp: pokemon.base_hp + (wildLevel * 2),
-            maxHp: pokemon.base_hp + (wildLevel * 2),
+            currentHp: hpFormula,
+            maxHp: hpFormula,
             level: wildLevel,
             moves: wildMoves,
             isShiny: isShiny,

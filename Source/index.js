@@ -1,7 +1,14 @@
 require('dotenv').config();
 const schedule = require('node-schedule');
-const weatherCommandHandler = require('./weatherCommand');
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, downloadMediaMessage, jidNormalizedUser } = require('@whiskeysockets/baileys');
+const weatherCommandHandler = require('./weatherCommand');const { 
+    default: makeWASocket, 
+    useMultiFileAuthState, 
+    DisconnectReason, 
+    downloadMediaMessage, 
+    jidNormalizedUser,
+    makeInMemoryStore,
+    getAggregateVotesInPollMessage
+} = require('@whiskeysockets/baileys');
 const { GoogleGenAI } = require("@google/genai");
 const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 const qrcode = require('qrcode-terminal');
@@ -13,8 +20,13 @@ const { handleBotError } = require('./errorHandler');
 const fs = require('fs');
 const { Sticker, StickerTypes } = require('wa-sticker-formatter');
 const sharp = require('sharp');
+export const batalhasAtivas = new Map();
+const store = makeInMemoryStore({ });
+store.readFromFile('./baileys_store.json');
+setInterval(() => {
+    store.writeToFile('./baileys_store.json');
+}, 10_000);
 
-const groupHistory = {}; 
 const DB_PATH = 'chat_history.db'; 
 let db; 
 let myFullJid;
@@ -306,6 +318,8 @@ async function connectToWhatsApp() {
         logger: pino({ level: 'warn' }), 
     });
 
+    store.bind(sock.ev);
+
     //Instancia o chatbot
     const chatbot = new ChatModel(db, genAI)
     
@@ -404,6 +418,67 @@ async function connectToWhatsApp() {
         }
 
         const msg = m.messages[0];
+
+        if (msg.message.pollUpdateMessage) {
+            const from = msg.key.remoteJid;
+            const sender = jidNormalizedUser(msg.key.participant || msg.key.remoteJid);
+            
+            const pollCreationKey = msg.message.pollUpdateMessage.pollCreationMessageKey;
+
+            const pollMessage = await store.loadMessage(from, pollCreationKey.id);
+
+            if (pollMessage) {
+                const votosAgregados = getAggregateVotesInPollMessage({
+                    message: pollMessage,
+                    pollUpdates: [msg],
+                });
+
+                const votoDoUsuario = votosAgregados.find(opcao => 
+                    opcao.voters.includes(sender)
+                );
+
+                if (votoDoUsuario) {
+                    const acao = votoDoUsuario.name;
+                    const comandoLimpo = acao.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+
+                    if (chatbot.pokemonHandler.activeEncounters.has(from)) {
+                        
+                        if (comandoLimpo.includes('atacar')) {
+                            await chatbot.pokemonHandler.solicitarAtaque(sock, from, sender);
+                        } 
+                        
+                        else if (comandoLimpo.includes('capturar')) {
+                            const resposta = await chatbot.pokemonHandler.catchPokemon(from, sender);
+                            await sendAndSave(sock, db, from, resposta);
+                        }
+                        else if (comandoLimpo.includes('fugir')) {
+                            const resposta = await chatbot.pokemonHandler.fleeBattle(from);
+                            await sendAndSave(sock, db, from, resposta);
+                        }
+
+                        else if (/^[1-4]/.test(acao)) {
+                            const slot = acao.split('.')[0]; 
+                        
+                            const resposta = await chatbot.pokemonHandler.battleTurn(from, sender, slot, sock);
+                            
+                            await sendAndSave(sock, db, from, resposta);
+                        }
+
+                        else if (comandoLimpo.includes('voltar')) {
+                            await sock.sendMessage(from, {
+                                poll: {
+                                    name: "O que fará?",
+                                    values: ["👊 Atacar", "🔴 Capturar", "🏃 Fugir"],
+                                    selectableCount: 1
+                                }
+                            });
+                        }
+                    }
+                }
+            }
+            return;
+        }
+
         if (!msg.message || msg.key.fromMe) return;
 
         // Pega de quem é a mensagem e verifica se é de um grupo

@@ -3,6 +3,7 @@ const STARTER_IDS = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 const RARE_POKE = [25]
 const POKEMON_COUNT = 151;
 const GAME_VERSION = 'sword-shield';
+import { batalhasAtivas } from './index.js';
 
 class PokemonHandler {
     constructor(db) {
@@ -120,7 +121,7 @@ class PokemonHandler {
 
             case 'explorar':
             case 'hunt':
-                return await this.spawnWildPokemon(from, sender);
+                return await this.spawnWildPokemon(from, sender, sock);
             
             case 'capturar':
             case 'catch':
@@ -293,10 +294,65 @@ class PokemonHandler {
         const sprite = isShiny ? pokemon.sprite_url.replace("front_default", "front_shiny") : pokemon.sprite_url;
         const shinyText = isShiny ? " (✨ SHINY ✨)" : "";
 
-        return {
-            text: `${emoji} Um *${pokemon.name.toUpperCase()}*${shinyText} (Lvl ${wildLevel}) selvagem apareceu!\nHP: ${wildHp}/${wildHp}\n\nO que fará? (!poke atacar / !poke fugir / !poke capturar)`,
-            image: sprite
+        const caption = `${emoji} Um *${pokemon.name.toUpperCase()}* ${shinyText}(Lvl ${wildLevel}) selvagem apareceu!\n` +
+                    ` HP: ${wildHp}/${wildHp}`;
+
+        const pollMessage = {
+            poll: {
+                name: caption,
+                values: ["👊 Atacar", "🔴 Capturar", "🏃 Fugir"],
+                selectableCount: 1
+            }
         };
+        try {
+            if (sock) {
+                const sprite = isShiny ? pokemon.sprite_url.replace("front_default", "front_shiny") : pokemon.sprite_url;
+                
+                await sock.sendMessage(groupId, { 
+                    image: { url: sprite }, 
+                    caption: "" 
+                });
+
+                await sock.sendMessage(groupId, pollMessage);
+                
+                return null; 
+            }
+        } catch (err) {
+            console.error("Erro ao enviar enquete:", err);
+            return "Erro ao iniciar batalha.";
+        }
+
+        return `Um ${pokemon.name} apareceu! (Modo texto)`;
+    }
+
+    async sendAMove(sock, groupId, userId) {
+        const encounter = this.activeEncounters.get(groupId);
+        if (!encounter) return;
+
+        const userPoke = await this.db.get(`
+            SELECT up.*, p.name 
+            FROM user_pokemons up
+            JOIN pokedex p ON up.pokedex_id = p.id
+            WHERE up.user_id = ? 
+            ORDER BY up.id ASC LIMIT 1`, [userId]);
+
+        if (!userPoke) return;
+
+        const moves = await this.getUserMoves(userPoke);
+        
+        const opcoesGolpes = moves.map((m, index) => `${index + 1}. ${m.name}`);
+        
+        opcoesGolpes.push("🔙 Voltar");
+
+        const enqueteGolpes = {
+            poll: {
+                name: `⚔️ O que ${userPoke.nickname} deve fazer?`,
+                values: opcoesGolpes,
+                selectableCount: 1
+            }
+        };
+
+        await sock.sendMessage(groupId, enqueteGolpes);
     }
 
     async catchPokemon(groupId, userId) {
@@ -429,7 +485,7 @@ class PokemonHandler {
         if (!wildMove) {
              wildMove = {name: "Investida", power: 40, damage_class: 'physical', type: 'normal'};
         }
-        
+
         let damageToUser = 0;
 
         if (wildMove.damage_class === 'status') {
@@ -453,8 +509,22 @@ class PokemonHandler {
              log += `\n\nHP Inimigo: ${Math.max(0, encounter.currentHp)}/${encounter.maxHp}`;
              log += `\nSeu HP: ${Math.max(0, userCurrentHp)}/${userMaxHp}`;
         }
-        
-        return log;
+
+        let resultadoFinal = log; 
+
+        if (this.activeEncounters.has(groupId)) {
+            const menuPrincipal = {
+                poll: {
+                    name: `🔥 A batalha continua!\nHP Inimigo: ${encounter.currentHp}/${encounter.maxHp}\nSeu HP: ${userCurrentHp}/${userMaxHp}`,
+                    values: ["👊 Atacar", "🔴 Capturar", "🏃 Fugir"],
+                    selectableCount: 1
+                }
+            };
+            
+            await sock.sendMessage(groupId, menuPrincipal);
+        }
+
+        return resultadoFinal;
     }
 
     async gainExperience(userPoke, defeatedEnemy, enemyLevel) {

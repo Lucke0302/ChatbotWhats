@@ -69,15 +69,7 @@ class ChatModel {
                 await ttsCommandHandler.handleAudioCommand(ctx.sock, ctx.from, ctx.command, ctx.msg);
             },
             '!poke': async (ctx) => {
-                const result = await this.pokemonHandler.handleCommand(ctx.from, ctx.sender, ctx.command);
-                if (typeof result === 'object' && result.image) {
-                    await ctx.sock.sendMessage(ctx.from, {
-                        image: { url: result.image },
-                        caption: result.text
-                    }, { quoted: ctx.msg });
-                    return;
-                }
-                return result;
+                return await this.pokemonHandler.handleCommand(ctx.from, ctx.sender, ctx.command, ctx.sock);
             },
             '!id': async (ctx) => `${ctx.from}`,
             '!migrar': async (ctx) => {

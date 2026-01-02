@@ -239,9 +239,7 @@ class PokemonHandler {
         `, [userId]);
 
         const baseLevel = lvlResult && lvlResult.media ? Math.floor(lvlResult.media) : 5;
-        
         const variation = Math.max(1, Math.floor(baseLevel * 0.20));
-        
         const minLevel = Math.max(1, baseLevel - variation);
         const maxLevel = baseLevel + variation;
         
@@ -270,13 +268,17 @@ class PokemonHandler {
             
         if (!pokemon) return "Erro ao buscar Pokémon no banco de dados.";
 
-        const wildMoves = await this.getMovesForLevel(pokemon.id, wildLevel);
+        let wildMoves = await this.getMovesForLevel(pokemon.id, wildLevel);
+
+        if (!wildMoves || wildMoves.length === 0) {
+            wildMoves = [{name: "Investida (Selvagem)", power: 40, damage_class: 'physical', type: 'normal'}];
+        }
 
         const wildHp = Math.floor(((2 * pokemon.base_hp + 15 + 100) * wildLevel) / 100 + 10);
 
         this.activeEncounters.set(groupId, {
             pokemon: pokemon,
-            currentHp: wildHp, 
+            currentHp: wildHp,
             maxHp: wildHp,
             level: wildLevel,
             moves: wildMoves,
@@ -423,6 +425,11 @@ class PokemonHandler {
 
         // TURNO DO SELVAGEM
         const wildMove = encounter.moves[Math.floor(Math.random() * encounter.moves.length)];
+
+        if (!wildMove) {
+             wildMove = {name: "Investida", power: 40, damage_class: 'physical', type: 'normal'};
+        }
+        
         let damageToUser = 0;
 
         if (wildMove.damage_class === 'status') {

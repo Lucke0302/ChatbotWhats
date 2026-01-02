@@ -26,7 +26,46 @@ class PokemonHandler {
         }
     }
 
-async seedDatabase() {
+    async fixNullMoves() {
+        console.log("🔧 Iniciando reparo de moveset dos Pokémons...");
+        
+        const buggedPokemons = await this.db.all("SELECT id, pokedex_id, level, nickname FROM user_pokemons WHERE move1 IS NULL OR move1 = ''");
+
+        if (buggedPokemons.length === 0) {
+            return "✅ Todos os Pokémons já estão com golpes!";
+        }
+
+        console.log(`🔧 Encontrados ${buggedPokemons.length} Pokémons sem golpes. Corrigindo...`);
+        let count = 0;
+
+        const tackle = await this.db.get("SELECT id FROM moves WHERE name = 'tackle' OR name = 'investida' LIMIT 1");
+        const tackleId = tackle ? tackle.id : null;
+
+        for (const poke of buggedPokemons) {
+            let moves = await this.getMovesForLevel(poke.pokedex_id, poke.level);
+
+            let m1 = moves[0]?.id || tackleId;
+            let m2 = moves[1]?.id || null;
+            let m3 = moves[2]?.id || null;
+            let m4 = moves[3]?.id || null;
+
+            if (!m1) {
+                console.log(`⚠️ Não foi possível achar golpe para ${poke.nickname} (ID: ${poke.id})`);
+                continue;
+            }
+
+            await this.db.run(
+                `UPDATE user_pokemons SET move1 = ?, move2 = ?, move3 = ?, move4 = ? WHERE id = ?`,
+                [m1, m2, m3, m4, poke.id]
+            );
+            count++;
+        }
+
+        console.log(`✅ Reparo concluído! ${count} Pokémons atualizados.`);
+        return `✅ Correção finalizada! ${count} Pokémons receberam golpes novos.`;
+    }
+
+    async seedDatabase() {
         const downloadedMoves = new Set();
         
         for (let i = 1; i <= POKEMON_COUNT; i++) {
@@ -111,21 +150,63 @@ async seedDatabase() {
         }
 
         switch (action) {
-            case 'curar': case 'heal': case 'nurse': return await this.healTeam(sender);
-            case 'ginasio': case 'gym': case 'historia': return await this.challengeGym(from, sender, sock);
-            case 'usar': case 'use': 
+            case 'fixmoves': 
+                if (sender !== "5513991008854@s.whatsapp.net") return "Sem permissão.";
+                return await this.fixNullMoves();
+
+            case 'curar': 
+            case 'heal': 
+            case 'nurse': 
+                return await this.healTeam(sender);
+
+            case 'ginasio': 
+            case 'gym': 
+            case 'historia': 
+                return await this.challengeGym(from, sender, sock);
+
+            case 'usar': 
+            case 'use': 
                 if (param === 'potion' || param === 'pocao') return await this.usePotion(from, sender);
                 return "Usar o quê? Tente: *!poke usar poção*";
-            case 'loja': case 'shop': case 'mart': return await this.showShop(sender);
-            case 'comprar': case 'buy': return await this.buyItem(sender, param, args[3]);
-            case 'comecar': case 'start': return await this.showStarters(sender);
-            case 'escolher': case 'choose': return await this.chooseStarter(sender, param);
-            case 'fugir': return await this.fleeBattle(from, sender);
-            case 'atacar': return await this.battleTurn(from, sender, param, sock);
-            case 'explorar': case 'hunt': return await this.spawnWildPokemon(from, sender, sock);
-            case 'capturar': case 'catch': case 'ball': return await this.catchPokemon(from, sender);
-            case 'perfil': case 'box': case 'team': return await this.getUserProfile(sender);
-            case 'ajuda': default:
+
+            case 'loja': 
+            case 'shop': 
+            case 'mart': 
+                return await this.showShop(sender);
+
+            case 'comprar': 
+            case 'buy': 
+                return await this.buyItem(sender, param, args[3]);
+
+            case 'comecar': 
+            case 'start': 
+                return await this.showStarters(sender);
+
+            case 'escolher': 
+            case 'choose': 
+                return await this.chooseStarter(sender, param);
+
+            case 'fugir': 
+                return await this.fleeBattle(from, sender);
+
+            case 'atacar': 
+                return await this.battleTurn(from, sender, param, sock);
+            case 'explorar': 
+            case 'hunt': 
+                return await this.spawnWildPokemon(from, sender, sock);
+            
+            case 'capturar': 
+            case 'catch': 
+            case 'ball': 
+                return await this.catchPokemon(from, sender);
+
+            case 'perfil': 
+            case 'box': 
+            case 'team': 
+                return await this.getUserProfile(sender);
+            
+            case 'ajuda': 
+            default:
                 return `🦕 *POKÉMON - GUIA*\n\n🌿 *!poke explorar*\n⚔️ *!poke atacar*\n🔴 *!poke capturar*\n🏥 *!poke curar*\n🏪 *!poke loja*\n🧪 *!poke usar poção*\n🏛️ *!poke ginasio*\n👤 *!poke perfil*`;
         }
     }

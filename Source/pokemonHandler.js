@@ -356,7 +356,11 @@ class PokemonHandler {
             }
         };
 
-        await sock.sendMessage(groupId, enqueteGolpes);
+        const msgEnviada = await sock.sendMessage(groupId, enqueteGolpes);
+
+        if (sock.pollCache) {
+            sock.pollCache.set(msgEnviada.key.id, msgEnviada);
+        }
     }
 
     async catchPokemon(groupId, userId) {
@@ -525,7 +529,11 @@ class PokemonHandler {
                 }
             };
             
-            await sock.sendMessage(groupId, menuPrincipal);
+            const msgEnviada = await sock.sendMessage(groupId, menuPrincipal);
+
+            if (sock.pollCache) {
+                sock.pollCache.set(msgEnviada.key.id, msgEnviada);
+            }
         }
 
         return resultadoFinal;

@@ -475,12 +475,19 @@ class PokemonHandler {
         return `✨ Ganhou **${xpGained} XP**!${levelUpMessage}`;
     }
 
-    async getUserMoves(userPoke) {
+async getUserMoves(userPoke) {
         const moveIds = [userPoke.move1, userPoke.move2, userPoke.move3, userPoke.move4].filter(id => id);
+        
         if (moveIds.length === 0) return [{name: "Investida (Padrão)", power: 40, damage_class: 'physical', type: 'normal'}];
 
         const placeholders = moveIds.map(() => '?').join(',');
-        return await this.db.all(`SELECT * FROM moves WHERE id IN (${placeholders})`, moveIds);
+        const moves = await this.db.all(`SELECT * FROM moves WHERE id IN (${placeholders})`, moveIds);
+        
+        if (!moves || moves.length === 0) {
+             return [{name: "Investida (Padrão)", power: 40, damage_class: 'physical', type: 'normal'}];
+        }
+        
+        return moves;
     }
 
     async getMovesForLevel(pokemonId, level) {

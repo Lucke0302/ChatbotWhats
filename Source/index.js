@@ -18,7 +18,6 @@ const { handleBotError } = require('./errorHandler');
 const fs = require('fs');
 const { Sticker, StickerTypes } = require('wa-sticker-formatter');
 const sharp = require('sharp');
-store.readFromFile('./baileys_store.json');
 setInterval(() => {
     store.writeToFile('./baileys_store.json');
 }, 10_000);
@@ -466,13 +465,13 @@ async function connectToWhatsApp() {
                                 const res = await chatbot.pokemonHandler.fleeBattle(from);
                                 await sendAndSave(sock, db, from, res);
                             }
-                            // 2. Menu de Ataques (se começar com número)
+
                             else if (/^[1-4]/.test(acao)) {
                                 const slot = acao.split('.')[0];
                                 const res = await chatbot.pokemonHandler.battleTurn(from, sender, slot, sock);
                                 await sendAndSave(sock, db, from, res);
                             }
-                            // 3. Voltar
+
                             else if (comandoLimpo.includes('voltar')) {
                                 await sock.sendMessage(from, {
                                     poll: {
@@ -488,7 +487,7 @@ async function connectToWhatsApp() {
                     console.error("Erro ao processar voto manual:", err);
                 }
             }
-            return; // Voto processado, não segue para comandos de texto
+            return; 
         }
 
         if (!msg.message || msg.key.fromMe) return;

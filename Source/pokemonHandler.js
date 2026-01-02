@@ -221,18 +221,17 @@ class PokemonHandler {
         return `🎉 *PARABÉNS!* Você recebeu seu primeiro Pokémon!\n\n${message}\n\n(Você também ganhou 20 Pokébolas para começar sua jornada!)`;
     }
 
-    async spawnWildPokemon(groupId, userId) {
+async spawnWildPokemon(groupId, userId) {
         const currentEncounter = this.activeEncounters.get(groupId);
         if (currentEncounter && (Date.now() - currentEncounter.timestamp < 120000)) {
             return `🌿 Já tem um *${currentEncounter.pokemon.name.toUpperCase()}* selvagem aqui! Use *!poke capturar* rápido!`;
         }
 
-        // Funções de Probabilidade
         const findPokemon = () => Math.random() < 0.5;
         const isRare = () => Math.random() < 0.01;
-        const checkShiny = () => Math.random() < 0.00024
+        const checkShiny = () => Math.random() < 0.00024;
 
-        let isShiny = checkShiny()
+        let isShiny = checkShiny();
 
         const lvlResult = await this.db.get(`
             SELECT AVG(level) as media FROM user_pokemons
@@ -240,11 +239,12 @@ class PokemonHandler {
         `, [userId]);
 
         const baseLevel = lvlResult && lvlResult.media ? Math.floor(lvlResult.media) : 5;
+        
         const variation = Math.max(1, Math.floor(baseLevel * 0.20));
         
         const minLevel = Math.max(1, baseLevel - variation);
         const maxLevel = baseLevel + variation;
-
+        
         const wildLevel = Math.floor(Math.random() * (maxLevel - minLevel + 1)) + minLevel;
 
         let pokemon = null;
@@ -252,9 +252,7 @@ class PokemonHandler {
         if (findPokemon()) {
             if (isRare()) {
                 const randomRareId = RARE_POKE[Math.floor(Math.random() * RARE_POKE.length)];
-                
                 pokemon = await this.db.get(`SELECT * FROM pokedex WHERE id = ?`, [randomRareId]);
-                
                 console.log(`🌟 SORTE GRANDE! Spawnou um Raro (ID: ${randomRareId})`);
             }
 
@@ -270,18 +268,16 @@ class PokemonHandler {
             return "🦗 Você andou no matinho mas só achou grilos.";
         }
             
-        // Configuração da Batalha (Moves, HP, etc)
-        // Garante que o pokemon existe antes de prosseguir
         if (!pokemon) return "Erro ao buscar Pokémon no banco de dados.";
 
         const wildMoves = await this.getMovesForLevel(pokemon.id, wildLevel);
 
-        const hpFormula = Math.floor(((2 * pokemon.base_hp + 15 + 100) * wildLevel) / 100 + 10);
+        const wildHp = Math.floor(((2 * pokemon.base_hp + 15 + 100) * wildLevel) / 100 + 10);
 
         this.activeEncounters.set(groupId, {
             pokemon: pokemon,
-            currentHp: hpFormula,
-            maxHp: hpFormula,
+            currentHp: wildHp, 
+            maxHp: wildHp,
             level: wildLevel,
             moves: wildMoves,
             isShiny: isShiny,
@@ -293,11 +289,10 @@ class PokemonHandler {
         if (isShiny) emoji = "✨✨✨";
 
         const sprite = isShiny ? pokemon.sprite_url.replace("front_default", "front_shiny") : pokemon.sprite_url;
-
         const shinyText = isShiny ? " (✨ SHINY ✨)" : "";
 
         return {
-            text: `${emoji} Um *${pokemon.name.toUpperCase()}*${shinyText} (Lvl ${wildLevel}) selvagem apareceu!\nHP: ${pokemon.base_hp + (wildLevel * 2)}/${pokemon.base_hp + (wildLevel * 2)}\n\nO que fará? (!poke atacar / !poke fugir / !poke capturar)`,
+            text: `${emoji} Um *${pokemon.name.toUpperCase()}*${shinyText} (Lvl ${wildLevel}) selvagem apareceu!\nHP: ${wildHp}/${wildHp}\n\nO que fará? (!poke atacar / !poke fugir / !poke capturar)`,
             image: sprite
         };
     }

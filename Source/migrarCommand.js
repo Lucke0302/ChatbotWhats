@@ -1,87 +1,102 @@
 const { jidNormalizedUser } = require('@whiskeysockets/baileys');
 
-const BATCH_SIZE = 5; 
-const DELAY_MS = 5000; 
+async function handleMigrationCommand(sock, command, sender) {
+    const args = command.trim().split(/\s+/);
 
-async function migrateMembers(sock, originGroupId, destinationGroupId, exceptions = []) {
-    let log = `🚀 *MIGRAÇÃO INICIADA*\n\n`;
+    if (args.length < 3) {
+        return "⚠️ *Uso Incorreto*\nFormato: `!migrar [ID_Origem] [ID_Destino] [Numeros_Excecao...]`\n\nExemplo: `!migrar 12345@g.us 67890@g.us 551399999999`";
+    }
+
+    const sourceId = args[1].endsWith('@g.us') ? args[1] : `${args[1]}@g.us`;
+    const targetId = args[2].endsWith('@g.us') ? args[2] : `${args[2]}@g.us`;
     
+    const exceptions = args.slice(3).map(num => {
+        const cleanNum = num.replace(/\D/g, '');
+        return cleanNum.includes('@s.whatsapp.net') ? cleanNum : `${cleanNum}@s.whatsapp.net`;
+    });
+
+    console.log(`\n🚀 [MIGRAÇÃO] Iniciada por: ${sender}`);
+    console.log(`ℹ️ [MIGRAÇÃO] De: ${sourceId} | Para: ${targetId}`);
+    console.log(`🚫 [MIGRAÇÃO] Exceções (${exceptions.length}): ${exceptions.join(', ')}`);
+
     try {
-        if (!originGroupId || !originGroupId.endsWith('@g.us')) {
-            return `❌ ID de Origem inválido: "${originGroupId}".\nTem que terminar com @g.us`;
-        }
-        if (!destinationGroupId || !destinationGroupId.endsWith('@g.us')) {
-            return `❌ ID de Destino inválido: "${destinationGroupId}".\nTem que terminar com @g.us`;
-        }
-
-        console.log(`[Migração] Lendo origem: ${originGroupId}`);
-        const originMetadata = await sock.groupMetadata(originGroupId);
-        const participants = originMetadata.participants;
-
-        if (!participants || participants.length === 0) {
-            return "❌ O grupo de origem está vazio.";
+        console.log(`🔍 [MIGRAÇÃO] Buscando participantes do grupo origem...`);
+        let sourceMetadata;
+        try {
+            sourceMetadata = await sock.groupMetadata(sourceId);
+        } catch (err) {
+            console.error(`❌ [MIGRAÇÃO] Falha ao buscar grupo origem: ${err.message}`);
+            return "❌ Não consegui acessar o grupo de origem. Verifique o ID e se estou nele.";
         }
 
         const botId = jidNormalizedUser(sock.user.id);
-        const normalizedExceptions = exceptions.map(id => id.replace(/[^0-9]/g, '') + '@s.whatsapp.net');
-
-        const membersToAdd = participants
-            .map(p => jidNormalizedUser(p.id)) 
+        
+        const participantsToMigrate = sourceMetadata.participants
+            .map(p => jidNormalizedUser(p.id))
             .filter(id => {
-                if (!id || !id.includes('@s.whatsapp.net')) return false;
-                if (id === botId) return false;
-                if (normalizedExceptions.includes(id)) return false;
-                return true;
+                const isBot = id === botId;
+                const isException = exceptions.includes(id);
+                return !isBot && !isException;
             });
 
-        log += `📂 *De:* ${originMetadata.subject}\n`;
-        log += `🎯 *Para:* ${destinationGroupId}\n`;
-        log += `👥 *Membros Filtrados:* ${membersToAdd.length}\n\n`;
-        console.log(log);
+        if (participantsToMigrate.length === 0) {
+            console.warn(`⚠️ [MIGRAÇÃO] Nenhum participante elegível encontrado.`);
+            return "⚠️ Nenhum participante para migrar (ou todos estão na lista de exceções).";
+        }
 
-        let successCount = 0;
-        let failCount = 0;
+        console.log(`✅ [MIGRAÇÃO] ${participantsToMigrate.length} participantes elegíveis encontrados.`);
 
-        for (let i = 0; i < membersToAdd.length; i += BATCH_SIZE) {
-            const chunk = membersToAdd.slice(i, i + BATCH_SIZE);
-            
-            console.log(`➡️ Processando Lote ${Math.ceil((i+1)/BATCH_SIZE)}:`, chunk);
+        const batchSize = 5;
+        const results = { success: 0, failed: 0, errors: [] };
+
+        for (let i = 0; i < participantsToMigrate.length; i += batchSize) {
+            const batch = participantsToMigrate.slice(i, i + batchSize);
+            console.log(`⏳ [MIGRAÇÃO] Processando lote ${Math.floor(i/batchSize) + 1} (${batch.length} usuários)...`);
 
             try {
-                const response = await sock.groupParticipantsUpdate(
-                    destinationGroupId, 
-                    chunk, 
-                    "add"
-                );
+                const response = await sock.groupParticipantsUpdate(targetId, batch, 'add');
                 
-                if (response && Array.isArray(response)) {
+                if (Array.isArray(response)) {
                     response.forEach(res => {
-                        if (res.status === '200' || res.status === '201') successCount++;
-                        else failCount++;
+                        if (res.status === '200' || res.status === '409') {
+                            results.success++;
+                        } else {
+                            results.failed++;
+                            results.errors.push(`${res.jid} (Status: ${res.status})`);
+                            console.warn(`⚠️ [MIGRAÇÃO] Falha ao adicionar ${res.jid}: Status ${res.status}`);
+                        }
                     });
                 } else {
-                    successCount += chunk.length;
+                    results.success += batch.length;
                 }
 
-                if (i + BATCH_SIZE < membersToAdd.length) {
-                    await new Promise(resolve => setTimeout(resolve, DELAY_MS));
-                }
+                await new Promise(r => setTimeout(r, 1000));
 
-            } catch (err) {
-                console.error(`❌ ERRO FATAL NO LOTE ${i}:`, err.message);
-                if (err.message && err.message.includes('bad-request')) {
-                    log += `⚠️ Lote falhou (Bad Request). Verifique se os usuários existem.\n`;
-                }
-                failCount += chunk.length;
+            } catch (batchError) {
+                console.error(`❌ [MIGRAÇÃO] Erro crítico no lote:`, batchError);
+                results.failed += batch.length;
+                results.errors.push(`Erro de Lote: ${batchError.message}`);
             }
         }
 
-        return `🏁 *MIGRAÇÃO FINALIZADA*\n✅ Adicionados: ${successCount}\n❌ Falhas: ${failCount}`;
+        console.log(`🏁 [MIGRAÇÃO] Concluída. Sucesso: ${results.success} | Falhas: ${results.failed}`);
+
+        let report = `🏁 *Relatório de Migração*\n\n` +
+                     `👥 *Total Tentado:* ${participantsToMigrate.length}\n` +
+                     `✅ *Sucesso/Já no Grupo:* ${results.success}\n` +
+                     `❌ *Falhas:* ${results.failed}`;
+
+        if (results.errors.length > 0) {
+            const errPreview = results.errors.slice(0, 3).join('\n');
+            report += `\n\n⚠️ *Alguns Erros:*\n${errPreview}${results.errors.length > 3 ? '\n...' : ''}`;
+        }
+
+        return report;
 
     } catch (error) {
-        console.error("Erro geral:", error);
-        return `❌ Erro crítico: ${error.message}`;
+        console.error(`❌ [MIGRAÇÃO] Erro Geral:`, error);
+        return `❌ Ocorreu um erro crítico ao tentar migrar: ${error.message}`;
     }
 }
 
-module.exports = { migrateMembers };
+module.exports = { handleMigrationCommand };

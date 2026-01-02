@@ -293,7 +293,9 @@ class PokemonHandler {
                 return `${log}\n🏆 *VITÓRIA NO GINÁSIO!*\nRecebeu Insígnia ${badgeInfo.badgeName} e 💰 ${badgeInfo.reward}!\n${xpMsg}`;
             }
 
-            const coins = Math.floor(encounter.level * 15);
+            const baseGain = 15;
+            const luckGain = Math.random() * 25;
+            const coins = Math.floor(encounter.level * (baseGain + luckGain));
             await this.db.run("UPDATE usuarios SET pokecoins = pokecoins + ? WHERE id_usuario = ?", [coins, userId]);
             return `${log}\n💀 O inimigo desmaiou!\n${xpMsg}\n💰 +${coins} coins.`;
         }

@@ -840,6 +840,15 @@ class ChatModel {
         if (command == "!id"){
             return `${from}`
         }
+
+        // --- NOVO COMANDO DE MIGRAÇÃO ---
+        if (command.startsWith('!migrar')) {
+            if(sender !== "5513991008854@s.whatsapp.net"){ 
+                return "🔒 *Acesso Negado.* Só o chefe pode fazer o êxodo.";
+            }
+            
+            return await migrationCommandHandler.handleMigrationCommand(sock, command, sender);
+        }
     }
 
     async handleMessageWithoutCommand(msg, sender, from, isGroup, command, quotedMessage){

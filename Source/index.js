@@ -1,14 +1,22 @@
 require('dotenv').config();
 const schedule = require('node-schedule');
-const weatherCommandHandler = require('./weatherCommand');const { 
-    default: makeWASocket, 
-    useMultiFileAuthState, 
-    DisconnectReason, 
-    downloadMediaMessage, 
-    jidNormalizedUser,
-    makeInMemoryStore,
-    getAggregateVotesInPollMessage
-} = require('@whiskeysockets/baileys');
+const weatherCommandHandler = require('./weatherCommand');
+const Baileys = require('@whiskeysockets/baileys');
+
+const makeWASocket = Baileys.default || Baileys;
+const useMultiFileAuthState = Baileys.useMultiFileAuthState || Baileys.default?.useMultiFileAuthState;
+const DisconnectReason = Baileys.DisconnectReason || Baileys.default?.DisconnectReason;
+const downloadMediaMessage = Baileys.downloadMediaMessage || Baileys.default?.downloadMediaMessage;
+const jidNormalizedUser = Baileys.jidNormalizedUser || Baileys.default?.jidNormalizedUser;
+
+let makeInMemoryStore = Baileys.makeInMemoryStore || Baileys.default?.makeInMemoryStore;
+let getAggregateVotesInPollMessage = Baileys.getAggregateVotesInPollMessage || Baileys.default?.getAggregateVotesInPollMessage;
+
+if (!makeInMemoryStore) {
+    try {
+        makeInMemoryStore = require('@whiskeysockets/baileys/lib/Store/make-in-memory-store').default;
+    } catch (e) { console.log("⚠️ Não foi possível carregar makeInMemoryStore."); }
+}
 const { GoogleGenAI } = require("@google/genai");
 const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 const qrcode = require('qrcode-terminal');

@@ -1,22 +1,12 @@
 require('dotenv').config();
 const schedule = require('node-schedule');
 const weatherCommandHandler = require('./weatherCommand');
+
 const Baileys = require('@whiskeysockets/baileys');
+const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, downloadMediaMessage, jidNormalizedUser } = Baileys;
 
-const makeWASocket = Baileys.default || Baileys;
-const useMultiFileAuthState = Baileys.useMultiFileAuthState || Baileys.default?.useMultiFileAuthState;
-const DisconnectReason = Baileys.DisconnectReason || Baileys.default?.DisconnectReason;
-const downloadMediaMessage = Baileys.downloadMediaMessage || Baileys.default?.downloadMediaMessage;
-const jidNormalizedUser = Baileys.jidNormalizedUser || Baileys.default?.jidNormalizedUser;
+const getAggregateVotesInPollMessage = Baileys.getAggregateVotesInPollMessage || Baileys.default?.getAggregateVotesInPollMessage;
 
-let makeInMemoryStore = Baileys.makeInMemoryStore || Baileys.default?.makeInMemoryStore;
-let getAggregateVotesInPollMessage = Baileys.getAggregateVotesInPollMessage || Baileys.default?.getAggregateVotesInPollMessage;
-
-if (!makeInMemoryStore) {
-    try {
-        makeInMemoryStore = require('@whiskeysockets/baileys/lib/Store/make-in-memory-store').default;
-    } catch (e) { console.log("⚠️ Não foi possível carregar makeInMemoryStore."); }
-}
 const { GoogleGenAI } = require("@google/genai");
 const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 const qrcode = require('qrcode-terminal');
@@ -28,11 +18,12 @@ const { handleBotError } = require('./errorHandler');
 const fs = require('fs');
 const { Sticker, StickerTypes } = require('wa-sticker-formatter');
 const sharp = require('sharp');
-const store = makeInMemoryStore({ });
 store.readFromFile('./baileys_store.json');
 setInterval(() => {
     store.writeToFile('./baileys_store.json');
 }, 10_000);
+
+const pollCache = new Map();
 
 const DB_PATH = 'chat_history.db'; 
 let db; 
@@ -426,64 +417,78 @@ async function connectToWhatsApp() {
 
         const msg = m.messages[0];
 
+        if (msg.key.fromMe) {
+            const isPoll = msg.message.pollCreationMessage || 
+                           msg.message.viewOnceMessage?.message?.pollCreationMessage;
+            
+            if (isPoll) {
+                const pollId = msg.key.id;
+                pollCache.set(pollId, msg);
+                setTimeout(() => pollCache.delete(pollId), 2 * 60 * 60 * 1000);
+                console.log(`💾 Enquete salva na memória manual: ${pollId}`);
+            }
+            return; 
+        }
+
         if (msg.message.pollUpdateMessage) {
             const from = msg.key.remoteJid;
             const sender = jidNormalizedUser(msg.key.participant || msg.key.remoteJid);
-            
             const pollCreationKey = msg.message.pollUpdateMessage.pollCreationMessageKey;
+            const pollId = pollCreationKey.id;
 
-            const pollMessage = await store.loadMessage(from, pollCreationKey.id);
+            const pollMessage = pollCache.get(pollId);
 
-            if (pollMessage) {
-                const votosAgregados = getAggregateVotesInPollMessage({
-                    message: pollMessage,
-                    pollUpdates: [msg],
-                });
-
-                const votoDoUsuario = votosAgregados.find(opcao => 
-                    opcao.voters.includes(sender)
-                );
-
-                if (votoDoUsuario) {
-                    const acao = votoDoUsuario.name;
-                    const comandoLimpo = acao.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
-
-                    if (chatbot.pokemonHandler.activeEncounters.has(from)) {
+            if (pollMessage && getAggregateVotesInPollMessage) {
+                try {
+                    const votos = getAggregateVotesInPollMessage({
+                        message: pollMessage,
+                        pollUpdates: [msg],
+                    });
+                    
+                    const votoDoUsuario = votos.find(v => v.voters.includes(sender));
+                    
+                    if (votoDoUsuario) {
+                        const acao = votoDoUsuario.name;
+                        const comandoLimpo = acao.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
                         
-                        if (comandoLimpo.includes('atacar')) {
-                            await chatbot.pokemonHandler.solicitarAtaque(sock, from, sender);
-                        } 
-                        
-                        else if (comandoLimpo.includes('capturar')) {
-                            const resposta = await chatbot.pokemonHandler.catchPokemon(from, sender);
-                            await sendAndSave(sock, db, from, resposta);
-                        }
-                        else if (comandoLimpo.includes('fugir')) {
-                            const resposta = await chatbot.pokemonHandler.fleeBattle(from);
-                            await sendAndSave(sock, db, from, resposta);
-                        }
+                        console.log(`🗳️ Voto Manual Detectado: ${acao} de ${sender}`);
 
-                        else if (/^[1-4]/.test(acao)) {
-                            const slot = acao.split('.')[0]; 
-                        
-                            const resposta = await chatbot.pokemonHandler.battleTurn(from, sender, slot, sock);
+                        if (chatbot.pokemonHandler.activeEncounters.has(from)) {
                             
-                            await sendAndSave(sock, db, from, resposta);
-                        }
-
-                        else if (comandoLimpo.includes('voltar')) {
-                            await sock.sendMessage(from, {
-                                poll: {
-                                    name: "O que fará?",
-                                    values: ["👊 Atacar", "🔴 Capturar", "🏃 Fugir"],
-                                    selectableCount: 1
-                                }
-                            });
+                            if (comandoLimpo.includes('atacar')) {
+                                await chatbot.pokemonHandler.solicitarAtaque(sock, from, sender);
+                            }
+                            else if (comandoLimpo.includes('capturar')) {
+                                const res = await chatbot.pokemonHandler.catchPokemon(from, sender);
+                                await sendAndSave(sock, db, from, res);
+                            }
+                            else if (comandoLimpo.includes('fugir')) {
+                                const res = await chatbot.pokemonHandler.fleeBattle(from);
+                                await sendAndSave(sock, db, from, res);
+                            }
+                            // 2. Menu de Ataques (se começar com número)
+                            else if (/^[1-4]/.test(acao)) {
+                                const slot = acao.split('.')[0];
+                                const res = await chatbot.pokemonHandler.battleTurn(from, sender, slot, sock);
+                                await sendAndSave(sock, db, from, res);
+                            }
+                            // 3. Voltar
+                            else if (comandoLimpo.includes('voltar')) {
+                                await sock.sendMessage(from, {
+                                    poll: {
+                                        name: "O que fará?",
+                                        values: ["👊 Atacar", "🔴 Capturar", "🏃 Fugir"],
+                                        selectableCount: 1
+                                    }
+                                });
+                            }
                         }
                     }
+                } catch (err) {
+                    console.error("Erro ao processar voto manual:", err);
                 }
             }
-            return;
+            return; // Voto processado, não segue para comandos de texto
         }
 
         if (!msg.message || msg.key.fromMe) return;

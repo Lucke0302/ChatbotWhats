@@ -426,9 +426,9 @@ async function connectToWhatsApp() {
             }
             return; 
         }
-
+        
         if (msg.message.pollUpdateMessage) {
-            console.log("🔍 [DEBUG] Processando voto...");
+            console.log("🔍 [DEBUG] Recebi um voto. Tentando processar...");
             
             const from = msg.key.remoteJid;
             const sender = jidNormalizedUser(msg.key.participant || msg.key.remoteJid);
@@ -438,14 +438,24 @@ async function connectToWhatsApp() {
             const pollMessage = pollCache.get(pollId);
             
             if (!pollMessage) {
-                console.log(`❌ [ERRO] Enquete ${pollId} não está no cache.`);
+                console.log(`❌ [ERRO] Enquete ${pollId} não encontrada no cache.`);
                 return;
             }
 
-            const updateVote = msg.message.pollUpdateMessage.vote;
-            const creationMsg = pollMessage.message?.pollCreationMessage || pollMessage.message?.viewOnceMessage?.message?.pollCreationMessage;
-
-            let acaoEscolhida = null;
+            try {
+                const secret = pollMessage.message?.messageContextInfo?.messageSecret;
+                if (secret) {
+                    const secretBuffer = Buffer.isBuffer(secret) ? secret : Buffer.from(secret);
+                    
+                    if(!pollMessage.message.messageContextInfo) pollMessage.message.messageContextInfo = {};
+                    pollMessage.message.messageContextInfo.messageSecret = secretBuffer;
+                } else {
+                    console.log("❌ [ERRO] Enquete sem messageSecret no cache. Impossível descriptografar.");
+                    return;
+                }
+            } catch (err) {
+                console.log("⚠️ Erro ao converter secret:", err);
+            }
 
             try {
                 if (getAggregateVotesInPollMessage) {
@@ -453,82 +463,56 @@ async function connectToWhatsApp() {
                         message: pollMessage,
                         pollUpdates: [msg],
                     });
-                    const votoUsuario = votos.find(v => v.voters.includes(sender));
+                    
+                    const senderClean = sender.split('@')[0];
+                    const votoUsuario = votos.find(v => 
+                        v.voters.some(voter => voter.includes(senderClean))
+                    );
+
                     if (votoUsuario) {
-                        acaoEscolhida = votoUsuario.name;
-                        console.log(`✅ [SUCESSO] Leitura oficial: ${acaoEscolhida}`);
-                    }
-                }
-            } catch (e) { console.log("⚠️ Falha na leitura oficial:", e.message); }
+                        const acao = votoUsuario.name;
+                        console.log(`🎉 VOTO DECRIPTADO: "${acao}" de ${sender}`);
 
-            if (!acaoEscolhida && creationMsg && updateVote) {
-                console.log("⚠️ Tentando leitura manual (Força Bruta)...");
-                
-                let selectedId = null;
-                if (updateVote.selectedOptionLocalId !== undefined) {
-                    selectedId = updateVote.selectedOptionLocalId; 
-                } else if (updateVote.selectedOptions && updateVote.selectedOptions.length > 0) {
-                    selectedId = updateVote.selectedOptions[0];
-                }
+                        const comandoLimpo = acao.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
 
-                if (selectedId !== null && creationMsg.options) {
-                    if (typeof selectedId === 'number' && creationMsg.options[selectedId]) {
-                        acaoEscolhida = creationMsg.options[selectedId].optionName;
-                    } 
-                    else {
-                        for (const opt of creationMsg.options) {
-                            const shaBuffer = crypto.createHash('sha256').update(opt.optionName).digest();
-                            if (opt.optionName === selectedId) acaoEscolhida = opt.optionName;
-                        }
-                    }
-                }
-                
-                if (!acaoEscolhida && updateVote.encPayload && pollMessage.messageContextInfo?.messageSecret) {
-                    console.log("🔒 Voto Criptografado detectado. Tentando chaves...");
-                }
-            }
-
-            if (acaoEscolhida) {
-                console.log(`🎉 VOTO IDENTIFICADO: "${acaoEscolhida}" de ${sender}`);
-                
-                const comandoLimpo = acaoEscolhida.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
-
-                if (chatbot.pokemonHandler.activeEncounters.has(from)) {
-                    if (comandoLimpo.includes('atacar')) {
-                        await chatbot.pokemonHandler.solicitarAtaque(sock, from, sender);
-                    }
-                    else if (comandoLimpo.includes('capturar')) {
-                        const res = await chatbot.pokemonHandler.catchPokemon(from, sender);
-                        await sendAndSave(sock, db, from, res);
-                    }
-                    else if (comandoLimpo.includes('fugir')) {
-                        const res = await chatbot.pokemonHandler.fleeBattle(from);
-                        await sendAndSave(sock, db, from, res);
-                    }
-                    else if (/^[1-4]/.test(acaoEscolhida)) {
-                        const slot = acaoEscolhida.split('.')[0];
-                        const res = await chatbot.pokemonHandler.battleTurn(from, sender, slot, sock);
-                        await sendAndSave(sock, db, from, res);
-                    }
-                    else if (comandoLimpo.includes('voltar')) {
-                         await sock.sendMessage(from, {
-                            poll: {
-                                name: "O que fará?",
-                                values: ["👊 Atacar", "🔴 Capturar", "🏃 Fugir"],
-                                selectableCount: 1
+                        if (chatbot.pokemonHandler.activeEncounters.has(from)) {
+                            if (comandoLimpo.includes('atacar')) {
+                                await chatbot.pokemonHandler.solicitarAtaque(sock, from, sender);
                             }
-                        });
+                            else if (comandoLimpo.includes('capturar')) {
+                                const res = await chatbot.pokemonHandler.catchPokemon(from, sender);
+                                await sendAndSave(sock, db, from, res);
+                            }
+                            else if (comandoLimpo.includes('fugir')) {
+                                const res = await chatbot.pokemonHandler.fleeBattle(from);
+                                await sendAndSave(sock, db, from, res);
+                            }
+                            else if (/^[1-4]/.test(acao)) {
+                                const slot = acao.split('.')[0];
+                                const res = await chatbot.pokemonHandler.battleTurn(from, sender, slot, sock);
+                                await sendAndSave(sock, db, from, res);
+                            }
+                            else if (comandoLimpo.includes('voltar')) {
+                                await sock.sendMessage(from, {
+                                    poll: {
+                                        name: "O que fará?",
+                                        values: ["👊 Atacar", "🔴 Capturar", "🏃 Fugir"],
+                                        selectableCount: 1
+                                    }
+                                });
+                            }
+                        } else {
+                            console.log("⚠️ Batalha não encontrada para este voto.");
+                        }
+                    } else {
+                        console.log(`⚠️ Voto não encontrado para ${sender}. (Votos decifrados: ${votos.length})`);
+                        if(votos.length > 0) console.log("Votos disponíveis:", JSON.stringify(votos));
                     }
-                } else {
-                    console.log(`⚠️ Sem batalha ativa para este voto.`);
                 }
-            } else {
-                console.log("❌ NÃO FOI POSSÍVEL LER O VOTO. (Possível falta de messageSecret ou Payload Criptografado não tratado)");
-                
-                console.log("DEBUG FINAL - Vote Payload:", JSON.stringify(updateVote));
-                console.log("DEBUG FINAL - Tem Secret?", !!pollMessage.message?.messageContextInfo?.messageSecret);
+            } catch (e) { 
+                console.log("❌ Erro fatal ao tentar ler votos:", e); 
             }
-            return;
+            return; 
         }
 
         if (!msg.message || msg.key.fromMe) return;

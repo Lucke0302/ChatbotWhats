@@ -21,14 +21,8 @@ async function migrateMembers(sock, originGroupId, destinationGroupId, exception
             
             const botId = jidNormalizedUser(sock.user.id);
             console.log(`🤖 [DEBUG] ID do Bot: ${botId}`);
-
-            const botMember = destMetadata.participants.find(p => jidNormalizedUser(p.id) === botId);
             
             console.log(`📋 [DEBUG] Status do Bot no grupo:`, botMember);
-
-            if (!botMember) {
-                return `❌ CRÍTICO: O Bot não consta na lista de participantes desse grupo! (Cache desatualizado?)`;
-            }
 
             if (!botMember.admin) {
                 return `❌ O Bot vê que está no grupo, mas o cargo dele é: ${botMember.admin} (Deveria ser 'admin').\n\n💡 SOLUÇÃO: Remova o admin do bot e dê novamente.`;

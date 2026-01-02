@@ -20,7 +20,6 @@ const { handleBotError } = require('./errorHandler');
 const fs = require('fs');
 const { Sticker, StickerTypes } = require('wa-sticker-formatter');
 const sharp = require('sharp');
-export const batalhasAtivas = new Map();
 const store = makeInMemoryStore({ });
 store.readFromFile('./baileys_store.json');
 setInterval(() => {

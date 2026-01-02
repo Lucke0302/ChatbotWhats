@@ -3,7 +3,6 @@ const STARTER_IDS = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 const RARE_POKE = [25]
 const POKEMON_COUNT = 151;
 const GAME_VERSION = 'sword-shield';
-import { batalhasAtivas } from './index.js';
 
 class PokemonHandler {
     constructor(db) {

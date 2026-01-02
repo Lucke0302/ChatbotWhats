@@ -94,7 +94,7 @@ class PokemonHandler {
         console.log("✅ Seed da Pokédex concluído!");
     }
 
-    async handleCommand(from, sender, command) {
+    async handleCommand(from, sender, command, sock) {
         const args = command.trim().split(' ');
         const action = args[1] ? args[1].toLowerCase() : 'ajuda';
         const param = args[2];
@@ -221,7 +221,7 @@ class PokemonHandler {
         return `🎉 *PARABÉNS!* Você recebeu seu primeiro Pokémon!\n\n${message}\n\n(Você também ganhou 20 Pokébolas para começar sua jornada!)`;
     }
 
-    async spawnWildPokemon(groupId, userId) {
+    async spawnWildPokemon(groupId, userId, sock) {
         const currentEncounter = this.activeEncounters.get(groupId);
         if (currentEncounter && (Date.now() - currentEncounter.timestamp < 120000)) {
             return `🌿 Já tem um *${currentEncounter.pokemon.name.toUpperCase()}* selvagem aqui! Use *!poke capturar* rápido!`;
@@ -324,7 +324,7 @@ class PokemonHandler {
         return `Um ${pokemon.name} apareceu! (Modo texto)`;
     }
 
-    async sendAMove(sock, groupId, userId) {
+    async solicitarAtaque(sock, groupId, userId) {
         const encounter = this.activeEncounters.get(groupId);
         if (!encounter) return;
 
@@ -417,7 +417,7 @@ class PokemonHandler {
         return "🏃‍♂️ Você fugiu com sucesso (e deixou sua dignidade para trás).";
     }
 
-    async battleTurn(groupId, userId, moveSlot) {
+    async battleTurn(groupId, userId, moveSlot, sock) {
         const encounter = this.activeEncounters.get(groupId);
         if (!encounter) return "Não tem batalha rolando. Use *!poke explorar*.";
 

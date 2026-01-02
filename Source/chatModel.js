@@ -174,14 +174,21 @@ class ChatModel {
         }
     }
 
-    checkSpam(sender) {
+    checkSpam(sender, command = "") {
         const now = Date.now();
         const lastTime = this.spamCooldowns.get(sender) || 0;
         const diffSeconds = (now - lastTime) / 1000;
 
-        if (diffSeconds < this.SPAM_DELAY_SECONDS) {
-            const waitTime = Math.ceil(this.SPAM_DELAY_SECONDS - diffSeconds);
-            throw new Error(`SPAM_DETECTED|${waitTime}`);
+        let limit = this.SPAM_DELAY_SECONDS;
+        if (command.toLowerCase().startsWith("!poke")) {
+            limit = 1; 
+        }
+
+        if (diffSeconds < limit) {
+            const waitTime = Math.ceil(limit - diffSeconds);
+            if (waitTime > 0) {
+                throw new Error(`SPAM_DETECTED|${waitTime}`);
+            }
         }
 
         this.spamCooldowns.set(sender, now);

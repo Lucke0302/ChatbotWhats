@@ -221,7 +221,7 @@ class PokemonHandler {
         return `🎉 *PARABÉNS!* Você recebeu seu primeiro Pokémon!\n\n${message}\n\n(Você também ganhou 20 Pokébolas para começar sua jornada!)`;
     }
 
-async spawnWildPokemon(groupId, userId) {
+    async spawnWildPokemon(groupId, userId) {
         const currentEncounter = this.activeEncounters.get(groupId);
         if (currentEncounter && (Date.now() - currentEncounter.timestamp < 120000)) {
             return `🌿 Já tem um *${currentEncounter.pokemon.name.toUpperCase()}* selvagem aqui! Use *!poke capturar* rápido!`;

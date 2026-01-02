@@ -180,7 +180,7 @@ class PokemonHandler {
         );
 
         let emoji = isShiny ? "✨" : "⚔️";
-        const caption = `${emoji} Um *${pokemon.name.toUpperCase()}* selvagem apareceu PRA VOCÊ!\n` +
+        const caption = `${emoji} Um *${pokemon.name.toUpperCase()}* (Lvl ${wildLevel})selvagem apareceu PRA VOCÊ!\n` +
                         `❤️ HP: ${wildHp}/${wildHp}\n` +
                         `Use *!poke atacar* ou *!poke capturar*`;
 

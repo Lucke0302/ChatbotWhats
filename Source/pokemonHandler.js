@@ -2,7 +2,7 @@ const axios = require('axios');
 const STARTER_IDS = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 const RARE_POKE = [25]
 const POKEMON_COUNT = 151;
-const GAME_VERSION = 'sword-shield';
+const GAME_VERSION = 'firered-leafgreen';
 const GYM_LEADERS = [
     { badge: 0, leader: "Brock", city: "Pewter", pokeId: 95, level: 12, moves: ["Investida", "Lançamento de Rocha"], reward: 1000, badgeName: "Rocha" }, // Onix
     { badge: 1, leader: "Misty", city: "Cerulean", pokeId: 121, level: 18, moves: ["Jato d'Água", "Investida"], reward: 2000, badgeName: "Cascata" } // Starmie

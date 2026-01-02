@@ -8,6 +8,7 @@ const ToxicHandler = require('./toxicHandler');
 const lolCommandHandler = require('./lolCommand');
 const ttsCommandHandler = require('./ttsCommand');
 const PokemonHandler = require('./pokemonHandler');
+const migrationCommandHandler = require('./migrarCommand');
 const RIOT_API_KEY = process.env.RIOT_API_KEY;
 
 class ChatModel {
@@ -797,10 +798,12 @@ class ChatModel {
         if (command.startsWith('!clima')) return await this.handleClimaCommand(command, sender)
 
         if (command.startsWith('!cotacao')) return await currencyCommandHandler.convertCurrency(command);
+
         if (command.startsWith('!help') || command.startsWith('!ajuda')) {
             const args = command.split(/\s+/).slice(1).join(' ');
             return helpCommandHandler.getHelp(args);
         }
+
         if (command === '!pdf') {
             await pdfCommandHandler.handlePdfCommand(sock, msg, from);
             return;
@@ -834,6 +837,51 @@ class ChatModel {
             return result;
         }
 
+        if (command == "!id"){
+            return `${from}`
+        }
+
+        // COMANDO: !migrar id_origem id_destino [exceções]
+        if (command.startsWith('!migrar')) {
+            const ADMINS = ["5513991008854@s.whatsapp.net"];
+            if (!ADMINS.includes(sender)) {
+                return "⛔ *Acesso Negado.* Apenas o mestre do Bostossauro pode fazer migrações.";
+            }
+
+            const args = command.split(' ');
+            
+            const originId = args[1];
+            const destId = args[2];
+
+            if (!originId || !destId) {
+                return "⚠️ *Uso Incorreto!*\n\nFormato: `!migrar <ID_ORIGEM> <ID_DESTINO> [exceções]`\n\nExemplo:\n`!migrar 123456@g.us 987654@g.us @João 5511999999`";
+            }
+
+            let exceptions = [];
+
+            const mentions = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
+            exceptions.push(...mentions);
+
+            if (args.length > 3) {
+                const manualNumbers = args.slice(3);
+                manualNumbers.forEach(num => {
+                    if (!num.includes('@g.us')) {
+                        let cleanNum = num.replace(/[^0-9]/g, '');
+                        if (cleanNum.length >= 10) {
+                             exceptions.push(cleanNum + '@s.whatsapp.net');
+                        }
+                    }
+                });
+            }
+
+            await sock.sendMessage(from, { text: `⏳ *Iniciando Migração...*\nDe: ${originId}\nPara: ${destId}\nExceções detectadas: ${exceptions.length}\n\n_Segura a onda que isso leva um tempo._` });
+            try {
+                const report = await migrationCommandHandler.migrateMembers(sock, originId, destId, exceptions);
+                return report;
+            } catch (error) {
+                return `❌ Erro ao executar comando: ${error.message}`;
+            }
+        }
     }
 
     async handleMessageWithoutCommand(msg, sender, from, isGroup, command, quotedMessage){

@@ -15,15 +15,30 @@ async function migrateMembers(sock, originGroupId, destinationGroupId, exception
         }
 
         try {
+            console.log(`🔍 [DEBUG] Verificando permissões no grupo: ${destinationGroupId}`);
+            
             const destMetadata = await sock.groupMetadata(destinationGroupId);
+            
             const botId = jidNormalizedUser(sock.user.id);
+            console.log(`🤖 [DEBUG] ID do Bot: ${botId}`);
+
             const botMember = destMetadata.participants.find(p => jidNormalizedUser(p.id) === botId);
             
-            if (!botMember || !botMember.admin) {
-                return `❌ *ERRO DE PERMISSÃO:*\nO Bot não é admin no grupo de destino!\n\nColoque o bot como admin em: ${destMetadata.subject}`;
+            console.log(`📋 [DEBUG] Status do Bot no grupo:`, botMember);
+
+            if (!botMember) {
+                return `❌ CRÍTICO: O Bot não consta na lista de participantes desse grupo! (Cache desatualizado?)`;
             }
+
+            if (!botMember.admin) {
+                return `❌ O Bot vê que está no grupo, mas o cargo dele é: ${botMember.admin} (Deveria ser 'admin').\n\n💡 SOLUÇÃO: Remova o admin do bot e dê novamente.`;
+            }
+            
+            console.log(`✅ [DEBUG] O Bot é admin! Prosseguindo...`);
+
         } catch (e) {
-            return `❌ Não consegui ler o grupo de destino. Verifique se o ID está certo e se o bot está nele.`;
+            console.error("Erro no debug de admin:", e);
+            return `❌ Erro ao ler grupo de destino. Verifique o ID: ${e.message}`;
         }
 
         console.log(`[Migração] Lendo origem: ${originGroupId}`);

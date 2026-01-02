@@ -311,6 +311,8 @@ async function connectToWhatsApp() {
         auth: state,
         logger: pino({ level: 'warn' }), 
     });
+    
+    sock.pollCache = pollCache;
 
     //Instancia o chatbot
     const chatbot = new ChatModel(db, genAI)

@@ -312,7 +312,12 @@ class PokemonHandler {
                     caption: "" 
                 });
 
-                await sock.sendMessage(groupId, pollMessage);
+                const msgEnviada = await sock.sendMessage(groupId, pollMessage);
+    
+                if (sock.pollCache) {
+                    sock.pollCache.set(msgEnviada.key.id, msgEnviada);
+                    console.log("💾 Enquete salva manualmente (Spawn):", msgEnviada.key.id);
+                }
                 
                 return null; 
             }

@@ -14,55 +14,88 @@ class PokemonHandler {
     }
 
     async init() {
-        const count = await this.db.get('SELECT COUNT(*) as total FROM pokedex');
-        if (count.total === 0) {
-            console.log("⚠️ Pokédex vazia! Iniciando download da PokéAPI (isso pode demorar)...");
+        const pokeCount = await this.db.get('SELECT COUNT(*) as total FROM pokedex');
+        const moveCount = await this.db.get('SELECT COUNT(*) as total FROM moves');
+
+        if (pokeCount.total === 0 || moveCount.total === 0) {
+            console.log(`⚠️ Banco de dados incompleto (Pokes: ${pokeCount.total}, Moves: ${moveCount.total}).`);
+            console.log("⬇️ Iniciando download da PokéAPI (Isso vai demorar uns minutos, aguarde!)...");
             await this.seedDatabase();
         } else {
-            console.log(`✅ Pokédex carregada com ${count.total} registros.`);
+            console.log(`✅ Pokédex carregada: ${pokeCount.total} Pokémons e ${moveCount.total} Golpes.`);
         }
     }
 
-    async seedDatabase() {
+async seedDatabase() {
         const downloadedMoves = new Set();
+        
         for (let i = 1; i <= POKEMON_COUNT; i++) {
             try {
                 const pk = (await axios.get(`https://pokeapi.co/api/v2/pokemon/${i}`)).data;
                 const sp = (await axios.get(pk.species.url)).data;
+
                 let rarity = (sp.is_legendary || sp.is_mythical) ? 'rare' : 'common';
                 let tier = (sp.evolves_from_species === null) ? 1 : 2; 
+                
                 const stats = {};
                 pk.stats.forEach(s => stats[s.stat.name] = s.base_stat);
 
                 await this.db.run(
-                    `INSERT INTO pokedex (id, name, type1, type2, base_hp, base_atk, base_def, base_spa, base_spd, base_spe, rarity, tier, is_starter, sprite_url, base_xp)
+                    `INSERT OR IGNORE INTO pokedex (id, name, type1, type2, base_hp, base_atk, base_def, base_spa, base_spd, base_spe, rarity, tier, is_starter, sprite_url, base_xp)
                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                    [pk.id, pk.name, pk.types[0]?.type.name, pk.types[1]?.type.name || null, stats['hp'], stats['attack'], stats['defense'], stats['special-attack'], stats['special-defense'], stats['speed'], rarity, tier, STARTER_IDS.includes(pk.id), pk.sprites.front_default, pk.base_experience]
+                    [
+                        pk.id, 
+                        pk.name, 
+                        pk.types[0]?.type.name, 
+                        pk.types[1]?.type.name || null,
+                        stats['hp'], stats['attack'], stats['defense'], stats['special-attack'], stats['special-defense'], stats['speed'],
+                        rarity,
+                        tier,
+                        STARTER_IDS.includes(pk.id),
+                        pk.sprites.front_default,
+                        pk.base_experience
+                    ]
                 );
 
-                const validMoves = pk.moves.filter(m => m.version_group_details.some(v => v.version_group.name === GAME_VERSION && v.move_learn_method.name === 'level-up'));
+                const validMoves = pk.moves.filter(m => 
+                    m.version_group_details.some(v => v.version_group.name === GAME_VERSION && v.move_learn_method.name === 'level-up')
+                );
+
                 for (const m of validMoves) {
                     const moveName = m.move.name;
                     const level = m.version_group_details.find(v => v.version_group.name === GAME_VERSION).level_learned_at;
+
                     let moveId;
                     const existingMove = await this.db.get("SELECT id FROM moves WHERE name = ?", [moveName]);
 
-                    if (existingMove) { moveId = existingMove.id; } 
-                    else if (!downloadedMoves.has(moveName)) {
+                    if (existingMove) {
+                        moveId = existingMove.id;
+                    } else if (!downloadedMoves.has(moveName)) {
                         const moveData = (await axios.get(m.move.url)).data;
+                        
                         if (moveData.power || moveData.meta?.category?.name) {
-                            await this.db.run(`INSERT INTO moves (id, name, type, power, accuracy, pp, damage_class) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-                                [moveData.id, moveData.name, moveData.type.name, moveData.power || 0, moveData.accuracy || 100, moveData.pp, moveData.damage_class.name]);
+                            await this.db.run(
+                                `INSERT INTO moves (id, name, type, power, accuracy, pp, damage_class) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                                [moveData.id, moveData.name, moveData.type.name, moveData.power || 0, moveData.accuracy || 100, moveData.pp, moveData.damage_class.name]
+                            );
                             moveId = moveData.id;
                             downloadedMoves.add(moveName);
                         }
                     }
-                    if (moveId) await this.db.run(`INSERT OR IGNORE INTO pokemon_moves (pokemon_id, move_id, level_learned) VALUES (?, ?, ?)`, [pk.id, moveId, level]);
+
+                    if (moveId) {
+                        await this.db.run(
+                            `INSERT OR IGNORE INTO pokemon_moves (pokemon_id, move_id, level_learned) VALUES (?, ?, ?)`,
+                            [pk.id, moveId, level]
+                        );
+                    }
                 }
-                console.log(`[SEED] ${pk.name} salvo.`);
-            } catch (e) { console.error(`Erro ao baixar ID ${i}:`, e.message); }
+                if (i % 10 === 0) console.log(`[SEED] Progresso: ${i}/${POKEMON_COUNT} Pokémons processados...`);                
+            } catch (e) {
+                console.error(`Erro ao baixar ID ${i}:`, e.message);
+            }
         }
-        console.log("✅ Seed da Pokédex concluído!");
+        console.log("✅ Seed Completo! Banco de dados atualizado com sucesso.");
     }
 
     async handleCommand(from, sender, command, sock) {

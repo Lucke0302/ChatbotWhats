@@ -852,7 +852,7 @@ class ChatModel {
         const user = await this.getUserData(name, sender)
 
         this.checkTimeout(user)
-        this.checkSpam(sender)
+        this.checkSpam(sender, command)
 
         let rootCommand = command.split(' ')[0].toLowerCase();
 

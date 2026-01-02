@@ -183,7 +183,6 @@ class PokemonHandler {
             pokemonId = 7;
             message = "💧 SIMPLESMENTE O GOAT! *Squirtle* será um grande amigo.";
         }
-
         else if (selected === 'pikachu') {
             pokemonId = 25;
             message = "⚡ *ATRASADO!* Todos os iniciais já foram levados...\nMas sobrou este *Pikachu* um pouco rebelde. Cuide bem dele!";
@@ -197,22 +196,23 @@ class PokemonHandler {
         if (!pk) return "Erro interno: Pokémon não encontrado no banco.";
 
         const randIv = () => Math.floor(Math.random() * 32);
-
         const moves = await this.getMovesForLevel(pk.id, 5);
+        
+        const initialXp = Math.pow(5, 3);
 
         await this.db.run(`
             INSERT INTO user_pokemons (
                 user_id, pokedex_id, nickname, level, 
                 iv_hp, iv_atk, iv_def, iv_spa, iv_spd, iv_spe, 
                 move1, move2, move3, move4, 
-                obtained_at
+                obtained_at, exp
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 userId, pk.id, pk.name, 5,
                 randIv(), randIv(), randIv(), randIv(), randIv(), randIv(),
                 moves[0]?.id || null, moves[1]?.id || null, moves[2]?.id || null, moves[3]?.id || null,
-                Date.now()
+                Date.now(), initialXp
             ]
         );
 
@@ -392,16 +392,24 @@ class PokemonHandler {
 
         if (!selectedMove) return "Golpe inválido!";
 
+        const calculateDamage = (level, power, atk, def) => {
+            if (power === 0) return 0;
+            const base = ((2 * level / 5 + 2) * power * (atk / def)) / 50 + 2;
+            const random = (Math.random() * 0.15) + 0.85;
+            return Math.floor(base * random * 2.5); 
+        };
+
         let log = "";
         let damageToWild = 0;
 
+        // TURNO DO JOGADOR
         if (selectedMove.damage_class === 'status') {            
              log += `✨ ${userPoke.nickname} usou *${selectedMove.name}* (Status)!\n`;
         } else {
             let atkStat = (selectedMove.damage_class === 'special') ? userPoke.base_spa : userPoke.base_atk;
             let defStat = (selectedMove.damage_class === 'special') ? encounter.pokemon.base_spd : encounter.pokemon.base_def;
 
-            damageToWild = Math.floor((selectedMove.power * (atkStat / defStat) * (Math.random() * 0.4 + 0.8)) / 2) + 2;
+            damageToWild = calculateDamage(userPoke.level, selectedMove.power, atkStat, defStat);
             
             encounter.currentHp -= damageToWild;
             log += `🗡️ ${userPoke.nickname} usou *${selectedMove.name}*!\nCausou **${damageToWild}** de dano.\n`;
@@ -413,6 +421,7 @@ class PokemonHandler {
             return `${log}\n💀 O *${encounter.pokemon.name}* selvagem desmaiou!\n\n${xpMessage}`;
         }
 
+        // TURNO DO SELVAGEM
         const wildMove = encounter.moves[Math.floor(Math.random() * encounter.moves.length)];
         let damageToUser = 0;
 
@@ -422,7 +431,7 @@ class PokemonHandler {
             let wildAtkStat = (wildMove.damage_class === 'special') ? encounter.pokemon.base_spa : encounter.pokemon.base_atk;
             let userDefStat = (wildMove.damage_class === 'special') ? userPoke.base_spd : userPoke.base_def; 
 
-            damageToUser = Math.floor((wildMove.power * (wildAtkStat / userDefStat) * (Math.random() * 0.4 + 0.8)) / 2) + 2;
+            damageToUser = calculateDamage(encounter.level, wildMove.power, wildAtkStat, userDefStat);
             
             await this.db.run(`UPDATE user_pokemons SET current_hp = current_hp - ? WHERE id = ?`, [damageToUser, userPoke.id]);
             
@@ -442,7 +451,7 @@ class PokemonHandler {
     }
 
     async gainExperience(userPoke, defeatedEnemy, enemyLevel) {
-        const xpGained = Math.floor((defeatedEnemy.base_xp * enemyLevel) / 7);
+        const xpGained = Math.floor((defeatedEnemy.base_xp * enemyLevel) / 10);
         
         let newExp = userPoke.exp + xpGained;
         let currentLevel = userPoke.level;

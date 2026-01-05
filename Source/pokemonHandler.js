@@ -7,6 +7,69 @@ const GYM_LEADERS = [
     { badge: 0, leader: "Brock", city: "Pewter", pokeId: 95, level: 12, moves: ["Investida", "Lançamento de Rocha"], reward: 1000, badgeName: "Rocha" }, // Onix
     { badge: 1, leader: "Misty", city: "Cerulean", pokeId: 121, level: 18, moves: ["Jato d'Água", "Investida"], reward: 2000, badgeName: "Cascata" } // Starmie
 ];
+const STATUS_MOVES = {
+    // BUFFS
+    "swords-dance": { target: 'self', stat: 'atk', stage: 2, msg: "aumentou drasticamente o ATAQUE" },
+    "meditate":     { target: 'self', stat: 'atk', stage: 1, msg: "aumentou o ATAQUE" },
+    "sharpen":      { target: 'self', stat: 'atk', stage: 1, msg: "aumentou o ATAQUE" },
+    "growth":       { target: 'self', stat: 'atk&spa', stage: 1, msg: "aumentou o ATAQUE e o ATAQUE ESPECIAL" },
+    "harden":       { target: 'self', stat: 'def', stage: 1, msg: "aumentou a DEFESA" },
+    "withdraw":     { target: 'self', stat: 'def', stage: 1, msg: "aumentou a DEFESA" },
+    "defense-curl": { target: 'self', stat: 'def', stage: 1, msg: "aumentou a DEFESA" },
+    "acid-armor":   { target: 'self', stat: 'def', stage: 2, msg: "aumentou drasticamente a DEFESA" },
+    "barrier":      { target: 'self', stat: 'def', stage: 2, msg: "aumentou drasticamente a DEFESA" },
+    "amnesia":      { target: 'self', stat: 'spd', stage: 2, msg: "aumentou drasticamente a DEF. ESP." },
+    "agility":      { target: 'self', stat: 'spe', stage: 2, msg: "aumentou drasticamente a VELOCIDADE" },
+    "calm-mind":    { target: 'self', stat: 'spa&spd', stage: 1, msg: "aumentou ATQ. ESP. e DEF. ESP." },
+    "dragon-dance": { target: 'self', stat: 'atk&spe', stage: 1, msg: "aumentou ATAQUE e VELOCIDADE" },
+
+    // DEBUFFS
+    "growl":        { target: 'enemy', stat: 'atk', stage: -1, msg: "baixou o ATAQUE" },
+    "tail-whip":    { target: 'enemy', stat: 'def', stage: -1, msg: "baixou a DEFESA" },
+    "leer":         { target: 'enemy', stat: 'def', stage: -1, msg: "baixou a DEFESA" },
+    "screech":      { target: 'enemy', stat: 'def', stage: -2, msg: "baixou muito a DEFESA" },
+    "sand-attack":  { target: 'enemy', stat: 'acc', stage: -1, msg: "baixou a PRECISÃO" },
+    "smokescreen":  { target: 'enemy', stat: 'acc', stage: -1, msg: "baixou a PRECISÃO" },
+    "string-shot":  { target: 'enemy', stat: 'spe', stage: -1, msg: "baixou a VELOCIDADE" },
+    "scary-face":   { target: 'enemy', stat: 'spe', stage: -2, msg: "baixou muito a VELOCIDADE" },
+    "metal-sound":  { target: 'enemy', stat: 'spd', stage: -2, msg: "baixou muito a DEF. ESP." },
+    "fake-tears":   { target: 'enemy', stat: 'spd', stage: -2, msg: "baixou muito a DEF. ESP." },
+
+    // STATUS CONDITIONS
+    "thunder-wave": { target: 'enemy', status: 'par', msg: "PARALISOU o alvo!" },
+    "stun-spore":   { target: 'enemy', status: 'par', msg: "PARALISOU o alvo!" },
+    "glare":        { target: 'enemy', status: 'par', msg: "PARALISOU o alvo!" },
+    "will-o-wisp":  { target: 'enemy', status: 'brn', msg: "QUEIMOU o alvo!" },
+    "poison-powder":{ target: 'enemy', status: 'psn', msg: "ENVENENOU o alvo!" },
+    "poison-gas":   { target: 'enemy', status: 'psn', msg: "ENVENENOU o alvo!" },
+    "sleep-powder": { target: 'enemy', status: 'slp', msg: "fez o alvo DORMIR!" },
+    "hypnosis":     { target: 'enemy', status: 'slp', msg: "fez o alvo DORMIR!" },
+    "sing":         { target: 'enemy', status: 'slp', msg: "fez o alvo DORMIR!" },
+    "spore":        { target: 'enemy', status: 'slp', msg: "fez o alvo DORMIR!" },
+    "confuse-ray":  { target: 'enemy', status: 'confused', msg: "CONFUNDIU o alvo!" },
+    "supersonic":   { target: 'enemy', status: 'confused', msg: "CONFUNDIU o alvo!" },
+
+    // CURA
+    "recover":      { target: 'self', heal: 0.5, msg: "recuperou 50% de HP!" },
+    "soft-boiled":  { target: 'self', heal: 0.5, msg: "recuperou 50% de HP!" },
+    "synthesis":    { target: 'self', heal: 0.5, msg: "recuperou 50% de HP!" },
+    "moonlight":    { target: 'self', heal: 0.5, msg: "recuperou 50% de HP!" },
+    "rest":         { target: 'self', heal: 1.0, status: 'slp', msg: "dormiu e recuperou tudo!" },
+
+    // OUTROS
+    "splash":       { target: 'self', msg: "não fez nada... apenas pulou." },
+    "teleport":     { target: 'self', msg: "tentou fugir, mas falhou!" }
+};
+
+const STAT_DICT = {
+    'atk': 'o ATAQUE',
+    'def': 'a DEFESA',
+    'spa': 'o ATQ. ESP.',
+    'spd': 'a DEF. ESP.',
+    'spe': 'a VELOCIDADE',
+    'acc': 'a PRECISÃO',
+    'eva': 'a EVASIVA'
+};
 
 class PokemonHandler {
     constructor(db) {
@@ -135,6 +198,91 @@ class PokemonHandler {
             }
         }
         console.log("✅ Seed Completo! Banco de dados atualizado com sucesso.");
+    }
+
+    getBattleState(encounter) {
+        let data = encounter.extra_data ? JSON.parse(encounter.extra_data) : {};
+        
+        if (!data.stages) {
+            data.stages = {
+                user: { atk: 0, def: 0, spa: 0, spd: 0, spe: 0, acc: 0 },
+                enemy: { atk: 0, def: 0, spa: 0, spd: 0, spe: 0, acc: 0 }
+            };
+        }
+        return data;
+    }
+
+    applyStages(statValue, stage) {
+        if (!stage || stage === 0) return statValue;
+        
+        const multiplier = stage > 0 
+            ? (2 + stage) / 2 
+            : 2 / (2 + Math.abs(stage));
+            
+        return Math.floor(statValue * multiplier);
+    }
+
+    async processStatusMove(moveName, state, isPlayerTurn, maxHp) {
+        const effect = STATUS_MOVES[moveName.toLowerCase()];
+        
+        if (!effect) return { msg: `usou ${moveName}.` };
+
+        let result = { msg: `usou ${moveName}.`, healAmount: 0 };
+
+        let targetKey = '';
+        if (effect.target === 'self') {
+            targetKey = isPlayerTurn ? 'user' : 'enemy';
+        } else {
+            targetKey = isPlayerTurn ? 'enemy' : 'user';
+        }
+
+        if (effect.stat) {
+            const statsToMod = effect.stat.split('&'); 
+            let changedAny = false;
+
+            for (const statName of statsToMod) {
+                const currentStage = state.stages[targetKey][statName] || 0;
+                // Limita entre -6 e +6
+                const newStage = Math.max(-6, Math.min(6, currentStage + effect.stage));
+                
+                if (newStage !== currentStage) {
+                    state.stages[targetKey][statName] = newStage;
+                    changedAny = true;
+                }
+            }
+
+            if (!changedAny) {
+                const nomesAtributos = statsToMod.map(s => STAT_DICT[s] || s.toUpperCase()).join(' e ');
+                
+                const acao = effect.stage > 0 ? "aumentar" : "diminuir";
+
+                result.msg = `usou ${moveName}, mas ${nomesAtributos} não pode ${acao} mais!`;
+            } else {
+                result.msg = `usou ${moveName} e ${effect.msg}`;
+            }
+        }
+
+        // Falta programar a lógica dos efeitos
+        if (effect.status) {
+            if (state[targetKey + 'Status']) {
+                result.msg = `usou ${moveName}, mas falhou!`;
+            } else {
+                state[targetKey + 'Status'] = effect.status; 
+                result.msg = `usou ${moveName} e ${effect.msg}`;
+            }
+        }
+
+        if (effect.heal && maxHp) {
+            result.healAmount = Math.floor(maxHp * effect.heal);
+            if (effect.status) state[targetKey + 'Status'] = effect.status;
+            result.msg = `usou ${moveName} e ${effect.msg}`;
+        }
+
+        if (!effect.stat && !effect.status && !effect.heal && effect.msg) {
+             result.msg = `usou ${moveName} e ${effect.msg}`;
+        }
+
+        return result;
     }
 
     async handleCommand(from, sender, command, sock) {
@@ -357,6 +505,9 @@ class PokemonHandler {
             return msg;
         }
 
+        const encounterRaw = await this.db.get("SELECT extra_data FROM active_encounters WHERE user_id = ?", [userId]);
+        let battleState = this.getBattleState(encounterRaw);
+
         const selectedMove = (await this.getUserMoves(userPoke))[parseInt(moveSlot) - 1];
         if (!selectedMove) return "Golpe inválido!";
 
@@ -372,19 +523,32 @@ class PokemonHandler {
         // ============================================================
 
         if (selectedMove.damage_class === 'status') {
-            log += `✨ ${userPoke.nickname} usou *${selectedMove.name}*!\n`;
+            const res = await this.processStatusMove(selectedMove.name, battleState, true, userPoke.max_hp);
+            
+            log += `✨ ${userPoke.nickname} ${res.msg}\n`;
+
+            if (res.healAmount > 0) {
+                userPoke.current_hp = Math.min(userPoke.max_hp, userPoke.current_hp + res.healAmount);
+                await this.db.run("UPDATE user_pokemons SET current_hp = ? WHERE id = ?", [userPoke.current_hp, userPoke.id]);
+            }
         } else {
             const userAtkReal = Math.floor(((2 * userPoke.base_atk + (userPoke.iv_atk || 15)) * userPoke.level) / 100 + 5);
             const userSpaReal = Math.floor(((2 * userPoke.base_spa + (userPoke.iv_spa || 15)) * userPoke.level) / 100 + 5);
 
-            let atkFinal = (selectedMove.damage_class === 'special') ? userSpaReal : userAtkReal;
+            let calcAtk = (selectedMove.damage_class === 'special') ? userSpaReal : userAtkReal;
 
             const enemyDefReal = Math.floor(((2 * encounter.pokemon.base_def + 15) * encounter.level) / 100 + 5);
             const enemySpdReal = Math.floor(((2 * encounter.pokemon.base_spd + 15) * encounter.level) / 100 + 5);
             
-            let defFinal = (selectedMove.damage_class === 'special') ? enemySpdReal : enemyDefReal;
+            let calcDef = (selectedMove.damage_class === 'special') ? enemySpdReal : enemyDefReal;
 
-            damageToWild = calcDmg(userPoke.level, selectedMove.power, atkFinal, defFinal);
+            let stageAtk = (selectedMove.damage_class === 'physical') ? battleState.stages.user.atk : battleState.stages.user.spa;
+            let stageDef = (selectedMove.damage_class === 'physical') ? battleState.stages.enemy.def : battleState.stages.enemy.spd;
+
+            let finalAtk = this.applyStages(calcAtk, stageAtk);
+            let finalDef = this.applyStages(calcDef, stageDef);
+
+            damageToWild = calcDmg(userPoke.level, selectedMove.power, finalAtk, finalDef);
 
             if (Math.random() < 0.05) {
                 damageToWild = Math.floor(damageToWild * 2);
@@ -422,19 +586,30 @@ class PokemonHandler {
         let damageToUser = 0;
 
         if (wildMove.damage_class === 'status') {
-            log += `\n✨ O ${encounter.pokemon.name} selvagem usou *${wildMove.name}*!`;
-        } else {
-            const wildAtkReal = Math.floor(((2 * encounter.pokemon.base_atk + 15) * encounter.level) / 100 + 5);
-            const wildSpaReal = Math.floor(((2 * encounter.pokemon.base_spa + 15) * encounter.level) / 100 + 5);
+            const res = await this.processStatusMove(wildMove.name, battleState, false, encounter.maxHp);
+            log += `\n✨ Inimigo ${res.msg}`;
 
-            let wildAtkFinal = (wildMove.damage_class === 'special') ? wildSpaReal : wildAtkReal;
+            if (res.healAmount > 0) {
+                encounter.currentHp = Math.min(encounter.maxHp, encounter.currentHp + res.healAmount);
+            }
+        } else {
+            const enemyAtkReal = Math.floor(((2 * encounter.pokemon.base_atk + 15) * encounter.level) / 100 + 5);
+            const enemySpaReal = Math.floor(((2 * encounter.pokemon.base_spa + 15) * encounter.level) / 100 + 5);
+
+            let calcEnemyAtk = (wildMove.damage_class === 'special') ? enemySpaReal : enemyAtkReal;
 
             const userDefReal = Math.floor(((2 * userPoke.base_def + (userPoke.iv_def || 15)) * userPoke.level) / 100 + 5);
             const userSpdReal = Math.floor(((2 * userPoke.base_spd + (userPoke.iv_spd || 15)) * userPoke.level) / 100 + 5);
 
-            let userDefFinal = (wildMove.damage_class === 'special') ? userSpdReal : userDefReal;
+            let calcUserDef = (wildMove.damage_class === 'special') ? userSpdReal : userDefReal;
 
-            damageToUser = calcDmg(encounter.level, wildMove.power, wildAtkFinal, userDefFinal);
+            let stageEnemyAtk = (wildMove.damage_class === 'physical') ? battleState.stages.enemy.atk : battleState.stages.enemy.spa;
+            let stageUserDef = (wildMove.damage_class === 'physical') ? battleState.stages.user.def : battleState.stages.user.spd;
+
+            let finalWildAtk = this.applyStages(calcEnemyAtk, stageEnemyAtk);
+            let finalUserDef = this.applyStages(calcUserDef, stageUserDef);
+
+            damageToUser = calcDmg(encounter.level, wildMove.power, finalWildAtk, finalUserDef);
 
             if (Math.random() < 0.05) {
                 damageToUser = Math.floor(damageToUser * 2);

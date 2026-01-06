@@ -176,7 +176,7 @@ class PokemonHandler {
             
             const randIv = () => Math.floor(Math.random() * 32);
 
-            await this.db.run(`UPDATE user_pokemons SET iv_hp=?, iv_atk=?, iv_def=?, iv_spa=?, iv_spd=?, iv_spe=? WHERE id = ?`, randIv(), randIv(), randIv(), randIv(), randIv(), randIv(), [poke.id]);
+            await this.db.run(`UPDATE user_pokemons SET iv_hp=?, iv_atk=?, iv_def=?, iv_spa=?, iv_spd=?, iv_spe=? WHERE id = ?`, [randIv(), randIv(), randIv(), randIv(), randIv(), randIv(), poke.id]);
         }
         return `✅ IVs corrigidos para ${brokenPokes.length} Pokémons.`;
     }

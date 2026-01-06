@@ -312,6 +312,92 @@ async function initDatabase() {
         console.log("✅ Limpeza de golpes duplicados realizada.");
     } catch (e) {}
 
+    await db.exec(`
+        CREATE TABLE IF NOT EXISTS gym_leaders (
+            id INTEGER PRIMARY KEY, -- Usaremos como número da insígnia (0 = Brock, 1 = Misty...)
+            name TEXT,
+            city TEXT,
+            badge_name TEXT,
+            reward_coins INTEGER,
+            team_json TEXT -- Guardará o array do time: [{pokedex_id, level, moves:[names]}]
+        );
+    `);
+
+    // Seed do Brock (Geodude e Onix)
+    await db.run(`INSERT OR IGNORE INTO gym_leaders (id, name, city, badge_name, reward_coins, team_json) VALUES (?, ?, ?, ?, ?, ?)`, 
+        [0, 'Brock', 'Pewter', 'Rocha', 1500, JSON.stringify([
+            {pokedex_id: 74, level: 12, moves: ["tackle", "defense-curl"]}, // Geodude
+            {pokedex_id: 95, level: 14, moves: ["tackle", "rock-throw", "bind", "harden"]} //Onix
+        ])]
+    );
+
+    // Seed da Misty
+    await db.run(`INSERT OR IGNORE INTO gym_leaders (id, name, city, badge_name, reward_coins, team_json) VALUES (?, ?, ?, ?, ?, ?)`, 
+        [1, 'Misty', 'Cerulean', 'Cascata', 2500, JSON.stringify([
+            {pokedex_id: 120, level: 18, moves: ["water-gun", "tackle", "harden"]}, // Staryu
+            {pokedex_id: 121, level: 21, moves: ["water-gun", "swift", "recover", "tackle"]} // Starmie
+        ])]
+    );
+
+    // Seed do Lt. Surge
+    await db.run(`INSERT OR IGNORE INTO gym_leaders (id, name, city, badge_name, reward_coins, team_json) VALUES (?, ?, ?, ?, ?, ?)`, 
+        [2, 'Lt. Surge', 'Vermilion', 'Trovão', 3500, JSON.stringify([
+            {pokedex_id: 100, level: 21, moves: ["sonic-boom", "screech"]}, // Voltorb
+            {pokedex_id: 25, level: 18, moves: ["thunder-shock", "quick-attack", "double-team"]}, // Pikachu
+            {pokedex_id: 26, level: 24, moves: ["thunderbolt", "mega-punch", "thunder-shock"]} // Raichu
+        ])]
+    );
+
+    // Seed da Erika
+    await db.run(`INSERT OR IGNORE INTO gym_leaders (id, name, city, badge_name, reward_coins, team_json) VALUES (?, ?, ?, ?, ?, ?)`, 
+        [3, 'Erika', 'Celadon', 'Arco-íris', 4500, JSON.stringify([
+            {pokedex_id: 71, level: 29, moves: ["razor-leaf", "sleep-powder", "poison-powder"]}, // Victreebel
+            {pokedex_id: 114, level: 24, moves: ["vine-whip", "bind", "constrict"]}, // Tangela
+            {pokedex_id: 45, level: 29, moves: ["mega-drain", "petal-dance", "poison-powder", "stun-spore"]} // Vileplume
+        ])]
+    );
+
+    // Seed do Koga (Venenoso)
+    await db.run(`INSERT OR IGNORE INTO gym_leaders (id, name, city, badge_name, reward_coins, team_json) VALUES (?, ?, ?, ?, ?, ?)`, 
+        [4, 'Koga', 'Fuchsia', 'Alma', 5500, JSON.stringify([
+            {pokedex_id: 109, level: 37, moves: ["sludge", "smokescreen", "smog"]}, // Koffing
+            {pokedex_id: 89, level: 39, moves: ["sludge-bomb", "minimize", "acid-armor"]}, // Muk
+            {pokedex_id: 110, level: 43, moves: ["toxic", "sludge", "self-destruct", "smokescreen"]} // Weezing
+        ])]
+    );
+
+    // Seed da Sabrina
+    await db.run(`INSERT OR IGNORE INTO gym_leaders (id, name, city, badge_name, reward_coins, team_json) VALUES (?, ?, ?, ?, ?, ?)`, 
+        [5, 'Sabrina', 'Saffron', 'Pântano', 6500, JSON.stringify([
+            {pokedex_id: 64, level: 38, moves: ["psybeam", "recover", "disable"]}, // Kadabra
+            {pokedex_id: 122, level: 37, moves: ["confusion", "barrier", "light-screen"]}, // Mr. Mime
+            {pokedex_id: 49, level: 38, moves: ["psybeam", "stun-spore", "gust"]}, // Venomoth
+            {pokedex_id: 65, level: 43, moves: ["psychic", "recover", "psybeam", "reflect"]} // Alakazam
+        ])]
+    );
+
+    // Seed do Blaine
+    await db.run(`INSERT OR IGNORE INTO gym_leaders (id, name, city, badge_name, reward_coins, team_json) VALUES (?, ?, ?, ?, ?, ?)`, 
+        [6, 'Blaine', 'Cinnabar', 'Vulcão', 7500, JSON.stringify([
+            {pokedex_id: 58, level: 42, moves: ["ember", "take-down", "leer"]}, // Growlithe
+            {pokedex_id: 77, level: 40, moves: ["fire-spin", "stomp", "growl"]}, // Ponyta
+            {pokedex_id: 78, level: 42, moves: ["fire-blast", "agility", "stomp"]}, // Rapidash
+            {pokedex_id: 59, level: 47, moves: ["flamethrower", "take-down", "roar", "bite"]} // Arcanine
+        ])]
+    );
+
+    // Seed do Giovanni
+    await db.run(`INSERT OR IGNORE INTO gym_leaders (id, name, city, badge_name, reward_coins, team_json) VALUES (?, ?, ?, ?, ?, ?)`, 
+        [7, 'Giovanni', 'Viridian', 'Terra', 10000, JSON.stringify([
+            {pokedex_id: 111, level: 45, moves: ["stomp", "tail-whip", "fury-attack"]}, // Rhyhorn
+            {pokedex_id: 51, level: 42, moves: ["dig", "slash", "sand-attack"]}, // Dugtrio
+            {pokedex_id: 31, level: 44, moves: ["body-slam", "poison-sting", "scratch", "double-kick"]}, // Nidoqueen
+            {pokedex_id: 34, level: 45, moves: ["thrash", "poison-sting", "horn-attack"]}, // Nidoking
+            {pokedex_id: 112, level: 50, moves: ["earthquake", "rock-slide", "fissure", "take-down"]} // Rhydon
+        ])]
+    );
+    console.log("✅ Tabela 'gym_leaders' verificada.");
+
     console.log('✅ Banco de dados SQLite inicializado e tabelas `mensagens` e `usuarios` verificadas.');
 }
 

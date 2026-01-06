@@ -777,24 +777,54 @@ class PokemonHandler {
         const user = await this.db.get("SELECT badges FROM usuarios WHERE id_usuario = ?", [userId]);
         const currentBadge = user.badges || 0;
 
-        if (currentBadge >= GYM_LEADERS.length) return "🏆 Você já é o Campeão da Liga Pokémon!";
+        const gymLeader = await this.db.get("SELECT * FROM gym_leaders WHERE id = ?", [currentBadge]);
+        if (!gymLeader) return "🏆 Você já venceu todos os líderes disponíveis (por enquanto)!";
 
-        const gymData = GYM_LEADERS[currentBadge];
-        const bossPokemon = await this.db.get("SELECT * FROM pokedex WHERE id = ?", [gymData.pokeId]);
-        const bossMoves = [{name: gymData.moves[0], power: 50, type: 'normal', damage_class: 'physical'}]; 
-        const bossHp = Math.floor(((2 * bossPokemon.base_hp + 31 + 100) * gymData.level) / 100 + 10) * 1.5;
+        const team = JSON.parse(gymLeader.team_json);
+        if (!team || team.length === 0) return "❌ Erro: Líder sem pokémons.";
 
-        const extraData = { ...gymData, participants: [leadPoke.id] };
+        const firstPokeData = team[0];
+        const bossPokemon = await this.db.get("SELECT * FROM pokedex WHERE id = ?", [firstPokeData.pokedex_id]);
+        
+        const moveNames = firstPokeData.moves;
+        
+        const placeholders = moveNames.map(() => '?').join(',');
+
+        const dbMoves = await this.db.all(`SELECT * FROM moves WHERE name IN (${placeholders})`, moveNames);
+        
+        const bossMoves = moveNames.map(mName => {
+            const found = dbMoves.find(dbm => dbm.name === mName);
+            return found ? {
+                name: found.name,
+                power: found.power,
+                type: found.type,
+                damage_class: found.damage_class
+            } : { 
+                name: mName, power: 40, type: 'normal', damage_class: 'physical' // Fallback
+            };
+        });
+
+        const bossHp = Math.floor(((2 * bossPokemon.base_hp + 31 + 100) * firstPokeData.level) / 100 + 10) * 1.5; 
+
+        const remainingTeam = team.slice(1);
+
+        const extraData = { 
+            leaderName: gymLeader.name,
+            badgeName: gymLeader.badge_name,
+            reward: gymLeader.reward_coins,
+            participants: [leadPoke.id],
+            remainingTeam: remainingTeam 
+        };
 
         await this.db.run(`
             INSERT INTO active_encounters (
                 user_id, group_id, pokedex_id, current_hp, max_hp, level, 
                 is_shiny, moves, battle_type, extra_data, started_at, active_pokemon_id
             ) VALUES (?, ?, ?, ?, ?, ?, 0, ?, 'GYM', ?, ?, ?)`,
-            [userId, groupId, bossPokemon.id, bossHp, bossHp, gymData.level, JSON.stringify(bossMoves), JSON.stringify(extraData), Date.now(), leadPoke.id]
+            [userId, groupId, bossPokemon.id, bossHp, bossHp, firstPokeData.level, JSON.stringify(bossMoves), JSON.stringify(extraData), Date.now(), leadPoke.id]
         );
 
-        const caption = `🏛️ *GINÁSIO DE ${gymData.city.toUpperCase()}*\nLíder **${gymData.leader}** enviou *${bossPokemon.name}* (Lvl ${gymData.level})!\n⚠️ *Boss HP:* ${bossHp}/${bossHp}\nDigite *!poke atacar*`;
+        const caption = `🏛️ *GINÁSIO DE ${gymLeader.city.toUpperCase()}*\nLíder **${gymLeader.name}** enviou *${bossPokemon.name}* (Lvl ${firstPokeData.level})!\n⚠️ *Boss HP:* ${bossHp}/${bossHp}\nPokémons restantes do Líder: ${remainingTeam.length + 1}\nDigite *!poke atacar*`;
 
         if (sock) {
             await sock.sendMessage(groupId, { image: { url: bossPokemon.sprite_url }, caption: caption });
@@ -928,7 +958,6 @@ class PokemonHandler {
             let logMsg = `💀 O inimigo desmaiou!\n`;
 
             for (const pId of uniqueParticipants) {
-                // CORREÇÃO: Faz o JOIN para trazer o base_hp necessário para o cálculo
                 const p = await this.db.get(`
                     SELECT up.*, dex.base_hp 
                     FROM user_pokemons up 
@@ -942,10 +971,46 @@ class PokemonHandler {
                 }
             }
             
-            if (encounter.isGym) {
-                const badgeInfo = encounter.gymData;
-                await this.db.run("UPDATE usuarios SET badges = badges + 1, pokecoins = pokecoins + ? WHERE id_usuario = ?", [badgeInfo.reward, userId]);
-                return `${log}\n🏆 *VITÓRIA NO GINÁSIO!*\nRecebeu Insígnia ${badgeInfo.badgeName} e 💰 ${badgeInfo.reward}!\n${logMsg}`;
+            let xpMultiplier = 1.0;
+            if (encounter.battle_type === 'GYM') xpMultiplier = 2.5; 
+            else if (encounter.battle_type === 'TRAINER') xpMultiplier = 1.5;
+
+            for (const pId of uniqueParticipants) {
+                const p = await this.db.get(`
+                    SELECT up.*, dex.base_hp 
+                    FROM user_pokemons up 
+                    JOIN pokedex dex ON up.pokedex_id = dex.id 
+                    WHERE up.id = ?`, [pId]);
+                
+                if (p) {
+                    const xpMsg = await this.gainExperience(p, encounter.pokemon, encounter.level, splitFactor, xpMultiplier);
+                    logMsg += `\n🔹 *${p.nickname}*: ${xpMsg.replace('✨ Ganhou', 'Ganhou')}`; 
+                }
+            }
+
+            if (encounter.isGym && encounter.gymData.remainingTeam && encounter.gymData.remainingTeam.length > 0) {
+                const nextPokeData = encounter.gymData.remainingTeam.shift(); 
+                
+                encounter.gymData.remainingTeam = encounter.gymData.remainingTeam; 
+                
+                const nextPokeDex = await this.db.get("SELECT * FROM pokedex WHERE id = ?", [nextPokeData.pokedex_id]);
+                
+                const nextMoves = nextPokeData.moves.map(m => ({ name: m, power: 0, type: 'normal', damage_class: 'physical' }));
+                for(let m of nextMoves){
+                    const dbMove = await this.db.get("SELECT * FROM moves WHERE name = ?", [m.name]);
+                    if(dbMove) { m.power = dbMove.power; m.type = dbMove.type; m.damage_class = dbMove.damage_class; }
+                }
+
+                const nextHp = Math.floor(((2 * nextPokeDex.base_hp + 31 + 100) * nextPokeData.level) / 100 + 10) * 1.5;
+
+                await this.db.run(`
+                    UPDATE active_encounters 
+                    SET pokedex_id = ?, current_hp = ?, max_hp = ?, level = ?, moves = ?, extra_data = ?
+                    WHERE user_id = ?`,
+                    [nextPokeDex.id, nextHp, nextHp, nextPokeData.level, JSON.stringify(nextMoves), JSON.stringify(encounter.gymData), userId]
+                );
+
+                return `${log}\n${logMsg}\n\n🚨 *Líder ${encounter.gymData.leaderName}* enviou *${nextPokeDex.name}* (Lvl ${nextPokeData.level})!\nA batalha continua!`;
             }
 
             const baseGain = 15;
@@ -1225,8 +1290,8 @@ class PokemonHandler {
         let msg = "";
         let stopLvlUp = false;
 
-        let totalXp = Math.floor((enemy.base_xp * enemyLevel) / 7);
-        let xp = Math.floor(totalXp / splitFactor); 
+        let totalXp = Math.floor((enemy.base_xp * enemyLevel * multiplier) / 7);
+        let xp = Math.floor(totalXp / splitFactor);
         
         if (xp < 1) xp = 1;
 

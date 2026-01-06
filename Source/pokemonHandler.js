@@ -1,4 +1,5 @@
 const axios = require('axios');
+const { gracefulShutdown } = require('node-schedule');
 const STARTER_IDS = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 const RARE_POKE = [25]
 const POKEMON_COUNT = 151;
@@ -6,7 +7,7 @@ const GAME_VERSION = 'firered-leafgreen';
 const GYM_LEADERS = [
     { badge: 0, leader: "Brock", city: "Pewter", pokeId: 95, level: 12, moves: ["Investida", "Lançamento de Rocha"], reward: 1000, badgeName: "Rocha" }, // Onix
     { badge: 1, leader: "Misty", city: "Cerulean", pokeId: 121, level: 18, moves: ["Jato d'Água", "Investida"], reward: 2000, badgeName: "Cascata" } // Starmie
-];
+]
 const STATUS_MOVES = {
     // BUFFS
     "swords-dance": { target: 'self', stat: 'atk', stage: 2, msg: "aumentou drasticamente o ATAQUE" },
@@ -59,7 +60,7 @@ const STATUS_MOVES = {
     // OUTROS
     "splash":       { target: 'self', msg: "não fez nada... apenas pulou." },
     "teleport":     { target: 'self', msg: "tentou fugir, mas falhou!" }
-};
+}
 
 const STAT_DICT = {
     'atk': 'o ATAQUE',
@@ -69,7 +70,28 @@ const STAT_DICT = {
     'spe': 'a VELOCIDADE',
     'acc': 'a PRECISÃO',
     'eva': 'a EVASIVA'
-};
+}
+
+const TYPE_CHART = {
+    bug: { grass: 2, psychic: 2, dark: 2, fighting: .5, flying: .5, poison: .5, ghost: .5, steel: .5, fire: .5, fairy: .5 },  
+    dark: {ghost: 2, psychic: 2, fairy: .5 ,fighting: .5, dark: .5 },
+    dragon: { dragon: 2, steel: .5, fairy: 0 },  
+    electric: { water: 2, flying: 2, grass: .5, electric: .5, dragon: .5, ground: 0 },
+    fairy: { dragon: 2, fighting: 2, dark: 2, poison: .5, steel: .5, fire: .5 },
+    fighting: { normal: 2, rock: 2, steel: 2, ice: 2, dark: 2, flying: .5, poison: .5, bug: .5, psychic: .5, fairy: .5, ghost: 0},
+    fire: { grass: 2, bug: 2, steel: 2, ice: 2, rock: .5, fire: .5, water: .5, dragon: .5 },
+    flying: { grass: 2, bug: 2, fighting: 2, rock: .5, steel: .5, electric: .5 },
+    ghost: { ghost: 2, psychic: 2, dark: .5, normal: 0 },  
+    grass: { water: 2, ground: 2, rock: 2, flying: .5, poison: .5, bug: .5, steel: .5, fire: .5, grass: .5, dragon: .5 },
+    ground: { electric: 2, poison: 2, rock: 2, steel: 2, fire: 2, bug: .5, grass: .5, flying: 0 },
+    ice: { flying: 2, dragon: 2, ground: 2, grass: 2, steel: .5, fire: .5, water: .5, ice: .5 },
+    normal: { rock: .5, steel: .5, ghost: 0 },
+    poison: { grass: 2, fairy: 2, poison: .5, ground: .5, rock: .5, ghost: .5, steel: 0 },    
+    psychic: { poison: 2, fighting: 2, steel: .5, psychic: .5, dark: 0 },
+    rock: { bug: 2, flying: 2, fire: 2, ice: 2, fighting: .5, ground: .5, steel: .5 },
+    steel: { rock: 2, ice: 2, fairy: 2, steel: .5, fire: .5, water: .5, electric: .5 },
+    water: { fire: 2, ground: 2, rock: 2, water: .5, grass: .5, dragon: .5 }
+}
 
 class PokemonHandler {
     constructor(db) {
@@ -361,7 +383,7 @@ class PokemonHandler {
 
     async loadEncounter(userId) {
         const encounter = await this.db.get(`
-            SELECT ae.*, p.name, p.base_hp, p.base_atk, p.base_def, p.base_spa, p.base_spd, p.base_spe, p.sprite_url, p.base_xp
+            SELECT ae.*, p.name, p.type1, p.type2, p.base_hp, p.base_atk, p.base_def, p.base_spa, p.base_spd, p.base_spe, p.sprite_url, p.base_xp
             FROM active_encounters ae
             JOIN pokedex p ON ae.pokedex_id = p.id
             WHERE ae.user_id = ?`, [userId]);
@@ -372,6 +394,8 @@ class PokemonHandler {
             pokemon: {
                 id: encounter.pokedex_id,
                 name: encounter.name,
+                type1: encounter.type1,
+                type2: encounter.type2,
                 base_hp: encounter.base_hp,
                 base_atk: encounter.base_atk,
                 base_def: encounter.base_def,
@@ -490,7 +514,7 @@ class PokemonHandler {
         if (!encounter) return "Não tem batalha rolando. Use *!poke explorar*.";
 
         const userPoke = await this.db.get(`
-            SELECT up.*, p.name, p.base_hp, p.base_atk, p.base_def, p.base_spa, p.base_spd, p.base_spe 
+            SELECT up.*, p.name, p.type1, p.type2, p.base_hp, p.base_atk, p.base_def, p.base_spa, p.base_spd, p.base_spe 
             FROM user_pokemons up JOIN pokedex p ON up.pokedex_id = p.id
             WHERE up.user_id = ? ORDER BY up.id ASC LIMIT 1`, [userId]);
 
@@ -505,14 +529,33 @@ class PokemonHandler {
             return msg;
         }
 
+
         const encounterRaw = await this.db.get("SELECT extra_data FROM active_encounters WHERE user_id = ?", [userId]);
         let battleState = this.getBattleState(encounterRaw);
+
+        const getTypeMultiplier = (moveType, targetType1, targetType2) => {
+            if (!moveType) return 1;
+            const attackerChart = TYPE_CHART[moveType.toLowerCase()];
+            if (!attackerChart) return 1;
+
+            let mult = 1;
+            
+            if (targetType1 && attackerChart[targetType1.toLowerCase()] !== undefined) {
+                mult *= attackerChart[targetType1.toLowerCase()];
+            }
+            if (targetType2 && attackerChart[targetType2.toLowerCase()] !== undefined) {
+                mult *= attackerChart[targetType2.toLowerCase()];
+            }
+
+            return mult;
+        };
 
         const selectedMove = (await this.getUserMoves(userPoke))[parseInt(moveSlot) - 1];
         if (!selectedMove) return "Golpe inválido!";
 
         const calcDmg = (lvl, pwr, atk, def) => {
             return Math.floor(((2 * lvl / 5 + 2) * pwr * (atk / def)) / 50 + 2);
+
         };
 
         let log = "";
@@ -549,6 +592,8 @@ class PokemonHandler {
             let finalDef = this.applyStages(calcDef, stageDef);
 
             damageToWild = calcDmg(userPoke.level, selectedMove.power, finalAtk, finalDef);
+            const typeMult = getTypeMultiplier(selectedMove.type, encounter.pokemon.type1, encounter.pokemon.type2);
+            damageToWild = Math.floor(damageToWild * typeMult);
 
             if (Math.random() < 0.05) {
                 damageToWild = Math.floor(damageToWild * 2);
@@ -558,7 +603,12 @@ class PokemonHandler {
             damageToWild = Math.floor(damageToWild * ((Math.random() * 0.15) + 0.85));
 
             encounter.currentHp -= damageToWild;
+
             log += `🗡️ ${userPoke.nickname} usou *${selectedMove.name}* e causou **${damageToWild}** de dano.\n`;
+
+            if (typeMult > 1) log += `⚔️ *É super efetivo!* (x${typeMult})\n`;
+            if (typeMult < 1 && typeMult > 0) log += `🛡️ *Não é muito efetivo...* (x${typeMult})\n`;
+            if (typeMult === 0) log += `❌ *Não afetou o inimigo...*\n`;
         }
 
         if (encounter.currentHp <= 0) {
@@ -610,6 +660,9 @@ class PokemonHandler {
             let finalUserDef = this.applyStages(calcUserDef, stageUserDef);
 
             damageToUser = calcDmg(encounter.level, wildMove.power, finalWildAtk, finalUserDef);
+
+            const typeMultEnemy = getTypeMultiplier(wildMove.type, userPoke.type1, userPoke.type2);
+            damageToUser = Math.floor(damageToUser * typeMultEnemy);
 
             if (Math.random() < 0.05) {
                 damageToUser = Math.floor(damageToUser * 2);

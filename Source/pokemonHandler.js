@@ -480,6 +480,17 @@ class PokemonHandler {
 
         await this.db.run(`UPDATE active_encounters SET active_pokemon_id = ? WHERE user_id = ?`, [targetPoke.id, userId]);
 
+        const encounterData = await this.db.get("SELECT extra_data FROM active_encounters WHERE user_id = ?", [userId]);
+        let extraData = encounterData.extra_data ? JSON.parse(encounterData.extra_data) : { participants: [] };
+
+        if (!extraData.participants) extraData.participants = [];
+
+        if (!extraData.participants.includes(targetPoke.id)) {
+            extraData.participants.push(targetPoke.id);
+
+            await this.db.run("UPDATE active_encounters SET extra_data = ? WHERE user_id = ?", [JSON.stringify(extraData), userId]);
+        }
+
         let log = `🔄 **Você trocou para ${targetPoke.nickname}!**\n`;
 
         const encounterRaw = await this.db.get("SELECT extra_data FROM active_encounters WHERE user_id = ?", [userId]);
@@ -714,12 +725,14 @@ class PokemonHandler {
         const wildHp = Math.floor(((2 * pokemon.base_hp + 15 + 100) * wildLevel) / 100 + 10);
         const isShiny = Math.random() < shinyChance;
 
+        const extraData = { participants: [leadPoke.id] };
+
         await this.db.run(`
             INSERT INTO active_encounters (
                 user_id, group_id, pokedex_id, current_hp, max_hp, level, 
                 is_shiny, moves, battle_type, started_at, active_pokemon_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'WILD', ?, ?)`,
-            [userId, groupId, pokemon.id, wildHp, wildHp, wildLevel, isShiny ? 1 : 0, JSON.stringify(wildMoves), Date.now(), leadPoke.id]
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'WILD', ?, ?, ?)`,
+            [userId, groupId, pokemon.id, wildHp, wildHp, wildLevel, isShiny ? 1 : 0, JSON.stringify(wildMoves), Date.now(), leadPoke.id, JSON.stringify(extraData)]
         );
 
         let emoji = isShiny ? "✨" : "⚔️";
@@ -751,12 +764,14 @@ class PokemonHandler {
         const bossMoves = [{name: gymData.moves[0], power: 50, type: 'normal', damage_class: 'physical'}]; 
         const bossHp = Math.floor(((2 * bossPokemon.base_hp + 31 + 100) * gymData.level) / 100 + 10) * 1.5;
 
+        const extraData = { ...gymData, participants: [leadPoke.id] };
+
         await this.db.run(`
             INSERT INTO active_encounters (
                 user_id, group_id, pokedex_id, current_hp, max_hp, level, 
                 is_shiny, moves, battle_type, extra_data, started_at
-            ) VALUES (?, ?, ?, ?, ?, ?, 0, ?, 'GYM', ?, ?)`,
-            [userId, groupId, bossPokemon.id, bossHp, bossHp, gymData.level, JSON.stringify(bossMoves), JSON.stringify(gymData), Date.now()]
+            ) VALUES (?, ?, ?, ?, ?, ?, 0, ?, 'GYM', ?, ?, ?)`,
+            [userId, groupId, bossPokemon.id, bossHp, bossHp, gymData.level, JSON.stringify(bossMoves), JSON.stringify(gymData), Date.now(), JSON.stringify(extraData)]
         );
 
         const caption = `🏛️ *GINÁSIO DE ${gymData.city.toUpperCase()}*\nLíder **${gymData.leader}** enviou *${bossPokemon.name}* (Lvl ${gymData.level})!\n⚠️ *Boss HP:* ${bossHp}/${bossHp}\nDigite *!poke atacar*`;
@@ -879,20 +894,37 @@ class PokemonHandler {
         }
 
         if (encounter.currentHp <= 0) {
+            let participants = battleState.participants || [userPoke.id];
+            
             await this.clearEncounter(userId);
-            const xpMsg = await this.gainExperience(userPoke, encounter.pokemon, encounter.level);
+
+            const uniqueParticipants = [...new Set(participants)];
+            const splitFactor = uniqueParticipants.length;
+
+            let logMsg = `💀 O inimigo desmaiou!\n`;
+
+            for (const pId of uniqueParticipants) {
+                const p = await this.db.get("SELECT * FROM user_pokemons WHERE id = ?", [pId]);
+                
+                if (p) {
+                    const xpMsg = await this.gainExperience(p, encounter.pokemon, encounter.level, splitFactor);
+                    
+                    logMsg += `\n🔹 *${p.nickname}*: ${xpMsg.replace('✨ Ganhou', 'Ganhou')}`; 
+                }
+            }
             
             if (encounter.isGym) {
                 const badgeInfo = encounter.gymData;
                 await this.db.run("UPDATE usuarios SET badges = badges + 1, pokecoins = pokecoins + ? WHERE id_usuario = ?", [badgeInfo.reward, userId]);
-                return `${log}\n🏆 *VITÓRIA NO GINÁSIO!*\nRecebeu Insígnia ${badgeInfo.badgeName} e 💰 ${badgeInfo.reward}!\n${xpMsg}`;
+                return `${log}\n🏆 *VITÓRIA NO GINÁSIO!*\nRecebeu Insígnia ${badgeInfo.badgeName} e 💰 ${badgeInfo.reward}!\n${logMsg}`;
             }
 
             const baseGain = 15;
             const luckGain = Math.random() * 25;
             const coins = Math.floor(encounter.level * (baseGain + luckGain));
             await this.db.run("UPDATE usuarios SET pokecoins = pokecoins + ? WHERE id_usuario = ?", [coins, userId]);
-            return `${log}\n💀 O inimigo desmaiou!\n${xpMsg}\n💰 +${coins} coins.`;
+            
+            return `${log}\n${logMsg}\n💰 +${coins} coins.`;
         }
 
         // ============================================================
@@ -1163,11 +1195,16 @@ class PokemonHandler {
             return `⚠️ ${userPoke.nickname} ainda está tentando aprender *${moveName}*!\nUse *!poke trocar [1-4]* ou *!poke ignorar*.`;
         }
 
-        let xp = Math.floor((enemy.base_xp * enemyLevel) / 7);
-        let newXp = userPoke.exp + xp;
         let lvl = userPoke.level;
         let msg = "";
         let stopLvlUp = false;
+
+        let totalXp = Math.floor((enemy.base_xp * enemyLevel) / 7);
+        let xp = Math.floor(totalXp / splitFactor); 
+        
+        if (xp < 1) xp = 1;
+
+        let newXp = userPoke.exp + xp;
 
         while(newXp >= Math.pow(lvl+1, 3) && !stopLvlUp) {
             lvl++;

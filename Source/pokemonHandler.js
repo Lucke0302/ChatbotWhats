@@ -1093,8 +1093,8 @@ class PokemonHandler {
 
             if (Math.random() < 0.05) { damageToUser *= 2; log += `\n⚠️ *CRÍTICO DO INIMIGO!*`; }
             damageToUser = Math.floor(damageToUser * ((Math.random() * 0.15) + 0.85));
-            
-            if (selectedMove.type === encounter.pokemon.type1 || selectedMove.type === encounter.pokemon.type2) {
+
+            if (wildMove.type === encounter.pokemon.type1 || wildMove.type === encounter.pokemon.type2) {
                 damageToUser = Math.floor(damageToUser * 1.5);
             }
 

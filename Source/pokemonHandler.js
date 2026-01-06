@@ -112,6 +112,43 @@ class PokemonHandler {
         }
     }
 
+    async cleanDatabaseDuplicates() {
+        console.log("🧹 Iniciando limpeza de dados duplicados...");
+        
+        await this.db.run(`
+            DELETE FROM pokemon_moves 
+            WHERE rowid NOT IN (
+                SELECT MIN(rowid) 
+                FROM pokemon_moves 
+                GROUP BY pokemon_id, move_id, level_learned
+            )
+        `);
+        
+        console.log("✅ Tabela pokemon_moves limpa!");
+
+        const allPokes = await this.db.all("SELECT id, pokedex_id, level, nickname FROM user_pokemons");
+        let count = 0;
+
+        for (const poke of allPokes) {
+            const validMoves = await this.getMovesForLevel(poke.pokedex_id, poke.level);
+            
+            const uniqueIds = [...new Set(validMoves.map(m => m.id))];
+            
+            const m1 = uniqueIds[0] || null;
+            const m2 = uniqueIds[1] || null;
+            const m3 = uniqueIds[2] || null;
+            const m4 = uniqueIds[3] || null;
+
+            await this.db.run(
+                `UPDATE user_pokemons SET move1=?, move2=?, move3=?, move4=? WHERE id=?`,
+                [m1, m2, m3, m4, poke.id]
+            );
+            count++;
+        }
+
+        return `✅ Limpeza completa!\n- Duplicatas do sistema removidas.\n- ${count} Pokémons atualizados com os golpes certos.`;
+    }
+
     async fixNullMoves() {
         console.log("🔧 Iniciando reparo de moveset dos Pokémons...");
         
@@ -433,6 +470,10 @@ class PokemonHandler {
             case 'ignorar':
             case 'manter':
                 return await this.learnPendingMove(sender, 'ignorar');
+
+            case 'cleanmoves':
+                if (sender !== "5513991008854@s.whatsapp.net") return "Sem permissão.";
+                return await this.cleanDatabaseDuplicates();
 
             case 'fixivs':
                 if (sender !== "5513991008854@s.whatsapp.net") return "Sem permissão.";

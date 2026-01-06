@@ -239,6 +239,15 @@ class PokemonHandler {
         return `✅ IVs corrigidos para ${brokenPokes.length} Pokémons.`;
     }
 
+    async fixNullHp() {
+        const bugados = await this.db.all("SELECT up.id, up.level, up.iv_hp, dex.base_hp FROM user_pokemons up JOIN pokedex dex ON up.pokedex_id = dex.id WHERE up.max_hp IS NULL");
+        for(const b of bugados){
+            const newHp = Math.floor(((2 * b.base_hp + (b.iv_hp || 15) + 100) * b.level) / 100 + 10);
+            await this.db.run("UPDATE user_pokemons SET max_hp = ?, current_hp = ? WHERE id = ?", [newHp, newHp, b.id]);
+        }
+        return `🔧 ${bugados.length} Pokémon consertados.`;
+    }
+
     async seedDatabase() {
         const downloadedMoves = new Set();
         console.log(`⬇️ Iniciando Seed Gen 1-3 (Até ${POKEMON_COUNT})...`);
@@ -533,6 +542,10 @@ class PokemonHandler {
             case 'cleanmoves':
                 if (sender !== "5513991008854@s.whatsapp.net") return "Sem permissão.";
                 return await this.cleanDatabaseDuplicates();
+            
+            case 'fixhp':
+                if (sender !== "5513991008854@s.whatsapp.net") return "Sem permissão.";
+                return await this.fixNullHp();
 
             case 'fixivs':
                 if (sender !== "5513991008854@s.whatsapp.net") return "Sem permissão.";
@@ -911,7 +924,12 @@ class PokemonHandler {
             let logMsg = `💀 O inimigo desmaiou!\n`;
 
             for (const pId of uniqueParticipants) {
-                const p = await this.db.get("SELECT * FROM user_pokemons WHERE id = ?", [pId]);
+                // CORREÇÃO: Faz o JOIN para trazer o base_hp necessário para o cálculo
+                const p = await this.db.get(`
+                    SELECT up.*, dex.base_hp 
+                    FROM user_pokemons up 
+                    JOIN pokedex dex ON up.pokedex_id = dex.id 
+                    WHERE up.id = ?`, [pId]);
                 
                 if (p) {
                     const xpMsg = await this.gainExperience(p, encounter.pokemon, encounter.level, splitFactor);

@@ -325,7 +325,7 @@ class PokemonHandler {
         return msg;
     }
 
-    async switchPokemon(userId, slot) {
+    async switchPokemon(userId, param) {
         const encounter = await this.loadEncounter(userId);
 
         if (!encounter) {
@@ -377,7 +377,7 @@ class PokemonHandler {
     async handleCommand(from, sender, command, sock) {
         const args = command.trim().split(' ');
         const action = args[1] ? args[1].toLowerCase() : 'ajuda';
-        const param = args[2];
+        const param = args.slice(2).join(' ');
 
         const allowedWithoutPoke = ['comecar', 'start', 'escolher', 'choose', 'ajuda', 'help'];
         const hasPokemon = await this.checkIfUserHasPokemon(sender);
@@ -817,10 +817,7 @@ class PokemonHandler {
                  await this.clearEncounter(userId);
                  log += `\n\n🏴 Você não tem mais Pokémons! Você correu para o CP.`;
              }
-        } else {
-             log += `\n\n💚 Seu HP: ${Math.max(0, updatedUserPoke.current_hp)}/${updatedUserPoke.max_hp}`;
-        }
-        
+        }         
         return log;
     }
 

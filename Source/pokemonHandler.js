@@ -909,6 +909,11 @@ class PokemonHandler {
             let finalDef = this.applyStages(calcDef, stageDef);
 
             damageToWild = calcDmg(userPoke.level, selectedMove.power, finalAtk, finalDef);
+
+            if (selectedMove.type === userPoke.type1 || selectedMove.type === userPoke.type2) {
+                damageToWild = Math.floor(damageToWild * 1.5);
+            }
+
             const typeMult = getTypeMultiplier(selectedMove.type, encounter.pokemon.type1, encounter.pokemon.type2);
             damageToWild = Math.floor(damageToWild * typeMult);
 
@@ -921,12 +926,6 @@ class PokemonHandler {
 
             damageToWild = Math.floor(damageToWild * ((Math.random() * 0.15) + 0.85));
 
-            if (selectedMove.type === userPoke.type1 || selectedMove.type === userPoke.type2) {
-                damageToWild = Math.floor(damageToWild * 1.5);
-            }
-
-            damageToWild = Math.floor(damageToWild * typeMult);
-
             encounter.currentHp -= damageToWild;
 
             log += `🗡️ ${userPoke.nickname} usou *${selectedMove.name}* e causou **${damageToWild}** de dano.\n`;
@@ -935,10 +934,6 @@ class PokemonHandler {
             if (typeMult < 1 && typeMult > 0) log += `🛡️ *Não é muito efetivo...* (x${typeMult})\n`;
             if (typeMult === 0) log += `❌ *Não afetou o inimigo...*\n`;
         }
-
-        // ============================================================
-        // VERIFICA SE O INIMIGO CAIU (FIM DO TURNO DO JOGADOR)
-        // ============================================================
 
         if (encounter.currentHp <= 0) {
             let participants = battleState.participants || [userPoke.id];
@@ -967,7 +962,7 @@ class PokemonHandler {
             if (encounter.isGym && encounter.gymData.remainingTeam && encounter.gymData.remainingTeam.length > 0) {
                 const nextPokeData = encounter.gymData.remainingTeam.shift(); 
                 
-               encounter.gymData.participants = []; 
+                encounter.gymData.participants = []; 
                 
                 const nextPokeDex = await this.db.get("SELECT * FROM pokedex WHERE id = ?", [nextPokeData.pokedex_id]);
                 
@@ -1015,10 +1010,6 @@ class PokemonHandler {
             return `${log}\n${logMsg}\n💰 +${coins} coins.`;
         }
 
-        // ============================================================
-        // TURNO DO INIMIGO (Só acontece se ele estiver vivo)
-        // ============================================================
-        
         const enemyLog = await this.processEnemyTurn(encounter, userPoke, battleState, userId);
         log += enemyLog;
 

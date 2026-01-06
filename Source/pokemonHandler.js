@@ -864,6 +864,17 @@ class PokemonHandler {
         const encounterRaw = await this.db.get("SELECT extra_data FROM active_encounters WHERE user_id = ?", [userId]);
         let battleState = this.getBattleState(encounterRaw);
 
+        if (!battleState.participants) battleState.participants = [];
+        
+        if (!battleState.participants.includes(userPoke.id)) {
+            battleState.participants.push(userPoke.id);
+            
+            let currentExtraData = encounterRaw.extra_data ? JSON.parse(encounterRaw.extra_data) : {};
+            currentExtraData.participants = battleState.participants;
+            
+            await this.db.run("UPDATE active_encounters SET extra_data = ? WHERE user_id = ?", [JSON.stringify(currentExtraData), userId]);
+        }
+
         const getTypeMultiplier = (moveType, targetType1, targetType2) => {
             if (!moveType) return 1;
             const attackerChart = TYPE_CHART[moveType.toLowerCase()];

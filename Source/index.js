@@ -254,12 +254,47 @@ async function initDatabase() {
     try {
         await db.exec(`ALTER TABLE usuarios ADD COLUMN potions INTEGER DEFAULT 0;`);
         console.log("✅ Coluna 'potions' adicionada!");
-    } catch (e) {}
+    } catch (error) {
+        if (!error.message.includes("duplicate column name")) console.error(error.message);
+    }
 
     try {
         await db.exec(`ALTER TABLE usuarios ADD COLUMN badges INTEGER DEFAULT 0;`);
         console.log("✅ Coluna 'badges' adicionada!");
+    } catch (error) {
+        if (!error.message.includes("duplicate column name")) console.error(error.message);
+    }
+
+    try {
+        await db.exec(`ALTER TABLE user_pokemons ADD COLUMN pending_move INTEGER DEFAULT NULL;`);
+        console.log("✅ Coluna 'pending_move' adicionada com sucesso!");
+    } catch (error) {
+        if (!error.message.includes("duplicate column name")) console.error(error.message);
+    }
+
+    try {
+        await db.exec(`ALTER TABLE user_pokemons ADD COLUMN team_slot INTEGER DEFAULT NULL;`);
+        console.log("✅ Coluna 'team_slot' adicionada (PC System).");
+        
+        await db.exec(`
+            UPDATE user_pokemons 
+            SET team_slot = (
+                SELECT COUNT(*) + 1 
+                FROM user_pokemons up2 
+                WHERE up2.user_id = user_pokemons.user_id 
+                AND up2.id < user_pokemons.id
+            )
+            WHERE team_slot IS NULL 
+            AND (SELECT COUNT(*) FROM user_pokemons up3 WHERE up3.user_id = user_pokemons.user_id AND up3.id < user_pokemons.id) < 6;
+        `);
     } catch (e) {}
+
+    try {
+        await db.exec(`ALTER TABLE active_encounters ADD COLUMN active_pokemon_id INTEGER DEFAULT NULL;`);
+        console.log("✅ Coluna 'active_pokemon_id' adicionada.");
+    } catch (e) {}
+
+    
 
     console.log('✅ Banco de dados SQLite inicializado e tabelas `mensagens` e `usuarios` verificadas.');
 }

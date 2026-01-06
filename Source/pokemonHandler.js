@@ -487,8 +487,9 @@ class PokemonHandler {
                 base_spe: encounter.base_spe,
                 base_xp: encounter.base_xp,
                 sprite_url: encounter.sprite_url,
-                activePokemonId: encounter.active_pokemon_id,
             },
+            
+            activePokemonId: encounter.active_pokemon_id,
             currentHp: encounter.current_hp,
             maxHp: encounter.max_hp,
             level: encounter.level,

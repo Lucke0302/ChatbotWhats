@@ -977,7 +977,13 @@ class PokemonHandler {
             }
         }
 
-        return `${log}\n\n❤️ Inimigo: ${Math.max(0, encounter.currentHp)}/${encounter.maxHp}\n💚 Seu: ${Math.max(0, updatedUserPoke.current_hp)}/${updatedUserPoke.max_hp}\n\nUse: *!poke atacar [n]* ou *!poke trocar [n]*`;
+        return `${log}\n\n` +
+               `❤️ Inimigo: ${Math.max(0, encounter.currentHp)}/${encounter.maxHp}\n` +
+               `💚 Seu: ${Math.max(0, updatedUserPoke.current_hp)}/${updatedUserPoke.max_hp}\n\n` +
+               `⚔️ *!poke atacar [n]*\n` +
+               `🔴 *!poke capturar*\n` +
+               `🔄 *!poke trocar [n]*\n` +
+               `🏃 *!poke fugir*`;
     }
 
     async processEnemyTurn(encounter, userPoke, battleState, userId) {
@@ -1035,20 +1041,7 @@ class PokemonHandler {
             
             if (typeMultEnemy > 1) log += ` (Super Efetivo!)`;
             if (typeMultEnemy < 1 && typeMultEnemy > 0) log += ` (Não muito efetivo...)`;
-        }
-
-        const updatedUserPoke = await this.db.get("SELECT current_hp, max_hp, nickname FROM user_pokemons WHERE id = ?", [userPoke.id]);
-        
-        if (updatedUserPoke.current_hp <= 0) {
-             const hasBackup = await this.db.get("SELECT id FROM user_pokemons WHERE user_id = ? AND team_slot IS NOT NULL AND current_hp > 0 AND id != ?", [userId, userPoke.id]);
-             
-             if (hasBackup) {
-                 log += `\n\n💀 *${updatedUserPoke.nickname}* desmaiou!\nA batalha continua! Use *!poke trocar [slot]* para enviar o próximo!`;
-             } else {
-                 await this.clearEncounter(userId);
-                 log += `\n\n🏴 Você não tem mais Pokémons! Você correu para o CP.`;
-             }
-        }         
+        }       
         return log;
     }
 
@@ -1091,7 +1084,7 @@ class PokemonHandler {
         const encounter = await this.loadEncounter(userId);
         if (!encounter) return "Não tem de quem fugir.";
         await this.clearEncounter(userId);
-        return "🏃‍♂️ Você fugiu com sucesso.";
+        return "🏃‍♂️ Você fugiu com sucesso (e deixou a sua dignidade pra trás).";
     }
 
     async usePotion(groupId, userId) {

@@ -434,6 +434,10 @@ class PokemonHandler {
             case 'manter':
                 return await this.learnPendingMove(sender, 'ignorar');
 
+            case 'fixivs':
+                if (sender !== "5513991008854@s.whatsapp.net") return "Sem permissão.";
+                return await this.fixNullIvs();
+
             case 'fixxp': 
                 if (sender !== "5513991008854@s.whatsapp.net") return "Sem permissão.";
                 return await this.fixZeroXp();

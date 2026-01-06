@@ -897,6 +897,10 @@ class PokemonHandler {
             const typeMult = getTypeMultiplier(selectedMove.type, encounter.pokemon.type1, encounter.pokemon.type2);
             damageToWild = Math.floor(damageToWild * typeMult);
 
+            if (damageToWild < 1 && typeMult > 0) {
+                damageToWild = 1;
+            }
+
             if (Math.random() < 0.05) {
                 damageToWild = Math.floor(damageToWild * 2);
                 log += `🎯 *GOLPE CRÍTICO!* 🎯\n`;
@@ -1017,6 +1021,10 @@ class PokemonHandler {
 
             const typeMultEnemy = getTypeMultiplier(wildMove.type, userPoke.type1, userPoke.type2);
             damageToUser = Math.floor(damageToUser * typeMultEnemy);
+
+            if (damageToUser < 1 && typeMultEnemy > 0) {
+                damageToUser = 1;
+            }
 
             if (Math.random() < 0.05) { damageToUser *= 2; log += `\n⚠️ *CRÍTICO DO INIMIGO!*`; }
             damageToUser = Math.floor(damageToUser * ((Math.random() * 0.15) + 0.85));

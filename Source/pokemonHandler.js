@@ -647,6 +647,7 @@ class PokemonHandler {
             level: encounter.level,
             isShiny: !!encounter.is_shiny,
             moves: JSON.parse(encounter.moves || '[]'),
+            battle_type: encounter.battle_type,
             isGym: encounter.battle_type === 'GYM',
             gymData: encounter.extra_data ? JSON.parse(encounter.extra_data) : null,
             timestamp: encounter.started_at,

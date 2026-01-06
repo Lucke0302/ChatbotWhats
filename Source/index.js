@@ -293,8 +293,24 @@ async function initDatabase() {
         await db.exec(`ALTER TABLE active_encounters ADD COLUMN active_pokemon_id INTEGER DEFAULT NULL;`);
         console.log("✅ Coluna 'active_pokemon_id' adicionada.");
     } catch (e) {}
-
     
+    try {
+        await db.exec(`ALTER TABLE pokedex ADD COLUMN evolve_to INTEGER DEFAULT NULL;`);
+        await db.exec(`ALTER TABLE pokedex ADD COLUMN evolve_level INTEGER DEFAULT NULL;`);
+        console.log("✅ Colunas de evolução adicionadas na Pokedex.");
+    } catch (e) {}
+
+    try {
+        await db.exec(`
+            DELETE FROM pokemon_moves 
+            WHERE rowid NOT IN (
+                SELECT MIN(rowid) 
+                FROM pokemon_moves 
+                GROUP BY pokemon_id, move_id, level_learned
+            )
+        `);
+        console.log("✅ Limpeza de golpes duplicados realizada.");
+    } catch (e) {}
 
     console.log('✅ Banco de dados SQLite inicializado e tabelas `mensagens` e `usuarios` verificadas.');
 }

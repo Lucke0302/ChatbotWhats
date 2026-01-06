@@ -1,10 +1,31 @@
 const axios = require('axios');
 const { gracefulShutdown } = require('node-schedule');
 const { generate } = require('qrcode-terminal');
-const STARTER_IDS = [1, 2, 3, 4, 5, 6, 7, 8, 9];
-const RARE_POKE = [25]
-const POKEMON_COUNT = 151;
-const GAME_VERSION = 'firered-leafgreen';
+const STARTER_IDS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 152, 153, 154, 155, 156, 157, 158, 159, 160, 252, 253, 254, 255, 256, 257, 258, 259, 260];
+const RARE_POKE = [
+    // --- GEN 1 ---
+    25, 26, 172,      //Pichu, Pikachu, Raichu
+    133, 134, 135, 136, 196, 197, //Eevee, Vap, Jolt, Flar, Esp, Umb
+    147, 148, 149,    // Dratini, Dragonair, Dragonite
+    143,              // Snorlax
+    131,              // Lapras
+    142,              // Aerodactyl
+    
+    // --- GEN 2 ---
+    246, 247, 248,    // Larvitar, Pupitar, Tyranitar
+    242,              // Blissey
+    
+    // --- GEN 3 ---
+    280, 281, 282,    // Ralts, Kirlia, Gardevoir
+    287, 288, 289,    // Slakoth, Vigoroth, Slaking
+    371, 372, 373,    // Bagon, Shelgon, Salamence
+    374, 375, 376,    // Beldum, Metang, Metagross
+    349, 350,         // Feebas & Milotic
+    328, 329, 330     // Trapinch, Vibrava, Flygon
+];
+
+const POKEMON_COUNT = 386;
+const GAME_VERSION = 'emerald';
 const GYM_LEADERS = [
     { badge: 0, leader: "Brock", city: "Pewter", pokeId: 95, level: 12, moves: ["Investida", "Lançamento de Rocha"], reward: 1000, badgeName: "Rocha" }, // Onix
     { badge: 1, leader: "Misty", city: "Cerulean", pokeId: 121, level: 18, moves: ["Jato d'Água", "Investida"], reward: 2000, badgeName: "Cascata" } // Starmie
@@ -220,43 +241,75 @@ class PokemonHandler {
 
     async seedDatabase() {
         const downloadedMoves = new Set();
+        console.log(`⬇️ Iniciando Seed Gen 1-3 (Até ${POKEMON_COUNT})...`);
         
         for (let i = 1; i <= POKEMON_COUNT; i++) {
+            const existing = await this.db.get("SELECT id FROM pokedex WHERE id = ? AND evolve_to IS NOT NULL", [i]);
+            if (existing) continue;
+
             try {
                 const pk = (await axios.get(`https://pokeapi.co/api/v2/pokemon/${i}`)).data;
                 const sp = (await axios.get(pk.species.url)).data;
 
+                let evolveTo = null;
+                let evolveLevel = null;
+
+                try {
+                    const evoChain = (await axios.get(sp.evolution_chain.url)).data.chain;
+                    const findNode = (node, name) => {
+                        if (node.species.name === name) return node;
+                        for (const child of node.evolves_to) {
+                            const found = findNode(child, name);
+                            if (found) return found;
+                        }
+                        return null;
+                    };
+                    const currentNode = findNode(evoChain, pk.name);
+                    if (currentNode && currentNode.evolves_to.length > 0) {
+                        for (const nextEvo of currentNode.evolves_to) {
+                            const details = nextEvo.evolution_details.find(d => d.trigger.name === 'level-up');
+                            if (details) {
+                                const urlParts = nextEvo.species.url.split('/');
+                                evolveTo = parseInt(urlParts[urlParts.length - 2]);
+                                evolveLevel = details.min_level;
+                                break; 
+                            }
+                        }
+                    }
+                } catch (err) {}
+
                 let rarity = (sp.is_legendary || sp.is_mythical) ? 'rare' : 'common';
                 let tier = (sp.evolves_from_species === null) ? 1 : 2; 
-                
+                if (sp.evolves_from_species && (await axios.get(sp.evolves_from_species.url)).data.evolves_from_species) tier = 3;
+
                 const stats = {};
                 pk.stats.forEach(s => stats[s.stat.name] = s.base_stat);
 
                 await this.db.run(
-                    `INSERT OR IGNORE INTO pokedex (id, name, type1, type2, base_hp, base_atk, base_def, base_spa, base_spd, base_spe, rarity, tier, is_starter, sprite_url, base_xp)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    `INSERT OR IGNORE INTO pokedex 
+                    (id, name, type1, type2, base_hp, base_atk, base_def, base_spa, base_spd, base_spe, rarity, tier, is_starter, sprite_url, base_xp, evolve_to, evolve_level)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                     [
-                        pk.id, 
-                        pk.name, 
-                        pk.types[0]?.type.name, 
-                        pk.types[1]?.type.name || null,
+                        pk.id, pk.name, pk.types[0]?.type.name, pk.types[1]?.type.name || null,
                         stats['hp'], stats['attack'], stats['defense'], stats['special-attack'], stats['special-defense'], stats['speed'],
-                        rarity,
-                        tier,
-                        STARTER_IDS.includes(pk.id),
-                        pk.sprites.front_default,
-                        pk.base_experience
+                        rarity, tier, STARTER_IDS.includes(pk.id), pk.sprites.front_default, pk.base_experience,
+                        evolveTo, evolveLevel
                     ]
                 );
+                
+                await this.db.run(`UPDATE pokedex SET evolve_to = ?, evolve_level = ? WHERE id = ?`, [evolveTo, evolveLevel, pk.id]);
 
                 const validMoves = pk.moves.filter(m => 
-                    m.version_group_details.some(v => v.version_group.name === GAME_VERSION && v.move_learn_method.name === 'level-up')
+                    m.version_group_details.some(v => (v.version_group.name === 'emerald' || v.version_group.name === 'firered-leafgreen') && v.move_learn_method.name === 'level-up')
                 );
 
                 for (const m of validMoves) {
                     const moveName = m.move.name;
-                    const level = m.version_group_details.find(v => v.version_group.name === GAME_VERSION).level_learned_at;
-
+                    let versionDetail = m.version_group_details.find(v => v.version_group.name === 'emerald');
+                    if (!versionDetail) versionDetail = m.version_group_details.find(v => v.version_group.name === 'firered-leafgreen');
+                    
+                    const level = versionDetail ? versionDetail.level_learned_at : 1;
+                    
                     let moveId;
                     const existingMove = await this.db.get("SELECT id FROM moves WHERE name = ?", [moveName]);
 
@@ -264,30 +317,25 @@ class PokemonHandler {
                         moveId = existingMove.id;
                     } else if (!downloadedMoves.has(moveName)) {
                         const moveData = (await axios.get(m.move.url)).data;
-                        
                         if (moveData.power || moveData.meta?.category?.name) {
-                            await this.db.run(
-                                `INSERT INTO moves (id, name, type, power, accuracy, pp, damage_class) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-                                [moveData.id, moveData.name, moveData.type.name, moveData.power || 0, moveData.accuracy || 100, moveData.pp, moveData.damage_class.name]
-                            );
+                            await this.db.run(`INSERT INTO moves (id, name, type, power, accuracy, pp, damage_class) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                                [moveData.id, moveData.name, moveData.type.name, moveData.power || 0, moveData.accuracy || 100, moveData.pp, moveData.damage_class.name]);
                             moveId = moveData.id;
                             downloadedMoves.add(moveName);
                         }
                     }
 
                     if (moveId) {
-                        await this.db.run(
-                            `INSERT OR IGNORE INTO pokemon_moves (pokemon_id, move_id, level_learned) VALUES (?, ?, ?)`,
-                            [pk.id, moveId, level]
-                        );
+                        await this.db.run(`INSERT OR IGNORE INTO pokemon_moves (pokemon_id, move_id, level_learned) VALUES (?, ?, ?)`, [pk.id, moveId, level]);
                     }
                 }
-                if (i % 10 === 0) console.log(`[SEED] Progresso: ${i}/${POKEMON_COUNT} Pokémons processados...`);                
+                
+                if (i % 10 === 0) console.log(`[SEED] Progresso Gen 3: ${i}/${POKEMON_COUNT}...`);
             } catch (e) {
-                console.error(`Erro ao baixar ID ${i}:`, e.message);
+                console.error(`Erro ID ${i}:`, e.message);
             }
         }
-        console.log("✅ Seed Completo! Banco de dados atualizado com sucesso.");
+        console.log("✅ Seed Gen 3 Completo!");
     }
 
     getBattleState(encounter) {
@@ -593,41 +641,78 @@ class PokemonHandler {
             return `🚫 Você já está em batalha contra *${existing.pokemon.name}*! Termine ela primeiro.`;
         }
 
+        const user = await this.db.get("SELECT badges FROM usuarios WHERE id_usuario = ?", [userId]);
+        const badges = user.badges || 0;
+
         const leadPoke = await this.db.get(`
             SELECT id FROM user_pokemons 
             WHERE user_id = ? AND team_slot IS NOT NULL AND current_hp > 0 
             ORDER BY team_slot ASC LIMIT 1`, [userId]);
 
-        if (!leadPoke) return "Todos os seus Pokémon estão desmaiados! Cure-os antes de batalhar.";
+        if (!leadPoke) return "🚑 Todos os seus Pokémon estão desmaiados! Cure-os antes de batalhar.";
 
-        const findPokemon = () => Math.random() < 0.5;
-        const isRare = () => Math.random() < 0.01;
+        // ==========================================================
+        // SISTEMA DE ROTAS E RARIDADE POR INSÍGNIA
+        // ==========================================================
         
-        let pokemon = null;
+        const rareChance = 0.01 + (badges * 0.005);
         
-        if (findPokemon()) {
-            if (isRare()) {
-                const randomRareId = RARE_POKE[Math.floor(Math.random() * RARE_POKE.length)];
-                pokemon = await this.db.get(`SELECT * FROM pokedex WHERE id = ?`, [randomRareId]);
-            }
-            if (!pokemon) {
-                pokemon = await this.db.get(`SELECT * FROM pokedex WHERE is_starter = 0 AND rarity = 'common' AND tier = 1 ORDER BY RANDOM() LIMIT 1`);
-            }
+        // Chance de Shiny
+        const shinyChance = 0.00024 + (badges * 0.0002); 
+
+        let weights;
+
+        if (badges === 0)     weights = { t1: 90, t2: 10, t3: 0 };
+        else if (badges <= 2) weights = { t1: 60, t2: 35, t3: 5 };
+        else if (badges <= 4) weights = { t1: 40, t2: 50, t3: 10 };
+        else if (badges <= 6) weights = { t1: 30, t2: 40, t3: 30 };
+        else                  weights = { t1: 20, t2: 30, t3: 50 }; 
+
+        const roll = Math.random() * 100;
+        const isRareEncounter = Math.random() < rareChance;
+        
+        let query = "";
+        let params = [];
+
+        if (isRareEncounter) {
+            const rareList = RARE_POKE.join(',');
+            query = `SELECT * FROM pokedex WHERE id IN (${rareList}) ORDER BY RANDOM() LIMIT 1`;
         } else {
-            return "🦗 Você andou no matinho mas só achou grilos.";
-        }
-            
-        if (!pokemon) return "Erro ao buscar Pokémon.";
+            let minXp = 0, maxXp = 0;
 
+            if (roll <= weights.t1) {
+                minXp = 0; maxXp = 60;
+            } else if (roll <= weights.t1 + weights.t2) {
+                minXp = 60; maxXp = 140;
+            } else {
+                minXp = 140; maxXp = 300;
+            }
+
+            query = `SELECT * FROM pokedex WHERE base_xp >= ? AND base_xp < ? AND rarity = 'common' AND is_starter = 0 ORDER BY RANDOM() LIMIT 1`;
+            params = [minXp, maxXp];
+        }
+
+        let pokemon = await this.db.get(query, params);
+
+        if (!pokemon) {
+            pokemon = await this.db.get(`SELECT * FROM pokedex WHERE rarity = 'common' ORDER BY RANDOM() LIMIT 1`);
+        }
+
+        // ==========================================================
+        // ESCALONAMENTO DE NÍVEL
+        // ==========================================================
+        
         const lvlResult = await this.db.get(`SELECT AVG(level) as media FROM user_pokemons WHERE user_id = ?`, [userId]);
-        const baseLevel = lvlResult && lvlResult.media ? Math.floor(lvlResult.media) : 5;
-        const wildLevel = Math.max(1, baseLevel + Math.floor(Math.random() * 5) - 2);
+        const userAvgLvl = lvlResult && lvlResult.media ? Math.floor(lvlResult.media) : 5;
+        
+        const minLvl = Math.max(2, userAvgLvl - 2 + Math.floor(badges / 2));
+        const wildLevel = minLvl + Math.floor(Math.random() * 5);
 
         let wildMoves = await this.getMovesForLevel(pokemon.id, wildLevel);
         if (!wildMoves || wildMoves.length === 0) wildMoves = [{name: "Investida", power: 40, damage_class: 'physical', type: 'normal'}];
 
         const wildHp = Math.floor(((2 * pokemon.base_hp + 15 + 100) * wildLevel) / 100 + 10);
-        const isShiny = Math.random() < 0.002;
+        const isShiny = Math.random() < shinyChance;
 
         await this.db.run(`
             INSERT INTO active_encounters (
@@ -638,7 +723,8 @@ class PokemonHandler {
         );
 
         let emoji = isShiny ? "✨" : "⚔️";
-        const caption = `${emoji} Um *${pokemon.name.toUpperCase()}* (Lvl ${wildLevel})selvagem apareceu PRA VOCÊ!\n` +
+
+        const caption = `${emoji} Um *${pokemon.name.toUpperCase()}* (Lvl ${wildLevel}) selvagem apareceu!\n` +
                         `❤️ HP: ${wildHp}/${wildHp}\n` +
                         `Use *!poke atacar* ou *!poke capturar*`;
 
@@ -994,48 +1080,70 @@ class PokemonHandler {
     }
 
     async showStarters(sender) {
-        if (await this.checkIfUserHasPokemon(sender)) return "Você já tem pokémon!";
-        return "Escolha: *!poke escolher charmander*, *bulbasaur* ou *squirtle*.";
+        if (await this.checkIfUserHasPokemon(sender)) return "🚫 Você já tem um Pokémon!";
+        
+        return `🌟 *ESCOLHA SEU INICIAL* 🌟\n\n` +
+               `🍃 *TIPO GRAMA:*\n` +
+               `• *Bulbasaur*\n` +
+               `• *Chikorita*\n` +
+               `• *Treecko*\n\n` +
+               
+               `🔥 *TIPO FOGO:*\n` +
+               `• *Charmander*\n` +
+               `• *Cyndaquil*\n` +
+               `• *Torchic*\n\n` +
+               
+               `💧 *TIPO ÁGUA:*\n` +
+               `• *Squirtle*\n` +
+               `• *Totodile*\n` +
+               `• *Mudkip*\n\n` +
+               
+               `Digite: *!poke escolher [nome]*\n` +
+               `Ex: _!poke escolher mudkip_`;
     }
 
     async chooseStarter(userId, choice) {
-        if (await this.checkIfUserHasPokemon(userId)) return "Já escolheu!";
+        if (await this.checkIfUserHasPokemon(userId)) return "🚫 Você já iniciou sua jornada!";
+        
+        const c = choice.toLowerCase().trim();
         let id = 0;
-        if(choice.includes('charm')) id = 4;
-        else if(choice.includes('bulb')) id = 1;
-        else if(choice.includes('squirt')) id = 7;
-        else return "Inválido.";
+
+        if (c.includes('bulb')) id = 1;
+        else if (c.includes('charm')) id = 4;
+        else if (c.includes('squirt')) id = 7;
+        
+        else if (c.includes('chiko')) id = 152;
+        else if (c.includes('cynda')) id = 155;
+        else if (c.includes('toto')) id = 158;
+    
+        else if (c.includes('tree')) id = 252;
+        else if (c.includes('torch')) id = 255;
+        else if (c.includes('mud')) id = 258;
+        
+        else return "❌ Inicial inválido! Escolha um da lista. Ex: !poke escolher squirtle (o GOAT).";
 
         const pk = await this.db.get("SELECT * FROM pokedex WHERE id = ?", [id]);
+        if (!pk) return "⚠️ Os dados da Gen 3 ainda estão baixando... Tente novamente em alguns minutos!";
+
         const moves = await this.getMovesForLevel(pk.id, 5);
         
-        generateRandomIv = function(){
-            return Math.random() * 32; 
-        }
-
         const randIv = () => Math.floor(Math.random() * 32);
-
         const hpIv = randIv();
         
-        const hp = Math.floor(((2*pk.base_hp + hpIv + 100)*5)/100 + 10);
+        const hp = Math.floor(((2 * pk.base_hp + hpIv + 100) * 5) / 100 + 10);
         const initialXp = Math.pow(5, 3);
-        
+
         await this.db.run(`INSERT INTO user_pokemons 
-            (user_id, pokedex_id, nickname, level, exp, current_hp, max_hp, move1, obtained_at, iv_hp, iv_atk, iv_def, iv_spa, iv_spd, iv_spe) 
-            VALUES (?,?,?,5, ?,?,?,?,?, ?,?,?,?,?,?)`, 
+            (user_id, pokedex_id, nickname, level, exp, current_hp, max_hp, move1, obtained_at, iv_hp, iv_atk, iv_def, iv_spa, iv_spd, iv_spe, team_slot) 
+            VALUES (?,?,?,5, ?,?,?,?,?, ?,?,?,?,?,?, 1)`, 
             [
                 userId, pk.id, pk.name, initialXp, hp, hp, moves[0]?.id, Date.now(),
-                hpIv,
-                randIv(),
-                randIv(),
-                randIv(),
-                randIv(),
-                randIv()
+                hpIv, randIv(), randIv(), randIv(), randIv(), randIv(), randIv()
             ]
         );
         
-        await this.db.run("UPDATE usuarios SET pokeballs = 20 WHERE id_usuario = ?", [userId]);
-        return `🎉 Recebeu ${pk.name}!`;
+        await this.db.run("UPDATE usuarios SET pokeballs = 20, potions = 5 WHERE id_usuario = ?", [userId]);
+        return `🎉 Parabéns! Você escolheu *${pk.name}* como parceiro!`;
     }
 
     async getUserMoves(userPoke) {

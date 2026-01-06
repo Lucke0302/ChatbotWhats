@@ -1196,7 +1196,7 @@ class PokemonHandler {
         return await this.db.all(`SELECT m.* FROM pokemon_moves pm JOIN moves m ON pm.move_id = m.id WHERE pm.pokemon_id = ? AND pm.level_learned <= ? ORDER BY pm.level_learned DESC LIMIT 4`, [pid, lvl]);
     }
 
-    async gainExperience(userPoke, enemy, enemyLevel) {
+    async gainExperience(userPoke, enemy, enemyLevel, splitFactor = 1) {
         if (userPoke.pending_move) {
             const moveName = (await this.db.get("SELECT name FROM moves WHERE id = ?", [userPoke.pending_move]))?.name;
             return `⚠️ ${userPoke.nickname} ainda está tentando aprender *${moveName}*!\nUse *!poke trocar [1-4]* ou *!poke ignorar*.`;

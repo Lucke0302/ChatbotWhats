@@ -150,6 +150,24 @@ class PokemonHandler {
         return `✅ Correção finalizada! ${count} Pokémons receberam golpes novos.`;
     }
 
+    async fixZeroXp() {
+        console.log("🔧 Corrigindo XP inicial dos Pokémons...");
+        
+        const pokemons = await this.db.all("SELECT id, level, exp, nickname FROM user_pokemons");
+        let count = 0;
+
+        for (const p of pokemons) {
+            const minXp = Math.pow(p.level, 3);
+            
+            if (p.exp < minXp) {
+                await this.db.run("UPDATE user_pokemons SET exp = ? WHERE id = ?", [minXp, p.id]);
+                count++;
+            }
+        }
+        console.log(`✅ XP Corrigido! ${count} Pokémons atualizados.`);
+        return `✅ Ajuste de XP concluído! ${count} Pokémons deixaram de ser "café com leite".`;
+    }
+
     async seedDatabase() {
         const downloadedMoves = new Set();
         
@@ -403,6 +421,10 @@ class PokemonHandler {
             case 'manter':
                 return await this.learnPendingMove(sender, 'ignorar');
 
+            case 'fixxp': 
+                if (sender !== "5513991008854@s.whatsapp.net") return "Sem permissão.";
+                return await this.fixZeroXp();
+            
             case 'fixmoves': 
                 if (sender !== "5513991008854@s.whatsapp.net") return "Sem permissão.";
                 return await this.fixNullMoves();
@@ -837,8 +859,8 @@ class PokemonHandler {
             const randIv = () => Math.floor(Math.random() * 32);
             const ivHp = randIv();
             const realMaxHp = Math.floor(((2 * pk.base_hp + ivHp + 100) * encounter.level) / 100 + 10);
+            const initialXp = Math.pow(encounter.level, 3)
             
-            // Pega o primeiro golpe ou investida
             let m1 = encounter.moves[0]?.id;
             if(!m1) {
                 const t = await this.db.get("SELECT id FROM moves WHERE name='Investida'");
@@ -846,9 +868,9 @@ class PokemonHandler {
             }
 
             await this.db.run(`
-                INSERT INTO user_pokemons (user_id, pokedex_id, nickname, level, iv_hp, iv_atk, iv_def, iv_spa, iv_spd, iv_spe, move1, move2, move3, move4, obtained_at, is_shiny, current_hp, max_hp)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                [userId, pk.id, pk.name, encounter.level, ivHp, randIv(), randIv(), randIv(), randIv(), randIv(), m1, encounter.moves[1]?.id, encounter.moves[2]?.id, encounter.moves[3]?.id, Date.now(), encounter.isShiny?1:0, realMaxHp, realMaxHp]
+                INSERT INTO user_pokemons (user_id, pokedex_id, nickname, level, exp, iv_hp, iv_atk, iv_def, iv_spa, iv_spd, iv_spe, move1, move2, move3, move4, obtained_at, is_shiny, current_hp, max_hp)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [userId, pk.id, pk.name, encounter.level, initialXp, ivHp, randIv(), randIv(), randIv(), randIv(), randIv(), m1, encounter.moves[1]?.id, encounter.moves[2]?.id, encounter.moves[3]?.id, Date.now(), encounter.isShiny?1:0, realMaxHp, realMaxHp]
             );
             await this.clearEncounter(userId);
             return `🎉 Capturou *${pk.name}*! (Bolas: ${user.pokeballs - 1})`;
@@ -929,9 +951,10 @@ class PokemonHandler {
         const pk = await this.db.get("SELECT * FROM pokedex WHERE id = ?", [id]);
         const moves = await this.getMovesForLevel(pk.id, 5);
         const hp = Math.floor(((2*pk.base_hp + 15 + 100)*5)/100 + 10);
+        const initialXp = Math.pow(5, 3);
         
-        await this.db.run(`INSERT INTO user_pokemons (user_id, pokedex_id, nickname, level, current_hp, max_hp, move1, obtained_at) VALUES (?,?,?,5,?,?,?,?)`, 
-            [userId, pk.id, pk.name, hp, hp, moves[0]?.id, Date.now()]);
+        await this.db.run(`INSERT INTO user_pokemons (user_id, pokedex_id, nickname, level, exp, current_hp, max_hp, move1, obtained_at) VALUES (?,?,?,5, ?,?,?,?,?)`, 
+            [userId, pk.id, pk.name, initialXp, hp, hp, moves[0]?.id, Date.now()]);
         await this.db.run("UPDATE usuarios SET pokeballs = 20 WHERE id_usuario = ?", [userId]);
         return `🎉 Recebeu ${pk.name}!`;
     }

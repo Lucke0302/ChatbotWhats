@@ -730,7 +730,7 @@ class PokemonHandler {
         await this.db.run(`
             INSERT INTO active_encounters (
                 user_id, group_id, pokedex_id, current_hp, max_hp, level, 
-                is_shiny, moves, battle_type, started_at, active_pokemon_id
+                is_shiny, moves, battle_type, started_at, active_pokemon_id, extra_data
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'WILD', ?, ?, ?)`,
             [userId, groupId, pokemon.id, wildHp, wildHp, wildLevel, isShiny ? 1 : 0, JSON.stringify(wildMoves), Date.now(), leadPoke.id, JSON.stringify(extraData)]
         );
@@ -754,6 +754,13 @@ class PokemonHandler {
         const existing = await this.loadEncounter(userId);
         if (existing) return "Termine sua batalha atual primeiro!";
 
+        const leadPoke = await this.db.get(`
+            SELECT id FROM user_pokemons 
+            WHERE user_id = ? AND team_slot IS NOT NULL AND current_hp > 0 
+            ORDER BY team_slot ASC LIMIT 1`, [userId]);
+
+        if (!leadPoke) return "🚑 Todos os seus Pokémon estão desmaiados!";
+
         const user = await this.db.get("SELECT badges FROM usuarios WHERE id_usuario = ?", [userId]);
         const currentBadge = user.badges || 0;
 
@@ -769,9 +776,9 @@ class PokemonHandler {
         await this.db.run(`
             INSERT INTO active_encounters (
                 user_id, group_id, pokedex_id, current_hp, max_hp, level, 
-                is_shiny, moves, battle_type, extra_data, started_at
+                is_shiny, moves, battle_type, extra_data, started_at, active_pokemon_id
             ) VALUES (?, ?, ?, ?, ?, ?, 0, ?, 'GYM', ?, ?, ?)`,
-            [userId, groupId, bossPokemon.id, bossHp, bossHp, gymData.level, JSON.stringify(bossMoves), JSON.stringify(gymData), Date.now(), JSON.stringify(extraData)]
+            [userId, groupId, bossPokemon.id, bossHp, bossHp, gymData.level, JSON.stringify(bossMoves), JSON.stringify(extraData), Date.now(), leadPoke.id]
         );
 
         const caption = `🏛️ *GINÁSIO DE ${gymData.city.toUpperCase()}*\nLíder **${gymData.leader}** enviou *${bossPokemon.name}* (Lvl ${gymData.level})!\n⚠️ *Boss HP:* ${bossHp}/${bossHp}\nDigite *!poke atacar*`;

@@ -1,5 +1,6 @@
 const axios = require('axios');
 const { gracefulShutdown } = require('node-schedule');
+const { generate } = require('qrcode-terminal');
 const STARTER_IDS = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 const RARE_POKE = [25]
 const POKEMON_COUNT = 151;
@@ -166,6 +167,18 @@ class PokemonHandler {
         }
         console.log(`✅ XP Corrigido! ${count} Pokémons atualizados.`);
         return `✅ Ajuste de XP concluído! ${count} Pokémons deixaram de ser "café com leite".`;
+    }
+
+    async fixNullIvs() {
+        const brokenPokes = await this.db.all("SELECT id FROM user_pokemons WHERE iv_hp IS NULL");
+        
+        for (const poke of brokenPokes) {
+            
+            const randIv = () => Math.floor(Math.random() * 32);
+
+            await this.db.run(`UPDATE user_pokemons SET iv_hp=?, iv_atk=?, iv_def=?, iv_spa=?, iv_spd=?, iv_spe=? WHERE id = ?`, randIv(), randIv(), randIv(), randIv(), randIv(), randIv(), [poke.id]);
+        }
+        return `✅ IVs corrigidos para ${brokenPokes.length} Pokémons.`;
     }
 
     async seedDatabase() {
@@ -950,11 +963,32 @@ class PokemonHandler {
 
         const pk = await this.db.get("SELECT * FROM pokedex WHERE id = ?", [id]);
         const moves = await this.getMovesForLevel(pk.id, 5);
-        const hp = Math.floor(((2*pk.base_hp + 15 + 100)*5)/100 + 10);
+        
+        generateRandomIv = function(){
+            return Math.random() * 32; 
+        }
+
+        const randIv = () => Math.floor(Math.random() * 32);
+
+        const hpIv = randIv();
+        
+        const hp = Math.floor(((2*pk.base_hp + hpIv + 100)*5)/100 + 10);
         const initialXp = Math.pow(5, 3);
         
-        await this.db.run(`INSERT INTO user_pokemons (user_id, pokedex_id, nickname, level, exp, current_hp, max_hp, move1, obtained_at) VALUES (?,?,?,5, ?,?,?,?,?)`, 
-            [userId, pk.id, pk.name, initialXp, hp, hp, moves[0]?.id, Date.now()]);
+        await this.db.run(`INSERT INTO user_pokemons 
+            (user_id, pokedex_id, nickname, level, exp, current_hp, max_hp, move1, obtained_at, iv_hp, iv_atk, iv_def, iv_spa, iv_spd, iv_spe) 
+            VALUES (?,?,?,5, ?,?,?,?,?, ?,?,?,?,?,?)`, 
+            [
+                userId, pk.id, pk.name, initialXp, hp, hp, moves[0]?.id, Date.now(),
+                hpIv,
+                randIv(),
+                randIv(),
+                randIv(),
+                randIv(),
+                randIv()
+            ]
+        );
+        
         await this.db.run("UPDATE usuarios SET pokeballs = 20 WHERE id_usuario = ?", [userId]);
         return `🎉 Recebeu ${pk.name}!`;
     }

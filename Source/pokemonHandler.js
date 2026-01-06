@@ -674,19 +674,23 @@ class PokemonHandler {
             ORDER BY team_slot ASC LIMIT 1`, [userId]);
 
         if (!leadPoke) return "🚑 Todos os seus Pokémon estão desmaiados! Cure-os antes de batalhar.";
+        
+        const lvlResult = await this.db.get(`SELECT AVG(level) as media FROM user_pokemons WHERE user_id = ?`, [userId]);
+        const userAvgLvl = lvlResult && lvlResult.media ? Math.floor(lvlResult.media) : 5;
+        
+        const minLvl = Math.max(2, userAvgLvl - 2 + Math.floor(badges / 2));
+        const wildLevel = minLvl + Math.floor(Math.random() * 5);
 
-        // ==========================================================
-        // SISTEMA DE ROTAS E RARIDADE POR INSÍGNIA
-        // ==========================================================
+        let maxTier = 1;
+        if (wildLevel >= 14) maxTier = 2;
+        if (wildLevel >= 30) maxTier = 3;
         
         const rareChance = 0.01 + (badges * 0.005);
-        
-        // Chance de Shiny
         const shinyChance = 0.00024 + (badges * 0.0002); 
 
         let weights;
 
-        if (badges === 0)     weights = { t1: 90, t2: 10, t3: 0 };
+        if (badges === 0)     weights = { t1: 100, t2: 0, t3: 0 };
         else if (badges <= 2) weights = { t1: 60, t2: 35, t3: 5 };
         else if (badges <= 4) weights = { t1: 40, t2: 50, t3: 10 };
         else if (badges <= 6) weights = { t1: 30, t2: 40, t3: 30 };
@@ -700,7 +704,8 @@ class PokemonHandler {
 
         if (isRareEncounter) {
             const rareList = RARE_POKE.join(',');
-            query = `SELECT * FROM pokedex WHERE id IN (${rareList}) ORDER BY RANDOM() LIMIT 1`;
+            query = `SELECT * FROM pokedex WHERE id IN (${rareList}) AND tier <= ? ORDER BY RANDOM() LIMIT 1`;
+            params = [maxTier];
         } else {
             let minXp = 0, maxXp = 0;
 
@@ -712,28 +717,22 @@ class PokemonHandler {
                 minXp = 140; maxXp = 300;
             }
 
-            query = `SELECT * FROM pokedex WHERE base_xp >= ? AND base_xp < ? AND rarity = 'common' AND is_starter = 0 ORDER BY RANDOM() LIMIT 1`;
-            params = [minXp, maxXp];
+            query = `SELECT * FROM pokedex WHERE base_xp >= ? AND base_xp < ? AND rarity = 'common' AND is_starter = 0 AND tier <= ? ORDER BY RANDOM() LIMIT 1`;
+            params = [minXp, maxXp, maxTier];
         }
 
         let pokemon = await this.db.get(query, params);
 
         if (!pokemon) {
-            pokemon = await this.db.get(`SELECT * FROM pokedex WHERE rarity = 'common' ORDER BY RANDOM() LIMIT 1`);
+            pokemon = await this.db.get(`SELECT * FROM pokedex WHERE rarity = 'common' AND tier <= ? ORDER BY RANDOM() LIMIT 1`, [maxTier]);
         }
 
-        // ==========================================================
-        // ESCALONAMENTO DE NÍVEL
-        // ==========================================================
-        
-        const lvlResult = await this.db.get(`SELECT AVG(level) as media FROM user_pokemons WHERE user_id = ?`, [userId]);
-        const userAvgLvl = lvlResult && lvlResult.media ? Math.floor(lvlResult.media) : 5;
-        
-        const minLvl = Math.max(2, userAvgLvl - 2 + Math.floor(badges / 2));
-        const wildLevel = minLvl + Math.floor(Math.random() * 5);
+        if (!pokemon) {
+            pokemon = await this.db.get(`SELECT * FROM pokedex WHERE id = 19`); 
+        }
 
         let wildMoves = await this.getMovesForLevel(pokemon.id, wildLevel);
-        if (!wildMoves || wildMoves.length === 0) wildMoves = [{name: "Investida", power: 40, damage_class: 'physical', type: 'normal'}];
+        if (!wildMoves || wildMoves.length === 0) wildMoves = [{name: "tackle", power: 40, damage_class: 'physical', type: 'normal'}];
 
         const wildHp = Math.floor(((2 * pokemon.base_hp + 15 + 100) * wildLevel) / 100 + 10);
         const isShiny = Math.random() < shinyChance;

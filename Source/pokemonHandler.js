@@ -869,26 +869,16 @@ class PokemonHandler {
             if (!moveType) return 1;
             const attackerChart = TYPE_CHART[moveType.toLowerCase()];
             if (!attackerChart) return 1;
-
             let mult = 1;
-            
-            if (targetType1 && attackerChart[targetType1.toLowerCase()] !== undefined) {
-                mult *= attackerChart[targetType1.toLowerCase()];
-            }
-            if (targetType2 && attackerChart[targetType2.toLowerCase()] !== undefined) {
-                mult *= attackerChart[targetType2.toLowerCase()];
-            }
-
+            if (targetType1 && attackerChart[targetType1.toLowerCase()] !== undefined) mult *= attackerChart[targetType1.toLowerCase()];
+            if (targetType2 && attackerChart[targetType2.toLowerCase()] !== undefined) mult *= attackerChart[targetType2.toLowerCase()];
             return mult;
         };
 
         const selectedMove = (await this.getUserMoves(userPoke))[parseInt(moveSlot) - 1];
         if (!selectedMove) return "Golpe inválido!";
 
-        const calcDmg = (lvl, pwr, atk, def) => {
-            return Math.floor(((2 * lvl / 5 + 2) * pwr * (atk / def)) / 50 + 2);
-
-        };
+        const calcDmg = (lvl, pwr, atk, def) => Math.floor(((2 * lvl / 5 + 2) * pwr * (atk / def)) / 50 + 2);
 
         let log = "";
         let damageToWild = 0;
@@ -899,7 +889,6 @@ class PokemonHandler {
 
         if (selectedMove.damage_class === 'status') {
             const res = await this.processStatusMove(selectedMove.name, battleState, true, userPoke.max_hp);
-            
             log += `✨ ${userPoke.nickname} ${res.msg}\n`;
 
             if (res.healAmount > 0) {
@@ -909,17 +898,14 @@ class PokemonHandler {
         } else {
             const userAtkReal = Math.floor(((2 * userPoke.base_atk + (userPoke.iv_atk || 15)) * userPoke.level) / 100 + 5);
             const userSpaReal = Math.floor(((2 * userPoke.base_spa + (userPoke.iv_spa || 15)) * userPoke.level) / 100 + 5);
-
             let calcAtk = (selectedMove.damage_class === 'special') ? userSpaReal : userAtkReal;
 
             const enemyDefReal = Math.floor(((2 * encounter.pokemon.base_def + 15) * encounter.level) / 100 + 5);
             const enemySpdReal = Math.floor(((2 * encounter.pokemon.base_spd + 15) * encounter.level) / 100 + 5);
-            
             let calcDef = (selectedMove.damage_class === 'special') ? enemySpdReal : enemyDefReal;
 
             let stageAtk = (selectedMove.damage_class === 'physical') ? battleState.stages.user.atk : battleState.stages.user.spa;
             let stageDef = (selectedMove.damage_class === 'physical') ? battleState.stages.enemy.def : battleState.stages.enemy.spd;
-
             let finalAtk = this.applyStages(calcAtk, stageAtk);
             let finalDef = this.applyStages(calcDef, stageDef);
 
@@ -927,9 +913,7 @@ class PokemonHandler {
             const typeMult = getTypeMultiplier(selectedMove.type, encounter.pokemon.type1, encounter.pokemon.type2);
             damageToWild = Math.floor(damageToWild * typeMult);
 
-            if (damageToWild < 1 && typeMult > 0) {
-                damageToWild = 1;
-            }
+            if (damageToWild < 1 && typeMult > 0) damageToWild = 1;
 
             if (Math.random() < 0.05) {
                 damageToWild = Math.floor(damageToWild * 2);
@@ -947,30 +931,17 @@ class PokemonHandler {
             if (typeMult === 0) log += `❌ *Não afetou o inimigo...*\n`;
         }
 
+        // ============================================================
+        // VERIFICA SE O INIMIGO CAIU (FIM DO TURNO DO JOGADOR)
+        // ============================================================
+
         if (encounter.currentHp <= 0) {
             let participants = battleState.participants || [userPoke.id];
-            
-            await this.clearEncounter(userId);
-
             const uniqueParticipants = [...new Set(participants)];
             const splitFactor = uniqueParticipants.length;
 
             let logMsg = `💀 O inimigo desmaiou!\n`;
 
-            for (const pId of uniqueParticipants) {
-                const p = await this.db.get(`
-                    SELECT up.*, dex.base_hp 
-                    FROM user_pokemons up 
-                    JOIN pokedex dex ON up.pokedex_id = dex.id 
-                    WHERE up.id = ?`, [pId]);
-                
-                if (p) {
-                    const xpMsg = await this.gainExperience(p, encounter.pokemon, encounter.level, splitFactor);
-                    
-                    logMsg += `\n🔹 *${p.nickname}*: ${xpMsg.replace('✨ Ganhou', 'Ganhou')}`; 
-                }
-            }
-            
             let xpMultiplier = 1.0;
             if (encounter.battle_type === 'GYM') xpMultiplier = 2.5; 
             else if (encounter.battle_type === 'TRAINER') xpMultiplier = 1.5;
@@ -991,15 +962,25 @@ class PokemonHandler {
             if (encounter.isGym && encounter.gymData.remainingTeam && encounter.gymData.remainingTeam.length > 0) {
                 const nextPokeData = encounter.gymData.remainingTeam.shift(); 
                 
-                encounter.gymData.remainingTeam = encounter.gymData.remainingTeam; 
+               encounter.gymData.participants = []; 
                 
                 const nextPokeDex = await this.db.get("SELECT * FROM pokedex WHERE id = ?", [nextPokeData.pokedex_id]);
                 
-                const nextMoves = nextPokeData.moves.map(m => ({ name: m, power: 0, type: 'normal', damage_class: 'physical' }));
-                for(let m of nextMoves){
-                    const dbMove = await this.db.get("SELECT * FROM moves WHERE name = ?", [m.name]);
-                    if(dbMove) { m.power = dbMove.power; m.type = dbMove.type; m.damage_class = dbMove.damage_class; }
-                }
+                const nextMoveNames = nextPokeData.moves;
+                const placeholders = nextMoveNames.map(() => '?').join(',');
+                const dbMoves = await this.db.all(`SELECT * FROM moves WHERE name IN (${placeholders})`, nextMoveNames);
+                
+                const nextMoves = nextMoveNames.map(mName => {
+                    const found = dbMoves.find(dbm => dbm.name === mName);
+                    return found ? {
+                        name: found.name,
+                        power: found.power,
+                        type: found.type,
+                        damage_class: found.damage_class
+                    } : { 
+                        name: mName, power: 40, type: 'normal', damage_class: 'physical' 
+                    };
+                });
 
                 const nextHp = Math.floor(((2 * nextPokeDex.base_hp + 31 + 100) * nextPokeData.level) / 100 + 10) * 1.5;
 
@@ -1013,6 +994,14 @@ class PokemonHandler {
                 return `${log}\n${logMsg}\n\n🚨 *Líder ${encounter.gymData.leaderName}* enviou *${nextPokeDex.name}* (Lvl ${nextPokeData.level})!\nA batalha continua!`;
             }
 
+            await this.clearEncounter(userId);
+
+            if (encounter.isGym) {
+                const badgeInfo = encounter.gymData;
+                await this.db.run("UPDATE usuarios SET badges = badges + 1, pokecoins = pokecoins + ? WHERE id_usuario = ?", [badgeInfo.reward, userId]);
+                return `${log}\n🏆 *VITÓRIA NO GINÁSIO!*\nRecebeu Insígnia ${badgeInfo.badgeName} e 💰 ${badgeInfo.reward}!\n${logMsg}`;
+            }
+
             const baseGain = 15;
             const luckGain = Math.random() * 25;
             const coins = Math.floor(encounter.level * (baseGain + luckGain));
@@ -1022,7 +1011,7 @@ class PokemonHandler {
         }
 
         // ============================================================
-        // TURNO DO INIMIGO
+        // TURNO DO INIMIGO (Só acontece se ele estiver vivo)
         // ============================================================
         
         const enemyLog = await this.processEnemyTurn(encounter, userPoke, battleState, userId);
@@ -1035,7 +1024,7 @@ class PokemonHandler {
         if (updatedUserPoke.current_hp <= 0) {
             const hasBackup = await this.db.get("SELECT id FROM user_pokemons WHERE user_id = ? AND team_slot IS NOT NULL AND current_hp > 0 AND id != ?", [userId, userPoke.id]);
             if (hasBackup) {
-                return `${log}\n\n💀 *${updatedUserPoke.nickname}* desmaiou!\nA batalha continua! Use *!poke trocar [n]* para enviar o próximo!`;
+                return `${log}\n\n💀 *${updatedUserPoke.nickname}* desmaiou!\nA batalha continua! Use *!poke trocar [slot]* para enviar o próximo!`;
             } else {
                 await this.clearEncounter(userId);
                 return `${log}\n\n🏴 Você não tem mais Pokémon capazes de lutar!\nVocê perdeu a batalha e correu para o CP (use *!poke curar*).`;
@@ -1280,7 +1269,7 @@ class PokemonHandler {
         return await this.db.all(`SELECT m.* FROM pokemon_moves pm JOIN moves m ON pm.move_id = m.id WHERE pm.pokemon_id = ? AND pm.level_learned <= ? ORDER BY pm.level_learned DESC LIMIT 4`, [pid, lvl]);
     }
 
-    async gainExperience(userPoke, enemy, enemyLevel, splitFactor = 1) {
+    async gainExperience(userPoke, enemy, enemyLevel, splitFactor = 1, multiplier) {
         if (userPoke.pending_move) {
             const moveName = (await this.db.get("SELECT name FROM moves WHERE id = ?", [userPoke.pending_move]))?.name;
             return `⚠️ ${userPoke.nickname} ainda está tentando aprender *${moveName}*!\nUse *!poke trocar [1-4]* ou *!poke ignorar*.`;

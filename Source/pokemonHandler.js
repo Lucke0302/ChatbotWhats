@@ -924,7 +924,7 @@ class PokemonHandler {
             if (selectedMove.type === userPoke.type1 || selectedMove.type === userPoke.type2) {
                 damageToWild = Math.floor(damageToWild * 1.5);
             }
-            
+
             damageToWild = Math.floor(damageToWild * typeMult);
 
             encounter.currentHp -= damageToWild;
@@ -1093,6 +1093,10 @@ class PokemonHandler {
 
             if (Math.random() < 0.05) { damageToUser *= 2; log += `\n⚠️ *CRÍTICO DO INIMIGO!*`; }
             damageToUser = Math.floor(damageToUser * ((Math.random() * 0.15) + 0.85));
+            
+            if (selectedMove.type === encounter.pokemon.type1 || selectedMove.type === encounter.pokemon.type2) {
+                damageToUser = Math.floor(damageToUser * 1.5);
+            }
 
             await this.db.run(`UPDATE user_pokemons SET current_hp = current_hp - ? WHERE id = ?`, [damageToUser, userPoke.id]);
             

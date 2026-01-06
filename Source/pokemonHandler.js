@@ -921,6 +921,12 @@ class PokemonHandler {
 
             damageToWild = Math.floor(damageToWild * ((Math.random() * 0.15) + 0.85));
 
+            if (selectedMove.type === userPoke.type1 || selectedMove.type === userPoke.type2) {
+                damageToWild = Math.floor(damageToWild * 1.5);
+            }
+            
+            damageToWild = Math.floor(damageToWild * typeMult);
+
             encounter.currentHp -= damageToWild;
 
             log += `🗡️ ${userPoke.nickname} usou *${selectedMove.name}* e causou **${damageToWild}** de dano.\n`;

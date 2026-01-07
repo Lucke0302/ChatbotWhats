@@ -1,6 +1,5 @@
 const axios = require('axios');
 const { gracefulShutdown } = require('node-schedule');
-const { generate } = require('qrcode-terminal');
 const STARTER_IDS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 152, 153, 154, 155, 156, 157, 158, 159, 160, 252, 253, 254, 255, 256, 257, 258, 259, 260];
 const ADMIN_ID = "5513991008854@s.whatsapp.net";
 const RARE_POKE = [
@@ -27,10 +26,16 @@ const RARE_POKE = [
 
 const POKEMON_COUNT = 386;
 const GAME_VERSION = 'emerald';
-const GYM_LEADERS = [
-    { badge: 0, leader: "Brock", city: "Pewter", pokeId: 95, level: 12, moves: ["Investida", "Lançamento de Rocha"], reward: 1000, badgeName: "Rocha" }, // Onix
-    { badge: 1, leader: "Misty", city: "Cerulean", pokeId: 121, level: 18, moves: ["Jato d'Água", "Investida"], reward: 2000, badgeName: "Cascata" } // Starmie
-]
+const GYM_TYPES = [
+    'rock',    // 0 - Brock
+    'water',   // 1 - Misty
+    'electric',// 2 - Lt. Surge
+    'grass',   // 3 - Erika
+    'poison',  // 4 - Koga
+    'psychic', // 5 - Sabrina
+    'fire',    // 6 - Blaine
+    'ground'   // 7 - Giovanni
+];
 const STATUS_MOVES = {
     // BUFFS
     "swords-dance": { target: 'self', stat: 'atk', stage: 2, msg: "aumentou drasticamente o ATAQUE" },
@@ -267,9 +272,6 @@ class PokemonHandler {
         console.log(`⬇️ Iniciando Seed Gen 1-3 (Até ${POKEMON_COUNT})...`);
         
         for (let i = 1; i <= POKEMON_COUNT; i++) {
-            const existing = await this.db.get("SELECT id FROM pokedex WHERE id = ? AND evolve_to IS NOT NULL", [i]);
-            if (existing) continue;
-
             try {
                 const pk = (await axios.get(`https://pokeapi.co/api/v2/pokemon/${i}`)).data;
                 const sp = (await axios.get(pk.species.url)).data;
@@ -323,12 +325,12 @@ class PokemonHandler {
                 await this.db.run(`UPDATE pokedex SET evolve_to = ?, evolve_level = ? WHERE id = ?`, [evolveTo, evolveLevel, pk.id]);
 
                 const validMoves = pk.moves.filter(m => 
-                    m.version_group_details.some(v => (v.version_group.name === 'emerald' || v.version_group.name === 'firered-leafgreen') && v.move_learn_method.name === 'level-up')
+                    m.version_group_details.some(v => (v.version_group.name === GAME_VERSION || v.version_group.name === 'firered-leafgreen') && v.move_learn_method.name === 'level-up')
                 );
 
                 for (const m of validMoves) {
                     const moveName = m.move.name;
-                    let versionDetail = m.version_group_details.find(v => v.version_group.name === 'emerald');
+                    let versionDetail = m.version_group_details.find(v => v.version_group.name === GAME_VERSION);
                     if (!versionDetail) versionDetail = m.version_group_details.find(v => v.version_group.name === 'firered-leafgreen');
                     
                     const level = versionDetail ? versionDetail.level_learned_at : 1;
@@ -341,7 +343,7 @@ class PokemonHandler {
                     } else if (!downloadedMoves.has(moveName)) {
                         const moveData = (await axios.get(m.move.url)).data;
                         if (moveData.power || moveData.meta?.category?.name) {
-                            await this.db.run(`INSERT INTO moves (id, name, type, power, accuracy, pp, damage_class) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                            await this.db.run(`INSERT OR IGNORE INTO moves (id, name, type, power, accuracy, pp, damage_class) VALUES (?, ?, ?, ?, ?, ?, ?)`,
                                 [moveData.id, moveData.name, moveData.type.name, moveData.power || 0, moveData.accuracy || 100, moveData.pp, moveData.damage_class.name]);
                             moveId = moveData.id;
                             downloadedMoves.add(moveName);
@@ -353,12 +355,12 @@ class PokemonHandler {
                     }
                 }
                 
-                if (i % 10 === 0) console.log(`[SEED] Progresso Gen 3: ${i}/${POKEMON_COUNT}...`);
+                if (i % 10 === 0) console.log(`[SEED] Progresso: ${i}/${POKEMON_COUNT}...`);
             } catch (e) {
                 console.error(`Erro ID ${i}:`, e.message);
             }
         }
-        console.log("✅ Seed Gen 3 Completo!");
+        console.log("✅ Seed Completo (Gen 1, 2 e 3)!");
     }
 
     getBattleState(encounter) {
@@ -984,20 +986,41 @@ class PokemonHandler {
 
     async challengeGym(groupId, userId, sock) {
         const existing = await this.loadEncounter(userId);
-        if (existing) return "Termine sua batalha atual primeiro!";
+        if (existing) return "🚫 Termine sua batalha atual primeiro!";
 
         const leadPoke = await this.db.get(`
             SELECT id FROM user_pokemons 
             WHERE user_id = ? AND team_slot IS NOT NULL AND current_hp > 0 
             ORDER BY team_slot ASC LIMIT 1`, [userId]);
 
-        if (!leadPoke) return "🚑 Todos os seus Pokémon estão desmaiados!";
+        if (!leadPoke) return "🚑 Todos os seus Pokémon estão desmaiados! Cure-os antes de entrar no ginásio.";
 
-        const user = await this.db.get("SELECT badges FROM usuarios WHERE id_usuario = ?", [userId]);
+        const user = await this.db.get("SELECT badges, gym_progress FROM usuarios WHERE id_usuario = ?", [userId]);
         const currentBadge = user.badges || 0;
 
+        if (currentBadge >= 8) return "🏆 Você já é o Campeão da Liga Pokémon!";
+
+        // --- LÓGICA DE PROGRESSO DO GINÁSIO ---
+        
+        if (user.gym_progress === null) {
+            const trainersCount = 2 + currentBadge;
+            await this.db.run("UPDATE usuarios SET gym_progress = ? WHERE id_usuario = ?", [trainersCount, userId]);
+            user.gym_progress = trainersCount;
+            
+            return `🏛️ *GINÁSIO DE ${(await this.getGymCityName(currentBadge))}*\n\n` +
+                   `Você entrou no ginásio! Antes de desafiar o Líder, você deve derrotar os treinadores.\n` +
+                   `👮 Treinadores restantes: *${trainersCount}*\n\n` +
+                   `Digite *!poke ginasio* novamente para lutar contra o primeiro!`;
+        }
+
+        if (user.gym_progress > 0) {
+            return await this.spawnGymTrainer(groupId, userId, sock, currentBadge, user.gym_progress, leadPoke.id);
+        }
+
+        // --- LUTA CONTRA O LÍDER 
+        
         const gymLeader = await this.db.get("SELECT * FROM gym_leaders WHERE id = ?", [currentBadge]);
-        if (!gymLeader) return "🏆 Você já venceu todos os líderes disponíveis (por enquanto)!";
+        if (!gymLeader) return "🏆 Você já venceu todos os líderes disponíveis!";
 
         const team = JSON.parse(gymLeader.team_json);
         if (!team || team.length === 0) return "❌ Erro: Líder sem pokémons.";
@@ -1006,21 +1029,13 @@ class PokemonHandler {
         const bossPokemon = await this.db.get("SELECT * FROM pokedex WHERE id = ?", [firstPokeData.pokedex_id]);
         
         const moveNames = firstPokeData.moves;
-        
         const placeholders = moveNames.map(() => '?').join(',');
-
         const dbMoves = await this.db.all(`SELECT * FROM moves WHERE name IN (${placeholders})`, moveNames);
         
         const bossMoves = moveNames.map(mName => {
             const found = dbMoves.find(dbm => dbm.name === mName);
-            return found ? {
-                name: found.name,
-                power: found.power,
-                type: found.type,
-                damage_class: found.damage_class
-            } : { 
-                name: mName, power: 40, type: 'normal', damage_class: 'physical' // Fallback
-            };
+            return found ? { name: found.name, power: found.power, type: found.type, damage_class: found.damage_class } 
+                         : { name: mName, power: 40, type: 'normal', damage_class: 'physical' };
         });
 
         const bossHp = Math.floor(Math.floor(((2 * bossPokemon.base_hp + 31 + 100) * firstPokeData.level) / 100 + 10) * 1.5);
@@ -1031,7 +1046,7 @@ class PokemonHandler {
             leaderName: gymLeader.name,
             badgeName: gymLeader.badge_name,
             reward: gymLeader.reward_coins,
-            participants: [leadPoke.id],
+            participants: [leadPoke],
             remainingTeam: remainingTeam 
         };
 
@@ -1039,16 +1054,74 @@ class PokemonHandler {
             INSERT INTO active_encounters (
                 user_id, group_id, pokedex_id, current_hp, max_hp, level, 
                 is_shiny, moves, battle_type, extra_data, started_at, active_pokemon_id
-            ) VALUES (?, ?, ?, ?, ?, ?, 0, ?, 'GYM', ?, ?, ?)`,
-            [userId, groupId, bossPokemon.id, bossHp, bossHp, firstPokeData.level, JSON.stringify(bossMoves), JSON.stringify(extraData), Date.now(), leadPoke.id]
+            ) VALUES (?, ?, ?, ?, ?, ?, 0, ?, 'GYM_LEADER', ?, ?, ?)`,
+            [userId, groupId, bossPokemon.id, bossHp, bossHp, firstPokeData.level, JSON.stringify(bossMoves), JSON.stringify(extraData), Date.now(), leadPoke]
         );
 
-        const caption = `🏛️ *GINÁSIO DE ${gymLeader.city.toUpperCase()}*\nLíder **${gymLeader.name}** enviou *${bossPokemon.name}* (Lvl ${firstPokeData.level})!\n⚠️ *Boss HP:* ${bossHp}/${bossHp}\nPokémons restantes do Líder: ${remainingTeam.length + 1}\nDigite *!poke atacar*`;
+        const caption = `🏛️ *GINÁSIO DE ${gymLeader.city.toUpperCase()}*\n` + 
+                        `🚨 *LÍDER ${gymLeader.name}* aceitou seu desafio!\n` + 
+                        `Ele enviou *${bossPokemon.name}* (Lvl ${firstPokeData.level})!\n` + 
+                        `⚠️ *Boss HP:* ${bossHp}/${bossHp}\n` + 
+                        `Pokémons restantes do Líder: ${remainingTeam.length + 1}\n` + 
+                        `Prepare-se! Digite *!poke atacar*`;
 
         if (sock) {
             await sock.sendMessage(groupId, { image: { url: bossPokemon.sprite_url }, caption: caption });
         }
         return null;
+    }
+
+    async getGymCityName(badgeIndex) {
+        const gym = await this.db.get("SELECT city FROM gym_leaders WHERE id = ?", [badgeIndex]);
+        return gym ? gym.city : "Desconhecida";
+    }
+
+    async spawnGymTrainer(groupId, userId, sock, badgeIndex, remaining, leadPokeId) {
+        const gymType = GYM_TYPES[badgeIndex] || 'normal';
+        
+        const baseLevel = 10 + (badgeIndex * 4); 
+        const level = Math.floor(baseLevel + (Math.random() * 3));
+
+        let pokemon = await this.db.get(`
+            SELECT * FROM pokedex 
+            WHERE (type1 = ? OR type2 = ?) 
+            AND rarity = 'common' 
+            AND tier <= 2 
+            ORDER BY RANDOM() LIMIT 1`, 
+            [gymType, gymType]
+        );
+
+        if (!pokemon) {
+            pokemon = await this.db.get("SELECT * FROM pokedex WHERE rarity = 'common' ORDER BY RANDOM() LIMIT 1");
+        }
+
+        const hp = Math.floor(((2 * pokemon.base_hp + 15 + 100) * level) / 100 + 10);
+        const moves = await this.getMovesForLevel(pokemon.id, level);
+
+        const extraData = { participants: [leadPokeId] };
+
+        await this.db.run(`
+            INSERT INTO active_encounters (
+                user_id, group_id, pokedex_id, current_hp, max_hp, level, 
+                is_shiny, moves, battle_type, started_at, active_pokemon_id, extra_data
+            ) VALUES (?, ?, ?, ?, ?, ?, 0, ?, 'GYM_TRAINER', ?, ?, ?)`,
+            [userId, groupId, pokemon.id, hp, hp, level, JSON.stringify(moves), Date.now(), leadPokeId, JSON.stringify(extraData)]
+        );
+
+        const trainerNames = ["Jovem", "Escoteiro", "Montanhista", "Nadador", "Mecânico", "Careca"];
+        const randomClass = trainerNames[Math.floor(Math.random() * trainerNames.length)];
+
+        const caption = `🏛️ *GINÁSIO - BATALHA ${remaining}*\n` +
+                        `O treinador do ginásio, *${randomClass}*, bloqueou seu caminho!\n` +
+                        `Ele usa um *${pokemon.name}* (Lvl ${level}).\n\n` +
+                        `⚔️ Digite *!poke atacar* para lutar!`;
+
+        if (sock) {
+            try { await sock.sendMessage(groupId, { image: { url: pokemon.sprite_url }, caption: caption }); } 
+            catch (e) { await sock.sendMessage(groupId, { text: caption }); }
+            return null;
+        }
+        return caption;
     }
 
     async advanceBattle(userId, encounter) {
@@ -1235,7 +1308,7 @@ class PokemonHandler {
                 }
             }
 
-            if ((encounter.isGym || encounter.battle_type === 'TRAINER') && encounter.gymData.remainingTeam && encounter.gymData.remainingTeam.length > 0) {
+            if ((encounter.battle_type === 'GYM_LEADER' || encounter.battle_type === 'GYM_TRAINER' || encounter.battle_type === 'TRAINER') && encounter.gymData.remainingTeam && encounter.gymData.remainingTeam.length > 0) {
                 const nextPokeData = encounter.gymData.remainingTeam.shift(); 
                 
                 const nextPokeDex = await this.db.get("SELECT name FROM pokedex WHERE id = ?", [nextPokeData.pokedex_id]);
@@ -1259,6 +1332,22 @@ class PokemonHandler {
                 const badgeInfo = encounter.gymData;
                 await this.db.run("UPDATE usuarios SET badges = badges + 1, pokecoins = pokecoins + ? WHERE id_usuario = ?", [badgeInfo.reward, userId]);
                 return `${log}\n🏆 *VITÓRIA NO GINÁSIO!*\nRecebeu Insígnia ${badgeInfo.badgeName} e 💰 ${badgeInfo.reward}!\n${logMsg}`;
+            }
+
+            if (encounter.battle_type === 'GYM_TRAINER') {
+                const reward = encounter.gymData.reward || 500;
+                await this.db.run("UPDATE usuarios SET gym_progress = gym_progress - 1, pokecoins = pokecoins + 150 WHERE id_usuario = ?", [userId]);
+                const remaining = (await this.db.get("SELECT gym_progress FROM usuarios WHERE id_usuario = ?", [userId])).gym_progress;
+                
+                let nextMsg = "";
+                if (remaining > 0) {
+                    nextMsg = `😰 Faltam *${remaining}* treinadores.\nCure seus Pokémon e digite *!poke ginasio* novamente.`;
+                } else {
+                    nextMsg = `🚨 *O CAMINHO ESTÁ LIVRE!* 🚨\nVocê derrotou todos os treinadores.\nCure seu time e digite *!poke ginasio* para desafiar o(a) LÍDER!`;
+                }
+
+                await this.db.run("UPDATE usuarios SET pokecoins = pokecoins + ? WHERE id_usuario = ?", [reward, userId]);
+                return `${log}\n🎉 *Você venceu o treinador do ginásio!*\nRecebeu 💰 ${reward}!\n${logMsg}\n\n${nextMsg}`;
             }
 
             if (encounter.battle_type === 'TRAINER') {

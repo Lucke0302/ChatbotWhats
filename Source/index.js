@@ -398,7 +398,14 @@ async function initDatabase() {
     );
     console.log("✅ Tabela 'gym_leaders' verificada.");
 
-    console.log('✅ Banco de dados SQLite inicializado e tabelas `mensagens` e `usuarios` verificadas.');
+    try {
+        await db.exec(`ALTER TABLE usuarios ADD COLUMN gym_progress INTEGER DEFAULT NULL;`);
+        console.log("✅ Coluna 'gym_progress' adicionada com sucesso!");
+    } catch (error) {
+        if (!error.message.includes("duplicate column name")) console.error(error.message);
+    }
+
+    console.log('✅ Banco de dados SQLite inicializado e tabelas verificadas.');
 }
 
 const botCommands = {

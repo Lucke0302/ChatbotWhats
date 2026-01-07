@@ -822,7 +822,7 @@ class PokemonHandler {
         const remainingTeam = trainerTeam.slice(1);
         
         const hpMultiplier = 1.2;
-        const bossHp = Math.floor(((2 * firstPokeData.base_hp + 15 + 100) * firstPokeData.level) / 100 + 10) * hpMultiplier;
+        const bossHp = Math.floor(Math.floor(((2 * firstPokeData.base_hp + 15 + 100) * firstPokeData.level) / 100 + 10) * hpMultiplier);
 
         const extraData = { 
             leaderName: `${trainerClass} ${trainerName}`, 
@@ -1007,7 +1007,7 @@ class PokemonHandler {
             };
         });
 
-        const bossHp = Math.floor(((2 * bossPokemon.base_hp + 31 + 100) * firstPokeData.level) / 100 + 10) * 1.5; 
+        const bossHp = Math.floor(Math.floor(((2 * bossPokemon.base_hp + 31 + 100) * firstPokeData.level) / 100 + 10) * 1.5);
 
         const remainingTeam = team.slice(1);
 
@@ -1072,10 +1072,8 @@ class PokemonHandler {
         
         if (!battleState.participants.includes(userPoke.id)) {
             battleState.participants.push(userPoke.id);
-            
             let currentExtraData = encounterRaw.extra_data ? JSON.parse(encounterRaw.extra_data) : {};
             currentExtraData.participants = battleState.participants;
-            
             await this.db.run("UPDATE active_encounters SET extra_data = ? WHERE user_id = ?", [JSON.stringify(currentExtraData), userId]);
         }
 
@@ -1097,10 +1095,7 @@ class PokemonHandler {
         let log = "";
         let damageToWild = 0;
 
-        // ============================================================
         // TURNO DO JOGADOR
-        // ============================================================
-
         if (selectedMove.damage_class === 'status') {
             const res = await this.processStatusMove(selectedMove.name, battleState, true, userPoke.max_hp);
             log += `✨ ${userPoke.nickname} ${res.msg}\n`;
@@ -1140,7 +1135,6 @@ class PokemonHandler {
             }
 
             damageToWild = Math.floor(damageToWild * ((Math.random() * 0.15) + 0.85));
-
             encounter.currentHp -= damageToWild;
 
             log += `🗡️ ${userPoke.nickname} usou *${selectedMove.name}* e causou **${damageToWild}** de dano.\n`;
@@ -1150,6 +1144,7 @@ class PokemonHandler {
             if (typeMult === 0) log += `❌ *Não afetou o inimigo...*\n`;
         }
 
+        // FIM DA BATALHA OU TROCA DE OPONENTE
         if (encounter.currentHp <= 0) {
             let participants = battleState.participants || [userPoke.id];
             const uniqueParticipants = [...new Set(participants)];
@@ -1174,7 +1169,7 @@ class PokemonHandler {
                 }
             }
 
-            if (encounter.isGym && encounter.gymData.remainingTeam && encounter.gymData.remainingTeam.length > 0) {
+            if ((encounter.isGym || encounter.battle_type === 'TRAINER') && encounter.gymData.remainingTeam && encounter.gymData.remainingTeam.length > 0) {
                 const nextPokeData = encounter.gymData.remainingTeam.shift(); 
                 
                 encounter.gymData.participants = []; 
@@ -1197,7 +1192,8 @@ class PokemonHandler {
                     };
                 });
 
-                const nextHp = Math.floor(((2 * nextPokeDex.base_hp + 31 + 100) * nextPokeData.level) / 100 + 10) * 1.5;
+                const hpMult = encounter.isGym ? 1.5 : 1.2;
+                const nextHp = Math.floor(Math.floor(((2 * nextPokeDex.base_hp + 31 + 100) * nextPokeData.level) / 100 + 10) * hpMult);
 
                 await this.db.run(`
                     UPDATE active_encounters 
@@ -1206,15 +1202,23 @@ class PokemonHandler {
                     [nextPokeDex.id, nextHp, nextHp, nextPokeData.level, JSON.stringify(nextMoves), JSON.stringify(encounter.gymData), userId]
                 );
 
-                return `${log}\n${logMsg}\n\n🚨 *Líder ${encounter.gymData.leaderName}* enviou *${nextPokeDex.name}* (Lvl ${nextPokeData.level})!\nA batalha continua!`;
+                const title = encounter.isGym ? 'Líder' : 'Treinador';
+                return `${log}\n${logMsg}\n\n🚨 *${title} ${encounter.gymData.leaderName}* enviou *${nextPokeDex.name}* (Lvl ${nextPokeData.level})!\nA batalha continua!`;
             }
 
+            // VITÓRIA FINAL
             await this.clearEncounter(userId);
 
             if (encounter.isGym) {
                 const badgeInfo = encounter.gymData;
                 await this.db.run("UPDATE usuarios SET badges = badges + 1, pokecoins = pokecoins + ? WHERE id_usuario = ?", [badgeInfo.reward, userId]);
                 return `${log}\n🏆 *VITÓRIA NO GINÁSIO!*\nRecebeu Insígnia ${badgeInfo.badgeName} e 💰 ${badgeInfo.reward}!\n${logMsg}`;
+            }
+
+            if (encounter.battle_type === 'TRAINER') {
+                const reward = encounter.gymData.reward || 500;
+                await this.db.run("UPDATE usuarios SET pokecoins = pokecoins + ? WHERE id_usuario = ?", [reward, userId]);
+                return `${log}\n🏆 *VOCÊ VENCEU O TREINADOR!*\nRecebeu 💰 ${reward}!\n${logMsg}`;
             }
 
             const baseGain = 15;
@@ -1225,6 +1229,7 @@ class PokemonHandler {
             return `${log}\n${logMsg}\n💰 +${coins} coins.`;
         }
 
+        // TURNO DO INIMIGO
         const enemyLog = await this.processEnemyTurn(encounter, userPoke, battleState, userId);
         log += enemyLog;
 
@@ -1243,7 +1248,7 @@ class PokemonHandler {
         }
 
         return `${log}\n\n` +
-               `❤️ Inimigo: ${Math.max(0, encounter.currentHp)}/${encounter.maxHp}\n` +
+               `❤️ Inimigo: ${Math.floor(Math.max(0, encounter.currentHp))}/${Math.floor(encounter.maxHp)}\n` +
                `💚 Seu: ${Math.max(0, updatedUserPoke.current_hp)}/${updatedUserPoke.max_hp}\n\n` +
                `⚔️ *!poke atacar [n]*\n` +
                `🔴 *!poke capturar*\n` +

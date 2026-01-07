@@ -471,6 +471,10 @@ class PokemonHandler {
             const slotA = args[0];
             const slotB = args[1];
 
+            if (args.some(slot => slot > 6)) {
+                return "🚫 Para mover Pokémons do PC (Slot 7+), use o comando *!poke pc*.";
+            }
+
             if (!slotA || !slotB || isNaN(slotA) || isNaN(slotB)) {
                 return "🛠️ *Gerenciar Time*\nPara mudar a ordem, use: *!poke trocar [pos1] [pos2]*\nEx: _!poke trocar 1 2_ (O líder vira o segundo)";
             }
@@ -521,6 +525,55 @@ class PokemonHandler {
         const enemyTurnLog = await this.processEnemyTurn(encounter, targetPoke, battleState, userId);
         
         return log + enemyTurnLog;
+    }
+
+    async handlePCCommand(userId, param) {
+        const args = param.trim().split(/\s+/);
+        const subCmd = args[0] ? args[0].toLowerCase() : 'lista';
+
+        if (subCmd === 'lista' || subCmd === 'list') {
+            const pcMons = await this.db.all(`
+                SELECT up.*, p.name 
+                FROM user_pokemons up 
+                JOIN pokedex p ON up.pokedex_id = p.id 
+                WHERE up.user_id = ? AND up.team_slot > 6 
+                ORDER BY up.team_slot ASC`, [userId]);
+
+            if (pcMons.length === 0) return "📦 Seu PC está vazio! Capture mais Pokémons (slot 7 em diante).";
+
+            let msg = "💻 *PC POKÉMON* (Armazenamento)\nUse: *!poke pc [quem_sai] [quem_entra]*\nEx: _!poke pc 2 1_ (Troca o slot 2 do time pelo 1 do PC)\n\n";
+            
+            pcMons.forEach(p => {
+                const boxNum = p.team_slot - 6;
+                const shiny = p.is_shiny ? "✨ " : "";
+                msg += `📦 *${boxNum}*. ${shiny}${p.nickname} (Lvl ${p.level}) - HP: ${p.current_hp}/${p.max_hp}\n`;
+            });
+
+            return msg;
+        }
+
+        const teamSlot = parseInt(args[0]);
+        const pcBoxNum = parseInt(args[1]);
+
+        if (isNaN(teamSlot) || isNaN(pcBoxNum)) {
+            return "⚠️ Formato inválido.\nUse: *!poke pc lista* ou *!poke pc [slot_time] [numero_pc]*";
+        }
+
+        if (teamSlot < 1 || teamSlot > 6) return "🚫 O slot do time deve ser entre 1 e 6.";
+
+        const realPcSlot = pcBoxNum + 6;
+
+        const teamPoke = await this.db.get("SELECT id, nickname, team_slot FROM user_pokemons WHERE user_id = ? AND team_slot = ?", [userId, teamSlot]);
+        const pcPoke = await this.db.get("SELECT id, nickname, team_slot FROM user_pokemons WHERE user_id = ? AND team_slot = ?", [userId, realPcSlot]);
+
+        if (!teamPoke) return `🚫 Não tem ninguém no slot ${teamSlot} do seu time.`;
+        if (!pcPoke) return `🚫 Não tem ninguém na Box ${pcBoxNum} do PC (Slot real ${realPcSlot}).`;
+
+        await this.db.run("UPDATE user_pokemons SET team_slot = -1 WHERE id = ?", [teamPoke.id]);
+        await this.db.run("UPDATE user_pokemons SET team_slot = ? WHERE id = ?", [teamSlot, pcPoke.id]);
+        await this.db.run("UPDATE user_pokemons SET team_slot = ? WHERE id = ?", [realPcSlot, teamPoke.id]);
+
+        return `🔄 **Troca no PC realizada!**\n\n📤 Saiu: *${teamPoke.nickname}* (Foi pro PC ${pcBoxNum})\n📥 Entrou: *${pcPoke.nickname}* (No slot ${teamSlot})`;
     }
 
     async handleCommand(from, sender, command, sock) {
@@ -623,6 +676,11 @@ class PokemonHandler {
             case 'box': 
             case 'team': 
                 return await this.getUserProfile(sender);
+
+            case 'pc':
+            case 'storage':
+            case 'box':
+                return await this.handlePCCommand(sender, param);
             
             case 'ajuda': 
             default:
@@ -1260,6 +1318,7 @@ class PokemonHandler {
         const encounter = await this.loadEncounter(userId);
         if (!encounter) return "🤷 Nenhuma batalha ativa.";
         if (encounter.isGym) return "🚫 Você não pode roubar o Pokémon do Líder!";
+        if (encounter.battle_type === 'TRAINER') return "🚫 Você não pode roubar o Pokémon de outro treinador! Isso é crime!";
 
         const user = await this.db.get("SELECT pokeballs FROM usuarios WHERE id_usuario = ?", [userId]);
         if (!user || user.pokeballs <= 0) return "🚫 Sem Pokébolas! Compre na loja.";
@@ -1272,21 +1331,36 @@ class PokemonHandler {
             const randIv = () => Math.floor(Math.random() * 32);
             const ivHp = randIv();
             const realMaxHp = Math.floor(((2 * pk.base_hp + ivHp + 100) * encounter.level) / 100 + 10);
-            const initialXp = Math.pow(encounter.level, 3)
+            const initialXp = Math.pow(encounter.level, 3);
             
             let m1 = encounter.moves[0]?.id;
             if(!m1) {
-                const t = await this.db.get("SELECT id FROM moves WHERE name='Investida'");
+                const t = await this.db.get("SELECT id FROM moves WHERE name='tackle'");
                 m1 = t ? t.id : null;
             }
 
+            const slots = await this.db.all("SELECT team_slot FROM user_pokemons WHERE user_id = ? ORDER BY team_slot ASC", [userId]);
+            const occupiedSlots = slots.map(s => s.team_slot);
+
+            let targetSlot = 1;
+            while (occupiedSlots.includes(targetSlot)) {
+                targetSlot++;
+            }
+
             await this.db.run(`
-                INSERT INTO user_pokemons (user_id, pokedex_id, nickname, level, exp, iv_hp, iv_atk, iv_def, iv_spa, iv_spd, iv_spe, move1, move2, move3, move4, obtained_at, is_shiny, current_hp, max_hp)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                [userId, pk.id, pk.name, encounter.level, initialXp, ivHp, randIv(), randIv(), randIv(), randIv(), randIv(), m1, encounter.moves[1]?.id, encounter.moves[2]?.id, encounter.moves[3]?.id, Date.now(), encounter.isShiny?1:0, realMaxHp, realMaxHp]
+                INSERT INTO user_pokemons (user_id, pokedex_id, nickname, level, exp, iv_hp, iv_atk, iv_def, iv_spa, iv_spd, iv_spe, move1, move2, move3, move4, obtained_at, is_shiny, current_hp, max_hp, team_slot)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [userId, pk.id, pk.name, encounter.level, initialXp, ivHp, randIv(), randIv(), randIv(), randIv(), randIv(), m1, encounter.moves[1]?.id, encounter.moves[2]?.id, encounter.moves[3]?.id, Date.now(), encounter.isShiny?1:0, realMaxHp, realMaxHp, targetSlot]
             );
             await this.clearEncounter(userId);
-            return `🎉 Capturou *${pk.name}*! (Bolas: ${user.pokeballs - 1})`;
+            
+            let msg = `🎉 Capturou *${pk.name}*! (Bolas: ${user.pokeballs - 1})`;
+            if (targetSlot > 6) {
+                msg += `\n📦 Time cheio! Enviado para o PC (Box ${targetSlot - 6}).`;
+            } else {
+                msg += `\n✅ Adicionado ao time principal.`;
+            }
+            return msg;
         }
         return `💢 Escapou! (Bolas: ${user.pokeballs - 1})`;
     }

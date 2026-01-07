@@ -470,6 +470,7 @@ class PokemonHandler {
     async switchPokemon(userId, param) {
         const encounter = await this.loadEncounter(userId);
 
+        // --- LÓGICA DE TROCA NO PC
         if (!encounter) {
             const args = param.split(' ').map(n => parseInt(n));
             const slotA = args[0];
@@ -495,6 +496,7 @@ class PokemonHandler {
             return `🔄 Time reordenado! *${pokeA.nickname}* agora é o slot ${slotB} e *${pokeB.nickname}* é o slot ${slotA}.`;
         }
 
+        // --- LÓGICA DE TROCA EM BATALHA ---
         const targetSlot = parseInt(param);
         if (isNaN(targetSlot)) return "Em batalha, use apenas o número do slot. Ex: *!poke trocar 2*";
 
@@ -507,6 +509,28 @@ class PokemonHandler {
         if (!targetPoke) return "🚫 Não tem ninguém nesse slot do time.";
         if (targetPoke.current_hp <= 0) return `💀 ${targetPoke.nickname} está desmaiado e não pode entrar!`;
         if (targetPoke.id === encounter.activePokemonId) return "🤦 Esse Pokémon já está em campo!";
+        
+        let extraData = encounter.gymData || {}; 
+        if (!extraData.participants) extraData.participants = [];
+        
+        let participantsChanged = false;
+
+        if (!extraData.waitingSwitch) {
+            
+            if (encounter.activePokemonId && !extraData.participants.includes(encounter.activePokemonId)) {
+                extraData.participants.push(encounter.activePokemonId);
+                participantsChanged = true;
+            }
+
+            if (!extraData.participants.includes(targetPoke.id)) {
+                extraData.participants.push(targetPoke.id);
+                participantsChanged = true;
+            }
+        }
+
+        if (participantsChanged) {
+             await this.db.run(`UPDATE active_encounters SET extra_data = ? WHERE user_id = ?`, [JSON.stringify(extraData), userId]);
+        }
 
         await this.db.run(`UPDATE active_encounters SET active_pokemon_id = ? WHERE user_id = ?`, [targetPoke.id, userId]);
 
@@ -524,7 +548,7 @@ class PokemonHandler {
         
         return log + enemyTurnLog;
     }
-
+    
     async handlePCCommand(userId, param) {
         const args = param.trim().split(/\s+/);
         const subCmd = args[0] ? args[0].toLowerCase() : 'lista';

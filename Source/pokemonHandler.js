@@ -142,9 +142,10 @@ class PokemonHandler {
     async init() {
         const pokeCount = await this.db.get('SELECT COUNT(*) as total FROM pokedex');
         const moveCount = await this.db.get('SELECT COUNT(*) as total FROM moves');
+        const pokeMoves = await this.db.get('SELECT COUNT(*) as total FROM pokemon_moves');
 
-        if (pokeCount.total < 152 || moveCount.total < 50) {
-            console.log(`⚠️ Banco de dados incompleto ou com poucos golpes (Moves: ${moveCount.total}).`);
+        if (pokeCount.total < 152 || moveCount.total < 50 || pokeMoves.total < 50) {
+            console.log(`⚠️ Banco de dados incompleto ou com poucos golpes (Moves: ${moveCount.total}, Pokemon Moves: ${pokeMoves.total}).`);
             console.log("⬇️ Iniciando download da PokéAPI (Versão Emerald)...");
             await this.seedDatabase();
         } else {

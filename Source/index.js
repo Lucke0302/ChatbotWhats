@@ -186,6 +186,7 @@ async function initDatabase() {
             pokemon_id INTEGER,
             move_id INTEGER,
             level_learned INTEGER,
+            PRIMARY KEY (pokemon_id, move_id, level_learned),
             FOREIGN KEY(pokemon_id) REFERENCES pokedex(id),
             FOREIGN KEY(move_id) REFERENCES moves(id)
         );

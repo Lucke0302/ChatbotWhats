@@ -609,6 +609,7 @@ class PokemonHandler {
 
             case 'atacar': 
                 return await this.battleTurn(from, sender, param, sock);
+
             case 'explorar': 
             case 'hunt': 
                 return await this.spawnWildPokemon(from, sender, sock);
@@ -676,7 +677,7 @@ class PokemonHandler {
         const user = await this.db.get("SELECT badges FROM usuarios WHERE id_usuario = ?", [userId]);
         const badges = user.badges || 0;
 
-const leadPoke = await this.db.get(`
+        const leadPoke = await this.db.get(`
             SELECT up.id, p.type1, p.type2 
             FROM user_pokemons up
             JOIN pokedex p ON up.pokedex_id = p.id
@@ -710,7 +711,7 @@ const leadPoke = await this.db.get(`
         const trainerName = trainerTemplate.names[Math.floor(Math.random() * trainerTemplate.names.length)];
         const trainerClass = trainerTemplate.class;
 
-        let teamSize = 1 + Math.floor(badges / 2);
+        let teamSize = (Math.floor(Math.random() * 3) + 1) + Math.floor(badges / 2);
         if (teamSize > 6) teamSize = 6;
 
         let trainerTeam = [];

@@ -143,9 +143,9 @@ class PokemonHandler {
         const pokeCount = await this.db.get('SELECT COUNT(*) as total FROM pokedex');
         const moveCount = await this.db.get('SELECT COUNT(*) as total FROM moves');
 
-        if (pokeCount.total === 0 || moveCount.total < 50) {
+        if (pokeCount.total < 152 || moveCount.total < 50) {
             console.log(`⚠️ Banco de dados incompleto ou com poucos golpes (Moves: ${moveCount.total}).`);
-            console.log("⬇️ Iniciando download da PokéAPI (Versão FireRed/LeafGreen)...");
+            console.log("⬇️ Iniciando download da PokéAPI (Versão Emerald)...");
             await this.seedDatabase();
         } else {
             console.log(`✅ Pokédex carregada: ${pokeCount.total} Pokémons e ${moveCount.total} Golpes.`);

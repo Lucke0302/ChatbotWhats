@@ -539,7 +539,7 @@ class PokemonHandler {
                 WHERE up.user_id = ? AND up.team_slot > 6 
                 ORDER BY up.team_slot ASC`, [userId]);
 
-            if (pcMons.length === 0) return "📦 Seu PC está vazio! Capture mais Pokémons (slot 7 em diante).";
+            if (pcMons.length === 0) return "📦 Seu PC está vazio! Capture mais Pokémon (slot 7 em diante).";
 
             let msg = "💻 *PC POKÉMON* (Armazenamento)\nUse: *!poke pc [quem_sai] [quem_entra]*\nEx: _!poke pc 2 1_ (Troca o slot 2 do time pelo 1 do PC)\n\n";
             
@@ -1339,12 +1339,20 @@ class PokemonHandler {
                 m1 = t ? t.id : null;
             }
 
-            const slots = await this.db.all("SELECT team_slot FROM user_pokemons WHERE user_id = ? ORDER BY team_slot ASC", [userId]);
+            const slots = await this.db.all("SELECT team_slot FROM user_pokemons WHERE user_id = ? AND team_slot IS NOT NULL ORDER BY team_slot ASC", [userId]);
             const occupiedSlots = slots.map(s => s.team_slot);
 
+            const totalPokes = await this.db.get("SELECT COUNT(*) as total FROM user_pokemons WHERE user_id = ?", [userId]);
+            
             let targetSlot = 1;
-            while (occupiedSlots.includes(targetSlot)) {
-                targetSlot++;
+
+            if (totalPokes.total > 0 && occupiedSlots.length === 0) {
+                targetSlot = totalPokes.total + 1;
+            } else {
+                // Lógica padrão: Procura o primeiro buraco vazio (1, 2, 3...)
+                while (occupiedSlots.includes(targetSlot)) {
+                    targetSlot++;
+                }
             }
 
             await this.db.run(`

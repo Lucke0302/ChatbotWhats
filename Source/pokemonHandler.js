@@ -1194,21 +1194,27 @@ class PokemonHandler {
                 
                 const nextPokeDex = await this.db.get("SELECT * FROM pokedex WHERE id = ?", [nextPokeData.pokedex_id]);
                 
-                const nextMoveNames = nextPokeData.moves;
-                const placeholders = nextMoveNames.map(() => '?').join(',');
-                const dbMoves = await this.db.all(`SELECT * FROM moves WHERE name IN (${placeholders})`, nextMoveNames);
-                
-                const nextMoves = nextMoveNames.map(mName => {
-                    const found = dbMoves.find(dbm => dbm.name === mName);
-                    return found ? {
-                        name: found.name,
-                        power: found.power,
-                        type: found.type,
-                        damage_class: found.damage_class
-                    } : { 
-                        name: mName, power: 40, type: 'normal', damage_class: 'physical' 
-                    };
-                });
+                let nextMoves = [];
+                const rawMoves = nextPokeData.moves;
+
+                if (rawMoves.length > 0 && typeof rawMoves[0] === 'object') {
+                    nextMoves = rawMoves;
+                } else {
+                    const placeholders = rawMoves.map(() => '?').join(',');
+                    const dbMoves = await this.db.all(`SELECT * FROM moves WHERE name IN (${placeholders})`, rawMoves);
+                    
+                    nextMoves = rawMoves.map(mName => {
+                        const found = dbMoves.find(dbm => dbm.name === mName);
+                        return found ? {
+                            name: found.name,
+                            power: found.power,
+                            type: found.type,
+                            damage_class: found.damage_class
+                        } : { 
+                            name: mName, power: 40, type: 'normal', damage_class: 'physical' 
+                        };
+                    });
+                }
 
                 const hpMult = encounter.isGym ? 1.5 : 1.2;
                 const nextHp = Math.floor(Math.floor(((2 * nextPokeDex.base_hp + 31 + 100) * nextPokeData.level) / 100 + 10) * hpMult);

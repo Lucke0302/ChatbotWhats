@@ -1527,7 +1527,7 @@ class PokemonHandler {
     async gainExperience(userPoke, enemy, enemyLevel, splitFactor = 1, multiplier) {
         if (userPoke.pending_move) {
             const moveName = (await this.db.get("SELECT name FROM moves WHERE id = ?", [userPoke.pending_move]))?.name;
-            return `⚠️ ${userPoke.nickname} ainda está tentando aprender *${moveName}*!\nUse *!poke trocar [1-4]* ou *!poke ignorar*.`;
+            return `⚠️ ${userPoke.nickname} ainda está tentando aprender *${moveName}*!\nUse *!poke esquecer [1-4]* ou *!poke ignorar*.`;
         }
 
         let lvl = userPoke.level;
@@ -1580,7 +1580,7 @@ class PokemonHandler {
                            `2. ${(await this.getMoveName(currentMoves[1]))}\n` +
                            `3. ${(await this.getMoveName(currentMoves[2]))}\n` +
                            `4. ${(await this.getMoveName(currentMoves[3]))}\n\n` +
-                           `Use: *!poke trocar 1* (para esquecer o 1º) ou *!poke ignorar*.`;
+                           `Use: *!poke esquecer 1* (para esquecer o 1º) ou *!poke ignorar*.`;
                 }
             }
         }

@@ -115,6 +115,19 @@ const TYPE_CHART = {
     water: { fire: 2, ground: 2, rock: 2, water: .5, grass: .5, dragon: .5 }
 }
 
+const TRAINER_DATA = [
+    { class: "Youngster",   names: ["Joey", "Ben", "Calvin"], type: "normal",   sprite: "https://play.pokemonshowdown.com/sprites/trainers/youngster-gen4.png" },
+    { class: "Bug Catcher", names: ["Wade", "Sam", "Doug"],   type: "bug",      sprite: "https://play.pokemonshowdown.com/sprites/trainers/bugcatcher-gen4.png" },
+    { class: "Lass",        names: ["Janice", "Sally"],       type: "normal",   sprite: "https://play.pokemonshowdown.com/sprites/trainers/lass-gen4.png" },
+    { class: "Hiker",       names: ["Anthony", "Lenny"],      type: "rock",     sprite: "https://play.pokemonshowdown.com/sprites/trainers/hiker-gen4.png" },
+    { class: "Fisherman",   names: ["Ralph", "Justin"],       type: "water",    sprite: "https://play.pokemonshowdown.com/sprites/trainers/fisherman-gen4.png" },
+    { class: "Psychic",     names: ["Nathan", "Jared"],       type: "psychic",  sprite: "https://play.pokemonshowdown.com/sprites/trainers/psychic-gen4.png" },
+    { class: "Black Belt",  names: ["Kiyo", "Mike"],          type: "fighting", sprite: "https://play.pokemonshowdown.com/sprites/trainers/blackbelt-gen4.png" },
+    { class: "Scientist",   names: ["Beau", "Ted"],           type: "electric", sprite: "https://play.pokemonshowdown.com/sprites/trainers/scientist-gen4.png" },
+    { class: "Team Rocket", names: ["Grunt", "Admin"],        type: "poison",   sprite: "https://play.pokemonshowdown.com/sprites/trainers/rocketgrunt-gen4.png" },
+    { class: "Cooltrainer", names: ["Nick", "Becky"],         type: null,       sprite: "https://play.pokemonshowdown.com/sprites/trainers/acetrainer-gen4.png" }
+];
+
 class PokemonHandler {
     constructor(db) {
         this.db = db;
@@ -659,11 +672,142 @@ class PokemonHandler {
         await this.db.run("DELETE FROM active_encounters WHERE user_id = ?", [userId]);
     }
 
+    async spawnTrainer(groupId, userId, sock) {
+        const user = await this.db.get("SELECT badges FROM usuarios WHERE id_usuario = ?", [userId]);
+        const badges = user.badges || 0;
+
+const leadPoke = await this.db.get(`
+            SELECT up.id, p.type1, p.type2 
+            FROM user_pokemons up
+            JOIN pokedex p ON up.pokedex_id = p.id
+            WHERE up.user_id = ? AND up.team_slot IS NOT NULL AND up.current_hp > 0 
+            ORDER BY up.team_slot ASC LIMIT 1`, [userId]);
+
+        if (!leadPoke) return "🚑 Seus Pokémon estão desmaiados! Cure-os antes de aceitar desafios.";
+
+        const lvlResult = await this.db.get(`SELECT AVG(level) as media FROM user_pokemons WHERE user_id = ?`, [userId]);
+        const userAvgLvl = lvlResult && lvlResult.media ? Math.floor(lvlResult.media) : 5;
+
+        let possibleTrainers = TRAINER_DATA;
+
+        if (badges === 0) {
+            const weakTrainers = TRAINER_DATA.filter(t => {
+                if (!t.type) return false;
+                
+                const eff1 = (TYPE_CHART[leadPoke.type1] && TYPE_CHART[leadPoke.type1][t.type]) || 1;
+                
+                const eff2 = (leadPoke.type2 && TYPE_CHART[leadPoke.type2] && TYPE_CHART[leadPoke.type2][t.type]) || 1;
+
+                return eff1 >= 2 || eff2 >= 2;
+            });
+
+            if (weakTrainers.length > 0) {
+                possibleTrainers = weakTrainers;
+            }
+        }
+
+        const trainerTemplate = possibleTrainers[Math.floor(Math.random() * possibleTrainers.length)];
+        const trainerName = trainerTemplate.names[Math.floor(Math.random() * trainerTemplate.names.length)];
+        const trainerClass = trainerTemplate.class;
+
+        let teamSize = 1 + Math.floor(badges / 2);
+        if (teamSize > 6) teamSize = 6;
+
+        let trainerTeam = [];
+
+        for (let i = 0; i < teamSize; i++) {
+            let multiplier = 1.0;
+            if (i === 0) multiplier = 1.2;
+            else if (i === 1) multiplier = 1.1;
+
+            const pokeLevel = Math.max(3, Math.floor(userAvgLvl * multiplier));
+            
+            let maxTier = 1;
+            if (pokeLevel >= 14) maxTier = 2;
+            if (pokeLevel >= 30) maxTier = 3;
+
+            let query = "SELECT * FROM pokedex WHERE rarity = 'common' AND is_starter = 0 AND tier <= ?";
+            let params = [maxTier];
+
+            if (trainerTemplate.type) {
+                query += " AND (type1 = ? OR type2 = ?)";
+                params.push(trainerTemplate.type, trainerTemplate.type);
+            }
+
+            query += " ORDER BY RANDOM() LIMIT 1";
+            
+            let pokemon = await this.db.get(query, params);
+
+            if (!pokemon) {
+                pokemon = await this.db.get(`SELECT * FROM pokedex WHERE rarity = 'common' AND tier <= ? ORDER BY RANDOM() LIMIT 1`, [maxTier]);
+            }
+
+            let moves = await this.getMovesForLevel(pokemon.id, pokeLevel);
+            if (!moves.length) moves = [{name: "tackle", power: 40, damage_class: 'physical', type: 'normal'}];
+            
+            const moveObjects = moves.map(m => ({
+                name: m.name, power: m.power, type: m.type, damage_class: m.damage_class
+            }));
+
+            trainerTeam.push({
+                pokedex_id: pokemon.id,
+                level: pokeLevel,
+                moves: moveObjects,
+                name: pokemon.name,
+                base_hp: pokemon.base_hp, 
+                sprite: pokemon.sprite_url
+            });
+        }
+
+        const firstPokeData = trainerTeam[0];
+        const remainingTeam = trainerTeam.slice(1);
+        
+        const hpMultiplier = 1.2;
+        const bossHp = Math.floor(((2 * firstPokeData.base_hp + 15 + 100) * firstPokeData.level) / 100 + 10) * hpMultiplier;
+
+        const extraData = { 
+            leaderName: `${trainerClass} ${trainerName}`, 
+            badgeName: null, 
+            reward: 100 + (badges * 50) + (userAvgLvl * 10), 
+            participants: [leadPoke.id],
+            remainingTeam: remainingTeam 
+        };
+
+        await this.db.run(`
+            INSERT INTO active_encounters (
+                user_id, group_id, pokedex_id, current_hp, max_hp, level, 
+                is_shiny, moves, battle_type, extra_data, started_at, active_pokemon_id
+            ) VALUES (?, ?, ?, ?, ?, ?, 0, ?, 'TRAINER', ?, ?, ?)`,
+            [userId, groupId, firstPokeData.pokedex_id, bossHp, bossHp, firstPokeData.level, JSON.stringify(firstPokeData.moves), JSON.stringify(extraData), Date.now(), leadPoke.id]
+        );
+
+        const caption = `⚠️ *DESAFIO DE TREINADOR!*\n` +
+                        `**${trainerClass} ${trainerName}** quer batalhar!\n` +
+                        `Ele enviou *${firstPokeData.name}* (Lvl ${firstPokeData.level})!\n` +
+                        `Pokémons do Treinador: ${trainerTeam.length}\n` +
+                        `Use *!poke atacar* para lutar!`;
+
+        if (sock) {
+            try { await sock.sendMessage(groupId, { image: { url: trainerTemplate.sprite }, caption: caption }); } 
+            catch (e) { await sock.sendMessage(groupId, { text: caption }); }
+            return null;
+        }
+        return caption;
+    }
+
 
     async spawnWildPokemon(groupId, userId, sock) {
         const existing = await this.loadEncounter(userId);
         if (existing) {
             return `🚫 Você já está em batalha contra *${existing.pokemon.name}*! Termine ela primeiro.`;
+        }
+
+        // Encontro com treinador!
+        if (Math.random() < 0.2) {
+             const hasMinLvl = await this.db.get("SELECT level FROM user_pokemons WHERE user_id = ? ORDER BY level DESC LIMIT 1", [userId]);
+             if (hasMinLvl && hasMinLvl.level >= 5) {
+                 return await this.spawnTrainer(groupId, userId, sock);
+             }
         }
 
         const user = await this.db.get("SELECT badges FROM usuarios WHERE id_usuario = ?", [userId]);

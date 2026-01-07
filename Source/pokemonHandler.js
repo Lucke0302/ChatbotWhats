@@ -507,15 +507,9 @@ class PokemonHandler {
 
         await this.db.run(`UPDATE active_encounters SET active_pokemon_id = ? WHERE user_id = ?`, [targetPoke.id, userId]);
 
-        const encounterData = await this.db.get("SELECT extra_data FROM active_encounters WHERE user_id = ?", [userId]);
-        let extraData = encounterData.extra_data ? JSON.parse(encounterData.extra_data) : { participants: [] };
-
-        if (!extraData.participants) extraData.participants = [];
-
-        if (!extraData.participants.includes(targetPoke.id)) {
-            extraData.participants.push(targetPoke.id);
-
-            await this.db.run("UPDATE active_encounters SET extra_data = ? WHERE user_id = ?", [JSON.stringify(extraData), userId]);
+        if (encounter.gymData && encounter.gymData.waitingSwitch) {
+            const newEnemyName = await this.advanceBattle(userId, encounter);
+            return `🔄 Você trocou para **${targetPoke.nickname}**!\n🚨 Oponente enviou **${newEnemyName}**!`;
         }
 
         let log = `🔄 **Você trocou para ${targetPoke.nickname}!**\n`;
@@ -1053,9 +1047,59 @@ class PokemonHandler {
         return null;
     }
 
+    async advanceBattle(userId, encounter) {
+        const nextPokeData = encounter.gymData.nextEnemy;
+        
+        delete encounter.gymData.nextEnemy;
+        delete encounter.gymData.waitingSwitch;
+        encounter.gymData.participants = []; 
+
+        const nextPokeDex = await this.db.get("SELECT * FROM pokedex WHERE id = ?", [nextPokeData.pokedex_id]);
+        
+        let nextMoves = [];
+        const rawMoves = nextPokeData.moves;
+
+        if (rawMoves.length > 0 && typeof rawMoves[0] === 'object') {
+            nextMoves = rawMoves;
+        } else {
+            const placeholders = rawMoves.map(() => '?').join(',');
+            const dbMoves = await this.db.all(`SELECT * FROM moves WHERE name IN (${placeholders})`, rawMoves);
+            
+            nextMoves = rawMoves.map(mName => {
+                const found = dbMoves.find(dbm => dbm.name === mName);
+                return found ? {
+                    name: found.name,
+                    power: found.power,
+                    type: found.type,
+                    damage_class: found.damage_class
+                } : { 
+                    name: mName, power: 40, type: 'normal', damage_class: 'physical' 
+                };
+            });
+        }
+
+        const hpMult = encounter.isGym ? 1.5 : 1.2;
+        const nextHp = Math.floor(Math.floor(((2 * nextPokeDex.base_hp + 31 + 100) * nextPokeData.level) / 100 + 10) * hpMult);
+
+        await this.db.run(`
+            UPDATE active_encounters 
+            SET pokedex_id = ?, current_hp = ?, max_hp = ?, level = ?, moves = ?, extra_data = ?
+            WHERE user_id = ?`,
+            [nextPokeDex.id, nextHp, nextHp, nextPokeData.level, JSON.stringify(nextMoves), JSON.stringify(encounter.gymData), userId]
+        );
+        
+        return nextPokeDex.name;
+    }
+
     async battleTurn(groupId, userId, moveSlot, sock) {
         const encounter = await this.loadEncounter(userId);
         if (!encounter) return "Não tem batalha rolando. Use *!poke explorar*.";
+
+        if (encounter.gymData && encounter.gymData.waitingSwitch) {
+            const newEnemyName = await this.advanceBattle(userId, encounter);
+            encounter = await this.loadEncounter(userId);
+            if(sock) await sock.sendMessage(groupId, { text: `🚨 Você manteve sua posição.\nOponente enviou **${newEnemyName}**!` });
+        }
 
         const userPoke = await this.db.get(`
             SELECT up.*, p.name, p.type1, p.type2, p.base_hp, p.base_atk, p.base_def, p.base_spa, p.base_spd, p.base_spe 
@@ -1190,9 +1234,16 @@ class PokemonHandler {
             if ((encounter.isGym || encounter.battle_type === 'TRAINER') && encounter.gymData.remainingTeam && encounter.gymData.remainingTeam.length > 0) {
                 const nextPokeData = encounter.gymData.remainingTeam.shift(); 
                 
-                encounter.gymData.participants = []; 
+                const nextPokeDex = await this.db.get("SELECT name FROM pokedex WHERE id = ?", [nextPokeData.pokedex_id]);
                 
-                const nextPokeDex = await this.db.get("SELECT * FROM pokedex WHERE id = ?", [nextPokeData.pokedex_id]);
+                encounter.gymData.waitingSwitch = true;
+                encounter.gymData.nextEnemy = nextPokeData; 
+                
+                await this.db.run(`UPDATE active_encounters SET extra_data = ? WHERE user_id = ?`, 
+                    [JSON.stringify(encounter.gymData), userId]
+                );                
+                
+                encounter.gymData.participants = []; 
                 
                 let nextMoves = [];
                 const rawMoves = nextPokeData.moves;
@@ -1227,7 +1278,7 @@ class PokemonHandler {
                 );
 
                 const title = encounter.isGym ? 'Líder' : 'Treinador';
-                return `${log}\n${logMsg}\n\n🚨 *${title} ${encounter.gymData.leaderName}* enviou *${nextPokeDex.name}* (Lvl ${nextPokeData.level})!\nA batalha continua!`;
+                return `${log}\n${logMsg}\n\n🛑 *${title} ${encounter.gymData.leaderName}* vai enviar *${nextPokeDex.name}*.\n\nDeseja trocar de Pokémon?\n🔄 *!poke trocar [slot]*\n⚔️ *!poke atacar* (para manter)`;
             }
 
             // VITÓRIA FINAL

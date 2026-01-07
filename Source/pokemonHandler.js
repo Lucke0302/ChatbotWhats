@@ -2,6 +2,7 @@ const axios = require('axios');
 const { gracefulShutdown } = require('node-schedule');
 const { generate } = require('qrcode-terminal');
 const STARTER_IDS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 152, 153, 154, 155, 156, 157, 158, 159, 160, 252, 253, 254, 255, 256, 257, 258, 259, 260];
+const ADMIN_ID = "5513991008854@s.whatsapp.net";
 const RARE_POKE = [
     // --- GEN 1 ---
     25, 26, 172,      //Pichu, Pikachu, Raichu
@@ -665,7 +666,7 @@ class PokemonHandler {
 
             case 'explorar': 
             case 'hunt': 
-                return await this.spawnWildPokemon(from, sender, sock);
+                return await this.spawnWildPokemon(from, sender, sock, param);
             
             case 'capturar': 
             case 'catch': 
@@ -866,14 +867,20 @@ class PokemonHandler {
     }
 
 
-    async spawnWildPokemon(groupId, userId, sock) {
+    async spawnWildPokemon(groupId, userId, sock, param) {
         const existing = await this.loadEncounter(userId);
         if (existing) {
             return `🚫 Você já está em batalha contra *${existing.pokemon.name}*! Termine ela primeiro.`;
         }
 
+        let trainerPercent = 0.2
+
+        if (userId == ADMIN_ID && param == "force"){
+            trainerPercent = 1
+        }
+
         // Encontro com treinador!
-        if (Math.random() < 0.2) {
+        if (Math.random() < trainerPercent) {
              const hasMinLvl = await this.db.get("SELECT level FROM user_pokemons WHERE user_id = ? ORDER BY level DESC LIMIT 1", [userId]);
              if (hasMinLvl && hasMinLvl.level >= 5) {
                  return await this.spawnTrainer(groupId, userId, sock);

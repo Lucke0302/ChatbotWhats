@@ -836,10 +836,21 @@ class PokemonHandler {
             INSERT INTO active_encounters (
                 user_id, group_id, pokedex_id, current_hp, max_hp, level, 
                 is_shiny, moves, battle_type, extra_data, started_at, active_pokemon_id
-            ) VALUES (?, ?, ?, ?, ?, ?, 0, ?, 'TRAINER', ?, ?, ?)`,
-            [userId, groupId, firstPokeData.pokedex_id, bossHp, bossHp, firstPokeData.level, JSON.stringify(firstPokeData.moves), JSON.stringify(extraData), Date.now(), leadPoke.id]
+            ) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)`, 
+            [
+                userId, 
+                groupId, 
+                firstPokeData.pokedex_id, 
+                bossHp, 
+                bossHp, 
+                firstPokeData.level, 
+                JSON.stringify(firstPokeData.moves), 
+                'TRAINER',
+                JSON.stringify(extraData), 
+                Date.now(), 
+                leadPoke.id
+            ]
         );
-
         const caption = `⚠️ *DESAFIO DE TREINADOR!*\n` +
                         `**${trainerClass} ${trainerName}** quer batalhar!\n` +
                         `Ele enviou *${firstPokeData.name}* (Lvl ${firstPokeData.level})!\n` +

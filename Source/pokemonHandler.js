@@ -584,6 +584,10 @@ class PokemonHandler {
         }
 
         switch (action) {
+            case 'resetar': 
+                await this.db.run("DELETE FROM active_encounters WHERE user_id = ?", [sender]);
+                return "✅ Batalha bugada removida à força.";
+
             case 'swap':
             case 'esquecer':
                 return await this.learnPendingMove(sender, param);
@@ -1238,46 +1242,13 @@ class PokemonHandler {
                 
                 encounter.gymData.waitingSwitch = true;
                 encounter.gymData.nextEnemy = nextPokeData; 
-                
+
                 await this.db.run(`UPDATE active_encounters SET extra_data = ? WHERE user_id = ?`, 
                     [JSON.stringify(encounter.gymData), userId]
-                );                
-                
-                encounter.gymData.participants = []; 
-                
-                let nextMoves = [];
-                const rawMoves = nextPokeData.moves;
-
-                if (rawMoves.length > 0 && typeof rawMoves[0] === 'object') {
-                    nextMoves = rawMoves;
-                } else {
-                    const placeholders = rawMoves.map(() => '?').join(',');
-                    const dbMoves = await this.db.all(`SELECT * FROM moves WHERE name IN (${placeholders})`, rawMoves);
-                    
-                    nextMoves = rawMoves.map(mName => {
-                        const found = dbMoves.find(dbm => dbm.name === mName);
-                        return found ? {
-                            name: found.name,
-                            power: found.power,
-                            type: found.type,
-                            damage_class: found.damage_class
-                        } : { 
-                            name: mName, power: 40, type: 'normal', damage_class: 'physical' 
-                        };
-                    });
-                }
-
-                const hpMult = encounter.isGym ? 1.5 : 1.2;
-                const nextHp = Math.floor(Math.floor(((2 * nextPokeDex.base_hp + 31 + 100) * nextPokeData.level) / 100 + 10) * hpMult);
-
-                await this.db.run(`
-                    UPDATE active_encounters 
-                    SET pokedex_id = ?, current_hp = ?, max_hp = ?, level = ?, moves = ?, extra_data = ?
-                    WHERE user_id = ?`,
-                    [nextPokeDex.id, nextHp, nextHp, nextPokeData.level, JSON.stringify(nextMoves), JSON.stringify(encounter.gymData), userId]
                 );
 
                 const title = encounter.isGym ? 'Líder' : 'Treinador';
+                
                 return `${log}\n${logMsg}\n\n🛑 *${title} ${encounter.gymData.leaderName}* vai enviar *${nextPokeDex.name}*.\n\nDeseja trocar de Pokémon?\n🔄 *!poke trocar [slot]*\n⚔️ *!poke atacar* (para manter)`;
             }
 

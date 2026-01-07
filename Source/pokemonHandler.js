@@ -746,7 +746,7 @@ class PokemonHandler {
             isShiny: !!encounter.is_shiny,
             moves: JSON.parse(encounter.moves || '[]'),
             battle_type: encounter.battle_type,
-            isGym: encounter.battle_type === 'GYM',
+            isGym: encounter.battle_type.includes('GYM'),
             gymData: encounter.extra_data ? JSON.parse(encounter.extra_data) : null,
             timestamp: encounter.started_at,
             groupId: encounter.group_id
@@ -1317,7 +1317,8 @@ class PokemonHandler {
             let logMsg = `💀 O inimigo desmaiou!\n`;
 
             let xpMultiplier = 1.0;
-            if (encounter.battle_type === 'GYM') xpMultiplier = 2.5; 
+            if (encounter.battle_type === 'GYM_LEADER') xpMultiplier = 2.5; 
+            else if (encounter.battle_type === 'GYM_TRAINER') xpMultiplier = 2.5; 
             else if (encounter.battle_type === 'TRAINER') xpMultiplier = 1.5;
 
             for (const pId of uniqueParticipants) {

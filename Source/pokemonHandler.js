@@ -1655,10 +1655,9 @@ class PokemonHandler {
             VALUES (?,?,?,5, ?,?,?,?,?, ?,?,?,?,?,?, 1)`, 
             [
                 userId, pk.id, pk.name, initialXp, hp, hp, moves[0]?.id, Date.now(),
-                hpIv, randIv(), randIv(), randIv(), randIv(), randIv(), randIv()
+                hpIv, randIv(), randIv(), randIv(), randIv(), randIv()
             ]
         );
-        
         await this.db.run("UPDATE usuarios SET pokeballs = 20, potions = 5 WHERE id_usuario = ?", [userId]);
         return `🎉 Parabéns! Você escolheu *${pk.name}* como parceiro!`;
     }

@@ -673,7 +673,7 @@ class PokemonHandler {
 
             case 'comprar': 
             case 'buy': 
-                return await this.buyItem(sender, param, args[3]);
+                return await this.buyItem(sender, args[2], args[3]);
 
             case 'comecar': 
             case 'start': 
@@ -1483,11 +1483,11 @@ if (encounter.battle_type === 'GYM_TRAINER') {
         return log;
     }
 
-    async catchPokemon(groupId, userId) {
+async catchPokemon(groupId, userId) {
         const encounter = await this.loadEncounter(userId);
         if (!encounter) return "🤷 Nenhuma batalha ativa.";
         if (encounter.isGym) return "🚫 Você não pode roubar o Pokémon do Líder!";
-        if (encounter.battle_type === 'TRAINER') return "🚫 Você não pode roubar o Pokémon de outro treinador! Isso é crime!";
+        if (encounter.battle_type === 'TRAINER' || encounter.battle_type === 'GYM_TRAINER') return "🚫 Você não pode roubar o Pokémon de outro treinador! Isso é crime!";
 
         const user = await this.db.get("SELECT pokeballs FROM usuarios WHERE id_usuario = ?", [userId]);
         if (!user || user.pokeballs <= 0) return "🚫 Sem Pokébolas! Compre na loja.";
@@ -1495,6 +1495,9 @@ if (encounter.battle_type === 'GYM_TRAINER') {
         await this.db.run("UPDATE usuarios SET pokeballs = pokeballs - 1 WHERE id_usuario = ?", [userId]);
         
         const catchChance = 0.3 + (0.5 * (1 - (encounter.currentHp / encounter.maxHp)));
+        
+        // --- SUCESSO NA CAPTURA ---
+
         if (Math.random() < catchChance) {
             const pk = encounter.pokemon;
             const randIv = () => Math.floor(Math.random() * 32);
@@ -1510,18 +1513,13 @@ if (encounter.battle_type === 'GYM_TRAINER') {
 
             const slots = await this.db.all("SELECT team_slot FROM user_pokemons WHERE user_id = ? AND team_slot IS NOT NULL ORDER BY team_slot ASC", [userId]);
             const occupiedSlots = slots.map(s => s.team_slot);
-
             const totalPokes = await this.db.get("SELECT COUNT(*) as total FROM user_pokemons WHERE user_id = ?", [userId]);
             
             let targetSlot = 1;
-
             if (totalPokes.total > 0 && occupiedSlots.length === 0) {
                 targetSlot = totalPokes.total + 1;
             } else {
-                // Lógica padrão: Procura o primeiro buraco vazio (1, 2, 3...)
-                while (occupiedSlots.includes(targetSlot)) {
-                    targetSlot++;
-                }
+                while (occupiedSlots.includes(targetSlot)) { targetSlot++; }
             }
 
             await this.db.run(`
@@ -1532,14 +1530,44 @@ if (encounter.battle_type === 'GYM_TRAINER') {
             await this.clearEncounter(userId);
             
             let msg = `🎉 Capturou *${pk.name}*! (Bolas: ${user.pokeballs - 1})`;
-            if (targetSlot > 6) {
-                msg += `\n📦 Time cheio! Enviado para o PC (Box ${targetSlot - 6}).`;
-            } else {
-                msg += `\n✅ Adicionado ao time principal.`;
-            }
+            if (targetSlot > 6) msg += `\n📦 Time cheio! Enviado para o PC (Box ${targetSlot - 6}).`;
+            else msg += `\n✅ Adicionado ao time principal.`;
+            
             return msg;
         }
-        return `💢 Escapou! (Bolas: ${user.pokeballs - 1})`;
+
+        // --- FALHA NA CAPTURA ---
+
+        let msg = `💢 A Pokébola quebrou! O *${encounter.pokemon.name}* escapou! (Bolas: ${user.pokeballs - 1})`;
+
+        const userPoke = await this.db.get(`
+            SELECT up.*, p.name, p.type1, p.type2, p.base_hp, p.base_atk, p.base_def, p.base_spa, p.base_spd, p.base_spe 
+            FROM user_pokemons up 
+            JOIN pokedex p ON up.pokedex_id = p.id
+            WHERE up.id = ?`, [encounter.activePokemonId]);
+
+        if (userPoke) {
+             const encounterRaw = await this.db.get("SELECT extra_data FROM active_encounters WHERE user_id = ?", [userId]);
+             let battleState = this.getBattleState(encounterRaw);
+
+             const enemyLog = await this.processEnemyTurn(encounter, userPoke, battleState, userId);
+             msg += enemyLog;
+
+             const updatedUserPoke = await this.db.get("SELECT current_hp, nickname FROM user_pokemons WHERE id = ?", [userPoke.id]);
+             
+             if (updatedUserPoke.current_hp <= 0) {
+                const hasBackup = await this.db.get("SELECT id FROM user_pokemons WHERE user_id = ? AND team_slot IS NOT NULL AND current_hp > 0 AND id != ?", [userId, userPoke.id]);
+                
+                if (hasBackup) {
+                    msg += `\n\n💀 *${updatedUserPoke.nickname}* desmaiou!\nA batalha continua! Use *!poke trocar [slot]* para enviar o próximo!`;
+                } else {
+                    await this.clearEncounter(userId);
+                    msg += `\n\n🏴 Você não tem mais Pokémon capazes de lutar!\nVocê correu para o CP (use *!poke curar*).`;
+                }
+             }
+        }
+
+        return msg;
     }
 
     async fleeBattle(groupId, userId) {
@@ -1578,7 +1606,7 @@ if (encounter.battle_type === 'GYM_TRAINER') {
 
     async showShop(userId) {
         const user = await this.db.get("SELECT pokecoins, pokeballs, potions FROM usuarios WHERE id_usuario = ?", [userId]);
-        return `🏪 *LOJA* (💰 ${user.pokecoins})\n1. 🔴 Bola (200)\n2. 🧪 Poção (300)\nUse: *!poke comprar 1 5*`;
+        return `🏪 *LOJA* (💰 ${user.pokecoins})\n1. 🔴 Bola (200)\n\nUse: *!poke comprar 1 5*`;
     }
 
     async buyItem(userId, itemIndex, amount) {

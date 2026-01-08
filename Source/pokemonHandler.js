@@ -1354,30 +1354,33 @@ class PokemonHandler {
             // VITÓRIA FINAL
             await this.clearEncounter(userId);
 
-            if (encounter.isGym) {
-                const badgeInfo = encounter.gymData;
-                await this.db.run("UPDATE usuarios SET badges = badges + 1, pokecoins = pokecoins + ? WHERE id_usuario = ?", [badgeInfo.reward, userId]);
-                return `${log}\n🏆 *VITÓRIA NO GINÁSIO!*\nRecebeu Insígnia ${badgeInfo.badgeName} e 💰 ${badgeInfo.reward}!\n${logMsg}`;
-            }
-
-            if (encounter.battle_type === 'GYM_TRAINER') {
-                const reward = encounter.gymData.reward || 500;
-                await this.db.run("UPDATE usuarios SET gym_progress = gym_progress - 1, pokecoins = pokecoins + 150 WHERE id_usuario = ?", [userId]);
+if (encounter.battle_type === 'GYM_TRAINER') {
+                await this.db.run("UPDATE usuarios SET gym_progress = gym_progress - 1 WHERE id_usuario = ?", [userId]);
+                
                 const remaining = (await this.db.get("SELECT gym_progress FROM usuarios WHERE id_usuario = ?", [userId])).gym_progress;
                 
+                const reward = 750; 
+                await this.db.run("UPDATE usuarios SET pokecoins = pokecoins + ? WHERE id_usuario = ?", [reward, userId]);
+
                 let nextMsg = "";
                 if (remaining > 0) {
                     nextMsg = `😰 Faltam *${remaining}* treinadores.\nCure seus Pokémon e digite *!poke ginasio* novamente.`;
                 } else {
-                    nextMsg = `🚨 *O CAMINHO ESTÁ LIVRE!* 🚨\nVocê derrotou todos os treinadores.\nCure seu time e digite *!poke ginasio* para desafiar o(a) LÍDER!`;
+                    nextMsg = `🚨 *O CAMINHO ESTÁ LIVRE!* 🚨\nVocê derrotou todos os capangas.\nCure seu time e digite *!poke ginasio* para desafiar o LÍDER!`;
                 }
 
-                await this.db.run("UPDATE usuarios SET pokecoins = pokecoins + ? WHERE id_usuario = ?", [reward, userId]);
                 return `${log}\n🎉 *Você venceu o treinador do ginásio!*\nRecebeu 💰 ${reward}!\n${logMsg}\n\n${nextMsg}`;
             }
 
+            if (encounter.battle_type === 'GYM_LEADER') { 
+                const badgeInfo = encounter.gymData;
+                await this.db.run("UPDATE usuarios SET badges = badges + 1, pokecoins = pokecoins + ?, gym_progress = NULL WHERE id_usuario = ?", [badgeInfo.reward, userId]);
+                return `${log}\n🏆 *VITÓRIA NO GINÁSIO!*\nVocê derrotou o Líder ${badgeInfo.leaderName}!\n\n🏅 Recebeu: *Insígnia ${badgeInfo.badgeName}*\n💰 Recebeu: *${badgeInfo.reward} coins*\n${logMsg}`;
+            }
+
             if (encounter.battle_type === 'TRAINER') {
-                const reward = encounter.gymData.reward || 500;
+                const rawReward = encounter.gymData.reward || 500;
+                const reward = Math.floor((Math.random() + 1) * rawReward)
                 await this.db.run("UPDATE usuarios SET pokecoins = pokecoins + ? WHERE id_usuario = ?", [reward, userId]);
                 return `${log}\n🏆 *VOCÊ VENCEU O TREINADOR!*\nRecebeu 💰 ${reward}!\n${logMsg}`;
             }

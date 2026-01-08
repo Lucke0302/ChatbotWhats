@@ -1620,7 +1620,7 @@ async catchPokemon(groupId, userId) {
 
         if (user.pokecoins < cost) return "Dinheiro insuficiente.";
         await this.db.run(`UPDATE usuarios SET pokecoins = pokecoins - ?, ${col} = ${col} + ? WHERE id_usuario = ?`, [cost, qtd, userId]);
-        return `✅ Você comprou ${amout} ${col}!\n💰 Dinheiro restante: ${user.pokecoins - cost}`;
+        return `✅ Você comprou ${amount} ${col}!\n💰 Dinheiro restante: ${user.pokecoins - cost}`;
     }
 
     async checkIfUserHasPokemon(userId) {

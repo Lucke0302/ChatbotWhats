@@ -134,6 +134,13 @@ const TRAINER_DATA = [
     { class: "Cooltrainer", names: ["Nick", "Becky"],         type: null,       sprite: "https://play.pokemonshowdown.com/sprites/trainers/acetrainer-gen4.png" }
 ];
 
+const TYPE_EMOJIS = {
+    normal: '⚪', fire: '🔥', water: '💧', grass: '🍃', electric: '⚡',
+    ice: '❄️', fighting: '👊', poison: '☠️', ground: '🏜️', flying: '🦅',
+    psychic: '🔮', bug: '🪲', rock: '🪨', ghost: '👻', dragon: '🐉',
+    steel: '🔩', dark: '🌑', fairy: '✨'
+};
+
 class PokemonHandler {
     constructor(db) {
         this.db = db;
@@ -376,6 +383,12 @@ class PokemonHandler {
         return data;
     }
 
+    getTypeEmojis(type1, type2) {
+        let emojis = TYPE_EMOJIS[type1] || '';
+        if (type2) emojis += TYPE_EMOJIS[type2] || '';
+        return emojis;
+    }
+
     async getUserTag(userId) {
         const user = await this.db.get("SELECT nome, color FROM usuarios WHERE id_usuario = ?", [userId]);
         const name = user?.nome || "Treinador";
@@ -468,10 +481,9 @@ class PokemonHandler {
         return result;
     }
 
-    async getTeam(userId) {        
-        const tag = await this.getUserTag(userId);
+    async getTeam(userId) {
         const team = await this.db.all(`
-            SELECT up.*, p.name 
+            SELECT up.*, p.name, p.type1, p.type2 
             FROM user_pokemons up 
             JOIN pokedex p ON up.pokedex_id = p.id 
             WHERE up.user_id = ? AND up.team_slot IS NOT NULL AND up.team_slot < 7
@@ -479,10 +491,11 @@ class PokemonHandler {
             
         if (!team.length) return "Seu time está vazio!";
         
-        let msg = `${tag}🧢 *SEU TIME*\n`;
+        let msg = "🧢 *SEU TIME*\n";
         team.forEach(p => {
             const status = p.current_hp <= 0 ? "💀" : "❤️";
-            msg += `${p.team_slot}. ${status} ${p.nickname} (Lvl ${p.level}) - HP: ${p.current_hp}/${p.max_hp}\n`;
+            const types = this.getTypeEmojis(p.type1, p.type2);
+            msg += `${p.team_slot}. ${status} ${p.nickname} ${types} (Lvl ${p.level}) - HP: ${p.current_hp}/${p.max_hp}\n`;
         });
         return msg;
     }
@@ -1027,7 +1040,9 @@ class PokemonHandler {
             emoji += "🌟 POKÉMON RARO 🌟\n";
         }
 
-        const caption = `${tag}${emoji} Um *${pokemon.name.toUpperCase()}* (Lvl ${wildLevel}) selvagem apareceu!\n` +
+        const typeEmojis = this.getTypeEmojis(pokemon.type1, pokemon.type2);
+
+        const caption = `${tag}${emoji} Um *${pokemon.name.toUpperCase()}* ${typeEmojis} (Lvl ${wildLevel}) selvagem apareceu!\n` +
                         `❤️ HP: ${wildHp}/${wildHp}\n` +
                         `Use *!poke atacar* ou *!poke capturar*`;
 
@@ -1260,7 +1275,10 @@ class PokemonHandler {
 
         if (!moveSlot) {
             const moves = await this.getUserMoves(userPoke);
-            let msg = `${tag}👊 *${userPoke.nickname}* (HP: ${userPoke.current_hp}/${userPoke.max_hp})\n*Ataques:*\n`;
+            const typeEmojis = this.getTypeEmojis(userPoke.type1, userPoke.type2);
+            
+            let msg = `${tag}👊 *${userPoke.nickname}* ${typeEmojis} (HP: ${userPoke.current_hp}/${userPoke.max_hp})\n*Ataques:*\n`;
+            
             moves.forEach((m, i) => msg += `${i+1}. ${m.name} (${m.type})\n`);
             msg += `\nUse: *!poke atacar 1*`;
             return msg;
@@ -1458,15 +1476,20 @@ class PokemonHandler {
                `🏃 *!poke fugir*`;
     }
 
-    async processEnemyTurn(encounter, userPoke, battleState, userId) {
+async processEnemyTurn(encounter, userPoke, battleState, userId) {
         let log = "";
 
         const wildMove = encounter.moves[Math.floor(Math.random() * encounter.moves.length)] || {name: "Investida", power: 40, damage_class: 'physical', type: 'normal'};
         let damageToUser = 0;
 
+        const enemyEmojis = this.getTypeEmojis(encounter.pokemon.type1, encounter.pokemon.type2);
+        const enemyName = `${encounter.pokemon.name} ${enemyEmojis}`;
+
         if (wildMove.damage_class === 'status') {
             const res = await this.processStatusMove(wildMove.name, battleState, false, encounter.maxHp);
-            log += `\n✨ Inimigo ${res.msg}`;
+            
+            log += `\n✨ ${enemyName} ${res.msg}`;
+            
             if (res.healAmount > 0) {
                 encounter.currentHp = Math.min(encounter.maxHp, encounter.currentHp + res.healAmount);
                 await this.db.run(`UPDATE active_encounters SET current_hp = ? WHERE user_id = ?`, [encounter.currentHp, userId]);
@@ -1513,7 +1536,7 @@ class PokemonHandler {
 
             await this.db.run(`UPDATE user_pokemons SET current_hp = current_hp - ? WHERE id = ?`, [damageToUser, userPoke.id]);
             
-            log += `\n💢 ${encounter.pokemon.name} usou *${wildMove.name}*!\nTe causou **${damageToUser}** de dano.`;
+            log += `\n💢 ${enemyName} usou *${wildMove.name}*!\nTe causou **${damageToUser}** de dano.`;
             
             if (typeMultEnemy > 1) log += ` (Super Efetivo!)`;
             if (typeMultEnemy < 1 && typeMultEnemy > 0) log += ` (Não muito efetivo...)`;
@@ -1856,11 +1879,13 @@ class PokemonHandler {
     }
 
     async getUserProfile(userId) {
-        const tag = await this.getUserTag(userId);
-        const pokes = await this.db.all(`SELECT p.name, up.level, up.is_shiny FROM user_pokemons up JOIN pokedex p ON up.pokedex_id = p.id WHERE up.user_id = ?`, [userId]);
+        const pokes = await this.db.all(`SELECT p.name, p.type1, p.type2, up.level, up.is_shiny FROM user_pokemons up JOIN pokedex p ON up.pokedex_id = p.id WHERE up.user_id = ?`, [userId]);
+        
         const u = await this.db.get("SELECT pokeballs, pokecoins, potions, badges FROM usuarios WHERE id_usuario = ?", [userId]);
         if(!pokes.length) return "Sem pokémon.";
-        return `${tag}💰 ${u.pokecoins} | 🔴 ${u.pokeballs} | 🧪 ${u.potions} | 🏅 ${u.badges}\n\n` + pokes.map(p => `${p.is_shiny?'✨':''} ${p.name} (Lvl ${p.level})`).join('\n');
+
+        return `👤 *PERFIL*\n💰 ${u.pokecoins} | 🔴 ${u.pokeballs} | 🧪 ${u.potions} | 🏅 ${u.badges}\n\n` + 
+               pokes.map(p => `${p.is_shiny?'✨':''} ${p.name} ${this.getTypeEmojis(p.type1, p.type2)} (Lvl ${p.level})`).join('\n');
     }
 }
 

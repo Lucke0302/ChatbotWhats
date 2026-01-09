@@ -1605,7 +1605,7 @@ class PokemonHandler {
 
         const validMoves = encounter.moves.filter(m => m.current_pp > 0);
 
-        const wildMove = encounter.moves[Math.floor(Math.random() * encounter.moves.length)] || {name: "Investida", power: 40, damage_class: 'physical', type: 'normal'};
+        let wildMove = encounter.moves[Math.floor(Math.random() * encounter.moves.length)] || {name: "Investida", power: 40, damage_class: 'physical', type: 'normal'};
         
         if (validMoves.length === 0) {
             wildMove = { name: "Struggle", power: 50, damage_class: 'physical', type: 'normal' };

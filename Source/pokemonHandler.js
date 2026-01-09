@@ -1686,7 +1686,13 @@ class PokemonHandler {
 
             await this.db.run(`UPDATE user_pokemons SET current_hp = current_hp - ? WHERE id = ?`, [damageToUser, userPoke.id]);
             
-            log += `\n💢 ${enemyName} usou *${wildMove.name}*!\nTe causou **${damageToUser}** de dano.`;
+            if(wildMove.name.includes("struggle")){
+                log +=`\n`
+            }
+            else{
+                log +=`\n💢 ${enemyName} usou *${wildMove.name}*!\n`
+            }
+            log += `Te causou **${damageToUser}** de dano.`;
             
             if (typeMultEnemy > 1) log += ` (Super Efetivo!)`;
             if (typeMultEnemy < 1 && typeMultEnemy > 0) log += ` (Não muito efetivo...)`;

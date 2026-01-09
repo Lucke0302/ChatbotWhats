@@ -568,8 +568,9 @@ class PokemonHandler {
             if (isDetailed){
                 msg += `Nature: ${natureInfo}`
             }
+            
+            msg+=`\n`
         });
-        msg+=`\n`
         return msg;
     }
 

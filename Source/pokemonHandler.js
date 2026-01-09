@@ -1354,7 +1354,7 @@ class PokemonHandler {
                     WHERE up.id = ?`, [pId]);
                 
                 if (p) {
-                    const xpMsg = await this.gainExperience(p, encounter.pokemon, encounter.level, splitFactor, xpMultiplier);
+                    const xpMsg = await this.gainExperience(p, encounter.pokemon, encounter.level, splitFactor, xpMultiplier, userId);
                     logMsg += `\n🔹 *${p.nickname}*: ${xpMsg.replace('✨ Ganhou', 'Ganhou')}`; 
                 }
             }
@@ -1735,7 +1735,7 @@ class PokemonHandler {
         return await this.db.all(`SELECT m.* FROM pokemon_moves pm JOIN moves m ON pm.move_id = m.id WHERE pm.pokemon_id = ? AND pm.level_learned <= ? ORDER BY pm.level_learned DESC LIMIT 4`, [pid, lvl]);
     }
 
-    async gainExperience(userPoke, enemy, enemyLevel, splitFactor = 1, multiplier) {
+    async gainExperience(userPoke, enemy, enemyLevel, splitFactor = 1, multiplier, userId) {
         const tag = await this.getUserTag(userId);
         if (userPoke.pending_move) {
             const moveName = (await this.db.get("SELECT name FROM moves WHERE id = ?", [userPoke.pending_move]))?.name;

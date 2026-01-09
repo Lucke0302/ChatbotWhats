@@ -569,7 +569,7 @@ class PokemonHandler {
                 msg += `Nature: ${natureInfo}`
             }
         });
-        msg+="\n"
+        msg+=`\n`
         return msg;
     }
 

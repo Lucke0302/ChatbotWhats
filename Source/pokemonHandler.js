@@ -141,6 +141,35 @@ const TYPE_EMOJIS = {
     steel: '🔩', dark: '🌑', fairy: '✨'
 };
 
+const NATURES = {
+    hardy:   { name: "Hardy",   up: null, down: null },
+    lonely:  { name: "Lonely",  up: "atk", down: "def" },
+    brave:   { name: "Brave",   up: "atk", down: "spe" },
+    adamant: { name: "Adamant", up: "atk", down: "spa" },
+    naughty: { name: "Naughty", up: "atk", down: "spd" },
+    bold:    { name: "Bold",    up: "def", down: "atk" },
+    docile:  { name: "Docile",  up: null, down: null },
+    relaxed: { name: "Relaxed", up: "def", down: "spe" },
+    impish:  { name: "Impish",  up: "def", down: "spa" },
+    lax:     { name: "Lax",     up: "def", down: "spd" },
+    timid:   { name: "Timid",   up: "spe", down: "atk" },
+    hasty:   { name: "Hasty",   up: "spe", down: "def" },
+    serious: { name: "Serious", up: null, down: null },
+    jolly:   { name: "Jolly",   up: "spe", down: "spa" },
+    naive:   { name: "Naive",   up: "spe", down: "spd" },
+    modest:  { name: "Modest",  up: "spa", down: "atk" },
+    mild:    { name: "Mild",    up: "spa", down: "def" },
+    quiet:   { name: "Quiet",   up: "spa", down: "spe" },
+    bashful: { name: "Bashful", up: null, down: null },
+    rash:    { name: "Rash",    up: "spa", down: "spd" },
+    calm:    { name: "Calm",    up: "spd", down: "atk" },
+    gentle:  { name: "Gentle",  up: "spd", down: "def" },
+    sassy:   { name: "Sassy",   up: "spd", down: "spe" },
+    careful: { name: "Careful", up: "spd", down: "spa" },
+    quirky:  { name: "Quirky",  up: null, down: null }
+};
+const NATURE_KEYS = Object.keys(NATURES);
+
 class PokemonHandler {
     constructor(db) {
         this.db = db;
@@ -371,6 +400,39 @@ class PokemonHandler {
         console.log("✅ Seed Completo (Gen 1, 2 e 3)!");
     }
 
+    getRandomNature() {
+        return NATURE_KEYS[Math.floor(Math.random() * NATURE_KEYS.length)];
+    }
+
+    calculateStat(base, iv, level, natureKey, statName) {
+        if (statName === 'hp') {
+            return Math.floor(((2 * base + (iv || 0) + 100) * level) / 100 + 10);
+        }
+
+        let stat = Math.floor(((2 * base + (iv || 0)) * level) / 100 + 5);
+
+        const nature = NATURES[natureKey] || NATURES['hardy'];
+        
+        if (nature.up === statName) {
+            stat = Math.floor(stat * 1.1);
+        } else if (nature.down === statName) {
+            stat = Math.floor(stat * 0.9);
+        }
+
+        return stat;
+    }
+
+    async fixNullNatures() {
+        const poke = await this.db.all("SELECT id FROM user_pokemons WHERE nature IS NULL");
+        let count = 0;
+        for (const p of poke) {
+            const rnd = this.getRandomNature();
+            await this.db.run("UPDATE user_pokemons SET nature = ? WHERE id = ?", [rnd, p.id]);
+            count++;
+        }
+        return `✅ ${count} Pokémons antigos receberam uma natureza aleatória.`;
+    }
+
     getBattleState(encounter) {
         let data = encounter.extra_data ? JSON.parse(encounter.extra_data) : {};
         
@@ -495,7 +557,12 @@ class PokemonHandler {
         team.forEach(p => {
             const status = p.current_hp <= 0 ? "💀" : "❤️";
             const types = this.getTypeEmojis(p.type1, p.type2);
-            msg += `${p.team_slot}. ${status} ${p.nickname} ${types} (Lvl ${p.level}) - HP: ${p.current_hp}/${p.max_hp}\n`;
+            
+            const natureData = NATURES[p.nature] || NATURES['hardy'];
+            let natureInfo = `[${natureData.name}]`;
+            if (natureData.up) natureInfo = `[${natureData.name}: +${natureData.up.toUpperCase()}/-${natureData.down.toUpperCase()}]`;
+
+            msg += `${p.team_slot}. ${status} ${p.nickname} ${types} (Lvl ${p.level})\n   Nature: ${natureInfo} - HP: ${p.current_hp}/${p.max_hp}\n`;
         });
         return msg;
     }
@@ -645,6 +712,10 @@ class PokemonHandler {
         }
 
         switch (action) {
+            case 'fixnature': 
+                if (sender !== "5513991008854@s.whatsapp.net") return "Sem permissão.";
+                return await this.fixNullNatures();
+
             case 'evoluir': 
             case 'evolve': 
                 return await this.evolvePokemon(from, sender, param, sock);
@@ -1328,12 +1399,14 @@ class PokemonHandler {
                 await this.db.run("UPDATE user_pokemons SET current_hp = ? WHERE id = ?", [userPoke.current_hp, userPoke.id]);
             }
         } else {
-            const userAtkReal = Math.floor(((2 * userPoke.base_atk + (userPoke.iv_atk || 15)) * userPoke.level) / 100 + 5);
-            const userSpaReal = Math.floor(((2 * userPoke.base_spa + (userPoke.iv_spa || 15)) * userPoke.level) / 100 + 5);
+            const userAtkReal = this.calculateStat(userPoke.base_atk, userPoke.iv_atk, userPoke.level, userPoke.nature, 'atk');
+            const userSpaReal = this.calculateStat(userPoke.base_spa, userPoke.iv_spa, userPoke.level, userPoke.nature, 'spa');
+            
             let calcAtk = (selectedMove.damage_class === 'special') ? userSpaReal : userAtkReal;
 
             const enemyDefReal = Math.floor(((2 * encounter.pokemon.base_def + 15) * encounter.level) / 100 + 5);
             const enemySpdReal = Math.floor(((2 * encounter.pokemon.base_spd + 15) * encounter.level) / 100 + 5);
+            
             let calcDef = (selectedMove.damage_class === 'special') ? enemySpdReal : enemyDefReal;
 
             let stageAtk = (selectedMove.damage_class === 'physical') ? battleState.stages.user.atk : battleState.stages.user.spa;
@@ -1480,7 +1553,7 @@ class PokemonHandler {
                `🏃 *!poke fugir*`;
     }
 
-async processEnemyTurn(encounter, userPoke, battleState, userId) {
+    async processEnemyTurn(encounter, userPoke, battleState, userId) {
         let log = "";
 
         const wildMove = encounter.moves[Math.floor(Math.random() * encounter.moves.length)] || {name: "Investida", power: 40, damage_class: 'physical', type: 'normal'};
@@ -1504,9 +1577,10 @@ async processEnemyTurn(encounter, userPoke, battleState, userId) {
             const enemySpaReal = Math.floor(((2 * encounter.pokemon.base_spa + 15) * encounter.level) / 100 + 5);
             let calcEnemyAtk = (wildMove.damage_class === 'special') ? enemySpaReal : enemyAtkReal;
 
-            const userDefReal = Math.floor(((2 * userPoke.base_def + (userPoke.iv_def || 15)) * userPoke.level) / 100 + 5);
-            const userSpdReal = Math.floor(((2 * userPoke.base_spd + (userPoke.iv_spd || 15)) * userPoke.level) / 100 + 5);
-            let calcUserDef = (wildMove.damage_class === 'special') ? userSpdReal : userDefReal;
+            const userDefReal = this.calculateStat(userPoke.base_def, userPoke.iv_def, userPoke.level, userPoke.nature, 'def');
+            const userSpdReal = this.calculateStat(userPoke.base_spd, userPoke.iv_spd, userPoke.level, userPoke.nature, 'spd');
+            
+            let calcUserDef = (wildMove.damage_class === 'special') ? userSpdReal : userDefReal;        
 
             let stageEnemyAtk = (wildMove.damage_class === 'physical') ? battleState.stages.enemy.atk : battleState.stages.enemy.spa;
             let stageUserDef = (wildMove.damage_class === 'physical') ? battleState.stages.user.def : battleState.stages.user.spd;
@@ -1588,10 +1662,12 @@ async processEnemyTurn(encounter, userPoke, battleState, userId) {
                 while (occupiedSlots.includes(targetSlot)) { targetSlot++; }
             }
 
+            const nature = this.getRandomNature();
+
             await this.db.run(`
-                INSERT INTO user_pokemons (user_id, pokedex_id, nickname, level, exp, iv_hp, iv_atk, iv_def, iv_spa, iv_spd, iv_spe, move1, move2, move3, move4, obtained_at, is_shiny, current_hp, max_hp, team_slot)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                [userId, pk.id, pk.name, encounter.level, initialXp, ivHp, randIv(), randIv(), randIv(), randIv(), randIv(), m1, encounter.moves[1]?.id, encounter.moves[2]?.id, encounter.moves[3]?.id, Date.now(), encounter.isShiny?1:0, realMaxHp, realMaxHp, targetSlot]
+                INSERT INTO user_pokemons (user_id, pokedex_id, nickname, level, exp, iv_hp, iv_atk, iv_def, iv_spa, iv_spd, iv_spe, move1, move2, move3, move4, obtained_at, is_shiny, current_hp, max_hp, team_slot, nature)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, // <--- MAIS UM ?
+                [userId, pk.id, pk.name, encounter.level, initialXp, ivHp, randIv(), randIv(), randIv(), randIv(), randIv(), m1, encounter.moves[1]?.id, encounter.moves[2]?.id, encounter.moves[3]?.id, Date.now(), encounter.isShiny?1:0, realMaxHp, realMaxHp, targetSlot, nature]
             );
             await this.clearEncounter(userId);
             
@@ -1749,15 +1825,15 @@ async processEnemyTurn(encounter, userPoke, battleState, userId) {
         const randIv = () => Math.floor(Math.random() * 32);
         const hpIv = randIv();
         
-        const hp = Math.floor(((2 * pk.base_hp + hpIv + 100) * 5) / 100 + 10);
-        const initialXp = Math.pow(5, 3);
+        const nature = this.getRandomNature(); 
 
         await this.db.run(`INSERT INTO user_pokemons 
-            (user_id, pokedex_id, nickname, level, exp, current_hp, max_hp, move1, obtained_at, iv_hp, iv_atk, iv_def, iv_spa, iv_spd, iv_spe, team_slot) 
-            VALUES (?,?,?,5, ?,?,?,?,?, ?,?,?,?,?,?, 1)`, 
+            (user_id, pokedex_id, nickname, level, exp, current_hp, max_hp, move1, obtained_at, iv_hp, iv_atk, iv_def, iv_spa, iv_spd, iv_spe, team_slot, nature) 
+            VALUES (?,?,?,5, ?,?,?,?,?, ?,?,?,?,?,?, 1, ?)`,
             [
                 userId, pk.id, pk.name, initialXp, hp, hp, moves[0]?.id, Date.now(),
-                hpIv, randIv(), randIv(), randIv(), randIv(), randIv()
+                hpIv, randIv(), randIv(), randIv(), randIv(), randIv(), 
+                nature 
             ]
         );
         await this.db.run("UPDATE usuarios SET pokeballs = 20, potions = 5 WHERE id_usuario = ?", [userId]);

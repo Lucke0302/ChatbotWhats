@@ -413,6 +413,13 @@ async function initDatabase() {
         if (!error.message.includes("duplicate column name")) console.error(error.message);
     }
 
+    try {
+        await db.exec(`ALTER TABLE user_pokemons ADD COLUMN nature TEXT;`);
+        console.log("✅ Coluna 'nature' adicionada com sucesso!");
+    } catch (error) {
+        if (!error.message.includes("duplicate column name")) console.error(error.message);
+    }
+
     console.log('✅ Banco de dados SQLite inicializado e tabelas verificadas.');
 }
 

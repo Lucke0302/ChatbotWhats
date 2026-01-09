@@ -187,6 +187,7 @@ class PokemonHandler {
         } else {
             console.log(`✅ Pokédex carregada: ${pokeCount.total} Pokémons e ${moveCount.total} Golpes.`);
         }
+        await this.fixNullPP();
     }
 
     async cleanDatabaseDuplicates() {
@@ -224,6 +225,33 @@ class PokemonHandler {
         }
 
         return `✅ Limpeza completa!\n- Duplicatas do sistema removidas.\n- ${count} Pokémons atualizados com os golpes certos.`;
+    }
+
+    async fixNullPP() {
+        const pokes = await this.db.all("SELECT id, move1, move2, move3, move4 FROM user_pokemons WHERE move1_pp IS NULL AND move1 IS NOT NULL");
+        if (pokes.length === 0) return;
+
+        console.log(`🔧 Ajustando PP de ${pokes.length} Pokémons antigos...`);
+        
+        for (const p of pokes) {
+            const moves = [p.move1, p.move2, p.move3, p.move4];
+            const pps = [];
+            
+            for (const mid of moves) {
+                if (!mid) {
+                    pps.push(null);
+                    continue;
+                }
+                const mData = await this.db.get("SELECT pp FROM moves WHERE id = ?", [mid]);
+                pps.push(mData ? mData.pp : 0);
+            }
+
+            await this.db.run(
+                `UPDATE user_pokemons SET move1_pp=?, move2_pp=?, move3_pp=?, move4_pp=? WHERE id=?`, 
+                [pps[0], pps[1], pps[2], pps[3], p.id]
+            );
+        }
+        console.log("✅ PPs corrigidos!");
     }
 
     async fixNullMoves() {
@@ -948,11 +976,13 @@ class PokemonHandler {
             }
 
             let moves = await this.getMovesForLevel(pokemon.id, pokeLevel);
-            if (!moves.length) moves = [{name: "tackle", power: 40, damage_class: 'physical', type: 'normal'}];
-            
+            if (!moves.length) moves = [{name: "tackle", power: 40, damage_class: 'physical', type: 'normal', pp: 35}];
+
             const moveObjects = moves.map(m => ({
-                name: m.name, power: m.power, type: m.type, damage_class: m.damage_class
+                name: m.name, power: m.power, type: m.type, damage_class: m.damage_class, 
+                pp: m.pp, current_pp: m.pp
             }));
+            
 
             trainerTeam.push({
                 pokedex_id: pokemon.id,
@@ -1100,7 +1130,8 @@ class PokemonHandler {
         }
 
         let wildMoves = await this.getMovesForLevel(pokemon.id, wildLevel);
-        if (!wildMoves || wildMoves.length === 0) wildMoves = [{name: "tackle", power: 40, damage_class: 'physical', type: 'normal'}];
+        if (!wildMoves || wildMoves.length === 0) wildMoves = [{name: "tackle", power: 40, damage_class: 'physical', type: 'normal', pp: 35}];
+        wildMoves = wildMoves.map(m => ({...m, current_pp: m.pp}));
 
         const wildHp = Math.floor(((2 * pokemon.base_hp + 15 + 100) * wildLevel) / 100 + 10);
         const isShiny = Math.random() < shinyChance;
@@ -1361,7 +1392,9 @@ class PokemonHandler {
             
             let msg = `${tag}👊 *${userPoke.nickname}* ${typeEmojis} (HP: ${userPoke.current_hp}/${userPoke.max_hp})\n*Ataques:*\n`;
             
-            moves.forEach((m, i) => msg += `${i+1}. ${m.name} (${m.type})\n`);
+            moves.forEach((m, i) => {
+                msg += `${i+1}. ${m.name} (${m.type}) - [${m.current_pp}/${m.pp} PP]\n`
+            });
             msg += `\nUse: *!poke atacar 1*`;
             return msg;
         }
@@ -1390,6 +1423,13 @@ class PokemonHandler {
 
         const selectedMove = (await this.getUserMoves(userPoke))[parseInt(moveSlot) - 1];
         if (!selectedMove) return `${tag}Golpe inválido!`;
+
+        if (selectedMove.current_pp <= 0) {
+            return `${tag}🚫 *${selectedMove.name}* está sem PP! Escolha outro golpe.`;
+        }
+
+        const colName = `move${moveSlot}_pp`;
+        await this.db.run(`UPDATE user_pokemons SET ${colName} = ${colName} - 1 WHERE id = ?`, [userPoke.id]);
 
         const calcDmg = (lvl, pwr, atk, def) => Math.floor(((2 * lvl / 5 + 2) * pwr * (atk / def)) / 50 + 2);
 
@@ -1564,7 +1604,30 @@ class PokemonHandler {
         let log = "";
 
         const wildMove = encounter.moves[Math.floor(Math.random() * encounter.moves.length)] || {name: "Investida", power: 40, damage_class: 'physical', type: 'normal'};
+        
+        if (validMoves.length === 0) {
+            wildMove = { name: "Struggle", power: 50, damage_class: 'physical', type: 'normal' };
+            log += `\n⚠️ ${encounter.pokemon.name} não tem mais PP! Usou *Struggle*!`;
+        } else {
+            const moveIndex = Math.floor(Math.random() * validMoves.length);
+            wildMove = validMoves[moveIndex];
+
+            const originalMove = encounter.moves.find(m => m.name === wildMove.name);
+            if (originalMove) {
+                originalMove.current_pp--;
+            }
+            
+            await this.db.run("UPDATE active_encounters SET moves = ? WHERE user_id = ?", [JSON.stringify(encounter.moves), userId]);
+        }
+
         let damageToUser = 0;
+
+        if (wildMove.name === 'Struggle') {
+                const recoil = Math.floor(encounter.maxHp / 4);
+
+                encounter.currentHp -= recoil;
+                log += `\n💥 *${encounter.pokemon.name}* sofreu **${recoil}** de dano pelo recuo!`;
+        }
 
         const enemyEmojis = this.getTypeEmojis(encounter.pokemon.type1, encounter.pokemon.type2);
         const enemyName = `${encounter.pokemon.name} ${enemyEmojis}`;
@@ -1752,7 +1815,15 @@ class PokemonHandler {
         const encounter = await this.loadEncounter(userId);
         if(encounter) return `${tag}🚫 Termine a batalha antes de curar!`;
         await this.db.run("UPDATE user_pokemons SET current_hp = max_hp WHERE user_id = ?", [userId]);
-        return `${tag}🏥 Pokémon curados!`;
+        await this.db.run(`
+            UPDATE user_pokemons 
+            SET move1_pp = (SELECT pp FROM moves WHERE id = user_pokemons.move1),
+                move2_pp = (SELECT pp FROM moves WHERE id = user_pokemons.move2),
+                move3_pp = (SELECT pp FROM moves WHERE id = user_pokemons.move3),
+                move4_pp = (SELECT pp FROM moves WHERE id = user_pokemons.move4)
+            WHERE user_id = ?
+        `, [userId]);
+        return `${tag}🏥 Pokémon curados e PP restaurados!`;
     }
 
     async showShop(userId) {
@@ -1848,10 +1919,21 @@ class PokemonHandler {
     }
 
     async getUserMoves(userPoke) {
-        const ids = [userPoke.move1, userPoke.move2, userPoke.move3, userPoke.move4].filter(i=>i);
-        if(!ids.length) return [{name:"Investida", power:40, damage_class:'physical', type:'normal'}];
-        const ph = ids.map(()=>'?').join(',');
-        return await this.db.all(`SELECT * FROM moves WHERE id IN (${ph})`, ids);
+        const ids = [userPoke.move1, userPoke.move2, userPoke.move3, userPoke.move4];
+        const pps = [userPoke.move1_pp, userPoke.move2_pp, userPoke.move3_pp, userPoke.move4_pp];
+        
+        const moves = [];
+        for (let i = 0; i < 4; i++) {
+            if (ids[i]) {
+                const m = await this.db.get("SELECT * FROM moves WHERE id = ?", [ids[i]]);
+                if (m) {
+                    m.current_pp = pps[i]; 
+                    moves.push(m);
+                }
+            }
+        }
+        if(!moves.length) return [{name:"tackle", power:40, damage_class:'physical', type:'normal', current_pp: 35}];
+        return moves;
     }
 
     async getMovesForLevel(pid, lvl) {

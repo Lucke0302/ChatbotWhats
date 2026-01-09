@@ -420,6 +420,16 @@ async function initDatabase() {
         if (!error.message.includes("duplicate column name")) console.error(error.message);
     }
 
+    try {
+        await db.exec(`ALTER TABLE user_pokemons ADD COLUMN move1_pp INTEGER DEFAULT NULL;`);
+        await db.exec(`ALTER TABLE user_pokemons ADD COLUMN move2_pp INTEGER DEFAULT NULL;`);
+        await db.exec(`ALTER TABLE user_pokemons ADD COLUMN move3_pp INTEGER DEFAULT NULL;`);
+        await db.exec(`ALTER TABLE user_pokemons ADD COLUMN move4_pp INTEGER DEFAULT NULL;`);
+        console.log("✅ Colunas de 'PP' adicionadas com sucesso!");
+    } catch (error) {
+        if (!error.message.includes("duplicate column name")) console.error(error.message);
+    }
+
     console.log('✅ Banco de dados SQLite inicializado e tabelas verificadas.');
 }
 

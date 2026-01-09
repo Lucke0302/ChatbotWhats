@@ -645,6 +645,10 @@ class PokemonHandler {
         }
 
         switch (action) {
+            case 'evoluir': 
+            case 'evolve': 
+                return await this.evolvePokemon(from, sender, param, sock);
+
             case 'cor':
             case 'color':
                 return await this.changeColor(sender, args[2]);
@@ -1841,7 +1845,76 @@ async processEnemyTurn(encounter, userPoke, battleState, userId) {
             }
         }
 
+        const evoCheck = await this.db.get("SELECT evolve_to, evolve_level FROM pokedex WHERE id = ?", [userPoke.pokedex_id]);
+        
+        if (evoCheck && evoCheck.evolve_to && lvl >= evoCheck.evolve_level) {
+            const nextEvo = await this.db.get("SELECT name FROM pokedex WHERE id = ?", [evoCheck.evolve_to]);
+            if (nextEvo) {
+                const slotMsg = userPoke.team_slot ? `Use *!poke evoluir ${userPoke.team_slot}*` : "Coloque-o no time e use *!poke evoluir [slot]*";
+                msg += `\n✨ *${userPoke.nickname} pode evoluir para ${nextEvo.name}!*\n${slotMsg}`;
+            }
+        }
+
         return `✨ Ganhou ${xp} XP.${msg}`;
+    }
+
+    async evolvePokemon(groupId, userId, param, sock) {
+        const tag = await this.getUserTag(userId);
+        const slot = parseInt(param);
+        
+        if (isNaN(slot)) return `${tag}⚠️ Uso correto: *!poke evoluir [slot]*\nEx: _!poke evoluir 1_`;
+
+        const pokemon = await this.db.get(`
+            SELECT up.*, p.name as species_name, p.evolve_to, p.evolve_level, p.base_hp
+            FROM user_pokemons up
+            JOIN pokedex p ON up.pokedex_id = p.id
+            WHERE up.user_id = ? AND up.team_slot = ?`, [userId, slot]);
+
+        if (!pokemon) return `${tag}🚫 Não há Pokémon no slot ${slot}.`;
+
+        if (!pokemon.evolve_to) return `${tag}🤷 *${pokemon.nickname}* já está na forma final (ou não evolui por nível).`;
+        
+        if (pokemon.level < pokemon.evolve_level) {
+            return `${tag}⏳ *${pokemon.nickname}* ainda não está pronto para evoluir.\nNível atual: ${pokemon.level} | Necessário: ${pokemon.evolve_level}`;
+        }
+
+        const nextForm = await this.db.get("SELECT * FROM pokedex WHERE id = ?", [pokemon.evolve_to]);
+        if (!nextForm) return `${tag}❌ Erro: Evolução desconhecida na Pokédex.`;
+
+        const newMaxHp = Math.floor(((2 * nextForm.base_hp + (pokemon.iv_hp || 15) + 100) * pokemon.level) / 100 + 10);
+        const hpDiff = newMaxHp - pokemon.max_hp;
+        const newCurrentHp = pokemon.current_hp + hpDiff;
+
+        let newNickname = pokemon.nickname;
+        if (pokemon.nickname === pokemon.species_name) {
+            newNickname = nextForm.name;
+        }
+
+        await this.db.run(`
+            UPDATE user_pokemons 
+            SET pokedex_id = ?, nickname = ?, max_hp = ?, current_hp = ?
+            WHERE id = ?`, 
+            [nextForm.id, newNickname, newMaxHp, newCurrentHp, pokemon.id]
+        );
+
+        const typeEmojis = this.getTypeEmojis(nextForm.type1, nextForm.type2);
+        
+        const caption = `${tag}🎆 *O QUE? ${pokemon.nickname} ESTÁ EVOLUINDO!* 🎆\n\n` +
+                        `✨ Parabéns! Seu *${pokemon.species_name}* evoluiu para *${nextForm.name}* ${typeEmojis}!\n` +
+                        `❤️ HP Máximo subiu de ${pokemon.max_hp} para ${newMaxHp}!`;
+
+        if (sock) {
+            const sprite = pokemon.is_shiny ? nextForm.sprite_url.replace("front_default", "front_shiny") : nextForm.sprite_url;
+            try { 
+                await sock.sendMessage(groupId, { image: { url: sprite }, caption: caption }); 
+                return null;
+            } 
+            catch (e) { 
+                return caption;
+            }
+        }
+        
+        return caption;
     }
 
     async learnPendingMove(userId, choice) {

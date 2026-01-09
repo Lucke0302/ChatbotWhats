@@ -543,7 +543,8 @@ class PokemonHandler {
         return result;
     }
 
-    async getTeam(userId) {
+    async getTeam(userId, param) {
+        const isDetailed = param && (param.includes('detalhes') || param.includes('details') || param.includes('info'));
         const team = await this.db.all(`
             SELECT up.*, p.name, p.type1, p.type2 
             FROM user_pokemons up 
@@ -562,7 +563,11 @@ class PokemonHandler {
             let natureInfo = `[${natureData.name}]`;
             if (natureData.up) natureInfo = `[${natureData.name}: +${natureData.up.toUpperCase()}/-${natureData.down.toUpperCase()}]`;
 
-            msg += `${p.team_slot}. ${status} ${p.nickname} ${types} (Lvl ${p.level})\n   Nature: ${natureInfo} - HP: ${p.current_hp}/${p.max_hp}\n`;
+            msg += `${p.team_slot}. ${status} ${p.nickname} ${types} (Lvl ${p.level})\nHP: ${p.current_hp}/${p.max_hp} `;
+            
+            if (isDetailed){
+                msg += `Nature: ${natureInfo}`
+            }
         });
         return msg;
     }
@@ -734,7 +739,7 @@ class PokemonHandler {
 
             case 'time':
             case 'team':
-                return await this.getTeam(sender);
+                return await this.getTeam(sender, param);
 
             case 'trocar':
             case 'switch':

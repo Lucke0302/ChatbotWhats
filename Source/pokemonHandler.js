@@ -602,6 +602,37 @@ class PokemonHandler {
         return msg;
     }
 
+    async getTeamMoves(userId, param) {
+        const team = await this.db.all(`select COUNT(*) from user_pokemons where user_id=?;`)
+        const teamMoves = await this.db.all(`
+            SELECT up.*, p.name, p.type1, p.type2,
+            FROM user_pokemons up 
+            JOIN pokedex p ON up.pokedex_id = p.id 
+            WHERE up.user_id = ? AND up.team_slot IS NOT NULL AND up.team_slot < 7
+            ORDER BY up.team_slot ASC`, [userId]);
+            
+        if (!team==0) return "Seu time está vazio!";
+        
+        let msg = "🧢 *SEU TIME*\n";
+        team.forEach(p => {
+            const status = p.current_hp <= 0 ? "💀" : "❤️";
+            const types = this.getTypeEmojis(p.type1, p.type2);
+            
+            const natureData = NATURES[p.nature] || NATURES['hardy'];
+            let natureInfo = `[${natureData.name}]`;
+            if (natureData.up) natureInfo = `[${natureData.name}: +${natureData.up.toUpperCase()}/-${natureData.down.toUpperCase()}]`;
+
+            msg += `${p.team_slot}. ${status} ${p.nickname} ${types} (Lvl ${p.level})\nHP: ${p.current_hp}/${p.max_hp} `;
+            
+            if (isDetailed){
+                msg += `\nNature: ${natureInfo}`
+            }
+            
+            msg+=`\n`
+        });
+        return msg;
+    }
+
     async switchPokemon(userId, param) {        
         const tag = await this.getUserTag(userId);
         const encounter = await this.loadEncounter(userId);
@@ -747,6 +778,12 @@ class PokemonHandler {
         }
 
         switch (action) {
+            case 'ataques':
+            case 'attacks':
+            case 'moves':
+            case 'golpes':
+                return await this.getTeamMoves(sender);
+                
             case 'fixnature': 
                 if (sender !== "5513991008854@s.whatsapp.net") return "Sem permissão.";
                 return await this.fixNullNatures();
@@ -1686,12 +1723,13 @@ class PokemonHandler {
 
             await this.db.run(`UPDATE user_pokemons SET current_hp = current_hp - ? WHERE id = ?`, [damageToUser, userPoke.id]);
             
-            if(wildMove.name.includes("struggle")){
+            if(wildMove.name.toLowerCase() === 'struggle'){
                 log +=`\n`
             }
             else{
                 log +=`\n💢 ${enemyName} usou *${wildMove.name}*!\n`
             }
+
             log += `Te causou **${damageToUser}** de dano.`;
             
             if (typeMultEnemy > 1) log += ` (Super Efetivo!)`;
@@ -1924,6 +1962,42 @@ class PokemonHandler {
         );
         await this.db.run("UPDATE usuarios SET pokeballs = 20, potions = 5 WHERE id_usuario = ?", [userId]);
         return `${tag}🎉 Parabéns! Você escolheu *${pk.name}* como parceiro!`;
+    }
+
+    async getTeamMoves(userId) {
+        const tag = await this.getUserTag(userId);
+        
+        const team = await this.db.all(`
+            SELECT up.*, p.name, p.type1, p.type2 
+            FROM user_pokemons up 
+            JOIN pokedex p ON up.pokedex_id = p.id 
+            WHERE up.user_id = ? AND up.team_slot IS NOT NULL AND up.team_slot < 7
+            ORDER BY up.team_slot ASC`, [userId]);
+            
+        if (!team.length) return `${tag}Seu time está vazio!`;
+        
+        let msg = `${tag}⚔️ *GOLPES DO TIME*\n\n`;
+        
+        for (const p of team) {
+            const types = this.getTypeEmojis(p.type1, p.type2);
+            msg += `*${p.team_slot}. ${p.nickname}* ${types} (Lvl ${p.level})\n`;
+            
+            const moves = await this.getUserMoves(p);
+            
+            if (moves.length === 0) {
+                msg += `   (Sem golpes)\n`;
+            } else {
+                moves.forEach((m, i) => {
+                    const current = m.current_pp !== undefined ? m.current_pp : m.pp;
+                    const max = m.pp;
+                    
+                    msg += `   ${i+1}. ${m.name} (${m.type}) [${current}/${max} PP]\n`;
+                });
+            }
+            msg += `\n`;
+        }
+        
+        return msg;
     }
 
     async getUserMoves(userPoke) {

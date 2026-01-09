@@ -1331,7 +1331,7 @@ class PokemonHandler {
             damageToWild = Math.floor(damageToWild * ((Math.random() * 0.15) + 0.85));
             encounter.currentHp -= damageToWild;
 
-            log += `🗡️ ${userPoke.nickname} usou *${selectedMove.name}* e causou **${damageToWild}** de dano.\n`;
+            log += `${tag}🗡️ ${userPoke.nickname} usou *${selectedMove.name}* e causou **${damageToWild}** de dano.\n`;
 
             if (typeMult > 1) log += `⚔️ *É super efetivo!* (x${typeMult})\n`;
             if (typeMult < 1 && typeMult > 0) log += `🛡️ *Não é muito efetivo...* (x${typeMult})\n`;

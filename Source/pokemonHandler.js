@@ -1437,7 +1437,7 @@ class PokemonHandler {
                 log += `🎯 *GOLPE CRÍTICO!* 🎯\n`;
             }
 
-            damageToWild = Math.floor(damageToWild * ((Math.random() * 0.15) + 0.85));
+            damageToWild = Math.floor(damageToWild * ((Math.random() * 0.15) + 0.85))+1;
             encounter.currentHp -= damageToWild;
 
             log += `${tag}🗡️ ${userPoke.nickname} usou *${selectedMove.name}* e causou **${damageToWild}** de dano.\n`;
@@ -1595,7 +1595,7 @@ class PokemonHandler {
             let finalUserDef = this.applyStages(calcUserDef, stageUserDef);
 
             const calcDmg = (lvl, pwr, atk, def) => Math.floor(((2 * lvl / 5 + 2) * pwr * (atk / def)) / 50 + 2);
-            damageToUser = calcDmg(encounter.level, wildMove.power, finalWildAtk, finalUserDef);
+            damageToUser = calcDmg(encounter.level, wildMove.power, finalWildAtk, finalUserDef)+1;
 
             const getTypeMultiplier = (moveType, t1, t2) => {
                if (!moveType || !TYPE_CHART[moveType.toLowerCase()]) return 1;

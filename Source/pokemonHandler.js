@@ -1018,7 +1018,12 @@ class PokemonHandler {
             [userId, groupId, pokemon.id, wildHp, wildHp, wildLevel, isShiny ? 1 : 0, JSON.stringify(wildMoves), Date.now(), leadPoke.id, JSON.stringify(extraData)]
         );
 
-        let emoji = isShiny ? "✨" : "⚔️";
+        let emoji = ""
+        if (isShiny) {
+            emoji += "✨ SHINY ✨\n";
+        }  if (pokemon.rarity === 'rare' || RARE_POKE.includes(pokemon.id)) {
+            emoji += "🌟 POKÉMON RARO 🌟\n";
+        }
 
         const caption = `${tag}${emoji} Um *${pokemon.name.toUpperCase()}* (Lvl ${wildLevel}) selvagem apareceu!\n` +
                         `❤️ HP: ${wildHp}/${wildHp}\n` +

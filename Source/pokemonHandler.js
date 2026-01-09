@@ -1328,7 +1328,7 @@ class PokemonHandler {
 
     async battleTurn(groupId, userId, moveSlot, sock) {
         const tag = await this.getUserTag(userId);
-        const encounter = await this.loadEncounter(userId);
+        let encounter = await this.loadEncounter(userId);
         if (!encounter) return `${tag}Não tem batalha rolando. Use *!poke explorar*.`;
 
         if (encounter.gymData && encounter.gymData.waitingSwitch) {

@@ -566,7 +566,7 @@ class PokemonHandler {
             msg += `${p.team_slot}. ${status} ${p.nickname} ${types} (Lvl ${p.level})\nHP: ${p.current_hp}/${p.max_hp} `;
             
             if (isDetailed){
-                msg += `Nature: ${natureInfo}`
+                msg += `\nNature: ${natureInfo}`
             }
             
             msg+=`\n`

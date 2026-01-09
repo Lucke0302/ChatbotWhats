@@ -916,9 +916,10 @@ class PokemonHandler {
 
 
     async spawnWildPokemon(groupId, userId, sock, param) {
+        const tag = await this.getUserTag(userId);
         const existing = await this.loadEncounter(userId);
         if (existing) {
-            return `🚫 Você já está em batalha contra *${existing.pokemon.name}*! Termine ela primeiro.`;
+            return `${tag}🚫 Você já está em batalha contra *${existing.pokemon.name}*! Termine ela primeiro.`;
         }
 
         let trainerPercent = 0.2
@@ -943,7 +944,7 @@ class PokemonHandler {
             WHERE user_id = ? AND team_slot IS NOT NULL AND current_hp > 0 
             ORDER BY team_slot ASC LIMIT 1`, [userId]);
 
-        if (!leadPoke) return "🚑 Todos os seus Pokémon estão desmaiados! Cure-os antes de batalhar.";
+        if (!leadPoke) return `${tag}🚑 Todos os seus Pokémon estão desmaiados! Cure-os antes de batalhar.`;
         
         const lvlResult = await this.db.get(`SELECT AVG(level) as media FROM user_pokemons WHERE user_id = ?`, [userId]);
         const userAvgLvl = lvlResult && lvlResult.media ? Math.floor(lvlResult.media) : 5;
@@ -1019,7 +1020,7 @@ class PokemonHandler {
 
         let emoji = isShiny ? "✨" : "⚔️";
 
-        const caption = `${emoji} Um *${pokemon.name.toUpperCase()}* (Lvl ${wildLevel}) selvagem apareceu!\n` +
+        const caption = `${tag}${emoji} Um *${pokemon.name.toUpperCase()}* (Lvl ${wildLevel}) selvagem apareceu!\n` +
                         `❤️ HP: ${wildHp}/${wildHp}\n` +
                         `Use *!poke atacar* ou *!poke capturar*`;
 
@@ -1033,20 +1034,21 @@ class PokemonHandler {
     }
 
     async challengeGym(groupId, userId, sock) {
+        const tag = await this.getUserTag(userId);
         const existing = await this.loadEncounter(userId);
-        if (existing) return "🚫 Termine sua batalha atual primeiro!";
+        if (existing) return `${tag}🚫 Termine sua batalha atual primeiro!`;
 
         const leadPoke = await this.db.get(`
             SELECT id FROM user_pokemons 
             WHERE user_id = ? AND team_slot IS NOT NULL AND current_hp > 0 
             ORDER BY team_slot ASC LIMIT 1`, [userId]);
 
-        if (!leadPoke) return "🚑 Todos os seus Pokémon estão desmaiados! Cure-os antes de entrar no ginásio.";
+        if (!leadPoke) return `${tag}🚑 Todos os seus Pokémon estão desmaiados! Cure-os antes de entrar no ginásio.`;
 
         const user = await this.db.get("SELECT badges, gym_progress FROM usuarios WHERE id_usuario = ?", [userId]);
         const currentBadge = user.badges || 0;
 
-        if (currentBadge >= 8) return "🏆 Você já é o Campeão da Liga Pokémon!";
+        if (currentBadge >= 8) return `${tag}🏆 Você já é o Campeão da Liga Pokémon!`;
 
         // --- LÓGICA DE PROGRESSO DO GINÁSIO ---
         
@@ -1055,7 +1057,7 @@ class PokemonHandler {
             await this.db.run("UPDATE usuarios SET gym_progress = ? WHERE id_usuario = ?", [trainersCount, userId]);
             user.gym_progress = trainersCount;
             
-            return `🏛️ *GINÁSIO DE ${(await this.getGymCityName(currentBadge))}*\n\n` +
+            return `${tag}🏛️ *GINÁSIO DE ${(await this.getGymCityName(currentBadge))}*\n\n` +
                    `Você entrou no ginásio! Antes de desafiar o Líder, você deve derrotar os treinadores.\n` +
                    `👮 Treinadores restantes: *${trainersCount}*\n\n` +
                    `Digite *!poke ginasio* novamente para lutar contra o primeiro!`;
@@ -1068,7 +1070,7 @@ class PokemonHandler {
         // --- LUTA CONTRA O LÍDER 
         
         const gymLeader = await this.db.get("SELECT * FROM gym_leaders WHERE id = ?", [currentBadge]);
-        if (!gymLeader) return "🏆 Você já venceu todos os líderes disponíveis!";
+        if (!gymLeader) return `${tag}🏆 Você já venceu todos os líderes disponíveis!`;
 
         const team = JSON.parse(gymLeader.team_json);
         if (!team || team.length === 0) return "❌ Erro: Líder sem pokémons.";
@@ -1106,7 +1108,7 @@ class PokemonHandler {
             [userId, groupId, bossPokemon.id, bossHp, bossHp, firstPokeData.level, JSON.stringify(bossMoves), JSON.stringify(extraData), Date.now(), leadPoke]
         );
 
-        const caption = `🏛️ *GINÁSIO DE ${gymLeader.city.toUpperCase()}*\n` + 
+        const caption = `${tag}🏛️ *GINÁSIO DE ${gymLeader.city.toUpperCase()}*\n` + 
                         `🚨 *LÍDER ${gymLeader.name}* aceitou seu desafio!\n` + 
                         `Ele enviou *${bossPokemon.name}* (Lvl ${firstPokeData.level})!\n` + 
                         `⚠️ *Boss HP:* ${bossHp}/${bossHp}\n` + 
@@ -1125,6 +1127,7 @@ class PokemonHandler {
     }
 
     async spawnGymTrainer(groupId, userId, sock, badgeIndex, remaining, leadPokeId) {
+        const tag = await this.getUserTag(userId);
         const gymType = GYM_TYPES[badgeIndex] || 'normal';
         
         const baseLevel = 10 + (badgeIndex * 4); 
@@ -1159,7 +1162,10 @@ class PokemonHandler {
         const trainerNames = ["Jovem", "Escoteiro", "Montanhista", "Nadador", "Mecânico", "Careca"];
         const randomClass = trainerNames[Math.floor(Math.random() * trainerNames.length)];
 
-        const caption = `🏛️ *GINÁSIO - BATALHA ${remaining}*\n` +
+        const totalTrainers = 2 + badgeIndex;
+        const currentBattleNum = (totalTrainers - remaining) + 1;
+
+        const caption = `${tag}🏛️ *GINÁSIO - BATALHA ${currentBattleNum} de ${totalTrainers}*\n` +
                         `O treinador do ginásio, *${randomClass}*, bloqueou seu caminho!\n` +
                         `Ele usa um *${pokemon.name}* (Lvl ${level}).\n\n` +
                         `⚔️ Digite *!poke atacar* para lutar!`;
@@ -1280,7 +1286,7 @@ class PokemonHandler {
 
         const calcDmg = (lvl, pwr, atk, def) => Math.floor(((2 * lvl / 5 + 2) * pwr * (atk / def)) / 50 + 2);
 
-        let log = tag;
+        let log = "";
         let damageToWild = 0;
 
         // TURNO DO JOGADOR
@@ -1387,7 +1393,7 @@ class PokemonHandler {
                 const reward = 750; 
                 await this.db.run("UPDATE usuarios SET pokecoins = pokecoins + ? WHERE id_usuario = ?", [reward, userId]);
 
-                let nextMsg = tag;
+                let nextMsg = "";
                 if (remaining > 0) {
                     nextMsg = `😰 Faltam *${remaining}* treinadores.\nCure seus Pokémon e digite *!poke ginasio* novamente.`;
                 } else {
@@ -1736,14 +1742,13 @@ class PokemonHandler {
     }
 
     async gainExperience(userPoke, enemy, enemyLevel, splitFactor = 1, multiplier, userId) {
-        const tag = await this.getUserTag(userId);
         if (userPoke.pending_move) {
             const moveName = (await this.db.get("SELECT name FROM moves WHERE id = ?", [userPoke.pending_move]))?.name;
             return `⚠️ ${userPoke.nickname} ainda está tentando aprender *${moveName}*!\nUse *!poke esquecer [1-4]* ou *!poke ignorar*.`;
         }
 
         let lvl = userPoke.level;
-        let msg = tag;
+        let msg = "";
         let stopLvlUp = false;
 
         let totalXp = Math.floor((enemy.base_xp * enemyLevel * multiplier) / 7);

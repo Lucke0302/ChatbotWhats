@@ -170,6 +170,16 @@ const NATURES = {
 };
 const NATURE_KEYS = Object.keys(NATURES);
 
+const STATUS_EFFECTS = {
+    par: { name: "Paralisado", msg: "está paralisado e não consegue se mover!" },
+    psn: { name: "Envenenado", dmg: 1/8, msg: "sofreu dano do veneno!" },
+    tox: { name: "Gravemente Envenenado", msg: "sofreu dano do veneno!" },
+    brn: { name: "Queimado", dmg: 1/16, msg: "sofreu dano da queimadura!" }, 
+    slp: { name: "Dormindo", msg: "está dormindo profundamente..." },
+    frz: { name: "Congelado", msg: "está congelado e não pode atacar!" },
+    con: { name: "Confuso", msg: "está confuso..."}
+};
+
 class PokemonHandler {
     constructor(db) {
         this.db = db;
@@ -428,6 +438,165 @@ class PokemonHandler {
         console.log("✅ Seed Completo (Gen 1, 2 e 3)!");
     }
 
+    async checkStatusBeforeMove(battleState, isPlayer, pokeName, sock, groupId) {
+        const targetKey = isPlayer ? 'user' : 'enemy';
+        const status = battleState[targetKey + 'Status']; 
+        const counters = battleState.counters[targetKey];
+        let canMove = true;
+        let log = "";
+
+        // --- EFEITO DO UPROAR ---
+        if (battleState.field.uproar > 0) {
+            if (status === 'slp') {
+                status = null;
+                battleState[targetKey + 'Status'] = null;
+                log += `📢 *${pokeName}* acordou por causa do barulho (Uproar)!\n`;
+            }
+        }
+
+        // --- SONO (SLEEP) ---
+        if (status === 'slp') {
+            if (counters.sleep > 0) {
+                counters.sleep--;
+                return { canMove: false, log: `😴 *${pokeName}* está dormindo!` };
+            } else {
+                battleState[targetKey + 'Status'] = null;
+                log += `⏰ *${pokeName}* acordou!\n`;
+            }
+        }
+
+        // --- CONGELAMENTO (FREEZE) ---
+        if (status === 'frz') {
+            if (Math.random() < 0.3) {
+                battleState[targetKey + 'Status'] = null;
+                log += `🔥 *${pokeName}* descongelou!\n`;
+            } else {
+                return { canMove: false, log: `🧊 *${pokeName}* está congelado!` };
+            }
+        }
+
+        // --- CONFUSÃO (CONFUSION) - Status Volátil ---
+        if (counters.confusion > 0) {
+            counters.confusion--;
+            log += `🌀 *${pokeName}* está confuso...\n`;
+            if (Math.random() < 0.33) {
+                return { canMove: false, log: log + `😵 E machucou a si mesmo na confusão!`, selfDamage: true };
+            }
+            if (counters.confusion === 0) log += `✨ *${pokeName}* saiu da confusão!\n`;
+        }
+
+        // --- PARALISIA (PARALYSIS) ---
+        if (status === 'par') {
+            if (Math.random() < 0.25) {
+                return { canMove: false, log: `⚡ *${pokeName}* está paralisado e não consegue se mover!` };
+            }
+        }
+
+        return { canMove: true, log: log };
+    }
+
+    processSpecialMoveEffects(move, userPoke, targetPoke, damageDealt, battleState, isPlayer) {
+        let log = "";
+        let selfDamage = 0;
+        let healAmount = 0;
+        const targetKey = isPlayer ? 'user' : 'enemy';
+        const moveName = move.name.toLowerCase();
+
+        // === GRUPO 1: THRASH, UPROAR, OUTRAGE ===
+        const thrashMoves = ['uproar', 'thrash', 'outrage', 'petal-dance']; 
+        
+        if (thrashMoves.includes(moveName)) {
+            if (!battleState.lockedMove[targetKey]) {
+                const turns = (moveName === 'uproar') ? 3 : (Math.floor(Math.random() * 2) + 2);
+                battleState.lockedMove[targetKey] = { name: moveName, turns: turns };
+                
+                if (moveName === 'uproar') {
+                    battleState.field.uproar = turns;
+                    log += `\n📢 *${userPoke.nickname || userPoke.name}* começou uma algazarra!`;
+                } else {
+                    log += `\n😡 *${userPoke.nickname || userPoke.name}* entrou em fúria!`;
+                }
+            } 
+            else {
+                battleState.lockedMove[targetKey].turns--;
+                if (moveName === 'uproar') battleState.field.uproar = battleState.lockedMove[targetKey].turns;
+
+                if (battleState.lockedMove[targetKey].turns <= 0) {
+                    battleState.lockedMove[targetKey] = null;
+                    if (moveName === 'uproar') {
+                        log += `\n📢 A algazarra acabou.`;
+                    } else {
+                        battleState.counters[targetKey].confusion = Math.floor(Math.random() * 4) + 1;
+                        log += `\n😵 *${userPoke.nickname || userPoke.name}* ficou confuso devido à fadiga!`;
+                    }
+                }
+            }
+        }
+
+        // === GRUPO 2: ROLLOUT, ICE BALL ===
+        if (['rollout', 'ice-ball'].includes(moveName)) {
+            if (!battleState.lockedMove[targetKey]) {
+                battleState.lockedMove[targetKey] = { name: moveName, stacks: 1 }; 
+                log += `\n🔄 *${userPoke.nickname || userPoke.name}* começou a rolar!`;
+            } 
+            else {
+                battleState.lockedMove[targetKey].stacks++;
+                
+                if (battleState.lockedMove[targetKey].stacks >= 5) {
+                    battleState.lockedMove[targetKey] = null;
+                    log += `\n🔄 O *${userPoke.nickname || userPoke.name}* completou a sequência de giros!`;
+                }
+            }
+        }
+
+        // --- GOLPES DE DRENAGEM ---
+        if (['absorb', 'mega-drain', 'giga-drain', 'leech-life', 'drain-punch'].includes(moveName)) {
+            healAmount = Math.floor(damageDealt / 2);
+            log += `\n✨ Drenou vida do oponente!`;
+        }
+        if (moveName === 'dream-eater' && damageDealt > 0) {
+            healAmount = Math.floor(damageDealt / 2);
+            log += `\n✨ O sonho estava delicioso!`;
+        }
+
+        // --- GOLPES DE RECUO ---
+        if (['take-down', 'double-edge', 'submission', 'brave-bird', 'flare-blitz', 'wood-hammer', 'volt-tackle'].includes(moveName)) {
+            selfDamage = Math.floor(damageDealt / 4);
+            if (selfDamage < 1) selfDamage = 1;
+            log += `\n💥 Sofreu **${selfDamage}** de dano de recuo!`;
+        }
+
+        return { log, selfDamage, healAmount };
+    }
+
+    applyStatusDamage(battleState, isPlayer, pokeObj, maxHp) {
+        const targetKey = isPlayer ? 'user' : 'enemy';
+        const status = battleState[targetKey + 'Status'];
+        let dmg = 0;
+        let msg = "";
+
+        if (status === 'psn') {
+            dmg = Math.floor(maxHp / 8);
+            msg = `☠️ *${pokeObj.nickname || pokeObj.name}* sofreu com o veneno!`;
+        } 
+        else if (status === 'brn') {
+            dmg = Math.floor(maxHp / 16);
+            msg = `🔥 *${pokeObj.nickname || pokeObj.name}* se queimou!`;
+        }
+        else if (status === 'tox') {
+            battleState.counters[targetKey].toxic++;
+            const stacks = battleState.counters[targetKey].toxic;
+            dmg = Math.floor(maxHp * (stacks / 16));
+            msg = `🟣 *${pokeObj.nickname || pokeObj.name}* sofreu com o veneno grave! (x${stacks})`;
+        }
+
+        if (dmg > 0) {
+            pokeObj.current_hp -= dmg;
+            return { dmg, msg, currentHp: pokeObj.current_hp };
+        }
+        return null;
+    }
+
     getRandomNature() {
         return NATURE_KEYS[Math.floor(Math.random() * NATURE_KEYS.length)];
     }
@@ -466,10 +635,31 @@ class PokemonHandler {
         
         if (!data.stages) {
             data.stages = {
-                user: { atk: 0, def: 0, spa: 0, spd: 0, spe: 0, acc: 0 },
-                enemy: { atk: 0, def: 0, spa: 0, spd: 0, spe: 0, acc: 0 }
+                user: { atk: 0, def: 0, spa: 0, spd: 0, spe: 0, acc: 0, eva: 0 },
+                enemy: { atk: 0, def: 0, spa: 0, spd: 0, spe: 0, acc: 0, eva: 0 }
             };
         }
+        
+        if (!data.counters) {
+            data.counters = {
+                user: { sleep: 0, confusion: 0, toxic: 0 },
+                enemy: { sleep: 0, confusion: 0, toxic: 0 }
+            };
+        }
+
+        if (!data.lockedMove) {
+            data.lockedMove = {
+                user: null,
+                enemy: null
+            };
+        }
+        
+        if (!data.field) {
+            data.field = {
+                uproar: 0 
+            };
+        }
+        
         return data;
     }
 
@@ -548,14 +738,31 @@ class PokemonHandler {
             }
         }
 
-        // Falta programar a lógica dos efeitos
         if (effect.status) {
-            if (state[targetKey + 'Status']) {
-                result.msg = `usou ${moveName}, mas falhou!`;
+            const currentStatus = state[targetKey + 'Status'];
+            if (currentStatus) {
+                result.msg = `tentou usar ${moveName}, mas falhou!`;
             } else {
                 state[targetKey + 'Status'] = effect.status; 
+                
+                if (effect.status === 'slp') {
+                    state.counters[targetKey].sleep = Math.floor(Math.random() * 3) + 1;
+                }
+                if (effect.status === 'tox') {
+                    state.counters[targetKey].toxic = 0;
+                }
+
                 result.msg = `usou ${moveName} e ${effect.msg}`;
             }
+        }
+        
+        if (moveName === 'confuse-ray' || moveName === 'supersonic') {
+             if (state.counters[targetKey].confusion > 0) {
+                 result.msg = `usou ${moveName}, mas o alvo já está confuso!`;
+             } else {
+                 state.counters[targetKey].confusion = Math.floor(Math.random() * 4) + 1; // 1 a 4 turnos
+                 result.msg = `usou ${moveName} e ${effect.msg}`;
+             }
         }
 
         if (effect.heal && maxHp) {
@@ -1382,228 +1589,340 @@ class PokemonHandler {
 
         if (!userPoke) return "Cadê seu Pokémon?";
 
-        if (userPoke.current_hp <= 0) {
-            const teamAlive = await this.db.get("SELECT COUNT(*) as total FROM user_pokemons WHERE user_id = ? AND team_slot IS NOT NULL AND current_hp > 0", [userId]);
-            if (teamAlive.total > 0) {
-                return `${tag}💀 *${userPoke.nickname}* está fora de combate!\nUse *!poke trocar [slot]* para escolher outro Pokémon.`;
-            } else {
-                await this.clearEncounter(userId);
-                return `${tag}💀 Toda sua equipe foi derrotada! Você correu para o Centro Pokémon.`;
-            }
-        }
-
-        if (!moveSlot) {
-            const moves = await this.getUserMoves(userPoke);
-            const typeEmojis = this.getTypeEmojis(userPoke.type1, userPoke.type2);
-            
-            let msg = `${tag}👊 *${userPoke.nickname}* ${typeEmojis} (HP: ${userPoke.current_hp}/${userPoke.max_hp})\n*Ataques:*\n`;
-            
-            moves.forEach((m, i) => {
-                msg += `${i+1}. ${m.name} (${m.type}) - [${m.current_pp}/${m.pp} PP]\n`
-            });
-            msg += `\nUse: *!poke atacar 1*`;
-            return msg;
-        }
-
         const encounterRaw = await this.db.get("SELECT extra_data FROM active_encounters WHERE user_id = ?", [userId]);
         let battleState = this.getBattleState(encounterRaw);
 
         if (!battleState.participants) battleState.participants = [];
-        
         if (!battleState.participants.includes(userPoke.id)) {
             battleState.participants.push(userPoke.id);
-            let currentExtraData = encounterRaw.extra_data ? JSON.parse(encounterRaw.extra_data) : {};
-            currentExtraData.participants = battleState.participants;
-            await this.db.run("UPDATE active_encounters SET extra_data = ? WHERE user_id = ?", [JSON.stringify(currentExtraData), userId]);
         }
-
-        const getTypeMultiplier = (moveType, targetType1, targetType2) => {
-            if (!moveType) return 1;
-            const attackerChart = TYPE_CHART[moveType.toLowerCase()];
-            if (!attackerChart) return 1;
-            let mult = 1;
-            if (targetType1 && attackerChart[targetType1.toLowerCase()] !== undefined) mult *= attackerChart[targetType1.toLowerCase()];
-            if (targetType2 && attackerChart[targetType2.toLowerCase()] !== undefined) mult *= attackerChart[targetType2.toLowerCase()];
-            return mult;
-        };
-
-        const selectedMove = (await this.getUserMoves(userPoke))[parseInt(moveSlot) - 1];
-        if (!selectedMove) return `${tag}Golpe inválido!`;
-
-        if (selectedMove.current_pp <= 0) {
-            return `${tag}🚫 *${selectedMove.name}* está sem PP! Escolha outro golpe.`;
-        }
-
-        const colName = `move${moveSlot}_pp`;
-        await this.db.run(`UPDATE user_pokemons SET ${colName} = ${colName} - 1 WHERE id = ?`, [userPoke.id]);
-
-        const calcDmg = (lvl, pwr, atk, def) => Math.floor(((2 * lvl / 5 + 2) * pwr * (atk / def)) / 50 + 2);
 
         let log = "";
-        let damageToWild = 0;
+        
+        // --- CHECAGEM DE STATUS ---
+        const userCheck = await this.checkStatusBeforeMove(battleState, true, userPoke.nickname, sock, groupId);
+        if (userCheck.log) log += userCheck.log + "\n";
+        
+        if (userCheck.selfDamage) {
+            const selfDmg = Math.floor(userPoke.max_hp * 0.15);
+            userPoke.current_hp -= selfDmg;
+            await this.db.run("UPDATE user_pokemons SET current_hp = ? WHERE id = ?", [userPoke.current_hp, userPoke.id]);
+        }
 
-        // TURNO DO JOGADOR
-        if (selectedMove.damage_class === 'status') {
-            const res = await this.processStatusMove(selectedMove.name, battleState, true, userPoke.max_hp);
-            log += `✨ ${userPoke.nickname} ${res.msg}\n`;
+        if (userPoke.current_hp <= 0) {
+             return this.handlePlayerFaint(userId, userPoke, tag, log);
+        }
 
-            if (res.healAmount > 0) {
-                userPoke.current_hp = Math.min(userPoke.max_hp, userPoke.current_hp + res.healAmount);
-                await this.db.run("UPDATE user_pokemons SET current_hp = ? WHERE id = ?", [userPoke.current_hp, userPoke.id]);
-            }
+        let moveExecuted = false;
+
+        // --- LÓGICA DE ATAQUE DO JOGADOR ---
+        if (!userCheck.canMove) {
         } else {
-            const userAtkReal = this.calculateStat(userPoke.base_atk, userPoke.iv_atk, userPoke.level, userPoke.nature, 'atk');
-            const userSpaReal = this.calculateStat(userPoke.base_spa, userPoke.iv_spa, userPoke.level, userPoke.nature, 'spa');
-            
-            let calcAtk = (selectedMove.damage_class === 'special') ? userSpaReal : userAtkReal;
+            let selectedMove;
+            let forcedMove = null;
 
-            const enemyDefReal = Math.floor(((2 * encounter.pokemon.base_def + 15) * encounter.level) / 100 + 5);
-            const enemySpdReal = Math.floor(((2 * encounter.pokemon.base_spd + 15) * encounter.level) / 100 + 5);
-            
-            let calcDef = (selectedMove.damage_class === 'special') ? enemySpdReal : enemyDefReal;
-
-            let stageAtk = (selectedMove.damage_class === 'physical') ? battleState.stages.user.atk : battleState.stages.user.spa;
-            let stageDef = (selectedMove.damage_class === 'physical') ? battleState.stages.enemy.def : battleState.stages.enemy.spd;
-            let finalAtk = this.applyStages(calcAtk, stageAtk);
-            let finalDef = this.applyStages(calcDef, stageDef);
-
-            damageToWild = calcDmg(userPoke.level, selectedMove.power, finalAtk, finalDef);
-
-            if (selectedMove.type === userPoke.type1 || selectedMove.type === userPoke.type2) {
-                damageToWild = Math.floor(damageToWild * 1.5);
-            }
-
-            const typeMult = getTypeMultiplier(selectedMove.type, encounter.pokemon.type1, encounter.pokemon.type2);
-            damageToWild = Math.floor(damageToWild * typeMult);
-
-            if (damageToWild < 1 && typeMult > 0) damageToWild = 1;
-
-            if (Math.random() < 0.05) {
-                damageToWild = Math.floor(damageToWild * 2);
-                log += `🎯 *GOLPE CRÍTICO!* 🎯\n`;
-            }
-
-            damageToWild = Math.floor(damageToWild * ((Math.random() * 0.15) + 0.85))+1;
-            encounter.currentHp -= damageToWild;
-
-            log += `${tag}🗡️ ${userPoke.nickname} usou *${selectedMove.name}* e causou **${damageToWild}** de dano.\n`;
-
-            if (typeMult > 1) log += `⚔️ *É super efetivo!* (x${typeMult})\n`;
-            if (typeMult < 1 && typeMult > 0) log += `🛡️ *Não é muito efetivo...* (x${typeMult})\n`;
-            if (typeMult === 0) log += `❌ *Não afetou o inimigo...*\n`;
-        }
-
-        // FIM DA BATALHA OU TROCA DE OPONENTE
-        if (encounter.currentHp <= 0) {
-            let participants = battleState.participants || [userPoke.id];
-            const uniqueParticipants = [...new Set(participants)];
-            const splitFactor = uniqueParticipants.length;
-
-            let logMsg = `💀 O inimigo desmaiou!\n`;
-
-            let xpMultiplier = 1.0;
-
-            if (encounter.battle_type === 'GYM_LEADER') xpMultiplier = 2.5; 
-            else if (encounter.battle_type === 'GYM_TRAINER') xpMultiplier = 2; 
-            else if (encounter.battle_type === 'TRAINER') xpMultiplier = 1.5;
-
-            for (const pId of uniqueParticipants) {
-                const p = await this.db.get(`
-                    SELECT up.*, dex.base_hp 
-                    FROM user_pokemons up 
-                    JOIN pokedex dex ON up.pokedex_id = dex.id 
-                    WHERE up.id = ?`, [pId]);
-                
-                if (p) {
-                    const xpMsg = await this.gainExperience(p, encounter.pokemon, encounter.level, splitFactor, xpMultiplier, userId);
-                    logMsg += `\n🔹 *${p.nickname}*: ${xpMsg.replace('✨ Ganhou', 'Ganhou')}`; 
+            if (battleState.lockedMove.user) {
+                forcedMove = await this.db.get("SELECT * FROM moves WHERE name = ?", [battleState.lockedMove.user.name]);
+                if (forcedMove) {
+                    moveSlot = null; 
+                    log += `⚠️ *${userPoke.nickname}* está incontrolável e usou *${forcedMove.name}*!\n`;
+                    selectedMove = forcedMove;
                 }
             }
 
-            if ((encounter.battle_type === 'GYM_LEADER' || encounter.battle_type === 'GYM_TRAINER' || encounter.battle_type === 'TRAINER') && encounter.gymData.remainingTeam && encounter.gymData.remainingTeam.length > 0) {
-                const nextPokeData = encounter.gymData.remainingTeam.shift(); 
-                
-                const nextPokeDex = await this.db.get("SELECT name FROM pokedex WHERE id = ?", [nextPokeData.pokedex_id]);
-                
-                encounter.gymData.waitingSwitch = true;
-                encounter.gymData.nextEnemy = nextPokeData; 
+            if (!forcedMove) {
+                if (!moveSlot) {
+                    const moves = await this.getUserMoves(userPoke);
+                    const typeEmojis = this.getTypeEmojis(userPoke.type1, userPoke.type2);
+                    let msg = `${tag}👊 *${userPoke.nickname}* ${typeEmojis} (HP: ${userPoke.current_hp}/${userPoke.max_hp})\n*Ataques:*\n`;
+                    moves.forEach((m, i) => {
+                        let classIcon = m.damage_class === 'physical' ? "💥" : (m.damage_class === 'special' ? "🔮" : "✨");
+                        msg += `${i+1}. ${m.name} (${m.type}) ${classIcon} [${m.current_pp}/${m.pp} PP]\n`
+                    });
+                    msg += `\nUse: *!poke atacar 1*`;
+                    return msg;
+                }
 
-                await this.db.run(`UPDATE active_encounters SET extra_data = ? WHERE user_id = ?`, 
-                    [JSON.stringify(encounter.gymData), userId]
-                );
-
-                const title = encounter.isGym ? 'Líder' : 'Treinador';
+                const movesList = await this.getUserMoves(userPoke);
+                selectedMove = movesList[parseInt(moveSlot) - 1];
+                if (!selectedMove) return `${tag}Golpe inválido!`;
                 
-                return `${log}\n${logMsg}\n\n🛑 *${title} ${encounter.gymData.leaderName}* vai enviar *${nextPokeDex.name}*.\n\nDeseja trocar de Pokémon?\n🔄 *!poke trocar [slot]*\n⚔️ *!poke atacar* (para manter)`;
+                if (selectedMove.current_pp <= 0) {
+                    return `${tag}🚫 *${selectedMove.name}* está sem PP! Escolha outro golpe.`;
+                }
             }
 
-            // VITÓRIA FINAL
-            await this.clearEncounter(userId);
+            // --- PRECISÃO (Accuracy Check) ---
+            let moveAcc = selectedMove.accuracy === null ? 100 : selectedMove.accuracy;
+            const alwaysHitMoves = ['swift', 'aerial-ace', 'faint-attack', 'magical-leaf', 'shock-wave', 'shadow-punch'];
+            let missed = false;
 
-            if (encounter.battle_type === 'GYM_TRAINER') {
-                await this.db.run("UPDATE usuarios SET gym_progress = gym_progress - 1 WHERE id_usuario = ?", [userId]);
+            if (!alwaysHitMoves.includes(selectedMove.name) && moveAcc < 999) {
+                const accStage = battleState.stages.user.acc || 0;
+                const evaStage = battleState.stages.enemy.eva || 0;
+                let combinedStage = Math.max(-6, Math.min(6, accStage - evaStage));
                 
-                const remaining = (await this.db.get("SELECT gym_progress FROM usuarios WHERE id_usuario = ?", [userId])).gym_progress;
-                
-                const reward = 750; 
-                await this.db.run("UPDATE usuarios SET pokecoins = pokecoins + ? WHERE id_usuario = ?", [reward, userId]);
+                const stageMultipliers = {
+                    '-6': 0.33, '-5': 0.38, '-4': 0.43, '-3': 0.50, '-2': 0.60, '-1': 0.75,
+                    '0': 1.0,
+                    '1': 1.33, '2': 1.67, '3': 2.0, '4': 2.33, '5': 2.67, '6': 3.0
+                };
+                const hitChance = moveAcc * (stageMultipliers[String(combinedStage)] || 1.0);
 
-                let nextMsg = "";
-                if (remaining > 0) {
-                    nextMsg = `😰 Faltam *${remaining}* treinadores.\nCure seus Pokémon e digite *!poke ginasio* novamente.`;
+                if (Math.random() * 100 > hitChance) {
+                    log += `\n💨 *${userPoke.nickname}* usou ${selectedMove.name}, mas errou!`;
+                    missed = true;
+                    if (battleState.lockedMove.user) {
+                        battleState.lockedMove.user = null;
+                        log += `\n🛑 O combo foi interrompido!`;
+                    }
+                }
+            }
+
+            if (!missed) {
+                moveExecuted = true;
+
+                if (!forcedMove) {
+                     const colName = `move${moveSlot}_pp`;
+                     await this.db.run(`UPDATE user_pokemons SET ${colName} = ${colName} - 1 WHERE id = ?`, [userPoke.id]);
+                }
+
+                let movePower = selectedMove.power;
+                if (battleState.lockedMove.user && ['rollout', 'ice-ball'].includes(battleState.lockedMove.user.name)) {
+                     const stacks = battleState.lockedMove.user.stacks;
+                     movePower = movePower * Math.pow(2, stacks);
+                }
+
+                let damageToWild = 0;
+
+                if (selectedMove.damage_class === 'status') {
+                     const res = await this.processStatusMove(selectedMove.name, battleState, true, userPoke.max_hp);
+                     log += `✨ ${userPoke.nickname} ${res.msg}\n`;
+                     if (res.healAmount > 0) {
+                        userPoke.current_hp = Math.min(userPoke.max_hp, userPoke.current_hp + res.healAmount);
+                        await this.db.run("UPDATE user_pokemons SET current_hp = ? WHERE id = ?", [userPoke.current_hp, userPoke.id]);
+                     }
                 } else {
-                    nextMsg = `🚨 *O CAMINHO ESTÁ LIVRE!* 🚨\nVocê derrotou todos os capangas.\nCure seu time e digite *!poke ginasio* para desafiar o LÍDER!`;
+                     // Cálculo de Dano
+                    const userAtkReal = this.calculateStat(userPoke.base_atk, userPoke.iv_atk, userPoke.level, userPoke.nature, 'atk');
+                    const userSpaReal = this.calculateStat(userPoke.base_spa, userPoke.iv_spa, userPoke.level, userPoke.nature, 'spa');
+                    let calcAtk = (selectedMove.damage_class === 'special') ? userSpaReal : userAtkReal;
+
+                    const enemyDefReal = Math.floor(((2 * encounter.pokemon.base_def + 15) * encounter.level) / 100 + 5);
+                    const enemySpdReal = Math.floor(((2 * encounter.pokemon.base_spd + 15) * encounter.level) / 100 + 5);
+                    let calcDef = (selectedMove.damage_class === 'special') ? enemySpdReal : enemyDefReal;
+
+                    let stageAtk = (selectedMove.damage_class === 'physical') ? battleState.stages.user.atk : battleState.stages.user.spa;
+                    let stageDef = (selectedMove.damage_class === 'physical') ? battleState.stages.enemy.def : battleState.stages.enemy.spd;
+                    
+                    let finalAtk = this.applyStages(calcAtk, stageAtk);
+                    let finalDef = this.applyStages(calcDef, stageDef);
+
+                    const calcDmg = (lvl, pwr, atk, def) => Math.floor(((2 * lvl / 5 + 2) * pwr * (atk / def)) / 50 + 2);
+                    damageToWild = calcDmg(userPoke.level, movePower, finalAtk, finalDef);
+
+                    if (selectedMove.type === userPoke.type1 || selectedMove.type === userPoke.type2) {
+                        damageToWild = Math.floor(damageToWild * 1.5);
+                    }
+
+                    if (battleState.userStatus === 'brn' && selectedMove.damage_class === 'physical') {
+                        damageToWild = Math.floor(damageToWild * 0.5);
+                    }
+
+                    const getTypeMultiplier = (moveType, t1, t2) => {
+                        if (!moveType || !TYPE_CHART[moveType.toLowerCase()]) return 1;
+                        let m = 1;
+                        if (t1) m *= (TYPE_CHART[moveType.toLowerCase()][t1.toLowerCase()] || 1);
+                        if (t2) m *= (TYPE_CHART[moveType.toLowerCase()][t2.toLowerCase()] || 1);
+                        return m;
+                    };
+                    const typeMult = getTypeMultiplier(selectedMove.type, encounter.pokemon.type1, encounter.pokemon.type2);
+                    damageToWild = Math.floor(damageToWild * typeMult);
+
+                    if (damageToWild < 1 && typeMult > 0) damageToWild = 1;
+
+                    if (Math.random() < 0.0625) {
+                        damageToWild = Math.floor(damageToWild * 2);
+                        log += `🎯 *GOLPE CRÍTICO!* 🎯\n`;
+                    }
+                    
+                    damageToWild = Math.floor(damageToWild * ((Math.random() * 0.15) + 0.85));
+
+                    encounter.currentHp -= damageToWild;
+                    log += `${tag}🗡️ ${userPoke.nickname} usou *${selectedMove.name}* e causou **${damageToWild}** de dano.\n`;
+
+                    if (typeMult > 1) log += `⚔️ *É super efetivo!* (x${typeMult})\n`;
+                    if (typeMult < 1 && typeMult > 0) log += `🛡️ *Não é muito efetivo...* (x${typeMult})\n`;
+                    if (typeMult === 0) log += `❌ *Não afetou o inimigo...*\n`;
                 }
 
-                return `${log}\n🎉 *Você venceu o treinador do ginásio!*\nRecebeu 💰 ${reward}!\n${logMsg}\n\n${nextMsg}`;
+                const specialEffects = this.processSpecialMoveEffects(selectedMove, userPoke, encounter.pokemon, damageToWild, battleState, true);
+                log += specialEffects.log;
+                
+                if (specialEffects.selfDamage > 0) {
+                     userPoke.current_hp -= specialEffects.selfDamage;
+                     await this.db.run("UPDATE user_pokemons SET current_hp = ? WHERE id = ?", [userPoke.current_hp, userPoke.id]);
+                }
+                if (specialEffects.healAmount > 0) {
+                     userPoke.current_hp = Math.min(userPoke.max_hp, userPoke.current_hp + specialEffects.healAmount);
+                     await this.db.run("UPDATE user_pokemons SET current_hp = ? WHERE id = ?", [userPoke.current_hp, userPoke.id]);
+                     log += ` (+${specialEffects.healAmount} HP)`;
+                }
             }
-
-            if (encounter.battle_type === 'GYM_LEADER') { 
-                const badgeInfo = encounter.gymData;
-                await this.db.run("UPDATE usuarios SET badges = badges + 1, pokecoins = pokecoins + ?, gym_progress = NULL WHERE id_usuario = ?", [badgeInfo.reward, userId]);
-                return `${log}\n🏆 *VITÓRIA NO GINÁSIO!*\nVocê derrotou o Líder ${badgeInfo.leaderName}!\n\n🏅 Recebeu: *Insígnia ${badgeInfo.badgeName}*\n💰 Recebeu: *${badgeInfo.reward} coins*\n${logMsg}`;
-            }
-
-            if (encounter.battle_type === 'TRAINER') {
-                const rawReward = encounter.gymData.reward || 500;
-                const reward = Math.floor((Math.random() + 1) * rawReward)
-                await this.db.run("UPDATE usuarios SET pokecoins = pokecoins + ? WHERE id_usuario = ?", [reward, userId]);
-                return `${log}\n🏆 *VOCÊ VENCEU O TREINADOR!*\nRecebeu 💰 ${reward}!\n${logMsg}`;
-            }
-
-            const baseGain = 15;
-            const luckGain = Math.random() * 25;
-            const coins = Math.floor(encounter.level * (baseGain + luckGain));
-            await this.db.run("UPDATE usuarios SET pokecoins = pokecoins + ? WHERE id_usuario = ?", [coins, userId]);
-            
-            return `${log}\n${logMsg}\n💰 +${coins} coins.`;
         }
 
-        // TURNO DO INIMIGO
+        // --- VERIFICA SE O INIMIGO MORREU ---
+        if (encounter.currentHp <= 0) {
+             return this.handleVictory(userId, encounter, battleState, log);
+        }
+
+        // --- TURNO DO INIMIGO ---
         const enemyLog = await this.processEnemyTurn(encounter, userPoke, battleState, userId);
         log += enemyLog;
-
+        
+        // Salva HP Inimigo
         await this.db.run(`UPDATE active_encounters SET current_hp = ? WHERE user_id = ?`, [encounter.currentHp, userId]);
 
+        // Verifica Morte Jogador
         const updatedUserPoke = await this.db.get("SELECT current_hp, max_hp, nickname FROM user_pokemons WHERE id = ?", [userPoke.id]);
-        
         if (updatedUserPoke.current_hp <= 0) {
-            const hasBackup = await this.db.get("SELECT id FROM user_pokemons WHERE user_id = ? AND team_slot IS NOT NULL AND current_hp > 0 AND id != ?", [userId, userPoke.id]);
-            if (hasBackup) {
-                return `${log}\n\n💀 *${updatedUserPoke.nickname}* desmaiou!\nA batalha continua! Use *!poke trocar [slot]* para enviar o próximo!`;
-            } else {
-                await this.clearEncounter(userId);
-                return `${log}\n\n🏴 Você não tem mais Pokémon capazes de lutar!\nVocê perdeu a batalha e correu para o CP (use *!poke curar*).`;
+             return this.handlePlayerFaint(userId, updatedUserPoke, tag, log);
+        }
+
+        // --- DANO RESIDUAL (Fim do Turno) ---
+        // Jogador
+        const userRes = this.applyStatusDamage(battleState, true, userPoke, userPoke.max_hp);
+        if (userRes) {
+            log += `\n${userRes.msg} (-${userRes.dmg})`;
+            await this.db.run("UPDATE user_pokemons SET current_hp = ? WHERE id = ?", [userPoke.current_hp, userPoke.id]);
+        }
+        
+        // Inimigo
+        const enemyRes = this.applyStatusDamage(battleState, false, encounter, encounter.maxHp);
+        if (enemyRes) {
+            log += `\n${enemyRes.msg} (-${enemyRes.dmg})`;
+            encounter.currentHp = enemyRes.currentHp;
+            await this.db.run(`UPDATE active_encounters SET current_hp = ? WHERE user_id = ?`, [encounter.currentHp, userId]);
+            
+            // Verifica morte por status
+            if (encounter.currentHp <= 0) {
+                return this.handleVictory(userId, encounter, battleState, log);
             }
         }
 
+        // Verifica morte por status (Jogador)
+        if (userPoke.current_hp <= 0) {
+             return this.handlePlayerFaint(userId, userPoke, tag, log);
+        }
+        
+        // SALVA O ESTADO DA BATALHA
+        let finalExtraData = encounterRaw.extra_data ? JSON.parse(encounterRaw.extra_data) : {};
+        finalExtraData.stages = battleState.stages;
+        finalExtraData.counters = battleState.counters;
+        finalExtraData.lockedMove = battleState.lockedMove;
+        finalExtraData.field = battleState.field;
+        finalExtraData.participants = battleState.participants;
+
+        await this.db.run("UPDATE active_encounters SET extra_data = ? WHERE user_id = ?", [JSON.stringify(finalExtraData), userId]);
+
+        // Retorno Visual
         return `${log}\n\n` +
                `❤️ Inimigo: ${Math.floor(Math.max(0, encounter.currentHp))}/${Math.floor(encounter.maxHp)}\n` +
-               `💚 Seu: ${Math.max(0, updatedUserPoke.current_hp)}/${updatedUserPoke.max_hp}\n\n` +
+               `💚 Seu: ${Math.max(0, userPoke.current_hp)}/${userPoke.max_hp}\n\n` +
                `⚔️ *!poke atacar [n]*\n` +
                `🔴 *!poke capturar*\n` +
                `🔄 *!poke trocar [n]*\n` +
                `🏃 *!poke fugir*`;
+    }
+
+    async handleVictory(userId, encounter, battleState, log) {
+        let participants = battleState.participants || [];
+        const uniqueParticipants = [...new Set(participants)];
+        const splitFactor = uniqueParticipants.length;
+
+        let logMsg = `💀 O inimigo desmaiou!\n`;
+        let xpMultiplier = 1.0;
+
+        if (encounter.battle_type === 'GYM_LEADER') xpMultiplier = 2.5; 
+        else if (encounter.battle_type === 'GYM_TRAINER') xpMultiplier = 2; 
+        else if (encounter.battle_type === 'TRAINER') xpMultiplier = 1.5;
+
+        for (const pId of uniqueParticipants) {
+            const p = await this.db.get(`
+                SELECT up.*, dex.base_hp 
+                FROM user_pokemons up 
+                JOIN pokedex dex ON up.pokedex_id = dex.id 
+                WHERE up.id = ?`, [pId]);
+            
+            if (p) {
+                const xpMsg = await this.gainExperience(p, encounter.pokemon, encounter.level, splitFactor, xpMultiplier, userId);
+                logMsg += `\n🔹 *${p.nickname}*: ${xpMsg.replace('✨ Ganhou', 'Ganhou')}`; 
+            }
+        }
+
+        if ((encounter.battle_type === 'GYM_LEADER' || encounter.battle_type === 'GYM_TRAINER' || encounter.battle_type === 'TRAINER') && encounter.gymData.remainingTeam && encounter.gymData.remainingTeam.length > 0) {
+            const nextPokeData = encounter.gymData.remainingTeam.shift(); 
+            const nextPokeDex = await this.db.get("SELECT name FROM pokedex WHERE id = ?", [nextPokeData.pokedex_id]);
+            
+            encounter.gymData.waitingSwitch = true;
+            encounter.gymData.nextEnemy = nextPokeData; 
+            encounter.gymData.participants = [];
+
+            await this.db.run(`UPDATE active_encounters SET extra_data = ? WHERE user_id = ?`, 
+                [JSON.stringify(encounter.gymData), userId]
+            );
+
+            const title = encounter.isGym ? 'Líder' : 'Treinador';
+            return `${log}\n${logMsg}\n\n🛑 *${title} ${encounter.gymData.leaderName}* vai enviar *${nextPokeDex.name}*.\n\nDeseja trocar de Pokémon?\n🔄 *!poke trocar [slot]*\n⚔️ *!poke atacar* (para manter)`;
+        }
+
+        // VITÓRIA FINAL
+        await this.clearEncounter(userId);
+
+        if (encounter.battle_type === 'GYM_TRAINER') {
+            await this.db.run("UPDATE usuarios SET gym_progress = gym_progress - 1 WHERE id_usuario = ?", [userId]);
+            const remaining = (await this.db.get("SELECT gym_progress FROM usuarios WHERE id_usuario = ?", [userId])).gym_progress;
+            const reward = 750; 
+            await this.db.run("UPDATE usuarios SET pokecoins = pokecoins + ? WHERE id_usuario = ?", [reward, userId]);
+
+            let nextMsg = "";
+            if (remaining > 0) {
+                nextMsg = `😰 Faltam *${remaining}* treinadores.\nCure seus Pokémon e digite *!poke ginasio* novamente.`;
+            } else {
+                nextMsg = `🚨 *O CAMINHO ESTÁ LIVRE!* 🚨\nVocê derrotou todos os capangas.\nCure seu time e digite *!poke ginasio* para desafiar o LÍDER!`;
+            }
+            return `${log}\n🎉 *Você venceu o treinador do ginásio!*\nRecebeu 💰 ${reward}!\n${logMsg}\n\n${nextMsg}`;
+        }
+
+        if (encounter.battle_type === 'GYM_LEADER') { 
+            const badgeInfo = encounter.gymData;
+            await this.db.run("UPDATE usuarios SET badges = badges + 1, pokecoins = pokecoins + ?, gym_progress = NULL WHERE id_usuario = ?", [badgeInfo.reward, userId]);
+            return `${log}\n🏆 *VITÓRIA NO GINÁSIO!*\nVocê derrotou o Líder ${badgeInfo.leaderName}!\n\n🏅 Recebeu: *Insígnia ${badgeInfo.badgeName}*\n💰 Recebeu: *${badgeInfo.reward} coins*\n${logMsg}`;
+        }
+
+        if (encounter.battle_type === 'TRAINER') {
+            const rawReward = encounter.gymData.reward || 500;
+            const reward = Math.floor((Math.random() + 1) * rawReward)
+            await this.db.run("UPDATE usuarios SET pokecoins = pokecoins + ? WHERE id_usuario = ?", [reward, userId]);
+            return `${log}\n🏆 *VOCÊ VENCEU O TREINADOR!*\nRecebeu 💰 ${reward}!\n${logMsg}`;
+        }
+
+        const baseGain = 15;
+        const luckGain = Math.random() * 25;
+        const coins = Math.floor(encounter.level * (baseGain + luckGain));
+        await this.db.run("UPDATE usuarios SET pokecoins = pokecoins + ? WHERE id_usuario = ?", [coins, userId]);
+        return `${log}\n${logMsg}\n💰 +${coins} coins.`;
+    }
+
+    async handlePlayerFaint(userId, userPoke, tag, log) {
+        const teamAlive = await this.db.get("SELECT COUNT(*) as total FROM user_pokemons WHERE user_id = ? AND team_slot IS NOT NULL AND current_hp > 0", [userId]);
+        
+        if (teamAlive.total > 0) {
+            return `${log}\n\n💀 *${userPoke.nickname}* está fora de combate!\nUse *!poke trocar [slot]* para escolher outro Pokémon.`;
+        } else {
+            await this.clearEncounter(userId);
+            return `${log}\n\n💀 Toda sua equipe foi derrotada! Você correu para o Centro Pokémon (e perdeu algumas moedas na fuga...).`;
+        }
     }
 
     async processEnemyTurn(encounter, userPoke, battleState, userId) {
@@ -1707,7 +2026,7 @@ class PokemonHandler {
         return log;
     }
 
-    async catchPokemon(groupId, userId) {    
+    async catchPokemon(groupId, userId) {
         const tag = await this.getUserTag(userId);
         const encounter = await this.loadEncounter(userId);
         if (!encounter) return `${tag}🤷 Nenhuma batalha ativa.`;
@@ -1715,13 +2034,23 @@ class PokemonHandler {
         if (encounter.battle_type === 'TRAINER' || encounter.battle_type === 'GYM_TRAINER') return `${tag}🚫 Você não pode roubar o Pokémon de outro treinador! Isso é crime!`;
 
         const user = await this.db.get("SELECT pokeballs FROM usuarios WHERE id_usuario = ?", [userId]);
-        if (!user || user.pokeballs <= 0) return "🚫 Sem Pokébolas! Compre na loja.";
+        if (!user || user.pokeballs <= 0) return `${tag}🚫 Sem Pokébolas! Compre na loja.`;
+
+        const userPoke = await this.db.get(`
+            SELECT up.*, p.name, p.type1, p.type2, p.base_hp, p.base_atk, p.base_def, p.base_spa, p.base_spd, p.base_spe 
+            FROM user_pokemons up 
+            JOIN pokedex p ON up.pokedex_id = p.id
+            WHERE up.id = ?`, [encounter.activePokemonId]);
+
+        const isFainted = userPoke && userPoke.current_hp <= 0;
 
         await this.db.run("UPDATE usuarios SET pokeballs = pokeballs - 1 WHERE id_usuario = ?", [userId]);
         
-        const catchChance = 0.3 + (0.5 * (1 - (encounter.currentHp / encounter.maxHp)));
+        let catchChance = 0.3 + (0.5 * (1 - (encounter.currentHp / encounter.maxHp)));
         
-        // --- SUCESSO NA CAPTURA ---
+        if (isFainted) {
+            catchChance = catchChance / 1.5;
+        }
 
         if (Math.random() < catchChance) {
             const pk = encounter.pokemon;
@@ -1736,6 +2065,8 @@ class PokemonHandler {
                 m1 = t ? t.id : null;
             }
 
+            const nature = this.getRandomNature(); 
+
             const slots = await this.db.all("SELECT team_slot FROM user_pokemons WHERE user_id = ? AND team_slot IS NOT NULL ORDER BY team_slot ASC", [userId]);
             const occupiedSlots = slots.map(s => s.team_slot);
             const totalPokes = await this.db.get("SELECT COUNT(*) as total FROM user_pokemons WHERE user_id = ?", [userId]);
@@ -1747,31 +2078,28 @@ class PokemonHandler {
                 while (occupiedSlots.includes(targetSlot)) { targetSlot++; }
             }
 
-            const nature = this.getRandomNature();
-
             await this.db.run(`
                 INSERT INTO user_pokemons (user_id, pokedex_id, nickname, level, exp, iv_hp, iv_atk, iv_def, iv_spa, iv_spd, iv_spe, move1, move2, move3, move4, obtained_at, is_shiny, current_hp, max_hp, team_slot, nature)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, // <--- MAIS UM ?
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [userId, pk.id, pk.name, encounter.level, initialXp, ivHp, randIv(), randIv(), randIv(), randIv(), randIv(), m1, encounter.moves[1]?.id, encounter.moves[2]?.id, encounter.moves[3]?.id, Date.now(), encounter.isShiny?1:0, realMaxHp, realMaxHp, targetSlot, nature]
             );
             await this.clearEncounter(userId);
             
             let msg = `${tag}🎉 Capturou *${pk.name}*! (Bolas: ${user.pokeballs - 1})`;
+            
+            if(isFainted) msg += `\n😅 Foi por pouco! Você capturou sem Pokémon em campo!`;
+            
             if (targetSlot > 6) msg += `\n📦 Time cheio! Enviado para o PC (Box ${targetSlot - 6}).`;
             else msg += `\n✅ Adicionado ao time principal.`;
             
             return msg;
         }
 
-        // --- FALHA NA CAPTURA ---
-
         let msg = `${tag}💢 A Pokébola quebrou! O *${encounter.pokemon.name}* escapou! (Bolas: ${user.pokeballs - 1})`;
 
-        const userPoke = await this.db.get(`
-            SELECT up.*, p.name, p.type1, p.type2, p.base_hp, p.base_atk, p.base_def, p.base_spa, p.base_spd, p.base_spe 
-            FROM user_pokemons up 
-            JOIN pokedex p ON up.pokedex_id = p.id
-            WHERE up.id = ?`, [encounter.activePokemonId]);
+        if (isFainted) {
+            return msg + `\n😓 Como você está sem Pokémon, o *${encounter.pokemon.name}* te ignorou.\n🍀 Chance de captura reduzida nessa situação!`;
+        }
 
         if (userPoke) {
              const encounterRaw = await this.db.get("SELECT extra_data FROM active_encounters WHERE user_id = ?", [userId]);
@@ -1919,6 +2247,9 @@ class PokemonHandler {
         const hpIv = randIv();
         
         const nature = this.getRandomNature(); 
+
+        const initialXp = Math.pow(5, 3);
+        const hp = Math.floor(((2 * pk.base_hp + hpIv + 100) * 5) / 100 + 10);
 
         await this.db.run(`INSERT INTO user_pokemons 
             (user_id, pokedex_id, nickname, level, exp, current_hp, max_hp, move1, obtained_at, iv_hp, iv_atk, iv_def, iv_spa, iv_spd, iv_spe, team_slot, nature) 

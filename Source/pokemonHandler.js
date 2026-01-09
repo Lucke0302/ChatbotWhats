@@ -602,37 +602,6 @@ class PokemonHandler {
         return msg;
     }
 
-    async getTeamMoves(userId, param) {
-        const team = await this.db.all(`select COUNT(*) from user_pokemons where user_id=?;`)
-        const teamMoves = await this.db.all(`
-            SELECT up.*, p.name, p.type1, p.type2,
-            FROM user_pokemons up 
-            JOIN pokedex p ON up.pokedex_id = p.id 
-            WHERE up.user_id = ? AND up.team_slot IS NOT NULL AND up.team_slot < 7
-            ORDER BY up.team_slot ASC`, [userId]);
-            
-        if (!team==0) return "Seu time está vazio!";
-        
-        let msg = "🧢 *SEU TIME*\n";
-        team.forEach(p => {
-            const status = p.current_hp <= 0 ? "💀" : "❤️";
-            const types = this.getTypeEmojis(p.type1, p.type2);
-            
-            const natureData = NATURES[p.nature] || NATURES['hardy'];
-            let natureInfo = `[${natureData.name}]`;
-            if (natureData.up) natureInfo = `[${natureData.name}: +${natureData.up.toUpperCase()}/-${natureData.down.toUpperCase()}]`;
-
-            msg += `${p.team_slot}. ${status} ${p.nickname} ${types} (Lvl ${p.level})\nHP: ${p.current_hp}/${p.max_hp} `;
-            
-            if (isDetailed){
-                msg += `\nNature: ${natureInfo}`
-            }
-            
-            msg+=`\n`
-        });
-        return msg;
-    }
-
     async switchPokemon(userId, param) {        
         const tag = await this.getUserTag(userId);
         const encounter = await this.loadEncounter(userId);
@@ -783,7 +752,7 @@ class PokemonHandler {
             case 'moves':
             case 'golpes':
                 return await this.getTeamMoves(sender);
-                
+
             case 'fixnature': 
                 if (sender !== "5513991008854@s.whatsapp.net") return "Sem permissão.";
                 return await this.fixNullNatures();
@@ -1991,7 +1960,13 @@ class PokemonHandler {
                     const current = m.current_pp !== undefined ? m.current_pp : m.pp;
                     const max = m.pp;
                     
-                    msg += `   ${i+1}. ${m.name} (${m.type}) [${current}/${max} PP]\n`;
+                    let classIcon = "✨";
+                    if (m.damage_class === 'physical') classIcon = "💥";
+                    else if (m.damage_class === 'special') classIcon = "🔮";
+
+                    const powerText = m.power > 0 ? `PWR: ${m.power}` : "PWR: -";
+
+                    msg += `   ${i+1}. ${m.name} (${m.type}) ${classIcon} | ${powerText} | [${current}/${max} PP]\n`;
                 });
             }
             msg += `\n`;

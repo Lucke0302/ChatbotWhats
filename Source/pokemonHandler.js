@@ -1338,7 +1338,7 @@ class PokemonHandler {
             const uniqueParticipants = [...new Set(participants)];
             const splitFactor = uniqueParticipants.length;
 
-            let logMsg = `${tag}💀 O inimigo desmaiou!\n`;
+            let logMsg = `💀 O inimigo desmaiou!\n`;
 
             let xpMultiplier = 1.0;
 
@@ -1739,7 +1739,7 @@ class PokemonHandler {
         const tag = await this.getUserTag(userId);
         if (userPoke.pending_move) {
             const moveName = (await this.db.get("SELECT name FROM moves WHERE id = ?", [userPoke.pending_move]))?.name;
-            return `${tag}⚠️ ${userPoke.nickname} ainda está tentando aprender *${moveName}*!\nUse *!poke esquecer [1-4]* ou *!poke ignorar*.`;
+            return `⚠️ ${userPoke.nickname} ainda está tentando aprender *${moveName}*!\nUse *!poke esquecer [1-4]* ou *!poke ignorar*.`;
         }
 
         let lvl = userPoke.level;

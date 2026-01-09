@@ -468,7 +468,8 @@ class PokemonHandler {
         return result;
     }
 
-    async getTeam(userId) {
+    async getTeam(userId) {        
+        const tag = await this.getUserTag(userId);
         const team = await this.db.all(`
             SELECT up.*, p.name 
             FROM user_pokemons up 
@@ -478,7 +479,7 @@ class PokemonHandler {
             
         if (!team.length) return "Seu time está vazio!";
         
-        let msg = "🧢 *SEU TIME*\n";
+        let msg = `${tag}🧢 *SEU TIME*\n`;
         team.forEach(p => {
             const status = p.current_hp <= 0 ? "💀" : "❤️";
             msg += `${p.team_slot}. ${status} ${p.nickname} (Lvl ${p.level}) - HP: ${p.current_hp}/${p.max_hp}\n`;
@@ -486,7 +487,8 @@ class PokemonHandler {
         return msg;
     }
 
-    async switchPokemon(userId, param) {
+    async switchPokemon(userId, param) {        
+        const tag = await this.getUserTag(userId);
         const encounter = await this.loadEncounter(userId);
 
         // --- LÓGICA DE TROCA NO PC
@@ -496,23 +498,23 @@ class PokemonHandler {
             const slotB = args[1];
 
             if (args.some(slot => slot > 6)) {
-                return "🚫 Para mover Pokémons do PC (Slot 7+), use o comando *!poke pc*.";
+                return `${tag}🚫 Para mover Pokémons do PC (Slot 7+), use o comando *!poke pc*.`;
             }
 
             if (!slotA || !slotB || isNaN(slotA) || isNaN(slotB)) {
-                return "🛠️ *Gerenciar Time*\nPara mudar a ordem, use: *!poke trocar [pos1] [pos2]*\nEx: _!poke trocar 1 2_ (O líder vira o segundo)";
+                return `${tag}🛠️ *Gerenciar Time*\nPara mudar a ordem, use: *!poke trocar [pos1] [pos2]*\nEx: _!poke trocar 1 2_ (O líder vira o segundo)`;
             }
 
             const pokeA = await this.db.get("SELECT id, nickname FROM user_pokemons WHERE user_id = ? AND team_slot = ?", [userId, slotA]);
             const pokeB = await this.db.get("SELECT id, nickname FROM user_pokemons WHERE user_id = ? AND team_slot = ?", [userId, slotB]);
 
-            if (!pokeA || !pokeB) return "🚫 Um dos slots informados está vazio ou não existe.";
+            if (!pokeA || !pokeB) return `${tag}🚫 Um dos slots informados está vazio ou não existe.`;
 
             await this.db.run("UPDATE user_pokemons SET team_slot = -1 WHERE id = ?", [pokeA.id]);
             await this.db.run("UPDATE user_pokemons SET team_slot = ? WHERE id = ?", [slotA, pokeB.id]);
             await this.db.run("UPDATE user_pokemons SET team_slot = ? WHERE id = ?", [slotB, pokeA.id]);
 
-            return `🔄 Time reordenado! *${pokeA.nickname}* agora é o slot ${slotB} e *${pokeB.nickname}* é o slot ${slotA}.`;
+            return `${tag}🔄 Time reordenado! *${pokeA.nickname}* agora é o slot ${slotB} e *${pokeB.nickname}* é o slot ${slotA}.`;
         }
 
         // --- LÓGICA DE TROCA EM BATALHA ---
@@ -1854,10 +1856,11 @@ class PokemonHandler {
     }
 
     async getUserProfile(userId) {
+        const tag = await this.getUserTag(userId);
         const pokes = await this.db.all(`SELECT p.name, up.level, up.is_shiny FROM user_pokemons up JOIN pokedex p ON up.pokedex_id = p.id WHERE up.user_id = ?`, [userId]);
         const u = await this.db.get("SELECT pokeballs, pokecoins, potions, badges FROM usuarios WHERE id_usuario = ?", [userId]);
         if(!pokes.length) return "Sem pokémon.";
-        return `👤 *PERFIL*\n💰 ${u.pokecoins} | 🔴 ${u.pokeballs} | 🧪 ${u.potions} | 🏅 ${u.badges}\n\n` + pokes.map(p => `${p.is_shiny?'✨':''} ${p.name} (Lvl ${p.level})`).join('\n');
+        return `${tag}💰 ${u.pokecoins} | 🔴 ${u.pokeballs} | 🧪 ${u.potions} | 🏅 ${u.badges}\n\n` + pokes.map(p => `${p.is_shiny?'✨':''} ${p.name} (Lvl ${p.level})`).join('\n');
     }
 }
 

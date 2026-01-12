@@ -1022,6 +1022,11 @@ class PokemonHandler {
         }
 
         switch (action) {
+            case 'mostrar':
+            case 'show':
+            case 'stats':
+                return await this.showPokemon(from, sender, param, sock);
+
             case 'ataques':
             case 'attacks':
             case 'moves':

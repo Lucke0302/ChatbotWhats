@@ -754,9 +754,8 @@ class ChatModel {
             return await this.getAiResponse(from, sender, name, isGroup, "any", finalPrompt)
     }
 
-    //Responde o comando !menu
     async handleMenuCommand(){
-        return `📍 Os comandos até agora são: \n\n
+        return `📍 *MENU RÁPIDO (v4.0 - Pokémon)* \n\n
         🆘 !ajuda (ou !help)\n
         🗣️ !audio\n
         🌡️ !clima\n
@@ -769,11 +768,12 @@ class ChatModel {
         📄 !menu\n
         ✏️ !notas\n
         📙 !pdf\n
+        🎮 !poke (JOGO COMPLETO)\n
         🖼️ !s (ou !sticker)\n
         🛎️ !resumo\n        
         ☢️ !toxico\n
         🧐 !tradutor
-        \n\nPara mais infos, use o comando !ajuda (ou !help)`;
+        \n\nPara detalhes, digite: *!ajuda [comando]*`;
     }
 
     //Responde o comando !d

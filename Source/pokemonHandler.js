@@ -180,6 +180,153 @@ const STATUS_EFFECTS = {
     con: { name: "Confuso", msg: "está confuso..."}
 };
 
+const POKE_HELP = {
+    'default': `🦕 *CENTRO DE AJUDA POKÉMON* 🦕
+
+Use *!poke ajuda [comando]* para saber mais detalhes.
+
+🌱 *INÍCIO*
+• *comecar* (ou start) ➝ Escolher seu primeiro Pokémon.
+
+⚔️ *AVENTURA*
+• *explorar* (ou hunt) ➝ Procurar Pokémon selvagem.
+• *atacar* (ou moves) ➝ Lutar (Turno de batalha).
+• *capturar* (ou catch) ➝ Jogar Pokébola.
+• *fugir* ➝ Sair da batalha.
+
+🏥 *GERENCIAMENTO*
+• *perfil* ➝ Ver dinheiro, insígnias e itens.
+• *time* (ou team) ➝ Ver seus 6 Pokémons atuais.
+• *mostrar* (ou info) ➝ Ver ficha técnica (IVs, Status, Golpes).
+• *curar* (ou heal) ➝ Restaurar HP e PP (Grátis).
+• *pc* ➝ Guardar/Pegar Pokémon da caixa.
+• *trocar* (ou switch) ➝ Mudar ordem do time ou Pokémon ativo.
+
+💪 *EVOLUÇÃO E TREINO*
+• *evoluir* (ou evolve) ➝ Transformar seu Pokémon.
+• *esquecer* ➝ Trocar golpes aprendidos.
+
+🏛️ *PROGRESSO*
+• *ginasio* (ou gym) ➝ Desafiar líderes e ganhar insígnias.
+• *loja* (ou shop) ➝ Comprar itens.`,
+
+    'comecar': `🌱 *COMANDO: comecar*
+Inicia sua jornada no mundo Pokémon.
+Você poderá escolher entre os iniciais de Kanto (Gen 1), Johto (Gen 2) e Hoenn (Gen 3).
+
+*Uso:* !poke comecar
+🔹 *Aliases:* start, escolher, choose`,
+
+    'explorar': `🌿 *COMANDO: explorar*
+Procura um Pokémon selvagem ou um treinador para batalhar.
+A raridade e o nível dos inimigos aumentam conforme suas insígnias.
+
+*Uso:* !poke explorar
+🔹 *Aliases:* hunt`,
+
+    'atacar': `⚔️ *COMANDO: atacar*
+Usa um dos seus golpes durante a batalha.
+
+*Uso:*
+• *!poke atacar* (Mostra a lista de golpes)
+• *!poke atacar 1* (Usa o primeiro golpe)
+• *!poke atacar 2* (Usa o segundo golpe)
+🔹 *Aliases:* attacks, moves, golpes`,
+
+    'capturar': `🔴 *COMANDO: capturar*
+Joga uma Pokébola no Pokémon selvagem atual.
+A chance aumenta se o HP dele estiver baixo.
+*Custo:* 1 Pokébola (Compre na loja).
+
+*Uso:* !poke capturar
+🔹 *Aliases:* catch, ball`,
+
+    'curar': `🏥 *COMANDO: curar*
+Leva seus Pokémons para a Enfermeira Joy.
+Recupera 100% do HP e restaura todos os PPs. É de graça!
+
+*Uso:* !poke curar
+🔹 *Aliases:* heal, nurse`,
+
+    'perfil': `👤 *COMANDO: perfil*
+Mostra seu cartão de treinador com:
+• Dinheiro (Pokécoins)
+• Itens (Bolas, Poções)
+• Insígnias conquistadas
+• Resumo rápido do time
+
+*Uso:* !poke perfil
+🔹 *Aliases:* profile, box`,
+
+    'time': `🧢 *COMANDO: time*
+Mostra a lista detalhada dos seus 6 Pokémons atuais.
+Mostra HP atual, Nível e Tipos.
+
+*Uso:*
+• *!poke time* (Lista simples)
+• *!poke time detalhes* (Mostra Naturezas)
+🔹 *Aliases:* team`,
+
+    'mostrar': `📊 *COMANDO: mostrar*
+Exibe a ficha completa de um Pokémon específico.
+Inclui: Foto, Status (Atk, Def, etc), IVs, Golpes e XP.
+
+*Uso:* !poke mostrar [número_do_slot]
+*Exemplo:* _!poke mostrar 1_
+🔹 *Aliases:* show, info, stats, analisar`,
+
+    'pc': `💻 *COMANDO: pc*
+Gerencia seus Pokémons guardados (Box).
+Você só pode carregar 6 no time. Os capturados extras vão pro PC.
+
+*Uso:*
+• *!poke pc lista* (Vê quem está guardado)
+• *!poke pc [slot_time] [box_pc]* (Troca um do time por um do PC)
+*Exemplo:* _!poke pc 2 1_ (Manda o slot 2 pro PC e pega o 1 do PC)
+🔹 *Aliases:* storage`,
+
+    'trocar': `🔄 *COMANDO: trocar*
+*Em Batalha:* Troca o Pokémon que está lutando.
+*Fora de Batalha:* Muda a ordem do time.
+
+*Uso:*
+• *!poke trocar 2* (Em batalha: Envia o Pokémon 2)
+• *!poke trocar 1 3* (No menu: O 1º vira o 3º e vice-versa)
+🔹 *Aliases:* switch`,
+
+    'evoluir': `✨ *COMANDO: evoluir*
+Evolui um Pokémon que já atingiu o nível necessário.
+O bot avisa quando ele pode evoluir.
+
+*Uso:* !poke evoluir [slot]
+*Exemplo:* _!poke evoluir 1_ (Evolui o líder do time)
+🔹 *Aliases:* evolve`,
+
+    'esquecer': `💡 *COMANDO: esquecer*
+Quando seu Pokémon aprende um golpe novo e já tem 4, você precisa escolher qual esquecer.
+
+*Uso:*
+• *!poke esquecer 1* (Substitui o golpe 1 pelo novo)
+• *!poke ignorar* (Desiste de aprender o novo golpe)
+🔹 *Aliases:* swap`,
+
+    'ginasio': `🏛️ *COMANDO: ginasio*
+Avança na história enfrentando treinadores e Líderes de Ginásio.
+Vencer líderes dá Insígnias (que liberam novos Pokémons selvagens) e muito dinheiro.
+
+*Uso:* !poke ginasio
+🔹 *Aliases:* gym, historia`,
+
+    'loja': `🏪 *COMANDO: loja*
+Compra itens essenciais.
+
+*Uso:*
+• *!poke loja* (Vê os itens)
+• *!poke comprar [id_item] [quantidade]*
+*Exemplo:* _!poke comprar 1 10_ (Compra 10 Pokébolas)
+🔹 *Aliases:* shop, mart, buy, comprar`
+};
+
 class PokemonHandler {
     constructor(db) {
         this.db = db;
@@ -493,6 +640,40 @@ class PokemonHandler {
         }
 
         return { canMove: true, log: log };
+    }
+
+    async helpPoke(userId, param) {
+        const tag = await this.getUserTag(userId);
+        const topic = param ? param.trim().toLowerCase() : 'default';
+
+        // Aliases para facilitar
+        const aliases = {
+            'catch': 'capturar',
+            'buy': 'loja',
+            'shop': 'loja',
+            'comprar': 'loja',
+            'heal': 'curar',
+            'team': 'time',
+            'profile': 'perfil',
+            'hunt': 'explorar',
+            'attack': 'atacar',
+            'moves': 'atacar',
+            'box': 'pc',
+            'storage': 'pc',
+            'switch': 'trocar',
+            'evolve': 'evoluir',
+            'gym': 'ginasio',
+            'info': 'mostrar',
+            'stats': 'mostrar'
+        };
+
+        const key = aliases[topic] || topic;
+
+        if (POKE_HELP[key]) {
+            return `${tag}${POKE_HELP[key]}`;
+        } else {
+            return `${tag}❌ Tópico de ajuda não encontrado.\nDigite *!poke ajuda* para ver a lista.`;
+        }
     }
 
     processSpecialMoveEffects(move, userPoke, targetPoke, damageDealt, battleState, isPlayer) {
@@ -1022,6 +1203,10 @@ class PokemonHandler {
         }
 
         switch (action) {
+            case 'ajuda': 
+            case 'help':
+                return await this.helpPoke(sender, param);
+
             case 'mostrar':
             case 'show':
             case 'stats':
@@ -1813,16 +1998,19 @@ class PokemonHandler {
                     damageToWild = Math.floor(damageToWild * typeMult);
 
                     if (damageToWild < 1 && typeMult > 0) damageToWild = 1;
-
+                    
+                    let critMsg = ""; 
+                    
                     if (Math.random() < 0.0625) {
                         damageToWild = Math.floor(damageToWild * 2);
-                        log += `🎯 *GOLPE CRÍTICO!* 🎯\n`;
+                        critMsg = `🎯 *GOLPE CRÍTICO!* 🎯\n`;
                     }
                     
                     damageToWild = Math.floor(damageToWild * ((Math.random() * 0.15) + 0.85));
 
                     encounter.currentHp -= damageToWild;
-                    log += `${tag}🗡️ ${userPoke.nickname} usou *${selectedMove.name}* e causou **${damageToWild}** de dano.\n`;
+
+                    log += `${tag}${critMsg}🗡️ ${userPoke.nickname} usou *${selectedMove.name}* e causou **${damageToWild}** de dano.\n`;
 
                     if (typeMult > 1) log += `⚔️ *É super efetivo!* (x${typeMult})\n`;
                     if (typeMult < 1 && typeMult > 0) log += `🛡️ *Não é muito efetivo...* (x${typeMult})\n`;

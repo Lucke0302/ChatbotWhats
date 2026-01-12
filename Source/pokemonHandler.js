@@ -196,7 +196,7 @@ Use *!poke ajuda [comando]* para saber mais detalhes.
 
 🏥 *GERENCIAMENTO*
 • *perfil* ➝ Ver dinheiro, insígnias e itens.
-• *time* (ou team) ➝ Ver seus 6 Pokémons atuais.
+• *time* (ou team) ➝ Ver seus 6 Pokémon atuais.
 • *mostrar* (ou info) ➝ Ver ficha técnica (IVs, Status, Golpes).
 • *curar* (ou heal) ➝ Restaurar HP e PP (Grátis).
 • *pc* ➝ Guardar/Pegar Pokémon da caixa.
@@ -242,7 +242,7 @@ A chance aumenta se o HP dele estiver baixo.
 🔹 *Aliases:* catch, ball`,
 
     'curar': `🏥 *COMANDO: curar*
-Leva seus Pokémons para a Enfermeira Joy.
+Leva seus Pokémon para a Enfermeira Joy.
 Recupera 100% do HP e restaura todos os PPs. É de graça!
 
 *Uso:* !poke curar
@@ -259,7 +259,7 @@ Mostra seu cartão de treinador com:
 🔹 *Aliases:* profile, box`,
 
     'time': `🧢 *COMANDO: time*
-Mostra a lista detalhada dos seus 6 Pokémons atuais.
+Mostra a lista detalhada dos seus 6 Pokémon atuais.
 Mostra HP atual, Nível e Tipos.
 
 *Uso:*
@@ -276,7 +276,7 @@ Inclui: Foto, Status (Atk, Def, etc), IVs, Golpes e XP.
 🔹 *Aliases:* show, info, stats, analisar`,
 
     'pc': `💻 *COMANDO: pc*
-Gerencia seus Pokémons guardados (Box).
+Gerencia seus Pokémon guardados (Box).
 Você só pode carregar 6 no time. Os capturados extras vão pro PC.
 
 *Uso:*
@@ -312,7 +312,7 @@ Quando seu Pokémon aprende um golpe novo e já tem 4, você precisa escolher qu
 
     'ginasio': `🏛️ *COMANDO: ginasio*
 Avança na história enfrentando treinadores e Líderes de Ginásio.
-Vencer líderes dá Insígnias (que liberam novos Pokémons selvagens) e muito dinheiro.
+Vencer líderes dá Insígnias (que liberam novos Pokémon selvagens) e muito dinheiro.
 
 *Uso:* !poke ginasio
 🔹 *Aliases:* gym, historia`,
@@ -342,7 +342,7 @@ class PokemonHandler {
             console.log("⬇️ Iniciando download da PokéAPI (Versão Emerald)...");
             await this.seedDatabase();
         } else {
-            console.log(`✅ Pokédex carregada: ${pokeCount.total} Pokémons e ${moveCount.total} Golpes.`);
+            console.log(`✅ Pokédex carregada: ${pokeCount.total} Pokémon e ${moveCount.total} Golpes.`);
         }
         await this.fixNullPP();
     }
@@ -381,14 +381,14 @@ class PokemonHandler {
             count++;
         }
 
-        return `✅ Limpeza completa!\n- Duplicatas do sistema removidas.\n- ${count} Pokémons atualizados com os golpes certos.`;
+        return `✅ Limpeza completa!\n- Duplicatas do sistema removidas.\n- ${count} Pokémon atualizados com os golpes certos.`;
     }
 
     async fixNullPP() {
         const pokes = await this.db.all("SELECT id, move1, move2, move3, move4 FROM user_pokemons WHERE move1_pp IS NULL AND move1 IS NOT NULL");
         if (pokes.length === 0) return;
 
-        console.log(`🔧 Ajustando PP de ${pokes.length} Pokémons antigos...`);
+        console.log(`🔧 Ajustando PP de ${pokes.length} Pokémon antigos...`);
         
         for (const p of pokes) {
             const moves = [p.move1, p.move2, p.move3, p.move4];
@@ -412,15 +412,15 @@ class PokemonHandler {
     }
 
     async fixNullMoves() {
-        console.log("🔧 Iniciando reparo de moveset dos Pokémons...");
+        console.log("🔧 Iniciando reparo de moveset dos Pokémon...");
         
         const buggedPokemons = await this.db.all("SELECT id, pokedex_id, level, nickname FROM user_pokemons WHERE move1 IS NULL OR move1 = ''");
 
         if (buggedPokemons.length === 0) {
-            return "✅ Todos os Pokémons já estão com golpes!";
+            return "✅ Todos os Pokémon já estão com golpes!";
         }
 
-        console.log(`🔧 Encontrados ${buggedPokemons.length} Pokémons sem golpes. Corrigindo...`);
+        console.log(`🔧 Encontrados ${buggedPokemons.length} Pokémon sem golpes. Corrigindo...`);
         let count = 0;
 
         const tackle = await this.db.get("SELECT id FROM moves WHERE name = 'tackle' OR name = 'investida' LIMIT 1");
@@ -446,12 +446,12 @@ class PokemonHandler {
             count++;
         }
 
-        console.log(`✅ Reparo concluído! ${count} Pokémons atualizados.`);
-        return `✅ Correção finalizada! ${count} Pokémons receberam golpes novos.`;
+        console.log(`✅ Reparo concluído! ${count} Pokémon atualizados.`);
+        return `✅ Correção finalizada! ${count} Pokémon receberam golpes novos.`;
     }
 
     async fixZeroXp() {
-        console.log("🔧 Corrigindo XP inicial dos Pokémons...");
+        console.log("🔧 Corrigindo XP inicial dos Pokémon...");
         
         const pokemons = await this.db.all("SELECT id, level, exp, nickname FROM user_pokemons");
         let count = 0;
@@ -464,8 +464,8 @@ class PokemonHandler {
                 count++;
             }
         }
-        console.log(`✅ XP Corrigido! ${count} Pokémons atualizados.`);
-        return `✅ Ajuste de XP concluído! ${count} Pokémons deixaram de ser "café com leite".`;
+        console.log(`✅ XP Corrigido! ${count} Pokémon atualizados.`);
+        return `✅ Ajuste de XP concluído! ${count} Pokémon deixaram de ser "café com leite".`;
     }
 
     async fixNullIvs() {
@@ -477,7 +477,7 @@ class PokemonHandler {
 
             await this.db.run(`UPDATE user_pokemons SET iv_hp=?, iv_atk=?, iv_def=?, iv_spa=?, iv_spd=?, iv_spe=? WHERE id = ?`, [randIv(), randIv(), randIv(), randIv(), randIv(), randIv(), poke.id]);
         }
-        return `✅ IVs corrigidos para ${brokenPokes.length} Pokémons.`;
+        return `✅ IVs corrigidos para ${brokenPokes.length} Pokémon.`;
     }
 
     async fixNullHp() {
@@ -808,7 +808,7 @@ class PokemonHandler {
             await this.db.run("UPDATE user_pokemons SET nature = ? WHERE id = ?", [rnd, p.id]);
             count++;
         }
-        return `✅ ${count} Pokémons antigos receberam uma natureza aleatória.`;
+        return `✅ ${count} Pokémon antigos receberam uma natureza aleatória.`;
     }
 
     getBattleState(encounter) {
@@ -1069,7 +1069,7 @@ class PokemonHandler {
             const slotB = args[1];
 
             if (args.some(slot => slot > 6)) {
-                return `${tag}🚫 Para mover Pokémons do PC (Slot 7+), use o comando *!poke pc*.`;
+                return `${tag}🚫 Para mover Pokémon do PC (Slot 7+), use o comando *!poke pc*.`;
             }
 
             if (!slotA || !slotB || isNaN(slotA) || isNaN(slotB)) {
@@ -1507,7 +1507,7 @@ class PokemonHandler {
         const caption = `⚠️ *DESAFIO DE TREINADOR!*\n` +
                         `**${trainerClass} ${trainerName}** quer batalhar!\n` +
                         `Ele enviou *${firstPokeData.name}* (Lvl ${firstPokeData.level})!\n` +
-                        `Pokémons do Treinador: ${trainerTeam.length}\n\n` +
+                        `Pokémon do Treinador: ${trainerTeam.length}\n\n` +
                         `⚔️ *!poke atacar*\n` +
                         `🔄 *!poke trocar [slot]*\n` +
                         `🏃 *!poke fugir*`;
@@ -1690,7 +1690,7 @@ class PokemonHandler {
         if (!gymLeader) return `${tag}🏆 Você já venceu todos os líderes disponíveis!`;
 
         const team = JSON.parse(gymLeader.team_json);
-        if (!team || team.length === 0) return "❌ Erro: Líder sem pokémons.";
+        if (!team || team.length === 0) return "❌ Erro: Líder sem pokémon.";
 
         const firstPokeData = team[0];
         const bossPokemon = await this.db.get("SELECT * FROM pokedex WHERE id = ?", [firstPokeData.pokedex_id]);
@@ -1729,7 +1729,7 @@ class PokemonHandler {
                         `🚨 *LÍDER ${gymLeader.name}* aceitou seu desafio!\n` + 
                         `Ele enviou *${bossPokemon.name}* (Lvl ${firstPokeData.level})!\n` + 
                         `⚠️ *Boss HP:* ${bossHp}/${bossHp}\n` + 
-                        `Pokémons restantes do Líder: ${remainingTeam.length + 1}\n` + 
+                        `Pokémon restantes do Líder: ${remainingTeam.length + 1}\n` + 
                         `Prepare-se! Digite *!poke atacar*`;
 
         if (sock) {

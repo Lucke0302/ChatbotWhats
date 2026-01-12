@@ -1857,7 +1857,7 @@ class PokemonHandler {
         await this.db.run(`UPDATE active_encounters SET current_hp = ? WHERE user_id = ?`, [encounter.currentHp, userId]);
 
         // Verifica Morte Jogador
-        const updatedUserPoke = await this.db.get("SELECT current_hp, max_hp, nickname FROM user_pokemons WHERE id = ?", [userPoke.id]);
+        const updatedUserPoke = await this.db.get("SELECT current_hp, max_hp, nickname, exp FROM user_pokemons WHERE id = ?", [userPoke.id]);
         if (updatedUserPoke.current_hp <= 0) {
              return this.handlePlayerFaint(userId, updatedUserPoke, tag, log);
         }
@@ -1897,15 +1897,28 @@ class PokemonHandler {
         finalExtraData.participants = battleState.participants;
 
         await this.db.run("UPDATE active_encounters SET extra_data = ? WHERE user_id = ?", [JSON.stringify(finalExtraData), userId]);
+        
+        const currentLvlXp = updatedUserPoke.exp - Math.pow(userPoke.level, 3);
+        const nextLvlXp = Math.pow(userPoke.level+1, 3) - Math.pow(userPoke.level, 3);
+        const xpBar = this.getProgressBar(currentLvlXp, nextLvlXp);
 
         // Retorno Visual
         return `${log}\n\n` +
                `❤️ Inimigo: ${Math.floor(Math.max(0, encounter.currentHp))}/${Math.floor(encounter.maxHp)}\n` +
-               `💚 Seu: ${Math.max(0, updatedUserPoke.current_hp)}/${userPoke.max_hp}\n\n` +
+               `💚 Seu: ${Math.max(0, updatedUserPoke.current_hp)}/${userPoke.max_hp}\n` +
+               `🆙 XP: ${xpBar} (${currentLvlXp}/${nextLvlXp})\n\n` + 
                `⚔️ *!poke atacar [n]*\n` +
                `🔴 *!poke capturar*\n` +
                `🔄 *!poke trocar [n]*\n` +
                `🏃 *!poke fugir*`;
+    }
+
+    getProgressBar(current, max) {
+        const totalBars = 10;
+        const progress = Math.min(1, Math.max(0, current / max));
+        const filledBars = Math.floor(progress * totalBars);
+        const emptyBars = totalBars - filledBars;
+        return "🟦".repeat(filledBars) + "⬜".repeat(emptyBars);
     }
 
     async handleVictory(userId, encounter, battleState, log) {

@@ -1327,9 +1327,15 @@ class PokemonHandler {
             case 'box':
                 return await this.handlePCCommand(sender, param);
             
-            case 'ajuda': 
             default:
-                return `🦕 *POKÉMON - GUIA*\n\n🌿 *!poke explorar*\n⚔️ *!poke atacar*\n🔴 *!poke capturar*\n🏥 *!poke curar*\n🏪 *!poke loja*\n🧪 *!poke usar poção*\n🏛️ *!poke ginasio*\n👤 *!poke perfil*`;
+                return `🦕 *POKÉMON - GUIA RÁPIDO*\n\n` +
+                       `🌿 *!poke explorar* ⚔️ *!poke atacar*\n` +
+                       `🔴 *!poke capturar* 🏃 *!poke fugir*\n` +
+                       `🏥 *!poke curar* 🔄 *!poke trocar*\n` +
+                       `🎒 *!poke time* 💻 *!poke pc*\n` +
+                       `📊 *!poke mostrar* 👤 *!poke perfil*\n` +
+                       `🏛️ *!poke ginasio* 🏪 *!poke loja*\n\n` +
+                       `💡 Digite *!poke ajuda [comando]* para detalhes.`;
         }
     }
 
@@ -1501,8 +1507,10 @@ class PokemonHandler {
         const caption = `⚠️ *DESAFIO DE TREINADOR!*\n` +
                         `**${trainerClass} ${trainerName}** quer batalhar!\n` +
                         `Ele enviou *${firstPokeData.name}* (Lvl ${firstPokeData.level})!\n` +
-                        `Pokémons do Treinador: ${trainerTeam.length}\n` +
-                        `Use *!poke atacar* para lutar!`;
+                        `Pokémons do Treinador: ${trainerTeam.length}\n\n` +
+                        `⚔️ *!poke atacar*\n` +
+                        `🔄 *!poke trocar [slot]*\n` +
+                        `🏃 *!poke fugir*`;
 
         if (sock) {
             try { await sock.sendMessage(groupId, { image: { url: trainerTemplate.sprite }, caption: caption }); } 
@@ -1627,8 +1635,11 @@ class PokemonHandler {
         const typeEmojis = this.getTypeEmojis(pokemon.type1, pokemon.type2);
 
         const caption = `${tag}${emoji} Um *${pokemon.name.toUpperCase()}* ${typeEmojis} (Lvl ${wildLevel}) selvagem apareceu!\n` +
-                        `❤️ HP: ${wildHp}/${wildHp}\n` +
-                        `Use *!poke atacar* ou *!poke capturar*`;
+                        `❤️ HP: ${wildHp}/${wildHp}\n\n` +
+                        `⚔️ *!poke atacar*\n` +
+                        `🔴 *!poke capturar*\n` +
+                        `🔄 *!poke trocar [slot]*\n` +
+                        `🏃 *!poke fugir*`;
 
         if (sock) {
             const sprite = isShiny ? pokemon.sprite_url.replace("front_default", "front_shiny") : pokemon.sprite_url;

@@ -2,6 +2,8 @@ const axios = require('axios');
 const { gracefulShutdown } = require('node-schedule');
 const STARTER_IDS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 152, 153, 154, 155, 156, 157, 158, 159, 160, 252, 253, 254, 255, 256, 257, 258, 259, 260];
 const ADMIN_ID = "5513991008854@s.whatsapp.net";
+
+const REWARD_CUTOFF = 1768233600000;
 const RARE_POKE = [
     // --- GEN 1 ---
     25, 26, 172,      //Pichu, Pikachu, Raichu
@@ -382,6 +384,165 @@ class PokemonHandler {
         }
 
         return `✅ Limpeza completa!\n- Duplicatas do sistema removidas.\n- ${count} Pokémon atualizados com os golpes certos.`;
+    }
+
+    /**
+     * @param {string} userId - Quem recebe
+     * @param {string} type - 'pokemon', 'coin', 'item', 'xp'
+     * @param {string|number} value - ID do pokemon, nome do item ou quantidade de coins
+     * @param {number} amount - Quantidade (ou nível do pokemon)
+     */
+    async giveReward(userId, type, value, amount = 1) {
+        const tag = await this.getUserTag(userId);
+        type = type.toLowerCase();
+
+        // --- TIPO: POKÉMON ---
+        if (type === 'pokemon' || type === 'poke') {
+            let pokeId = parseInt(value);
+            
+            if (isNaN(pokeId)) {
+                const pkSearch = await this.db.get("SELECT id FROM pokedex WHERE name LIKE ?", [`%${value}%`]);
+                if (!pkSearch) return `${tag}❌ Pokémon *${value}* não encontrado no banco.`;
+                pokeId = pkSearch.id;
+            }
+
+            const pk = await this.db.get("SELECT * FROM pokedex WHERE id = ?", [pokeId]);
+            if (!pk) return `${tag}❌ ID ${pokeId} inválido.`;
+
+            // Configuração do Pokémon novo
+            let level = 5;
+            if (amount > 1) {
+                level = amount;
+            } 
+            else {
+                const stats = await this.db.get("SELECT AVG(level) as media FROM user_pokemons WHERE user_id = ?", [userId]);
+                const avg = stats?.media || 5;
+                level = Math.max(5, Math.floor(avg));
+            }
+            const moves = await this.getMovesForLevel(pk.id, level);
+            const randIv = () => Math.floor(Math.random() * 32);
+            const hpIv = randIv();
+            const hp = Math.floor(((2 * pk.base_hp + hpIv + 100) * level) / 100 + 10);
+            const initialXp = Math.pow(level, 3);
+            const nature = this.getRandomNature();
+
+            const slots = await this.db.all("SELECT team_slot FROM user_pokemons WHERE user_id = ? ORDER BY team_slot ASC", [userId]);
+            const occupied = slots.map(s => s.team_slot);
+            let targetSlot = 1;
+            while (occupied.includes(targetSlot)) targetSlot++;
+
+            await this.db.run(`INSERT INTO user_pokemons 
+                (user_id, pokedex_id, nickname, level, exp, current_hp, max_hp, move1, move2, move3, move4, obtained_at, iv_hp, iv_atk, iv_def, iv_spa, iv_spd, iv_spe, team_slot, nature) 
+                VALUES (?,?,?,?, ?,?,?, ?,?,?,?, ?,?,?,?,?,?,?, ?, ?)`,
+                [
+                    userId, pk.id, pk.name, level, initialXp, hp, hp, 
+                    moves[0]?.id, moves[1]?.id, moves[2]?.id, moves[3]?.id, 
+                    Date.now(), hpIv, randIv(), randIv(), randIv(), randIv(), randIv(), targetSlot, nature
+                ]
+            );
+
+            let dest = targetSlot > 6 ? `Box ${targetSlot - 6} do PC` : "Time Principal";
+            return `${tag}🎁 **RECOMPENSA RECEBIDA!**\nVocê ganhou um *${pk.name}* (Lvl ${level})!\n📦 Destino: ${dest}`;
+        }
+
+        // --- TIPO: DINHEIRO ---
+        if (type === 'coin' || type === 'coins' || type === 'dinheiro') {
+            const qtd = parseInt(value) || 1000;
+            await this.db.run("UPDATE usuarios SET pokecoins = pokecoins + ? WHERE id_usuario = ?", [qtd, userId]);
+            return `${tag}💰 **DINHEIRO NA CONTA!**\nRecebeu ${qtd} Pokécoins.`;
+        }
+
+        // --- TIPO: ITEM ---
+        if (type === 'item') {
+            const itemType = value.toLowerCase();
+            const qtd = amount || 1;
+            
+            if (itemType.includes('ball') || itemType === 'bola') {
+                await this.db.run("UPDATE usuarios SET pokeballs = pokeballs + ? WHERE id_usuario = ?", [qtd, userId]);
+                return `${tag}🔴 **REFORÇO!**\nRecebeu ${qtd} Pokébolas.`;
+            }
+            if (itemType.includes('potion') || itemType === 'pocao') {
+                await this.db.run("UPDATE usuarios SET potions = potions + ? WHERE id_usuario = ?", [qtd, userId]);
+                return `${tag}🧪 **REFORÇO!**\nRecebeu ${qtd} Poções.`;
+            }
+            return `${tag}❌ Item desconhecido. Use 'bola' ou 'pocao'.`;
+        }
+
+        // --- TIPO: XP  ---
+        if (type === 'xp') {
+            const qtd = parseInt(value);
+            const lead = await this.db.get("SELECT * FROM user_pokemons WHERE user_id = ? AND team_slot = 1", [userId]);
+            if (!lead) return `${tag}❌ Você precisa de um Pokémon no slot 1.`;
+            
+            let currentExp = lead.exp + qtd;
+            await this.db.run("UPDATE user_pokemons SET exp = exp + ? WHERE id = ?", [currentExp, lead.id]);
+            return `${tag}🆙 *${lead.nickname}* ganhou ${qtd} XP mágico do Admin! (O nível atualizará na próxima batalha).`;
+        }
+
+        return `${tag}❌ Tipo de recompensa inválido. Use: pokemon, coin, item`;
+    }
+
+    async claimVeteranReward(userId, choice) {
+        const tag = await this.getUserTag(userId);
+
+        const user = await this.db.get("SELECT reward_claimed FROM usuarios WHERE id_usuario = ?", [userId]);
+        if (user && user.reward_claimed) {
+            return `${tag}🚫 Você já resgatou sua recompensa de veterano!`;
+        }
+
+        const veteranPoke = await this.db.get(
+            "SELECT id FROM user_pokemons WHERE user_id = ? AND obtained_at < ? LIMIT 1", 
+            [userId, REWARD_CUTOFF]
+        );
+
+        if (!veteranPoke) {
+            return `${tag}🚫 *Evento Exclusivo*\nEssa recompensa é apenas para treinadores antigos (Veteranos).`;
+        }
+
+        const starterMap = {
+            1: { id: 1,   name: "Bulbasaur (Grama)" },
+            2: { id: 4,   name: "Charmander (Fogo)" },
+            3: { id: 7,   name: "Squirtle (Água)" },
+            4: { id: 152, name: "Chikorita (Grama)" },
+            5: { id: 155, name: "Cyndaquil (Fogo)" },
+            6: { id: 158, name: "Totodile (Água)" },
+            7: { id: 252, name: "Treecko (Grama)" },
+            8: { id: 255, name: "Torchic (Fogo)" },
+            9: { id: 258, name: "Mudkip (Água)" }
+        };
+
+        const selection = parseInt(choice);
+
+        if (!choice || isNaN(selection) || !starterMap[selection]) {
+            let msg = `${tag}🎁 *RECOMPENSA DE VETERANO* 🎁\n\n` +
+                      `Obrigado por jogar! Escolha um segundo inicial para sua jornada:\n\n` +
+                      `*Kanto (Gen 1)*\n` +
+                      `1. Bulbasaur 🍃\n` +
+                      `2. Charmander 🔥\n` +
+                      `3. Squirtle 💧\n\n` +
+                      
+                      `*Johto (Gen 2)*\n` +
+                      `4. Chikorita 🍃\n` +
+                      `5. Cyndaquil 🔥\n` +
+                      `6. Totodile 💧\n\n` +
+                      
+                      `*Hoenn (Gen 3)*\n` +
+                      `7. Treecko 🍃\n` +
+                      `8. Torchic 🔥\n` +
+                      `9. Mudkip 💧\n\n` +
+                      
+                      `Digite o número da sua escolha.\n` +
+                      `Ex: *!poke recompensa 2* (para Charmander)`;
+            return msg;
+        }
+
+        const selectedStarter = starterMap[selection];
+
+        const rewardMsg = await this.giveReward(userId, 'pokemon', selectedStarter.id);
+
+        await this.db.run("UPDATE usuarios SET reward_claimed = 1 WHERE id_usuario = ?", [userId]);
+        
+        return `${tag}🎉 *PARABÉNS VETERANO!* 🎉\nVocê escolheu o número ${selection}!\n\n${rewardMsg}`;
     }
 
     async fixNullPP() {
@@ -1215,6 +1376,38 @@ class PokemonHandler {
         }
 
         switch (action) {
+            case 'recompensa':
+            case 'gift':
+            case 'claim':
+                return await this.claimVeteranReward(sender, param);
+
+            case 'dar':
+            case 'give':
+            case 'novarecompensa':
+                if (sender !== ADMIN_ID) return "🔒 Sai daqui, hacker. Só o Admin manda aqui.";
+                
+                let targetUser = sender;
+                
+                if (sock && msg.message?.extendedTextMessage?.contextInfo?.mentionedJid?.length > 0) {
+                    targetUser = msg.message.extendedTextMessage.contextInfo.mentionedJid[0];
+                }
+
+                const cleanArgs = args.filter(a => !a.includes('@'));
+                
+                const rType = cleanArgs[2]; 
+                const rValue = cleanArgs[3];
+                const rAmount = parseInt(cleanArgs[4]) || 1;
+
+                if (!rType || !rValue) {
+                    return "🛠️ *FERRAMENTA DE ADMIN*\nUse: *!poke dar @user [tipo] [valor] [qtd]*\n\n" +
+                           "Exemplos:\n" +
+                           "• !poke dar @fulano pokemon mewtwo 100\n" +
+                           "• !poke dar @fulano coin 5000\n" +
+                           "• !poke dar @fulano item bola 50";
+                }
+
+                return await this.giveReward(targetUser, rType, rValue, rAmount);
+
             case 'ajuda': 
             case 'help':
                 return await this.helpPoke(sender, param);

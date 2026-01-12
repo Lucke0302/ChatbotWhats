@@ -430,6 +430,11 @@ async function initDatabase() {
         if (!error.message.includes("duplicate column name")) console.error(error.message);
     }
 
+    try {
+            await this.db.exec(`ALTER TABLE usuarios ADD COLUMN reward_claimed BOOLEAN DEFAULT 0;`);
+            console.log("✅ Coluna 'reward_claimed' criada com sucesso!");
+    } catch (e) {}
+
     console.log('✅ Banco de dados SQLite inicializado e tabelas verificadas.');
 }
 

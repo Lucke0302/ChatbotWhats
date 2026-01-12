@@ -1828,7 +1828,7 @@ class PokemonHandler {
         // Retorno Visual
         return `${log}\n\n` +
                `❤️ Inimigo: ${Math.floor(Math.max(0, encounter.currentHp))}/${Math.floor(encounter.maxHp)}\n` +
-               `💚 Seu: ${Math.max(0, userPoke.current_hp)-damageToUser}/${userPoke.max_hp}\n\n` +
+               `💚 Seu: ${Math.max(0, userPoke.current_hp)}/${userPoke.max_hp}\n\n` +
                `⚔️ *!poke atacar [n]*\n` +
                `🔴 *!poke capturar*\n` +
                `🔄 *!poke trocar [n]*\n` +

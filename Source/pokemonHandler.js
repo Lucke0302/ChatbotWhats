@@ -1298,9 +1298,6 @@ class PokemonHandler {
         let log = `🔄 **Você trocou para ${targetPoke.nickname}!**\n`;
 
         const encounterRaw = await this.db.get("SELECT extra_data FROM active_encounters WHERE user_id = ?", [userId]);
-        let battleState = this.getBattleState(encounterRaw);
-
-        const enemyTurnLog = await this.processEnemyTurn(encounter, targetPoke, battleState, userId);
 
         if (!isFaintSwitch) {
             const encounterRaw = await this.db.get("SELECT extra_data FROM active_encounters WHERE user_id = ?", [userId]);
@@ -2424,42 +2421,61 @@ class PokemonHandler {
 
     async processEnemyTurn(encounter, userPoke, battleState, userId) {
         let log = "";
+        const enemyName = encounter.pokemon.name;
 
+        // --- 1. CHECAGEM DE STATUS ---
+        const enemyCheck = await this.checkStatusBeforeMove(battleState, false, enemyName, null, null);
+        
+        if (enemyCheck.log) log += `\n${enemyCheck.log}`;
+        
+        if (enemyCheck.selfDamage) {
+            const selfDmg = Math.floor(encounter.maxHp * 0.15);
+            encounter.currentHp -= selfDmg;
+            log += ` (HP: ${encounter.currentHp}/${encounter.maxHp})`;
+        }
+
+        // Se o status impedir o movimento, encerra aqui
+        if (!enemyCheck.canMove) {
+            return log; 
+        }
+
+        // --- 2. ESCOLHA DO GOLPE ---
         const validMoves = encounter.moves.filter(m => m.current_pp > 0);
-
         let wildMove = encounter.moves[Math.floor(Math.random() * encounter.moves.length)] || {name: "Investida", power: 40, damage_class: 'physical', type: 'normal'};
         
         if (validMoves.length === 0) {
             wildMove = { name: "Struggle", power: 50, damage_class: 'physical', type: 'normal' };
             log += `\n⚠️ ${encounter.pokemon.name} não tem mais PP! Usou *Struggle*!`;
         } else {
+            // IA Simples: Escolhe aleatório dos que tem PP
             const moveIndex = Math.floor(Math.random() * validMoves.length);
             wildMove = validMoves[moveIndex];
 
+            // Gasta PP
             const originalMove = encounter.moves.find(m => m.name === wildMove.name);
             if (originalMove) {
                 originalMove.current_pp--;
             }
-            
             await this.db.run("UPDATE active_encounters SET moves = ? WHERE user_id = ?", [JSON.stringify(encounter.moves), userId]);
         }
 
         let damageToUser = 0;
 
+        // Dano de Recuo do Struggle
         if (wildMove.name === 'Struggle') {
                 const recoil = Math.floor(encounter.maxHp / 4);
-
                 encounter.currentHp -= recoil;
                 log += `\n💥 *${encounter.pokemon.name}* sofreu **${recoil}** de dano pelo recuo!`;
         }
 
         const enemyEmojis = this.getTypeEmojis(encounter.pokemon.type1, encounter.pokemon.type2);
-        const enemyName = `${encounter.pokemon.name} ${enemyEmojis}`;
+        const enemyDisplayName = `${encounter.pokemon.name} ${enemyEmojis}`;
 
+        // --- 3. EXECUÇÃO DO GOLPE ---
         if (wildMove.damage_class === 'status') {
             const res = await this.processStatusMove(wildMove.name, battleState, false, encounter.maxHp);
             
-            log += `\n✨ ${enemyName} ${res.msg}`;
+            log += `\n✨ ${enemyDisplayName} ${res.msg}`;
             
             if (res.healAmount > 0) {
                 encounter.currentHp = Math.min(encounter.maxHp, encounter.currentHp + res.healAmount);
@@ -2467,23 +2483,26 @@ class PokemonHandler {
             }
         
         } else {
+            // Cálculo de Atributos Reais
             const enemyAtkReal = Math.floor(((2 * encounter.pokemon.base_atk + 15) * encounter.level) / 100 + 5);
             const enemySpaReal = Math.floor(((2 * encounter.pokemon.base_spa + 15) * encounter.level) / 100 + 5);
             let calcEnemyAtk = (wildMove.damage_class === 'special') ? enemySpaReal : enemyAtkReal;
 
             const userDefReal = this.calculateStat(userPoke.base_def, userPoke.iv_def, userPoke.level, userPoke.nature, 'def');
             const userSpdReal = this.calculateStat(userPoke.base_spd, userPoke.iv_spd, userPoke.level, userPoke.nature, 'spd');
-            
             let calcUserDef = (wildMove.damage_class === 'special') ? userSpdReal : userDefReal;        
 
+            // Aplica Buffs/Debuffs
             let stageEnemyAtk = (wildMove.damage_class === 'physical') ? battleState.stages.enemy.atk : battleState.stages.enemy.spa;
             let stageUserDef = (wildMove.damage_class === 'physical') ? battleState.stages.user.def : battleState.stages.user.spd;
             let finalWildAtk = this.applyStages(calcEnemyAtk, stageEnemyAtk);
             let finalUserDef = this.applyStages(calcUserDef, stageUserDef);
 
+            // Fórmula de Dano
             const calcDmg = (lvl, pwr, atk, def) => Math.floor(((2 * lvl / 5 + 2) * pwr * (atk / def)) / 50 + 2);
-            damageToUser = calcDmg(encounter.level, wildMove.power, finalWildAtk, finalUserDef)+1;
+            damageToUser = calcDmg(encounter.level, wildMove.power, finalWildAtk, finalUserDef) + 1;
 
+            // Type Effectiveness
             const getTypeMultiplier = (moveType, t1, t2) => {
                if (!moveType || !TYPE_CHART[moveType.toLowerCase()]) return 1;
                let m = 1;
@@ -2495,13 +2514,16 @@ class PokemonHandler {
             const typeMultEnemy = getTypeMultiplier(wildMove.type, userPoke.type1, userPoke.type2);
             damageToUser = Math.floor(damageToUser * typeMultEnemy);
 
-            if (damageToUser < 1 && typeMultEnemy > 0) {
-                damageToUser = 1;
-            }
+            if (damageToUser < 1 && typeMultEnemy > 0) damageToUser = 1;
 
-            if (Math.random() < 0.05) { damageToUser *= 2; log += `\n⚠️ *CRÍTICO DO INIMIGO!*`; }
+            // Crítico e Variação
+            if (Math.random() < 0.0625) { 
+                damageToUser *= 2; 
+                log += `\n⚠️ *CRÍTICO DO INIMIGO!*`; 
+            }
             damageToUser = Math.floor(damageToUser * ((Math.random() * 0.15) + 0.85));
 
+            // STAB
             if (wildMove.type === encounter.pokemon.type1 || wildMove.type === encounter.pokemon.type2) {
                 damageToUser = Math.floor(damageToUser * 1.5);
             }
@@ -2512,7 +2534,7 @@ class PokemonHandler {
                 log +=`\n`
             }
             else{
-                log +=`\n💢 ${enemyName} usou *${wildMove.name}*!\n`
+                log +=`\n💢 ${enemyDisplayName} usou *${wildMove.name}*!\n`
             }
 
             log += `Te causou **${damageToUser}** de dano.`;

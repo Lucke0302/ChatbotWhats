@@ -1101,6 +1101,9 @@ class PokemonHandler {
         if (!targetPoke) return "🚫 Não tem ninguém nesse slot do time.";
         if (targetPoke.current_hp <= 0) return `💀 ${targetPoke.nickname} está desmaiado e não pode entrar!`;
         if (targetPoke.id === encounter.activePokemonId) return "🤦 Esse Pokémon já está em campo!";
+
+        const currentPoke = await this.db.get("SELECT current_hp FROM user_pokemons WHERE id = ?", [encounter.activePokemonId]);
+        const isFaintSwitch = currentPoke && currentPoke.current_hp <= 0;
         
         let extraData = encounter.gymData || {}; 
         if (!extraData.participants) extraData.participants = [];
@@ -1137,6 +1140,15 @@ class PokemonHandler {
         let battleState = this.getBattleState(encounterRaw);
 
         const enemyTurnLog = await this.processEnemyTurn(encounter, targetPoke, battleState, userId);
+
+        if (!isFaintSwitch) {
+            const encounterRaw = await this.db.get("SELECT extra_data FROM active_encounters WHERE user_id = ?", [userId]);
+            let battleState = this.getBattleState(encounterRaw);
+            const enemyTurnLog = await this.processEnemyTurn(encounter, targetPoke, battleState, userId);
+            log += enemyTurnLog;
+        } else {
+            log += `👉 Vai, *${targetPoke.nickname}*!`;
+        }
         
         return log + enemyTurnLog;
     }

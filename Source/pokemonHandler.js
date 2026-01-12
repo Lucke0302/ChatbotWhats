@@ -2055,6 +2055,10 @@ class PokemonHandler {
         // Salva HP Inimigo
         await this.db.run(`UPDATE active_encounters SET current_hp = ? WHERE user_id = ?`, [encounter.currentHp, userId]);
 
+        if (encounter.currentHp <= 0) {
+             return this.handleVictory(userId, encounter, battleState, log);
+        }
+
         // Verifica Morte Jogador
         const updatedUserPoke = await this.db.get("SELECT current_hp, max_hp, nickname, exp FROM user_pokemons WHERE id = ?", [userPoke.id]);
         if (updatedUserPoke.current_hp <= 0) {
@@ -2067,6 +2071,7 @@ class PokemonHandler {
         if (userRes) {
             log += `\n${userRes.msg} (-${userRes.dmg})`;
             await this.db.run("UPDATE user_pokemons SET current_hp = ? WHERE id = ?", [userPoke.current_hp, userPoke.id]);
+            updatedUserPoke.current_hp = userPoke.current_hp; 
         }
         
         // Inimigo
@@ -2094,9 +2099,11 @@ class PokemonHandler {
         finalExtraData.lockedMove = battleState.lockedMove;
         finalExtraData.field = battleState.field;
         finalExtraData.participants = battleState.participants;
+        finalExtraData.userStatus = battleState.userStatus;
+        finalExtraData.enemyStatus = battleState.enemyStatus;
 
         await this.db.run("UPDATE active_encounters SET extra_data = ? WHERE user_id = ?", [JSON.stringify(finalExtraData), userId]);
-        
+
         const currentLvlXp = updatedUserPoke.exp - Math.pow(userPoke.level, 3);
         const nextLvlXp = Math.pow(userPoke.level+1, 3) - Math.pow(userPoke.level, 3);
         const xpBar = this.getProgressBar(currentLvlXp, nextLvlXp);

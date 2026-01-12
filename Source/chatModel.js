@@ -7,6 +7,8 @@ const fs = require('fs');
 const ToxicHandler = require('./toxicHandler');
 const lolCommandHandler = require('./lolCommand');
 const ttsCommandHandler = require('./ttsCommand');
+const PokemonHandler = require('./pokemonHandler');
+const migrationCommandHandler = require('./migrarCommand');
 const RIOT_API_KEY = process.env.RIOT_API_KEY;
 
 class ChatModel {
@@ -32,9 +34,82 @@ class ChatModel {
         this.DAILY_AI_LIMIT = 10;
         this.DAILY_LIMIT_GEMMA = 100;
         this.toxicHandler = new ToxicHandler(db);
+        this.pokemonHandler = new PokemonHandler(db);
+        this.pokemonHandler.init();
+        this.initializeCommandHandlers();
     }
 
-    //
+    initializeCommandHandlers() {
+        this.commandHandlers = {
+            '!timeout': async (ctx) => {
+                const mentions = ctx.msg.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
+                return await this.handleTimeoutCommand(ctx.name, ctx.command, ctx.sender, ctx.isGroup, mentions);
+            },
+            '!d': async (ctx) => await this.handleDiceCommand(ctx.command, ctx.sender),
+            '!menu': async () => await this.handleMenuCommand(),
+            '!tradutor': async (ctx) => {
+                await this.checkAndIncrementTranslateQuota(ctx.user, ctx.sender, ctx.command);
+                return await this.handleTradutorCommand(ctx.from, ctx.sender, ctx.name, ctx.isGroup, ctx.command);
+            },
+            '!lol': async (ctx) => await lolCommandHandler.handleLolCommand(ctx.command),
+            '!notas': async (ctx) => await this.handleNotasCommand(ctx.sender),
+            '!clima': async (ctx) => await this.handleClimaCommand(ctx.command, ctx.sender),
+            '!cotacao': async (ctx) => await currencyCommandHandler.convertCurrency(ctx.command),
+            '!pdf': async (ctx) => {
+                await pdfCommandHandler.handlePdfCommand(ctx.sock, ctx.msg, ctx.from);
+            },
+            '!toxico': async (ctx) => {
+                let groupId;
+                if (ctx.isGroup && ctx.from != "120363422821336011@g.us") groupId = ctx.from;
+                else groupId = ctx.command.split(" ")[1];
+                return await this.getToxicPodium(groupId);
+            },
+            '!falador': async (ctx) => await this.handleFaladorCommand(ctx.from),
+            '!audio': async (ctx) => {
+                await ttsCommandHandler.handleAudioCommand(ctx.sock, ctx.from, ctx.command, ctx.msg);
+            },
+            '!poke': async (ctx) => {
+                return await this.pokemonHandler.handleCommand(ctx.from, ctx.sender, ctx.command, ctx.sock);
+            },
+            '!id': async (ctx) => `${ctx.from}`,
+            '!migrar': async (ctx) => {
+                if (ctx.sender !== "5513991008854@s.whatsapp.net") {
+                    return "🔒 *Acesso Negado.* Só o chefe pode fazer o êxodo.";
+                }
+                return await migrationCommandHandler.handleMigrationCommand(ctx.sock, ctx.from, ctx.command, ctx.sender);
+            },
+            '!help': async (ctx) => this.handleHelp(ctx),
+            '!ajuda': async (ctx) => this.handleHelp(ctx)
+        };
+
+        const aiHandler = async (ctx) => {
+            if (!ctx.command.startsWith("!burro")) {
+                await this.checkAndIncrementAiQuota(ctx.user, ctx.sender, ctx.command);
+            }
+            
+            if ((ctx.command.startsWith('!resumo') && ctx.isGroup) || 
+                (ctx.command.startsWith("!gpt") && ctx.isGroup) || 
+                ctx.command.startsWith("!burro")) {
+                    
+                const prompt = await this.formulatePrompt(ctx.from, ctx.sender, ctx.name, ctx.isGroup, ctx.command, ctx.quotedMessage);
+                return await this.getAiResponse(ctx.from, ctx.sender, ctx.name, ctx.isGroup, ctx.command, prompt);
+            }
+
+            if (ctx.command.startsWith("!lembrar")) {
+                return await this.handleLembrarCommand(ctx.from, ctx.sender, ctx.name, ctx.isGroup, ctx.command);
+            }
+        };
+
+        this.commandHandlers['!gpt'] = aiHandler;
+        this.commandHandlers['!resumo'] = aiHandler;
+        this.commandHandlers['!lembrar'] = aiHandler;
+        this.commandHandlers['!burro'] = aiHandler;
+    }
+
+    handleHelp(ctx) {
+        const args = ctx.command.split(/\s+/).slice(1).join(' ');
+        return helpCommandHandler.getHelp(args);
+    }
 
     async countMessage(name, sender, from) {
         try {
@@ -91,14 +166,21 @@ class ChatModel {
         }
     }
 
-    checkSpam(sender) {
+    checkSpam(sender, command = "") {
         const now = Date.now();
         const lastTime = this.spamCooldowns.get(sender) || 0;
         const diffSeconds = (now - lastTime) / 1000;
 
-        if (diffSeconds < this.SPAM_DELAY_SECONDS) {
-            const waitTime = Math.ceil(this.SPAM_DELAY_SECONDS - diffSeconds);
-            throw new Error(`SPAM_DETECTED|${waitTime}`);
+        let limit = this.SPAM_DELAY_SECONDS;
+        if (command.toLowerCase().startsWith("!poke")) {
+            limit = 1; 
+        }
+
+        if (diffSeconds < limit) {
+            const waitTime = Math.ceil(limit - diffSeconds);
+            if (waitTime > 0) {
+                throw new Error(`SPAM_DETECTED|${waitTime}`);
+            }
         }
 
         this.spamCooldowns.set(sender, now);
@@ -672,9 +754,8 @@ class ChatModel {
             return await this.getAiResponse(from, sender, name, isGroup, "any", finalPrompt)
     }
 
-    //Responde o comando !menu
     async handleMenuCommand(){
-        return `📍 Os comandos até agora são: \n\n
+        return `📍 *MENU RÁPIDO (v4.0 - Pokémon)* \n\n
         🆘 !ajuda (ou !help)\n
         🗣️ !audio\n
         🌡️ !clima\n
@@ -687,11 +768,12 @@ class ChatModel {
         📄 !menu\n
         ✏️ !notas\n
         📙 !pdf\n
+        🎮 !poke (JOGO COMPLETO)\n
         🖼️ !s (ou !sticker)\n
         🛎️ !resumo\n        
         ☢️ !toxico\n
         🧐 !tradutor
-        \n\nPara mais infos, use o comando !ajuda (ou !help)`;
+        \n\nPara detalhes, digite: *!ajuda [comando]*`;
     }
 
     //Responde o comando !d
@@ -762,63 +844,23 @@ class ChatModel {
         const user = await this.getUserData(name, sender)
 
         this.checkTimeout(user)
-        this.checkSpam(sender)
+        this.checkSpam(sender, command)
 
-        // ADM COMMAND
-        if (command.startsWith('!timeout')) {
-            const mentions = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid || []
-            return await this.handleTimeoutCommand(name, command, sender, isGroup, mentions)
+        let rootCommand = command.split(' ')[0].toLowerCase();
+
+        if (/^!d\d+$/.test(rootCommand)) {
+            rootCommand = '!d';
         }
 
-        if(command.startsWith('!d')) return await this.handleDiceCommand(command, sender)
-        
-        if(command.startsWith('!menu')) return await this.handleMenuCommand()
-        
-        if (command.startsWith('!gpt') || command.startsWith('!resumo') || command.startsWith('!lembrar') || command.startsWith("!burro")) {
-            if (!command.startsWith("!burro"))await this.checkAndIncrementAiQuota(user, sender, command)
-            
-            if(command.startsWith('!resumo') && isGroup || command.startsWith("!gpt") && isGroup || command.startsWith("!burro")) return await this.getAiResponse(from, sender, name, isGroup, command, await this.formulatePrompt(from, sender, name, isGroup, command, quotedMessage));
+        const handler = this.commandHandlers[rootCommand];
 
-            if(command.startsWith("!lembrar")) return await this.handleLembrarCommand(from, sender, name, isGroup, command)
+        if (handler) {
+            const ctx = {
+                msg, sender, from, isGroup, command, quotedMessage, sock, name, user
+            };
+
+            return await handler(ctx);
         }
-
-        if (command.startsWith('!tradutor')) {
-            await this.checkAndIncrementTranslateQuota(user, sender, command);
-            return await this.handleTradutorCommand(from, sender, name, isGroup, command);
-        }
-
-        if(command.startsWith('!lol')) return await lolCommandHandler.handleLolCommand(command);
-
-        if(command.startsWith('!notas')) return await this.handleNotasCommand(sender)
-
-        if (command.startsWith('!clima')) return await this.handleClimaCommand(command, sender)
-
-        if (command.startsWith('!cotacao')) return await currencyCommandHandler.convertCurrency(command);
-        if (command.startsWith('!help') || command.startsWith('!ajuda')) {
-            const args = command.split(/\s+/).slice(1).join(' ');
-            return helpCommandHandler.getHelp(args);
-        }
-        if (command === '!pdf') {
-            await pdfCommandHandler.handlePdfCommand(sock, msg, from);
-            return;
-        }
-
-        if (command.startsWith('!toxico')) {
-            let groupId
-            if(isGroup && from != "120363422821336011@g.us") groupId = from
-            else groupId = command.split(" ")[1]
-            return await this.getToxicPodium(groupId);
-        }
-
-        if (command.startsWith('!falador')) {
-            return await this.handleFaladorCommand(from)
-        }
-
-        if (command.startsWith('!audio')) {
-            await ttsCommandHandler.handleAudioCommand(sock, from, command, msg);
-            return;
-        }
-
     }
 
     async handleMessageWithoutCommand(msg, sender, from, isGroup, command, quotedMessage){

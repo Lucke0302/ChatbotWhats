@@ -1,7 +1,12 @@
 require('dotenv').config();
 const schedule = require('node-schedule');
 const weatherCommandHandler = require('./weatherCommand');
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, downloadMediaMessage, jidNormalizedUser } = require('@whiskeysockets/baileys');
+
+const Baileys = require('@whiskeysockets/baileys');
+const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, downloadMediaMessage, jidNormalizedUser } = Baileys;
+
+const getAggregateVotesInPollMessage = Baileys.getAggregateVotesInPollMessage || Baileys.default?.getAggregateVotesInPollMessage;
+
 const { GoogleGenAI } = require("@google/genai");
 const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 const qrcode = require('qrcode-terminal');
@@ -13,8 +18,10 @@ const { handleBotError } = require('./errorHandler');
 const fs = require('fs');
 const { Sticker, StickerTypes } = require('wa-sticker-formatter');
 const sharp = require('sharp');
+const crypto = require('crypto');
 
-const groupHistory = {}; 
+const pollCache = new Map();
+
 const DB_PATH = 'chat_history.db'; 
 let db; 
 let myFullJid;
@@ -123,7 +130,307 @@ async function initDatabase() {
         );
     `);
 
-    console.log('✅ Banco de dados SQLite inicializado e tabelas `mensagens` e `usuarios` verificadas.');
+    await db.exec(`
+        CREATE TABLE IF NOT EXISTS pokedex (
+            id INTEGER PRIMARY KEY,
+            name TEXT,
+            type1 TEXT,
+            type2 TEXT,
+            base_hp INTEGER,
+            base_atk INTEGER,
+            base_def INTEGER,
+            base_spa INTEGER,
+            base_spd INTEGER,
+            base_spe INTEGER,
+            rarity TEXT,
+            tier INTEGER,
+            is_starter BOOLEAN,
+            sprite_url TEXT,
+            base_xp INTEGER
+        );
+    `);
+
+    await db.exec(`
+        CREATE TABLE IF NOT EXISTS user_pokemons (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT NOT NULL,
+            pokedex_id INTEGER NOT NULL,
+            nickname TEXT,
+            level INTEGER DEFAULT 1,
+            exp INTEGER DEFAULT 0,
+            iv_hp INTEGER,
+            iv_atk INTEGER,
+            iv_def INTEGER,
+            iv_spa INTEGER,
+            iv_spd INTEGER,
+            iv_spe INTEGER,
+            obtained_at INTEGER,
+            FOREIGN KEY(pokedex_id) REFERENCES pokedex(id)
+        );
+    `);
+
+    await db.exec(`
+        CREATE TABLE IF NOT EXISTS moves (
+            id INTEGER PRIMARY KEY,
+            name TEXT,
+            type TEXT,
+            power INTEGER,
+            accuracy INTEGER,
+            pp INTEGER,
+            damage_class TEXT -- 'physical', 'special' ou 'status'
+        );
+    `);
+
+    await db.exec(`
+        CREATE TABLE IF NOT EXISTS pokemon_moves (
+            pokemon_id INTEGER,
+            move_id INTEGER,
+            level_learned INTEGER,
+            PRIMARY KEY (pokemon_id, move_id, level_learned),
+            FOREIGN KEY(pokemon_id) REFERENCES pokedex(id),
+            FOREIGN KEY(move_id) REFERENCES moves(id)
+        );
+    `);
+
+    await db.exec(`
+        CREATE TABLE IF NOT EXISTS active_encounters (
+            user_id TEXT PRIMARY KEY,
+            group_id TEXT,
+            pokedex_id INTEGER,
+            current_hp INTEGER,
+            max_hp INTEGER,
+            level INTEGER,
+            is_shiny BOOLEAN,
+            moves TEXT,
+            battle_type TEXT,
+            extra_data TEXT,
+            started_at INTEGER,
+            FOREIGN KEY(pokedex_id) REFERENCES pokedex(id)
+        );
+    `);
+    console.log("✅ Tabela 'active_encounters' verificada.");
+
+    const columnsToAdd = ['move1', 'move2', 'move3', 'move4'];
+    for (const col of columnsToAdd) {
+        try {
+            await db.exec(`ALTER TABLE user_pokemons ADD COLUMN ${col} INTEGER DEFAULT NULL;`);
+        } catch (e) {}
+    }
+
+    try {
+        await db.exec(`ALTER TABLE user_pokemons ADD COLUMN current_hp INTEGER DEFAULT 20;`);
+        console.log("✅ Coluna 'current_hp' adicionada com sucesso!");
+    } catch (error) {
+        if (!error.message.includes("duplicate column name")) console.error(error.message);
+    }
+
+    try {
+        await db.exec(`ALTER TABLE user_pokemons ADD COLUMN max_hp INTEGER DEFAULT 20;`);
+        console.log("✅ Coluna 'max_hp' adicionada com sucesso!");
+    } catch (error) {
+        if (!error.message.includes("duplicate column name")) console.error(error.message);
+    }
+
+    try {
+        await db.exec(`ALTER TABLE user_pokemons ADD COLUMN is_shiny BOOLEAN DEFAULT 0;`);
+        console.log("✅ Coluna 'is_shiny' adicionada com sucesso!");
+    }  catch (error) {
+        if (!error.message.includes("duplicate column name")) console.error(error.message);
+    }
+
+    try {
+        await db.exec(`ALTER TABLE usuarios ADD COLUMN pokeballs INTEGER DEFAULT 20;`);
+        console.log("✅ Coluna 'pokeballs' adicionada com sucesso!");
+    } catch (error) {
+        if (!error.message.includes("duplicate column name")) console.error(error.message);
+    }
+
+    try {
+        await db.exec(`ALTER TABLE usuarios ADD COLUMN pokecoins INTEGER DEFAULT 1000;`);
+        console.log("✅ Coluna 'pokecoins' adicionada com sucesso!");
+    } catch (error) {
+        if (!error.message.includes("duplicate column name")) console.error(error.message);
+    }
+
+    try {
+        await db.exec(`ALTER TABLE usuarios ADD COLUMN potions INTEGER DEFAULT 0;`);
+        console.log("✅ Coluna 'potions' adicionada!");
+    } catch (error) {
+        if (!error.message.includes("duplicate column name")) console.error(error.message);
+    }
+
+    try {
+        await db.exec(`ALTER TABLE usuarios ADD COLUMN badges INTEGER DEFAULT 0;`);
+        console.log("✅ Coluna 'badges' adicionada!");
+    } catch (error) {
+        if (!error.message.includes("duplicate column name")) console.error(error.message);
+    }
+
+    try {
+        await db.exec(`ALTER TABLE user_pokemons ADD COLUMN pending_move INTEGER DEFAULT NULL;`);
+        console.log("✅ Coluna 'pending_move' adicionada com sucesso!");
+    } catch (error) {
+        if (!error.message.includes("duplicate column name")) console.error(error.message);
+    }
+
+    try {
+        await db.exec(`ALTER TABLE user_pokemons ADD COLUMN team_slot INTEGER DEFAULT NULL;`);
+        console.log("✅ Coluna 'team_slot' adicionada (PC System).");
+        
+        await db.exec(`
+            UPDATE user_pokemons 
+            SET team_slot = (
+                SELECT COUNT(*) + 1 
+                FROM user_pokemons up2 
+                WHERE up2.user_id = user_pokemons.user_id 
+                AND up2.id < user_pokemons.id
+            )
+            WHERE team_slot IS NULL 
+            AND (SELECT COUNT(*) FROM user_pokemons up3 WHERE up3.user_id = user_pokemons.user_id AND up3.id < user_pokemons.id) < 6;
+        `);
+    } catch (e) {}
+
+    try {
+        await db.exec(`ALTER TABLE active_encounters ADD COLUMN active_pokemon_id INTEGER DEFAULT NULL;`);
+        console.log("✅ Coluna 'active_pokemon_id' adicionada.");
+    } catch (e) {}
+    
+    try {
+        await db.exec(`ALTER TABLE pokedex ADD COLUMN evolve_to INTEGER DEFAULT NULL;`);
+        await db.exec(`ALTER TABLE pokedex ADD COLUMN evolve_level INTEGER DEFAULT NULL;`);
+        console.log("✅ Colunas de evolução adicionadas na Pokedex.");
+    } catch (e) {}
+
+    try {
+        await db.exec(`
+            DELETE FROM pokemon_moves 
+            WHERE rowid NOT IN (
+                SELECT MIN(rowid) 
+                FROM pokemon_moves 
+                GROUP BY pokemon_id, move_id, level_learned
+            )
+        `);
+        console.log("✅ Limpeza de golpes duplicados realizada.");
+    } catch (e) {}
+
+    await db.exec(`
+        CREATE TABLE IF NOT EXISTS gym_leaders (
+            id INTEGER PRIMARY KEY, -- Usaremos como número da insígnia (0 = Brock, 1 = Misty...)
+            name TEXT,
+            city TEXT,
+            badge_name TEXT,
+            reward_coins INTEGER,
+            team_json TEXT -- Guardará o array do time: [{pokedex_id, level, moves:[names]}]
+        );
+    `);
+
+    // Seed do Brock (Geodude e Onix)
+    await db.run(`INSERT OR IGNORE INTO gym_leaders (id, name, city, badge_name, reward_coins, team_json) VALUES (?, ?, ?, ?, ?, ?)`, 
+        [0, 'Brock', 'Pewter', 'Rocha', 1500, JSON.stringify([
+            {pokedex_id: 74, level: 12, moves: ["tackle", "defense-curl"]}, // Geodude
+            {pokedex_id: 95, level: 14, moves: ["tackle", "rock-throw", "bind", "harden"]} //Onix
+        ])]
+    );
+
+    // Seed da Misty
+    await db.run(`INSERT OR IGNORE INTO gym_leaders (id, name, city, badge_name, reward_coins, team_json) VALUES (?, ?, ?, ?, ?, ?)`, 
+        [1, 'Misty', 'Cerulean', 'Cascata', 2500, JSON.stringify([
+            {pokedex_id: 120, level: 18, moves: ["water-gun", "tackle", "harden"]}, // Staryu
+            {pokedex_id: 121, level: 21, moves: ["water-gun", "swift", "recover", "tackle"]} // Starmie
+        ])]
+    );
+
+    // Seed do Lt. Surge
+    await db.run(`INSERT OR IGNORE INTO gym_leaders (id, name, city, badge_name, reward_coins, team_json) VALUES (?, ?, ?, ?, ?, ?)`, 
+        [2, 'Lt. Surge', 'Vermilion', 'Trovão', 3500, JSON.stringify([
+            {pokedex_id: 100, level: 21, moves: ["sonic-boom", "screech"]}, // Voltorb
+            {pokedex_id: 25, level: 18, moves: ["thunder-shock", "quick-attack", "double-team"]}, // Pikachu
+            {pokedex_id: 26, level: 24, moves: ["thunderbolt", "mega-punch", "thunder-shock"]} // Raichu
+        ])]
+    );
+
+    // Seed da Erika
+    await db.run(`INSERT OR IGNORE INTO gym_leaders (id, name, city, badge_name, reward_coins, team_json) VALUES (?, ?, ?, ?, ?, ?)`, 
+        [3, 'Erika', 'Celadon', 'Arco-íris', 4500, JSON.stringify([
+            {pokedex_id: 71, level: 29, moves: ["razor-leaf", "sleep-powder", "poison-powder"]}, // Victreebel
+            {pokedex_id: 114, level: 24, moves: ["vine-whip", "bind", "constrict"]}, // Tangela
+            {pokedex_id: 45, level: 29, moves: ["mega-drain", "petal-dance", "poison-powder", "stun-spore"]} // Vileplume
+        ])]
+    );
+
+    // Seed do Koga (Venenoso)
+    await db.run(`INSERT OR IGNORE INTO gym_leaders (id, name, city, badge_name, reward_coins, team_json) VALUES (?, ?, ?, ?, ?, ?)`, 
+        [4, 'Koga', 'Fuchsia', 'Alma', 5500, JSON.stringify([
+            {pokedex_id: 109, level: 37, moves: ["sludge", "smokescreen", "smog"]}, // Koffing
+            {pokedex_id: 89, level: 39, moves: ["sludge-bomb", "minimize", "acid-armor"]}, // Muk
+            {pokedex_id: 110, level: 43, moves: ["toxic", "sludge", "self-destruct", "smokescreen"]} // Weezing
+        ])]
+    );
+
+    // Seed da Sabrina
+    await db.run(`INSERT OR IGNORE INTO gym_leaders (id, name, city, badge_name, reward_coins, team_json) VALUES (?, ?, ?, ?, ?, ?)`, 
+        [5, 'Sabrina', 'Saffron', 'Pântano', 6500, JSON.stringify([
+            {pokedex_id: 64, level: 38, moves: ["psybeam", "recover", "disable"]}, // Kadabra
+            {pokedex_id: 122, level: 37, moves: ["confusion", "barrier", "light-screen"]}, // Mr. Mime
+            {pokedex_id: 49, level: 38, moves: ["psybeam", "stun-spore", "gust"]}, // Venomoth
+            {pokedex_id: 65, level: 43, moves: ["psychic", "recover", "psybeam", "reflect"]} // Alakazam
+        ])]
+    );
+
+    // Seed do Blaine
+    await db.run(`INSERT OR IGNORE INTO gym_leaders (id, name, city, badge_name, reward_coins, team_json) VALUES (?, ?, ?, ?, ?, ?)`, 
+        [6, 'Blaine', 'Cinnabar', 'Vulcão', 7500, JSON.stringify([
+            {pokedex_id: 58, level: 42, moves: ["ember", "take-down", "leer"]}, // Growlithe
+            {pokedex_id: 77, level: 40, moves: ["fire-spin", "stomp", "growl"]}, // Ponyta
+            {pokedex_id: 78, level: 42, moves: ["fire-blast", "agility", "stomp"]}, // Rapidash
+            {pokedex_id: 59, level: 47, moves: ["flamethrower", "take-down", "roar", "bite"]} // Arcanine
+        ])]
+    );
+
+    // Seed do Giovanni
+    await db.run(`INSERT OR IGNORE INTO gym_leaders (id, name, city, badge_name, reward_coins, team_json) VALUES (?, ?, ?, ?, ?, ?)`, 
+        [7, 'Giovanni', 'Viridian', 'Terra', 10000, JSON.stringify([
+            {pokedex_id: 111, level: 45, moves: ["stomp", "tail-whip", "fury-attack"]}, // Rhyhorn
+            {pokedex_id: 51, level: 42, moves: ["dig", "slash", "sand-attack"]}, // Dugtrio
+            {pokedex_id: 31, level: 44, moves: ["body-slam", "poison-sting", "scratch", "double-kick"]}, // Nidoqueen
+            {pokedex_id: 34, level: 45, moves: ["thrash", "poison-sting", "horn-attack"]}, // Nidoking
+            {pokedex_id: 112, level: 50, moves: ["earthquake", "rock-slide", "fissure", "take-down"]} // Rhydon
+        ])]
+    );
+    console.log("✅ Tabela 'gym_leaders' verificada.");
+
+    try {
+        await db.exec(`ALTER TABLE usuarios ADD COLUMN gym_progress INTEGER DEFAULT NULL;`);
+        console.log("✅ Coluna 'gym_progress' adicionada com sucesso!");
+    } catch (error) {
+        if (!error.message.includes("duplicate column name")) console.error(error.message);
+    }
+
+    try {
+        await db.exec(`ALTER TABLE usuarios ADD COLUMN color TEXT DEFAULT '👤';`);
+        console.log("✅ Coluna 'color' adicionada com sucesso!");
+    } catch (error) {
+        if (!error.message.includes("duplicate column name")) console.error(error.message);
+    }
+
+    try {
+        await db.exec(`ALTER TABLE user_pokemons ADD COLUMN nature TEXT;`);
+        console.log("✅ Coluna 'nature' adicionada com sucesso!");
+    } catch (error) {
+        if (!error.message.includes("duplicate column name")) console.error(error.message);
+    }
+
+    try {
+        await db.exec(`ALTER TABLE user_pokemons ADD COLUMN move1_pp INTEGER DEFAULT NULL;`);
+        await db.exec(`ALTER TABLE user_pokemons ADD COLUMN move2_pp INTEGER DEFAULT NULL;`);
+        await db.exec(`ALTER TABLE user_pokemons ADD COLUMN move3_pp INTEGER DEFAULT NULL;`);
+        await db.exec(`ALTER TABLE user_pokemons ADD COLUMN move4_pp INTEGER DEFAULT NULL;`);
+        console.log("✅ Colunas de 'PP' adicionadas com sucesso!");
+    } catch (error) {
+        if (!error.message.includes("duplicate column name")) console.error(error.message);
+    }
+
+    console.log('✅ Banco de dados SQLite inicializado e tabelas verificadas.');
 }
 
 const botCommands = {
@@ -186,6 +493,9 @@ const botCommands = {
     },
     '!audio': {
         emoji: '🗣️'
+    },
+    '!poke': {
+        emoji: '🎮'
     }
 };
 
@@ -199,6 +509,8 @@ async function connectToWhatsApp() {
         auth: state,
         logger: pino({ level: 'warn' }), 
     });
+    
+    sock.pollCache = pollCache;
 
     //Instancia o chatbot
     const chatbot = new ChatModel(db, genAI)
@@ -298,6 +610,7 @@ async function connectToWhatsApp() {
         }
 
         const msg = m.messages[0];
+
         if (!msg.message || msg.key.fromMe) return;
 
         // Pega de quem é a mensagem e verifica se é de um grupo

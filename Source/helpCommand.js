@@ -7,6 +7,11 @@ Eu tô aqui processando bit igual um condenado e você pedindo ajuda... Tá, tom
 Pra saber os detalhes de um comando, digita:
 👉 *!ajuda (ou !help) [nome_do_comando]* (Ex: _!ajuda sticker_)
 
+🔴 *POKÉMON (NOVO!)*
+• *!poke* ➝ O comando principal para ser um mestre Pokémon.
+• *!poke comecar* ➝ Inicia sua jornada.
+• *!poke explorar* ➝ Procura bichos no mato.
+
 🎨 *MÍDIA & UTILITÁRIOS*
 • *!sticker (!s)* ➝ Faço figurinha. Se sua foto for feia, a culpa não é minha.
 • *!audio* ➝ Transformo texto em áudio (Google).
@@ -41,6 +46,29 @@ Pra saber os detalhes de um comando, digita:
 
 👮 *AREA RESTRITA*
 • *!timeout* ➝ O cantinho do pensamento pros chatos.`,
+
+    'poke': `🎮 *COMANDO: !poke*
+O sistema completo de batalha, captura e ginásios!
+
+*Comandos Básicos:*
+• *!poke comecar (ou start)* ➝ Escolhe seu inicial.
+• *!poke explorar* ➝ Acha um Pokémon selvagem (ou treinador).
+• *!poke atacar [1-4]* ➝ Usa um golpe em batalha.
+• *!poke capturar* ➝ Joga uma Pokébola.
+• *!poke curar (ou heal)* ➝ Cura seu time todo (Grátis).
+• *!poke fugir* ➝ Foge da batalha (covarde).
+
+*Gerenciamento:*
+• *!poke perfil* ➝ Vê seus Pokémon, insígnias e dinheiro.
+• *!poke time* ➝ Lista seu time atual.
+• *!poke mostrar (ou show) [1-6]* ➝ Vê detalhes, IVs e golpes de um Pokémon.
+• *!poke trocar [slot]* ➝ Troca o Pokémon ativo na batalha ou fora.
+• *!poke pc* ➝ Acessa seus Pokémon guardados na Box (e troca com os do time principal).
+• *!poke evoluir [slot]* ➝ Evolui seu bicho se ele já estiver no nível.
+
+*Progresso:*
+• *!poke loja* ➝ Compra itens (Pokébolas, Poções).
+• *!poke ginasio* ➝ Desafia os líderes para ganhar insígnias.`,
 
     'sticker': `🖼️ *COMANDO: !s (ou !sticker)*
 Manda a mídia com a legenda *!s* ou responde a mensagem com *!s*.

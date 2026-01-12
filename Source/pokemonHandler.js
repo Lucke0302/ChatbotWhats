@@ -426,17 +426,28 @@ class PokemonHandler {
             const initialXp = Math.pow(level, 3);
             const nature = this.getRandomNature();
 
+            const m1 = moves[0]?.id || null;
+            const m2 = moves[1]?.id || null;
+            const m3 = moves[2]?.id || null;
+            const m4 = moves[3]?.id || null;
+
+            const pp1 = moves[0]?.pp || null;
+            const pp2 = moves[1]?.pp || null;
+            const pp3 = moves[2]?.pp || null;
+            const pp4 = moves[3]?.pp || null;
+
             const slots = await this.db.all("SELECT team_slot FROM user_pokemons WHERE user_id = ? ORDER BY team_slot ASC", [userId]);
             const occupied = slots.map(s => s.team_slot);
             let targetSlot = 1;
             while (occupied.includes(targetSlot)) targetSlot++;
 
             await this.db.run(`INSERT INTO user_pokemons 
-                (user_id, pokedex_id, nickname, level, exp, current_hp, max_hp, move1, move2, move3, move4, obtained_at, iv_hp, iv_atk, iv_def, iv_spa, iv_spd, iv_spe, team_slot, nature) 
-                VALUES (?,?,?,?, ?,?,?, ?,?,?,?, ?,?,?,?,?,?,?, ?, ?)`,
+                (user_id, pokedex_id, nickname, level, exp, current_hp, max_hp, move1, move2, move3, move4, move1_pp, move2_pp, move3_pp, move4_pp, obtained_at, iv_hp, iv_atk, iv_def, iv_spa, iv_spd, iv_spe, team_slot, nature) 
+                VALUES (?,?,?,?, ?,?,?, ?,?,?,?, ?,?,?,?, ?, ?,?,?,?,?,?,?, ?, ?)`,
                 [
                     userId, pk.id, pk.name, level, initialXp, hp, hp, 
-                    moves[0]?.id, moves[1]?.id, moves[2]?.id, moves[3]?.id, 
+                    m1, m2, m3, m4, 
+                    pp1, pp2, pp3, pp4,
                     Date.now(), hpIv, randIv(), randIv(), randIv(), randIv(), randIv(), targetSlot, nature
                 ]
             );
@@ -2577,12 +2588,22 @@ class PokemonHandler {
             const ivHp = randIv();
             const realMaxHp = Math.floor(((2 * pk.base_hp + ivHp + 100) * encounter.level) / 100 + 10);
             const initialXp = Math.pow(encounter.level, 3);
-            
+
+            // --- CORREÇÃO: PEGA OS PPS DOS GOLPES DO ENCOUNTER ---
             let m1 = encounter.moves[0]?.id;
+            let m2 = encounter.moves[1]?.id;
+            let m3 = encounter.moves[2]?.id;
+            let m4 = encounter.moves[3]?.id;
+            
             if(!m1) {
                 const t = await this.db.get("SELECT id FROM moves WHERE name='tackle'");
                 m1 = t ? t.id : null;
             }
+
+            const pp1 = encounter.moves[0]?.pp || (m1 ? 35 : null);
+            const pp2 = encounter.moves[1]?.pp || null;
+            const pp3 = encounter.moves[2]?.pp || null;
+            const pp4 = encounter.moves[3]?.pp || null;
 
             const nature = this.getRandomNature(); 
 
@@ -2598,9 +2619,12 @@ class PokemonHandler {
             }
 
             await this.db.run(`
-                INSERT INTO user_pokemons (user_id, pokedex_id, nickname, level, exp, iv_hp, iv_atk, iv_def, iv_spa, iv_spd, iv_spe, move1, move2, move3, move4, obtained_at, is_shiny, current_hp, max_hp, team_slot, nature)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                [userId, pk.id, pk.name, encounter.level, initialXp, ivHp, randIv(), randIv(), randIv(), randIv(), randIv(), m1, encounter.moves[1]?.id, encounter.moves[2]?.id, encounter.moves[3]?.id, Date.now(), encounter.isShiny?1:0, realMaxHp, realMaxHp, targetSlot, nature]
+                INSERT INTO user_pokemons (user_id, pokedex_id, nickname, level, exp, iv_hp, iv_atk, iv_def, iv_spa, iv_spd, iv_spe, move1, move2, move3, move4, move1_pp, move2_pp, move3_pp, move4_pp, obtained_at, is_shiny, current_hp, max_hp, team_slot, nature)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [userId, pk.id, pk.name, encounter.level, initialXp, ivHp, randIv(), randIv(), randIv(), randIv(), randIv(), 
+                 m1, m2, m3, m4, 
+                 pp1, pp2, pp3, pp4,
+                 Date.now(), encounter.isShiny?1:0, realMaxHp, realMaxHp, targetSlot, nature]
             );
             await this.clearEncounter(userId);
             
@@ -2746,15 +2770,12 @@ class PokemonHandler {
         if (c.includes('bulb')) id = 1;
         else if (c.includes('charm')) id = 4;
         else if (c.includes('squirt')) id = 7;
-        
         else if (c.includes('chiko')) id = 152;
         else if (c.includes('cynda')) id = 155;
         else if (c.includes('toto')) id = 158;
-    
         else if (c.includes('tree')) id = 252;
         else if (c.includes('torch')) id = 255;
         else if (c.includes('mud')) id = 258;
-        
         else return `${tag}❌ Inicial inválido! Escolha um da lista. Ex: !poke escolher squirtle (o GOAT).`;
 
         const pk = await this.db.get("SELECT * FROM pokedex WHERE id = ?", [id]);
@@ -2764,21 +2785,38 @@ class PokemonHandler {
         
         const randIv = () => Math.floor(Math.random() * 32);
         const hpIv = randIv();
-        
         const nature = this.getRandomNature(); 
-
         const initialXp = Math.pow(5, 3);
         const hp = Math.floor(((2 * pk.base_hp + hpIv + 100) * 5) / 100 + 10);
 
+        const m1 = moves[0]?.id || null;
+        const m2 = moves[1]?.id || null;
+        const m3 = moves[2]?.id || null;
+        const m4 = moves[3]?.id || null;
+
+        const pp1 = moves[0]?.pp || (m1 ? 35 : null);
+        const pp2 = moves[1]?.pp || null;
+        const pp3 = moves[2]?.pp || null;
+        const pp4 = moves[3]?.pp || null;
+
         await this.db.run(`INSERT INTO user_pokemons 
-            (user_id, pokedex_id, nickname, level, exp, current_hp, max_hp, move1, obtained_at, iv_hp, iv_atk, iv_def, iv_spa, iv_spd, iv_spe, team_slot, nature) 
-            VALUES (?,?,?,5, ?,?,?,?,?, ?,?,?,?,?,?, 1, ?)`,
+            (user_id, pokedex_id, nickname, level, exp, current_hp, max_hp, 
+             move1, move2, move3, move4, 
+             move1_pp, move2_pp, move3_pp, move4_pp, 
+             obtained_at, iv_hp, iv_atk, iv_def, iv_spa, iv_spd, iv_spe, team_slot, nature) 
+            VALUES (?,?,?,5, ?,?,?, 
+                    ?, ?, ?, ?, 
+                    ?, ?, ?, ?, 
+                    ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
             [
-                userId, pk.id, pk.name, initialXp, hp, hp, moves[0]?.id, Date.now(),
-                hpIv, randIv(), randIv(), randIv(), randIv(), randIv(), 
+                userId, pk.id, pk.name, initialXp, hp, hp, 
+                m1, m2, m3, m4, 
+                pp1, pp2, pp3, pp4, 
+                Date.now(), hpIv, randIv(), randIv(), randIv(), randIv(), randIv(), 
                 nature 
             ]
         );
+
         await this.db.run("UPDATE usuarios SET pokeballs = 20, potions = 5 WHERE id_usuario = ?", [userId]);
         return `${tag}🎉 Parabéns! Você escolheu *${pk.name}* como parceiro!`;
     }

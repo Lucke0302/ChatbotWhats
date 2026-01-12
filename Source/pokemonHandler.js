@@ -2713,7 +2713,7 @@ class PokemonHandler {
     }
 
     async showStarters(sender) {
-        const tag = await this.getUserTag(userId);
+        const tag = await this.getUserTag(sender);
         if (await this.checkIfUserHasPokemon(sender)) return `${tag}🚫 Você já tem um Pokémon!`;
         
         return `${tag}🌟 *ESCOLHA SEU INICIAL* 🌟\n\n` +

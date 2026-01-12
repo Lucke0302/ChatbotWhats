@@ -809,6 +809,74 @@ class PokemonHandler {
         return msg;
     }
 
+    async showPokemon(groupId, userId, param, sock) {
+        const tag = await this.getUserTag(userId);
+        const slot = parseInt(param);
+
+        if (isNaN(slot) || slot < 1 || slot > 6) {
+            return `${tag}❌ Uso correto: *!poke mostrar [slot]*\nEx: _!poke mostrar 1_ (para ver o primeiro do time)`;
+        }
+
+        const poke = await this.db.get(`
+            SELECT up.*, p.name, p.type1, p.type2, p.sprite_url, 
+                   p.base_hp, p.base_atk, p.base_def, p.base_spa, p.base_spd, p.base_spe
+            FROM user_pokemons up
+            JOIN pokedex p ON up.pokedex_id = p.id
+            WHERE up.user_id = ? AND up.team_slot = ?`, [userId, slot]);
+
+        if (!poke) return `${tag}🚫 Não há Pokémon no slot ${slot} do seu time.`;
+
+        // --- CÁLCULO DOS STATS FINAIS ---
+        const atk = this.calculateStat(poke.base_atk, poke.iv_atk, poke.level, poke.nature, 'atk');
+        const def = this.calculateStat(poke.base_def, poke.iv_def, poke.level, poke.nature, 'def');
+        const spa = this.calculateStat(poke.base_spa, poke.iv_spa, poke.level, poke.nature, 'spa');
+        const spd = this.calculateStat(poke.base_spd, poke.iv_spd, poke.level, poke.nature, 'spd');
+        const spe = this.calculateStat(poke.base_spe, poke.iv_spe, poke.level, poke.nature, 'spe');
+
+        const natureData = NATURES[poke.nature] || NATURES['hardy'];
+        let natureText = `*${natureData.name}*`;
+        if (natureData.up) {
+            natureText += ` (+${natureData.up.toUpperCase()} / -${natureData.down.toUpperCase()})`;
+        } else {
+            natureText += ` (Neutra)`;
+        }
+
+        const moves = await this.getUserMoves(poke); 
+        let moveText = "";
+        moves.forEach((m) => {
+             const typeEmoji = TYPE_EMOJIS[m.type] || '';
+             const catIcon = m.damage_class === 'physical' ? "💥" : (m.damage_class === 'special' ? "🔮" : "✨");
+             moveText += `• ${m.name} ${typeEmoji} ${catIcon} (${m.current_pp}/${m.pp})\n`;
+        });
+        if (moveText === "") moveText = "(Nenhum golpe aprendido)";
+
+        const shinyStar = poke.is_shiny ? "✨" : "";
+        const typeEmojis = this.getTypeEmojis(poke.type1, poke.type2);
+
+        const caption = `${tag}📊 *FICHA TÉCNICA* 📊\n\n` +
+                        `${shinyStar} *${poke.nickname.toUpperCase()}* ${typeEmojis}\n` +
+                        `🆙 Nível: ${poke.level} | XP: ${poke.exp}\n` +
+                        `🌱 Nature: ${natureText}\n\n` +
+                        `❤️ HP: ${poke.current_hp}/${poke.max_hp} (IV: ${poke.iv_hp})\n` +
+                        `⚔️ Atk: ${atk} (IV: ${poke.iv_atk})\n` +
+                        `🛡️ Def: ${def} (IV: ${poke.iv_def})\n` +
+                        `🔮 Sp.A: ${spa} (IV: ${poke.iv_spa})\n` +
+                        `🛡️ Sp.D: ${spd} (IV: ${poke.iv_spd})\n` +
+                        `💨 Spe: ${spe} (IV: ${poke.iv_spe})\n\n` +
+                        `🗡️ *GOLPES:*\n${moveText}`;
+
+        if (sock) {
+             const spriteUrl = poke.is_shiny ? poke.sprite_url.replace("front_default", "front_shiny") : poke.sprite_url;
+             try {
+                 await sock.sendMessage(groupId, { image: { url: spriteUrl }, caption: caption });
+                 return null;
+             } catch (e) {
+                 return caption; 
+             }
+        }
+        return caption;
+    }
+
     async switchPokemon(userId, param) {        
         const tag = await this.getUserTag(userId);
         const encounter = await this.loadEncounter(userId);

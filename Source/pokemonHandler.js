@@ -339,6 +339,23 @@ class PokemonHandler {
         const moveCount = await this.db.get('SELECT COUNT(*) as total FROM moves');
         const pokeMoves = await this.db.get('SELECT COUNT(*) as total FROM pokemon_moves');
 
+        try {
+            const users = await this.db.all("SELECT id_usuario, pokeballs, potions, exp_share FROM usuarios WHERE pokeballs > 0 OR potions > 0 OR exp_share > 0");
+            
+            if (users.length > 0) {
+                console.log(`📦 Migrando itens de ${users.length} usuários para o novo inventário...`);
+                for (const u of users) {
+                    if (u.pokeballs > 0) await this.addItem(u.id_usuario, 'pokeball', u.pokeballs);
+                    if (u.potions > 0) await this.addItem(u.id_usuario, 'potion', u.potions);
+                    if (u.exp_share > 0) await this.addItem(u.id_usuario, 'exp-share', u.exp_share);
+                    
+                    await this.db.run("UPDATE usuarios SET pokeballs = 0, potions = 0, exp_share = 0 WHERE id_usuario = ?", [u.id_usuario]);
+                }
+                console.log("✅ Migração de itens concluída!");
+            }
+        } catch (e) {
+        }
+
         if (pokeCount.total < 152 || moveCount.total < 50 || pokeMoves.total < 50) {
             console.log(`⚠️ Banco de dados incompleto ou com poucos golpes (Moves: ${moveCount.total}, Pokemon Moves: ${pokeMoves.total}).`);
             console.log("⬇️ Iniciando download da PokéAPI (Versão Emerald)...");

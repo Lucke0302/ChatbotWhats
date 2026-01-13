@@ -1133,12 +1133,20 @@ class PokemonHandler {
 
         let log = `🔄 **Você trocou para ${targetPoke.nickname}!**\n`;
 
-        const encounterRaw = await this.db.get("SELECT extra_data FROM active_encounters WHERE user_id = ?", [userId]);
-        let battleState = this.getBattleState(encounterRaw);
+        // --- SÓ PROCESSA TURNO INIMIGO SE NÃO FOI TROCA POR MORTE ---
+        if (!isFaintSwitch) {
+            const encounterRaw = await this.db.get("SELECT extra_data FROM active_encounters WHERE user_id = ?", [userId]);
+            let battleState = this.getBattleState(encounterRaw);
 
-        const enemyTurnLog = await this.processEnemyTurn(encounter, targetPoke, battleState, userId);
+            const enemyTurnLog = await this.processEnemyTurn(encounter, targetPoke, battleState, userId);
+            
+            log += enemyTurnLog; 
+
+        } else {
+            log += `👉 Vai, *${targetPoke.nickname}*!`;
+        }
         
-        return log + enemyTurnLog;
+        return log;
     }
     
     async handlePCCommand(userId, param) {

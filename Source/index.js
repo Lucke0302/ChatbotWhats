@@ -436,16 +436,16 @@ async function initDatabase() {
     } catch (e) {}
 
     try {
-        await this.db.exec(`ALTER TABLE user_pokemons ADD COLUMN deposit_level INTEGER DEFAULT NULL;`);
+        await db.exec(`ALTER TABLE user_pokemons ADD COLUMN deposit_level INTEGER DEFAULT NULL;`);
         console.log("✅ Coluna 'deposit_level' criada para o Day Care.");
     } catch (e) {}
 
     try {
-    await this.db.exec(`ALTER TABLE user_pokemons ADD COLUMN held_item TEXT DEFAULT NULL;`);
+    await db.exec(`ALTER TABLE user_pokemons ADD COLUMN held_item TEXT DEFAULT NULL;`);
     console.log("✅ Coluna 'held_item' criada.");
     } catch (e) {}
 
-    await this.db.exec(`
+    await db.exec(`
         CREATE TABLE IF NOT EXISTS items (
             id TEXT PRIMARY KEY, 
             name TEXT, 
@@ -467,10 +467,10 @@ async function initDatabase() {
     ];
 
     for (const item of defaultItems) {
-        await this.db.exec(`INSERT OR IGNORE INTO items (id, name, type, price, description) VALUES (?, ?, ?, ?, ?)`, item);
+        await db.exec(`INSERT OR IGNORE INTO items (id, name, type, price, description) VALUES (?, ?, ?, ?, ?)`, item);
     }
 
-    await this.db.exec(`
+    await db.exec(`
         CREATE TABLE IF NOT EXISTS inventory (
             user_id TEXT, 
             item_id TEXT, 

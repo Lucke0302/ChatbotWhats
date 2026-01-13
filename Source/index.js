@@ -701,12 +701,21 @@ async function connectToWhatsApp() {
         //Verifica se o quote é para o bot
         const isReplyToBot = replyNumber && (replyNumber === myPhone || replyNumber === myLid);
 
-        const mentions = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
+        const messageContent = msg.message?.extendedTextMessage || 
+                               msg.message?.imageMessage || 
+                               msg.message?.videoMessage || 
+                               msg.message?.documentMessage;
+
+        const mentions = messageContent?.contextInfo?.mentionedJid || [];
         
         const isMentioned = mentions.some(jid => jidNormalizedUser(jid) === myFullJid);
 
-        const isInteractWithBot = (quotedMessage && isReplyToBot) || isMentioned;
+        if (mentions.length > 0) {
+            console.log(`🔎 Menções encontradas:`, mentions);
+            console.log(`🤖 Meu ID: ${myFullJid} | Fui marcado? ${isMentioned}`);
+        }
 
+        const isInteractWithBot = (quotedMessage && isReplyToBot) || isMentioned;
         if (quotedMessage || isMentioned) {
             console.log(`💬 INTERAÇÃO DETECTADA!`);
             console.log(`   É pra mim? ${isInteractWithBot ? 'SIM ✅' : 'NÃO ❌'}`);

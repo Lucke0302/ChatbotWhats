@@ -701,15 +701,16 @@ async function connectToWhatsApp() {
         //Verifica se o quote é para o bot
         const isReplyToBot = replyNumber && (replyNumber === myPhone || replyNumber === myLid);
 
-        //Logs de quote
-        if (quotedMessage) {
-            console.log(`💬 DETECTEI UMA RESPOSTA!`);
-            console.log(`   Quem foi respondido (Clean): ${replyNumber}`);
-            console.log(`   Meus IDs: Phone=${myPhone} | LID=${myLid}`);
-            console.log(`   É pra mim? ${isReplyToBot ? 'SIM ✅' : 'NÃO ❌'}`);
+        const mentions = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
+        
+        const isMentioned = mentions.some(jid => jidNormalizedUser(jid) === myFullJid);
+
+        const isInteractWithBot = (quotedMessage && isReplyToBot) || isMentioned;
+
+        if (quotedMessage || isMentioned) {
+            console.log(`💬 INTERAÇÃO DETECTADA!`);
+            console.log(`   É pra mim? ${isInteractWithBot ? 'SIM ✅' : 'NÃO ❌'}`);
         }
-
-
 
         if (command === '!status') {
             const GRUPO_CONTROLE = '120363422821336011@g.us';
@@ -976,16 +977,16 @@ async function connectToWhatsApp() {
 
         //Se é um quote para o bot e ele está online, responde
         //e reage com emoji de olho
-        if (quotedMessage && isReplyToBot && chatbot.isOnline) {
+        if (isInteractWithBot && chatbot.isOnline) {
             const sender = getSenderJid(msg);
 
-            console.log("✅ REPLY DETECTADO! Respondendo...");
+            console.log("✅ INTERAÇÃO DETECTADA! Respondendo...");
 
             await sendSticker(sock, db, from, msg, [sender], texto)
             
             if (texto.startsWith('!')) return;
 
-            await sock.sendMessage(from, { react: { text: "👀", key: msg.key } }); 
+            await sock.sendMessage(from, { react: { text: "👀", key: msg.key } });
 
             const quotedMessageText = quotedMessage.conversation || 
                                 quotedMessage.extendedTextMessage?.text || 
@@ -1013,7 +1014,7 @@ async function connectToWhatsApp() {
         }
 
         //Se for um quote para o bot e ele não estiver online, manda o desonline
-        if (quotedMessage && isReplyToBot && !chatbot.isOnline){
+        if (isInteractWithBot && !chatbot.isOnline){
             const sender = getSenderJid(msg);
             await sendSticker(sock, db, from, msg, [sender], texto)
             return

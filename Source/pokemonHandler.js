@@ -1323,6 +1323,105 @@ class PokemonHandler {
         
         return log;
     }
+
+    async addItem(userId, itemId, amount = 1) {
+        const current = await this.db.get("SELECT quantity FROM inventory WHERE user_id = ? AND item_id = ?", [userId, itemId]);
+        
+        if (current) {
+            await this.db.run("UPDATE inventory SET quantity = quantity + ? WHERE user_id = ? AND item_id = ?", [amount, userId, itemId]);
+        } else {
+            await this.db.run("INSERT INTO inventory (user_id, item_id, quantity) VALUES (?, ?, ?)", [userId, itemId, amount]);
+        }
+    }
+
+    async removeItem(userId, itemId, amount = 1) {
+        const current = await this.db.get("SELECT quantity FROM inventory WHERE user_id = ? AND item_id = ?", [userId, itemId]);
+        
+        if (!current || current.quantity < amount) return false;
+
+        if (current.quantity === amount) {
+            await this.db.run("DELETE FROM inventory WHERE user_id = ? AND item_id = ?", [userId, itemId]);
+        } else {
+            await this.db.run("UPDATE inventory SET quantity = quantity - ? WHERE user_id = ? AND item_id = ?", [amount, userId, itemId]);
+        }
+        return true;
+    }
+
+    async getItemCount(userId, itemId) {
+        const res = await this.db.get("SELECT quantity FROM inventory WHERE user_id = ? AND item_id = ?", [userId, itemId]);
+        return res ? res.quantity : 0;
+    }
+
+    async distributeDayCareXP(userId, totalXpEarned) {
+        const poke = await this.db.get("SELECT * FROM user_pokemons WHERE user_id = ? AND team_slot = 0", [userId]);
+        if (!poke) return ""; 
+
+        const shareXp = Math.max(1, Math.floor(totalXpEarned / 6)); // 1/6 do XP
+        
+        const result = await this.applyPassiveXp(poke, shareXp);
+
+        if (result.leveledUp) {
+            return `\n🏡 *Ligação do Day Care:* ${result.name} subiu para o Nível ${result.newLevel}!`;
+        } else {
+            return `\n🏡 *Ligação do Day Care:* ${result.name} ganhou ${shareXp} XP.`;
+        }
+    }
+
+    async distributeExpShare(userId, totalXpEarned) {
+        const holders = await this.db.all(`
+            SELECT * FROM user_pokemons 
+            WHERE user_id = ? AND team_slot BETWEEN 1 AND 6 AND held_item = 'exp-share'`, 
+            [userId]
+        );
+
+        if (holders.length === 0) return "";
+
+        let msg = "";
+        const bonusXp = Math.floor(totalXpEarned * 0.5);
+
+        for (const poke of holders) {
+            const result = await this.applyPassiveXp(poke, bonusXp);
+            
+            if (result.leveledUp) {
+                msg += `\n💡 *Exp. Share:* ${result.name} subiu para o Nível ${result.newLevel}!`;
+            } else {
+                msg += `\n💡 *Exp. Share:* ${result.name} ganhou ${bonusXp} XP.`;
+            }
+        }
+        return msg;
+    }
+
+    async applyPassiveXp(poke, xpAmount) {
+        let newExp = poke.exp + xpAmount;
+        let newLevel = poke.level;
+        let leveledUp = false;
+
+        while (newExp >= Math.pow(newLevel + 1, 3)) {
+            newLevel++;
+            leveledUp = true;
+        }
+
+        if (leveledUp) {
+            const pkInfo = await this.db.get("SELECT base_hp FROM pokedex WHERE id = ?", [poke.pokedex_id]);
+            
+            const newMaxHp = Math.floor(((2 * pkInfo.base_hp + (poke.iv_hp || 0) + 100) * newLevel) / 100 + 10);
+            
+            const hpDiff = newMaxHp - poke.max_hp;
+            const newCurrentHp = poke.current_hp + hpDiff;
+
+            await this.db.run(`
+                UPDATE user_pokemons 
+                SET exp = ?, level = ?, max_hp = ?, current_hp = ? 
+                WHERE id = ?`, 
+                [newExp, newLevel, newMaxHp, newCurrentHp, poke.id]
+            );
+
+            return { success: true, leveledUp: true, newLevel: newLevel, name: poke.nickname };
+        } else {
+            await this.db.run("UPDATE user_pokemons SET exp = ? WHERE id = ?", [newExp, poke.id]);
+            return { success: true, leveledUp: false, name: poke.nickname };
+        }
+    }
     
     async handlePCCommand(userId, param) {
         const args = param.trim().split(/\s+/);
@@ -1373,6 +1472,162 @@ class PokemonHandler {
         return `🔄 **Troca no PC realizada!**\n\n📤 Saiu: *${teamPoke.nickname}* (Foi pro PC ${pcBoxNum})\n📥 Entrou: *${pcPoke.nickname}* (No slot ${teamSlot})`;
     }
 
+    async handleItem(userId, param) {
+        const tag = await this.getUserTag(userId);
+        const args = param.split(' ');
+        const action = args[0]?.toLowerCase()
+        const slot = parseInt(args[1]);
+
+        if (!['dar', 'give', 'pegar', 'take'].includes(action) || isNaN(slot)) {
+            return `${tag}🎒 *GERENCIAR ITENS*\n\n` +
+                   `• *!poke item dar [slot]* (Dá o Exp. Share da mochila para o Pokémon)\n` +
+                   `• *!poke item pegar [slot]* (Devolve o item do Pokémon para a mochila)`;
+        }
+
+        const poke = await this.db.get("SELECT * FROM user_pokemons WHERE user_id = ? AND team_slot = ?", [userId, slot]);
+        if (!poke) return `${tag}🚫 Slot vazio.`;
+
+        // --- DAR ITEM (Mochila -> Pokémon) ---
+        if (action === 'dar' || action === 'give') {
+            const hasItem = await this.removeItem(userId, 'exp-share', 1);
+            if (!hasItem) return `${tag}🚫 Você não tem Exp. Share na mochila.`;
+
+            if (poke.held_item) return `${tag}🚫 *${poke.nickname}* já está segurando um item (${poke.held_item})! Tire-o primeiro.`;
+
+            await this.db.run("UPDATE usuarios SET exp_share = exp_share - 1 WHERE id_usuario = ?", [userId]);
+            await this.db.run("UPDATE user_pokemons SET held_item = 'exp-share' WHERE id = ?", [poke.id]);
+
+            return `${tag}💡 Você deu o **Exp. Share** para *${poke.nickname}*!`;
+        }
+
+        // --- PEGAR ITEM (Pokémon -> Mochila) ---
+        if (action === 'pegar' || action === 'take') {
+            if (!poke.held_item) return `${tag}🚫 *${poke.nickname}* não está segurando nada.`;
+
+            if (poke.held_item === 'exp-share') {
+                await this.addItem(userId, 'exp-share', 1);
+                await this.db.run("UPDATE user_pokemons SET held_item = NULL WHERE id = ?", [poke.id]);
+                return `${tag}🎒 Você pegou o **Exp. Share** de volta para a mochila.`;
+            }
+
+            return `${tag}🚫 Item desconhecido.`;
+        }
+    }
+
+    async showBag(userId) {
+        const items = await this.db.all(`
+            SELECT i.name, i.type, inv.quantity, i.description 
+            FROM inventory inv 
+            JOIN items i ON inv.item_id = i.id 
+            WHERE inv.user_id = ? AND inv.quantity > 0
+            ORDER BY i.type, i.name`, [userId]);
+
+        if (items.length === 0) return "🎒 Sua mochila está vazia.";
+
+        let msg = "🎒 **SUA MOCHILA**\n\n";
+        
+        const categories = {
+            'ball': '🔴 Pokébolas',
+            'medicine': '🧪 Medicamentos',
+            'held': '💡 Itens de Equipar',
+            'key': '🔑 Itens Chave'
+        };
+
+        let currentType = '';
+        
+        for (const item of items) {
+            if (item.type !== currentType) {
+                currentType = item.type;
+                msg += `\n*${categories[currentType] || '📦 Outros'}*\n`;
+            }
+            msg += `• ${item.name}: x${item.quantity}\n`;
+        }
+        
+        return msg;
+    }
+
+    async handleDayCare(userId, param) {
+        const tag = await this.getUserTag(userId);
+        
+        const dayCarePoke = await this.db.get(`
+            SELECT * FROM user_pokemons WHERE user_id = ? AND team_slot = 0`, [userId]);
+
+        if (!param) {
+            if (!dayCarePoke) {
+                return `${tag}🏡 **DAY CARE POKÉMON** 🏡\nO Day Care está vazio.\nUse: *!poke daycare [slot]* para deixar alguém treinando.\n\n💰 *Custo:* 200 coins por nível subido.`;
+            }
+            
+            const startLevel = dayCarePoke.deposit_level || dayCarePoke.level;
+            const levelsGained = dayCarePoke.level - startLevel;
+            const cost = levelsGained * 200;
+
+            return `${tag}🏡 **DAY CARE POKÉMON** 🏡\n` +
+                   `Cuidando de: **${dayCarePoke.nickname}**\n` +
+                   `🆙 Nível: ${startLevel} ➝ ${dayCarePoke.level} (+${levelsGained})\n` +
+                   `💰 Custo atual: ${cost} coins\n\n` +
+                   `Para pagar e retirar, use: *!poke daycare sacar*`;
+        }
+
+        const action = param.toLowerCase().trim();
+
+        if (action === 'tirar' || action === 'retirar') {
+            if (!dayCarePoke) return `${tag}🚫 O Day Care está vazio.`;
+
+            const startLevel = dayCarePoke.deposit_level || dayCarePoke.level;
+            const levelsGained = dayCarePoke.level - startLevel;
+            const cost = Math.max(0, levelsGained * 200);
+
+            const user = await this.db.get("SELECT pokecoins FROM usuarios WHERE id_usuario = ?", [userId]);
+            if (user.pokecoins < cost) {
+                return `${tag}🚫 **SALDO INSUFICIENTE**\n` +
+                       `O Sr. Pokémon exige 💰 ${cost} coins pelos serviços.\n` +
+                       `Você só tem 💰 ${user.pokecoins}.\n` +
+                       `Vá batalhar para ganhar dinheiro!`;
+            }
+
+            const slots = await this.db.all("SELECT team_slot FROM user_pokemons WHERE user_id = ? ORDER BY team_slot ASC", [userId]);
+            const occupied = slots.map(s => s.team_slot);
+            let targetSlot = 1;
+            while (occupied.includes(targetSlot)) targetSlot++;
+
+            await this.db.run("UPDATE usuarios SET pokecoins = pokecoins - ? WHERE id_usuario = ?", [cost, userId]);
+            
+            await this.db.run("UPDATE user_pokemons SET team_slot = ?, deposit_level = NULL WHERE id = ?", [targetSlot, dayCarePoke.id]);
+            
+            let dest = targetSlot > 6 ? `Box ${targetSlot - 6}` : `Time Principal`;
+            
+            const payTitle = cost > 0 ? "✅ **Pagamento Aceito!**" : "✅ **Devolução Concluída!**";
+            const payDesc = cost > 0 ? `Você pagou 💰 ${cost} coins.\n` : "";
+
+            const levelDesc = levelsGained === 0 
+                ? "Ele ficou preguiçoso e não subiu nenhum nível (Nada foi cobrado)."
+                : `Ele cresceu ${levelsGained} ${levelsGained === 1 ? 'nível' : 'níveis'} sob nossos cuidados.`;
+
+            return `${tag}${payTitle}\n` +
+                   `${payDesc}` +
+                   `**${dayCarePoke.nickname}** voltou para o seu time! (${dest})\n` +
+                   `${levelDesc}`;
+        }
+
+        if (dayCarePoke) {
+            return `${tag}🚫 Já tem um Pokémon lá! Retire-o antes de colocar outro.`;
+        }
+
+        const slotToDeposit = parseInt(param);
+        if (isNaN(slotToDeposit)) return `${tag}⚠️ Use o número do slot. Ex: *!poke daycare 2*`;
+
+        const pokeToDeposit = await this.db.get("SELECT id, nickname, level, team_slot FROM user_pokemons WHERE user_id = ? AND team_slot = ?", [userId, slotToDeposit]);
+
+        if (!pokeToDeposit) return `${tag}🚫 Slot vazio.`;
+        if (pokeToDeposit.team_slot === 0) return `${tag}🤦 Ele já está no Day Care!`;
+
+        await this.db.run("UPDATE user_pokemons SET team_slot = 0, deposit_level = ? WHERE id = ?", [pokeToDeposit.level, pokeToDeposit.id]);
+
+        return `${tag}🏡 **${pokeToDeposit.nickname}** foi deixado no Day Care!\n` +
+               `Ele ganhará XP passivo a cada vitória sua.\n` +
+               `⚠️ Taxa de retirada: 200 coins por nível subido.`;
+    }
+
     async handleCommand(from, sender, command, sock) {
         const args = command.trim().split(' ');
         const action = args[1] ? args[1].toLowerCase() : 'ajuda';
@@ -1386,6 +1641,10 @@ class PokemonHandler {
         }
 
         switch (action) {
+            case 'mochila':
+            case 'bag':
+                return await this.showBag(sender);
+
             case 'recompensa':
             case 'gift':
             case 'claim':
@@ -1497,8 +1756,7 @@ class PokemonHandler {
 
             case 'usar': 
             case 'use': 
-                if (param === 'potion' || param === 'pocao') return await this.usePotion(from, sender);
-                return "Usar o quê? Tente: *!poke usar poção*";
+                return await this.useItem(from, sender, param);
 
             case 'loja': 
             case 'shop': 
@@ -1529,8 +1787,7 @@ class PokemonHandler {
             
             case 'capturar': 
             case 'catch': 
-            case 'ball': 
-                return await this.catchPokemon(from, sender);
+                return await this.catchPokemon(from, sender, param);
 
             case 'perfil': 
             case 'box': 
@@ -2383,6 +2640,14 @@ class PokemonHandler {
             return `${log}\n${logMsg}\n\n🛑 *${title} ${encounter.gymData.leaderName}* vai enviar *${nextPokeDex.name}*.\n\nDeseja trocar de Pokémon?\n🔄 *!poke trocar [slot]*\n⚔️ *!poke atacar* (para manter)`;
         }
 
+        const baseEnemyXp = Math.floor((encounter.pokemon.base_xp * encounter.level * xpMultiplier) / 7);
+
+        const dayCareMsg = await this.distributeDayCareXP(userId, baseEnemyXp);
+        log += dayCareMsg;
+
+        const expShareMsg = await this.distributeExpShare(userId, baseEnemyXp);
+        log += expShareMsg;
+
         // VITÓRIA FINAL
         await this.clearEncounter(userId);
 
@@ -2558,40 +2823,55 @@ class PokemonHandler {
         return log;
     }
 
-    async catchPokemon(groupId, userId) {
+    async catchPokemon(groupId, userId, param) {
         const tag = await this.getUserTag(userId);
         const encounter = await this.loadEncounter(userId);
         if (!encounter) return `${tag}🤷 Nenhuma batalha ativa.`;
         if (encounter.isGym) return `${tag}🚫 Você não pode roubar o Pokémon do Líder!`;
         if (encounter.battle_type === 'TRAINER' || encounter.battle_type === 'GYM_TRAINER') return `${tag}🚫 Você não pode roubar o Pokémon de outro treinador! Isso é crime!`;
 
-        const user = await this.db.get("SELECT pokeballs FROM usuarios WHERE id_usuario = ?", [userId]);
-        if (!user || user.pokeballs <= 0) return `${tag}🚫 Sem Pokébolas! Compre na loja.`;
+        const ballType = param ? param.toLowerCase().trim() : 'pokeball';
+        let selectedBall = 'pokeball';
+        let multiplier = 1.0;
 
-        const userPoke = await this.db.get(`
-            SELECT up.*, p.name, p.type1, p.type2, p.base_hp, p.base_atk, p.base_def, p.base_spa, p.base_spd, p.base_spe 
-            FROM user_pokemons up 
-            JOIN pokedex p ON up.pokedex_id = p.id
-            WHERE up.id = ?`, [encounter.activePokemonId]);
-
-        const isFainted = userPoke && userPoke.current_hp <= 0;
-
-        await this.db.run("UPDATE usuarios SET pokeballs = pokeballs - 1 WHERE id_usuario = ?", [userId]);
-        
-        let catchChance = 0.3 + (0.5 * (1 - (encounter.currentHp / encounter.maxHp)));
-        
-        if (isFainted) {
-            catchChance = catchChance / 1.5;
+        if (ballType.includes('ultra')) { selectedBall = 'ultraball'; multiplier = 2.0; }
+        else if (ballType.includes('great')) { selectedBall = 'greatball'; multiplier = 1.5; }
+        else if (ballType.includes('poke') || ballType === 'bola') { selectedBall = 'pokeball'; multiplier = 1.0; }
+        else {
+            selectedBall = 'pokeball'; 
         }
 
-        if (Math.random() < catchChance) {
+        const hasBall = await this.removeItem(userId, selectedBall, 1);
+        if (!hasBall) {
+            if (selectedBall !== 'pokeball') return `${tag}🚫 Você não tem **${selectedBall}**! Compre na loja.`;
+            return `${tag}🚫 Sem Pokébolas! Compre na loja.`;
+        }
+
+        const userPoke = await this.db.get("SELECT * FROM user_pokemons WHERE id = ?", [encounter.activePokemonId]);
+        const isFainted = userPoke && userPoke.current_hp <= 0;
+
+        const xp = encounter.pokemon.base_xp || 60;
+        let estimatedCatchRate = Math.floor(5000 / xp); 
+        
+        estimatedCatchRate = Math.max(15, Math.min(200, estimatedCatchRate));
+
+        let hpFactor = ((3 * encounter.maxHp) - (2 * encounter.currentHp)) / (3 * encounter.maxHp);
+        
+        let statusFactor = isFainted ? 0.75 : 1.0; 
+
+        let finalChance = (estimatedCatchRate / 255) * hpFactor * multiplier * statusFactor;
+
+        finalChance += 0.05; 
+
+        console.log(`[CATCH] ${encounter.pokemon.name} | Rate: ${estimatedCatchRate} | HP Fac: ${hpFactor.toFixed(2)} | Ball: ${multiplier} | Final: ${(finalChance*100).toFixed(1)}%`);
+
+        if (Math.random() < finalChance) {
             const pk = encounter.pokemon;
             const randIv = () => Math.floor(Math.random() * 32);
             const ivHp = randIv();
             const realMaxHp = Math.floor(((2 * pk.base_hp + ivHp + 100) * encounter.level) / 100 + 10);
             const initialXp = Math.pow(encounter.level, 3);
 
-            // --- CORREÇÃO: PEGA OS PPS DOS GOLPES DO ENCOUNTER ---
             let m1 = encounter.moves[0]?.id;
             let m2 = encounter.moves[1]?.id;
             let m3 = encounter.moves[2]?.id;
@@ -2630,9 +2910,9 @@ class PokemonHandler {
             );
             await this.clearEncounter(userId);
             
-            let msg = `${tag}🎉 Capturou *${pk.name}*! (Bolas: ${user.pokeballs - 1})`;
+            let msg = `${tag}🎉 Capturou *${encounter.pokemon.name}* usando uma **${selectedBall}**!`;
             
-            if(isFainted) msg += `\n😅 Foi por pouco! Você capturou sem Pokémon em campo!`;
+            if(isFainted) msg += `\n😅 Foi por pouco! Você capturou *${encounter.pokemon.name}* usando uma **${selectedBall}** sem Pokémon em campo!`;
             
             if (targetSlot > 6) msg += `\n📦 Time cheio! Enviado para o PC (Box ${targetSlot - 6}).`;
             else msg += `\n✅ Adicionado ao time principal.`;
@@ -2640,7 +2920,7 @@ class PokemonHandler {
             return msg;
         }
 
-        let msg = `${tag}💢 A Pokébola quebrou! O *${encounter.pokemon.name}* escapou! (Bolas: ${user.pokeballs - 1})`;
+        let msg = `${tag}💢 A **${selectedBall}** quebrou! O *${encounter.pokemon.name}* escapou!`;
 
         if (isFainted) {
             return msg + `\n😓 Como você está sem Pokémon, o *${encounter.pokemon.name}* te ignorou.\n🍀 Chance de captura reduzida nessa situação!`;
@@ -2678,24 +2958,76 @@ class PokemonHandler {
         return `${tag}🏃‍♂️ Você fugiu com sucesso (e deixou a sua dignidade pra trás).`;
     }
 
-    async usePotion(groupId, userId) {
-        const encounter = await this.loadEncounter(userId);
-        if (!encounter) return "Você só pode usar poção em batalha.";
+    async useItem(groupId, userId, param) {
+        const tag = await this.getUserTag(userId);
+        const args = param.split(' ');
+        const itemName = args[0]?.toLowerCase();
         
-        const user = await this.db.get("SELECT potions FROM usuarios WHERE id_usuario = ?", [userId]);
-        if (user.potions <= 0) return "Sem poções!";
+        let itemId = '';
+        if (['potion', 'pocao'].includes(itemName)) itemId = 'potion';
+        else if (['superpotion', 'super'].includes(itemName)) itemId = 'superpotion';
+        else if (['hyperpotion', 'hyper'].includes(itemName)) itemId = 'hyperpotion';
+        else if (['rarecandy', 'candy', 'doce'].includes(itemName)) itemId = 'rare-candy';
+        else {
+            return `${tag}💊 *USAR ITEM*\nUse: *!poke usar [item]*\n\nItens suportados:\n• poção, super, hyper\n• candy (Rare Candy)`;
+        }
 
-        const userPoke = await this.db.get("SELECT * FROM user_pokemons WHERE user_id = ? LIMIT 1", [userId]);
-        if (userPoke.current_hp >= userPoke.max_hp) return "HP já está cheio.";
+        const hasItem = await this.removeItem(userId, itemId, 1);
+        if (!hasItem) return `${tag}🚫 Você não tem **${itemId}** na mochila!`;
 
-        await this.db.run("UPDATE usuarios SET potions = potions - 1 WHERE id_usuario = ?", [userId]);
-        await this.db.run("UPDATE user_pokemons SET current_hp = MIN(max_hp, current_hp + 20) WHERE id = ?", [userPoke.id]);
+        const encounter = await this.loadEncounter(userId);
+        let targetPoke = null;
 
-        const wildMove = encounter.moves[0] || {name:"Investida", power:40}; 
-        const dmg = 10; 
-        await this.db.run("UPDATE user_pokemons SET current_hp = current_hp - ? WHERE id = ?", [dmg, userPoke.id]);
+        if (encounter) {
+            targetPoke = await this.db.get("SELECT * FROM user_pokemons WHERE id = ?", [encounter.activePokemonId]);
+        } else {
+            targetPoke = await this.db.get("SELECT * FROM user_pokemons WHERE user_id = ? AND team_slot = 1", [userId]);
+        }
 
-        return `🧪 Usou Poção (+20 HP)!\n💢 Inimigo atacou e tirou ${dmg}.\nSeu HP: ${Math.min(userPoke.max_hp, userPoke.current_hp + 20) - dmg}/${userPoke.max_hp}`;
+        if (!targetPoke) return `${tag}🚫 Nenhum Pokémon para usar o item.`;
+
+        // --- LÓGICA: RARE CANDY ---
+        if (itemId === 'rare-candy') {
+            if (targetPoke.level >= 100) {
+                await this.addItem(userId, itemId, 1);
+                return `${tag}🚫 ${targetPoke.nickname} já está no nível máximo!`;
+            }
+
+            const nextLvlXp = Math.pow(targetPoke.level + 1, 3);
+            const xpNeeded = nextLvlXp - targetPoke.exp;
+            
+            const res = await this.applyPassiveXp(targetPoke, xpNeeded);
+            
+            return `${tag}🍬 **Rare Candy!**\n${targetPoke.nickname} subiu para o Nível ${res.newLevel}!`;
+        }
+
+        // --- LÓGICA: POÇÕES ---
+        let healAmount = 0;
+        if (itemId === 'potion') healAmount = 20;
+        if (itemId === 'superpotion') healAmount = 50;
+        if (itemId === 'hyperpotion') healAmount = 200;
+
+        if (targetPoke.current_hp >= targetPoke.max_hp) {
+             await this.addItem(userId, itemId, 1);
+             return `${tag}O HP de ${targetPoke.nickname} já está cheio!`;
+        }
+
+        const oldHp = targetPoke.current_hp;
+        const newHp = Math.min(targetPoke.max_hp, targetPoke.current_hp + healAmount);
+        const healed = newHp - oldHp;
+
+        await this.db.run("UPDATE user_pokemons SET current_hp = ? WHERE id = ?", [newHp, targetPoke.id]);
+
+        let msg = `${tag}🧪 Usou **${itemId}** em ${targetPoke.nickname}!\nRecuperou +${healed} HP (${newHp}/${targetPoke.max_hp}).`;
+
+        if (encounter) {
+             const encounterRaw = await this.db.get("SELECT extra_data FROM active_encounters WHERE user_id = ?", [userId]);
+             let battleState = this.getBattleState(encounterRaw);
+             const enemyLog = await this.processEnemyTurn(encounter, targetPoke, battleState, userId);
+             msg += `\n${enemyLog}`;
+        }
+
+        return msg;
     }
     
     async healTeam(userId) {        
@@ -2715,23 +3047,51 @@ class PokemonHandler {
     }
 
     async showShop(userId) {
-        const user = await this.db.get("SELECT pokecoins, pokeballs, potions FROM usuarios WHERE id_usuario = ?", [userId]);
-        return `🏪 *LOJA* (💰 ${user.pokecoins})\n1. 🔴 Bola (200)\n\nUse: *!poke comprar 1 5*`;
+        const user = await this.db.get("SELECT pokecoins FROM usuarios WHERE id_usuario = ?", [userId]);
+        
+        const shopItems = await this.db.all("SELECT * FROM items WHERE price > 0 ORDER BY price ASC");
+        
+        let msg = `🏪 *LOJA POKÉMON* (💰 ${user.pokecoins})\n\n`;
+        
+        shopItems.forEach((item, index) => {
+            let icon = '📦';
+            if (item.type === 'ball') icon = '🔴';
+            if (item.type === 'medicine') icon = '🧪';
+            if (item.type === 'held') icon = '💡';
+
+            msg += `${index + 1}. ${icon} **${item.name}** (${item.price} coins)\n   _${item.description}_\n\n`;
+        });
+
+        msg += `Use: *!poke comprar [numero] [qtd]*\nEx: _!poke comprar 1 10_`;
+        return msg;
     }
 
     async buyItem(userId, itemIndex, amount) {
         const tag = await this.getUserTag(userId);
         const qtd = parseInt(amount) || 1;
-        const user = await this.db.get("SELECT * FROM usuarios WHERE id_usuario = ?", [userId]);
-        let cost = 0, col = "";
+        const user = await this.db.get("SELECT pokecoins FROM usuarios WHERE id_usuario = ?", [userId]);
         
-        if (itemIndex == '1') { cost = 200 * qtd; col = "pokeballs"; }
-        else if (itemIndex == '2') { cost = 300 * qtd; col = "potions"; }
-        else return `${tag}Item inválido.`;
+        const shopItems = await this.db.all("SELECT * FROM items WHERE price > 0 ORDER BY price ASC");
+        const selectedItem = shopItems[parseInt(itemIndex) - 1];
 
-        if (user.pokecoins < cost) return `${tag}Dinheiro insuficiente.`;
-        await this.db.run(`UPDATE usuarios SET pokecoins = pokecoins - ?, ${col} = ${col} + ? WHERE id_usuario = ?`, [cost, qtd, userId]);
-        return `${tag}✅ Você comprou ${amount} ${col}!\n💰 Dinheiro restante: ${user.pokecoins - cost}`;
+        if (!selectedItem) return `${tag}🚫 Item inválido.`;
+
+        if (selectedItem.id === 'exp-share') {
+            if (qtd > 1) return `${tag}🚫 Você só precisa de um Exp. Share.`;
+            const hasItem = await this.getItemCount(userId, 'exp-share');
+            const equipped = await this.db.get("SELECT COUNT(*) as total FROM user_pokemons WHERE user_id = ? AND held_item = 'exp-share'", [userId]);
+            
+            if (hasItem > 0 || equipped.total > 0) return `${tag}🚫 Você já possui este item!`;
+        }
+
+        const cost = selectedItem.price * qtd;
+        if (user.pokecoins < cost) return `${tag}🚫 Dinheiro insuficiente (Custa 💰${cost}).`;
+
+        // Transação
+        await this.db.run("UPDATE usuarios SET pokecoins = pokecoins - ? WHERE id_usuario = ?", [cost, userId]);
+        await this.addItem(userId, selectedItem.id, qtd);
+        
+        return `${tag}✅ Comprou ${qtd}x **${selectedItem.name}**!\n💰 Saldo restante: ${user.pokecoins - cost}`;
     }
 
     async checkIfUserHasPokemon(userId) {

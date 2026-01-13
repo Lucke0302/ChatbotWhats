@@ -435,6 +435,71 @@ async function initDatabase() {
         console.log("✅ Coluna 'reward_claimed' criada com sucesso!");
     } catch (e) {}
 
+    try {
+        await this.db.exec(`ALTER TABLE user_pokemons ADD COLUMN deposit_level INTEGER DEFAULT NULL;`);
+        console.log("✅ Coluna 'deposit_level' criada para o Day Care.");
+    } catch (e) {}
+
+    try {
+    await this.db.exec(`ALTER TABLE user_pokemons ADD COLUMN held_item TEXT DEFAULT NULL;`);
+    console.log("✅ Coluna 'held_item' criada.");
+    } catch (e) {}
+
+    // 1. CRIA TABELA DE DEFINIÇÃO DE ITENS
+        await this.db.run(`
+            CREATE TABLE IF NOT EXISTS items (
+                id TEXT PRIMARY KEY, 
+                name TEXT, 
+                type TEXT, -- 'ball', 'medicine', 'held', 'key', 'stone'
+                price INTEGER, 
+                description TEXT
+            )
+        `);
+
+        const defaultItems = [
+            ['pokeball', 'Pokéball', 'ball', 200, 'Uma ferramenta para capturar Pokémon selvagens.'],
+            ['greatball', 'Greatball', 'ball', 600, 'Uma ferramenta para capturar Pokémon selvagens.'],
+            ['ultraball', 'Ultraball', 'ball', 2000, 'Uma ferramenta para capturar Pokémon selvagens.'],
+            ['potion', 'Poção', 'medicine', 300, 'Recupera 20 HP de um Pokémon.'],
+            ['superpotion', 'Poção', 'medicine', 600, 'Recupera 50 HP de um Pokémon.'],
+            ['hyperpotion', 'Poção', 'medicine', 2000, 'Recupera 200 HP de um Pokémon.'],
+            ['exp-share', 'Exp. Share', 'held', 5000, 'Distribui XP para o portador mesmo sem batalhar.'],
+            ['rare-candy', 'Rare Candy', 'medicine', 10000, 'Sobe 1 nível do Pokémon instantaneamente.']
+        ];
+
+        for (const item of defaultItems) {
+            await this.db.run(`INSERT OR IGNORE INTO items (id, name, type, price, description) VALUES (?, ?, ?, ?, ?)`, item);
+        }
+
+        await this.db.run(`
+            CREATE TABLE IF NOT EXISTS inventory (
+                user_id TEXT, 
+                item_id TEXT, 
+                quantity INTEGER DEFAULT 0,
+                PRIMARY KEY (user_id, item_id),
+                FOREIGN KEY(item_id) REFERENCES items(id)
+            )
+        `);
+
+        try {
+            const users = await this.db.all("SELECT id_usuario, pokeballs, potions, exp_share FROM usuarios WHERE pokeballs > 0 OR potions > 0 OR exp_share > 0");
+            
+            if (users.length > 0) {
+                console.log(`📦 Migrando itens de ${users.length} usuários para o novo inventário...`);
+                for (const u of users) {
+                    if (u.pokeballs > 0) await this.addItem(u.id_usuario, 'pokeball', u.pokeballs);
+                    if (u.potions > 0) await this.addItem(u.id_usuario, 'potion', u.potions);
+                    if (u.exp_share > 0) await this.addItem(u.id_usuario, 'exp-share', u.exp_share);
+                    
+                    await this.db.run("UPDATE usuarios SET pokeballs = 0, potions = 0, exp_share = 0 WHERE id_usuario = ?", [u.id_usuario]);
+                }
+                console.log("✅ Migração de itens concluída!");
+            }
+        } catch (e) {
+        }
+        
+        console.log("✅ Sistema de Itens carregado.");
+
     console.log('✅ Banco de dados SQLite inicializado e tabelas verificadas.');
 }
 

@@ -2,6 +2,8 @@ const axios = require('axios');
 const { gracefulShutdown } = require('node-schedule');
 const STARTER_IDS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 152, 153, 154, 155, 156, 157, 158, 159, 160, 252, 253, 254, 255, 256, 257, 258, 259, 260];
 const ADMIN_ID = "5513991008854@s.whatsapp.net";
+
+const REWARD_CUTOFF = 1768233600000;
 const RARE_POKE = [
     // --- GEN 1 ---
     25, 26, 172,      //Pichu, Pikachu, Raichu
@@ -196,7 +198,7 @@ Use *!poke ajuda [comando]* para saber mais detalhes.
 
 🏥 *GERENCIAMENTO*
 • *perfil* ➝ Ver dinheiro, insígnias e itens.
-• *time* (ou team) ➝ Ver seus 6 Pokémons atuais.
+• *time* (ou team) ➝ Ver seus 6 Pokémon atuais.
 • *mostrar* (ou info) ➝ Ver ficha técnica (IVs, Status, Golpes).
 • *curar* (ou heal) ➝ Restaurar HP e PP (Grátis).
 • *pc* ➝ Guardar/Pegar Pokémon da caixa.
@@ -242,7 +244,7 @@ A chance aumenta se o HP dele estiver baixo.
 🔹 *Aliases:* catch, ball`,
 
     'curar': `🏥 *COMANDO: curar*
-Leva seus Pokémons para a Enfermeira Joy.
+Leva seus Pokémon para a Enfermeira Joy.
 Recupera 100% do HP e restaura todos os PPs. É de graça!
 
 *Uso:* !poke curar
@@ -259,7 +261,7 @@ Mostra seu cartão de treinador com:
 🔹 *Aliases:* profile, box`,
 
     'time': `🧢 *COMANDO: time*
-Mostra a lista detalhada dos seus 6 Pokémons atuais.
+Mostra a lista detalhada dos seus 6 Pokémon atuais.
 Mostra HP atual, Nível e Tipos.
 
 *Uso:*
@@ -276,7 +278,7 @@ Inclui: Foto, Status (Atk, Def, etc), IVs, Golpes e XP.
 🔹 *Aliases:* show, info, stats, analisar`,
 
     'pc': `💻 *COMANDO: pc*
-Gerencia seus Pokémons guardados (Box).
+Gerencia seus Pokémon guardados (Box).
 Você só pode carregar 6 no time. Os capturados extras vão pro PC.
 
 *Uso:*
@@ -312,7 +314,7 @@ Quando seu Pokémon aprende um golpe novo e já tem 4, você precisa escolher qu
 
     'ginasio': `🏛️ *COMANDO: ginasio*
 Avança na história enfrentando treinadores e Líderes de Ginásio.
-Vencer líderes dá Insígnias (que liberam novos Pokémons selvagens) e muito dinheiro.
+Vencer líderes dá Insígnias (que liberam novos Pokémon selvagens) e muito dinheiro.
 
 *Uso:* !poke ginasio
 🔹 *Aliases:* gym, historia`,
@@ -342,7 +344,7 @@ class PokemonHandler {
             console.log("⬇️ Iniciando download da PokéAPI (Versão Emerald)...");
             await this.seedDatabase();
         } else {
-            console.log(`✅ Pokédex carregada: ${pokeCount.total} Pokémons e ${moveCount.total} Golpes.`);
+            console.log(`✅ Pokédex carregada: ${pokeCount.total} Pokémon e ${moveCount.total} Golpes.`);
         }
         await this.fixNullPP();
     }
@@ -381,14 +383,184 @@ class PokemonHandler {
             count++;
         }
 
-        return `✅ Limpeza completa!\n- Duplicatas do sistema removidas.\n- ${count} Pokémons atualizados com os golpes certos.`;
+        return `✅ Limpeza completa!\n- Duplicatas do sistema removidas.\n- ${count} Pokémon atualizados com os golpes certos.`;
+    }
+
+    /**
+     * @param {string} userId - Quem recebe
+     * @param {string} type - 'pokemon', 'coin', 'item', 'xp'
+     * @param {string|number} value - ID do pokemon, nome do item ou quantidade de coins
+     * @param {number} amount - Quantidade (ou nível do pokemon)
+     */
+    async giveReward(userId, type, value, amount = 1) {
+        const tag = await this.getUserTag(userId);
+        type = type.toLowerCase();
+
+        // --- TIPO: POKÉMON ---
+        if (type === 'pokemon' || type === 'poke') {
+            let pokeId = parseInt(value);
+            
+            if (isNaN(pokeId)) {
+                const pkSearch = await this.db.get("SELECT id FROM pokedex WHERE name LIKE ?", [`%${value}%`]);
+                if (!pkSearch) return `${tag}❌ Pokémon *${value}* não encontrado no banco.`;
+                pokeId = pkSearch.id;
+            }
+
+            const pk = await this.db.get("SELECT * FROM pokedex WHERE id = ?", [pokeId]);
+            if (!pk) return `${tag}❌ ID ${pokeId} inválido.`;
+
+            // Configuração do Pokémon novo
+            let level = 5;
+            if (amount > 1) {
+                level = amount;
+            } 
+            else {
+                const stats = await this.db.get("SELECT AVG(level) as media FROM user_pokemons WHERE user_id = ?", [userId]);
+                const avg = stats?.media || 5;
+                level = Math.max(5, Math.floor(avg));
+            }
+            const moves = await this.getMovesForLevel(pk.id, level);
+            const randIv = () => Math.floor(Math.random() * 32);
+            const hpIv = randIv();
+            const hp = Math.floor(((2 * pk.base_hp + hpIv + 100) * level) / 100 + 10);
+            const initialXp = Math.pow(level, 3);
+            const nature = this.getRandomNature();
+
+            const m1 = moves[0]?.id || null;
+            const m2 = moves[1]?.id || null;
+            const m3 = moves[2]?.id || null;
+            const m4 = moves[3]?.id || null;
+
+            const pp1 = moves[0]?.pp || null;
+            const pp2 = moves[1]?.pp || null;
+            const pp3 = moves[2]?.pp || null;
+            const pp4 = moves[3]?.pp || null;
+
+            const slots = await this.db.all("SELECT team_slot FROM user_pokemons WHERE user_id = ? ORDER BY team_slot ASC", [userId]);
+            const occupied = slots.map(s => s.team_slot);
+            let targetSlot = 1;
+            while (occupied.includes(targetSlot)) targetSlot++;
+
+            await this.db.run(`INSERT INTO user_pokemons 
+                (user_id, pokedex_id, nickname, level, exp, current_hp, max_hp, move1, move2, move3, move4, move1_pp, move2_pp, move3_pp, move4_pp, obtained_at, iv_hp, iv_atk, iv_def, iv_spa, iv_spd, iv_spe, team_slot, nature) 
+                VALUES (?,?,?,?, ?,?,?, ?,?,?,?, ?,?,?,?, ?, ?,?,?,?,?,?,?, ?, ?)`,
+                [
+                    userId, pk.id, pk.name, level, initialXp, hp, hp, 
+                    m1, m2, m3, m4, 
+                    pp1, pp2, pp3, pp4,
+                    Date.now(), hpIv, randIv(), randIv(), randIv(), randIv(), randIv(), targetSlot, nature
+                ]
+            );
+
+            let dest = targetSlot > 6 ? `Box ${targetSlot - 6} do PC` : "Time Principal";
+            return `${tag}🎁 **RECOMPENSA RECEBIDA!**\nVocê ganhou um *${pk.name}* (Lvl ${level})!\n📦 Destino: ${dest}`;
+        }
+
+        // --- TIPO: DINHEIRO ---
+        if (type === 'coin' || type === 'coins' || type === 'dinheiro') {
+            const qtd = parseInt(value) || 1000;
+            await this.db.run("UPDATE usuarios SET pokecoins = pokecoins + ? WHERE id_usuario = ?", [qtd, userId]);
+            return `${tag}💰 **DINHEIRO NA CONTA!**\nRecebeu ${qtd} Pokécoins.`;
+        }
+
+        // --- TIPO: ITEM ---
+        if (type === 'item') {
+            const itemType = value.toLowerCase();
+            const qtd = amount || 1;
+            
+            if (itemType.includes('ball') || itemType === 'bola') {
+                await this.db.run("UPDATE usuarios SET pokeballs = pokeballs + ? WHERE id_usuario = ?", [qtd, userId]);
+                return `${tag}🔴 **REFORÇO!**\nRecebeu ${qtd} Pokébolas.`;
+            }
+            if (itemType.includes('potion') || itemType === 'pocao') {
+                await this.db.run("UPDATE usuarios SET potions = potions + ? WHERE id_usuario = ?", [qtd, userId]);
+                return `${tag}🧪 **REFORÇO!**\nRecebeu ${qtd} Poções.`;
+            }
+            return `${tag}❌ Item desconhecido. Use 'bola' ou 'pocao'.`;
+        }
+
+        // --- TIPO: XP  ---
+        if (type === 'xp') {
+            const qtd = parseInt(value);
+            const lead = await this.db.get("SELECT * FROM user_pokemons WHERE user_id = ? AND team_slot = 1", [userId]);
+            if (!lead) return `${tag}❌ Você precisa de um Pokémon no slot 1.`;
+            
+            let currentExp = lead.exp + qtd;
+            await this.db.run("UPDATE user_pokemons SET exp = exp + ? WHERE id = ?", [currentExp, lead.id]);
+            return `${tag}🆙 *${lead.nickname}* ganhou ${qtd} XP mágico do Admin! (O nível atualizará na próxima batalha).`;
+        }
+
+        return `${tag}❌ Tipo de recompensa inválido. Use: pokemon, coin, item`;
+    }
+
+    async claimVeteranReward(userId, choice) {
+        const tag = await this.getUserTag(userId);
+
+        const user = await this.db.get("SELECT reward_claimed FROM usuarios WHERE id_usuario = ?", [userId]);
+        if (user && user.reward_claimed) {
+            return `${tag}🚫 Você já resgatou sua recompensa de veterano!`;
+        }
+
+        const veteranPoke = await this.db.get(
+            "SELECT id FROM user_pokemons WHERE user_id = ? AND obtained_at < ? LIMIT 1", 
+            [userId, REWARD_CUTOFF]
+        );
+
+        if (!veteranPoke) {
+            return `${tag}🚫 *Evento Exclusivo*\nEssa recompensa é apenas para treinadores antigos (Veteranos).`;
+        }
+
+        const starterMap = {
+            1: { id: 1,   name: "Bulbasaur (Grama)" },
+            2: { id: 4,   name: "Charmander (Fogo)" },
+            3: { id: 7,   name: "Squirtle (Água)" },
+            4: { id: 152, name: "Chikorita (Grama)" },
+            5: { id: 155, name: "Cyndaquil (Fogo)" },
+            6: { id: 158, name: "Totodile (Água)" },
+            7: { id: 252, name: "Treecko (Grama)" },
+            8: { id: 255, name: "Torchic (Fogo)" },
+            9: { id: 258, name: "Mudkip (Água)" }
+        };
+
+        const selection = parseInt(choice);
+
+        if (!choice || isNaN(selection) || !starterMap[selection]) {
+            let msg = `${tag}🎁 *RECOMPENSA DE VETERANO* 🎁\n\n` +
+                      `Obrigado por jogar! Escolha um segundo inicial para sua jornada:\n\n` +
+                      `*Kanto (Gen 1)*\n` +
+                      `1. Bulbasaur 🍃\n` +
+                      `2. Charmander 🔥\n` +
+                      `3. Squirtle 💧\n\n` +
+                      
+                      `*Johto (Gen 2)*\n` +
+                      `4. Chikorita 🍃\n` +
+                      `5. Cyndaquil 🔥\n` +
+                      `6. Totodile 💧\n\n` +
+                      
+                      `*Hoenn (Gen 3)*\n` +
+                      `7. Treecko 🍃\n` +
+                      `8. Torchic 🔥\n` +
+                      `9. Mudkip 💧\n\n` +
+                      
+                      `Digite o número da sua escolha.\n` +
+                      `Ex: *!poke recompensa 2* (para Charmander)`;
+            return msg;
+        }
+
+        const selectedStarter = starterMap[selection];
+
+        const rewardMsg = await this.giveReward(userId, 'pokemon', selectedStarter.id);
+
+        await this.db.run("UPDATE usuarios SET reward_claimed = 1 WHERE id_usuario = ?", [userId]);
+        
+        return `${tag}🎉 *PARABÉNS VETERANO!* 🎉\nVocê escolheu o número ${selection}!\n\n${rewardMsg}`;
     }
 
     async fixNullPP() {
         const pokes = await this.db.all("SELECT id, move1, move2, move3, move4 FROM user_pokemons WHERE move1_pp IS NULL AND move1 IS NOT NULL");
         if (pokes.length === 0) return;
 
-        console.log(`🔧 Ajustando PP de ${pokes.length} Pokémons antigos...`);
+        console.log(`🔧 Ajustando PP de ${pokes.length} Pokémon antigos...`);
         
         for (const p of pokes) {
             const moves = [p.move1, p.move2, p.move3, p.move4];
@@ -412,15 +584,15 @@ class PokemonHandler {
     }
 
     async fixNullMoves() {
-        console.log("🔧 Iniciando reparo de moveset dos Pokémons...");
+        console.log("🔧 Iniciando reparo de moveset dos Pokémon...");
         
         const buggedPokemons = await this.db.all("SELECT id, pokedex_id, level, nickname FROM user_pokemons WHERE move1 IS NULL OR move1 = ''");
 
         if (buggedPokemons.length === 0) {
-            return "✅ Todos os Pokémons já estão com golpes!";
+            return "✅ Todos os Pokémon já estão com golpes!";
         }
 
-        console.log(`🔧 Encontrados ${buggedPokemons.length} Pokémons sem golpes. Corrigindo...`);
+        console.log(`🔧 Encontrados ${buggedPokemons.length} Pokémon sem golpes. Corrigindo...`);
         let count = 0;
 
         const tackle = await this.db.get("SELECT id FROM moves WHERE name = 'tackle' OR name = 'investida' LIMIT 1");
@@ -446,12 +618,12 @@ class PokemonHandler {
             count++;
         }
 
-        console.log(`✅ Reparo concluído! ${count} Pokémons atualizados.`);
-        return `✅ Correção finalizada! ${count} Pokémons receberam golpes novos.`;
+        console.log(`✅ Reparo concluído! ${count} Pokémon atualizados.`);
+        return `✅ Correção finalizada! ${count} Pokémon receberam golpes novos.`;
     }
 
     async fixZeroXp() {
-        console.log("🔧 Corrigindo XP inicial dos Pokémons...");
+        console.log("🔧 Corrigindo XP inicial dos Pokémon...");
         
         const pokemons = await this.db.all("SELECT id, level, exp, nickname FROM user_pokemons");
         let count = 0;
@@ -464,8 +636,8 @@ class PokemonHandler {
                 count++;
             }
         }
-        console.log(`✅ XP Corrigido! ${count} Pokémons atualizados.`);
-        return `✅ Ajuste de XP concluído! ${count} Pokémons deixaram de ser "café com leite".`;
+        console.log(`✅ XP Corrigido! ${count} Pokémon atualizados.`);
+        return `✅ Ajuste de XP concluído! ${count} Pokémon deixaram de ser "café com leite".`;
     }
 
     async fixNullIvs() {
@@ -477,7 +649,7 @@ class PokemonHandler {
 
             await this.db.run(`UPDATE user_pokemons SET iv_hp=?, iv_atk=?, iv_def=?, iv_spa=?, iv_spd=?, iv_spe=? WHERE id = ?`, [randIv(), randIv(), randIv(), randIv(), randIv(), randIv(), poke.id]);
         }
-        return `✅ IVs corrigidos para ${brokenPokes.length} Pokémons.`;
+        return `✅ IVs corrigidos para ${brokenPokes.length} Pokémon.`;
     }
 
     async fixNullHp() {
@@ -808,7 +980,7 @@ class PokemonHandler {
             await this.db.run("UPDATE user_pokemons SET nature = ? WHERE id = ?", [rnd, p.id]);
             count++;
         }
-        return `✅ ${count} Pokémons antigos receberam uma natureza aleatória.`;
+        return `✅ ${count} Pokémon antigos receberam uma natureza aleatória.`;
     }
 
     getBattleState(encounter) {
@@ -1069,7 +1241,7 @@ class PokemonHandler {
             const slotB = args[1];
 
             if (args.some(slot => slot > 6)) {
-                return `${tag}🚫 Para mover Pokémons do PC (Slot 7+), use o comando *!poke pc*.`;
+                return `${tag}🚫 Para mover Pokémon do PC (Slot 7+), use o comando *!poke pc*.`;
             }
 
             if (!slotA || !slotB || isNaN(slotA) || isNaN(slotB)) {
@@ -1101,6 +1273,9 @@ class PokemonHandler {
         if (!targetPoke) return "🚫 Não tem ninguém nesse slot do time.";
         if (targetPoke.current_hp <= 0) return `💀 ${targetPoke.nickname} está desmaiado e não pode entrar!`;
         if (targetPoke.id === encounter.activePokemonId) return "🤦 Esse Pokémon já está em campo!";
+
+        const currentPoke = await this.db.get("SELECT current_hp FROM user_pokemons WHERE id = ?", [encounter.activePokemonId]);
+        const isFaintSwitch = currentPoke && currentPoke.current_hp <= 0;
         
         let extraData = encounter.gymData || {}; 
         if (!extraData.participants) extraData.participants = [];
@@ -1211,6 +1386,38 @@ class PokemonHandler {
         }
 
         switch (action) {
+            case 'recompensa':
+            case 'gift':
+            case 'claim':
+                return await this.claimVeteranReward(sender, param);
+
+            case 'dar':
+            case 'give':
+            case 'novarecompensa':
+                if (sender !== ADMIN_ID) return "🔒 Sai daqui, hacker. Só o Admin manda aqui.";
+                
+                let targetUser = sender;
+                
+                if (sock && msg.message?.extendedTextMessage?.contextInfo?.mentionedJid?.length > 0) {
+                    targetUser = msg.message.extendedTextMessage.contextInfo.mentionedJid[0];
+                }
+
+                const cleanArgs = args.filter(a => !a.includes('@'));
+                
+                const rType = cleanArgs[2]; 
+                const rValue = cleanArgs[3];
+                const rAmount = parseInt(cleanArgs[4]) || 1;
+
+                if (!rType || !rValue) {
+                    return "🛠️ *FERRAMENTA DE ADMIN*\nUse: *!poke dar @user [tipo] [valor] [qtd]*\n\n" +
+                           "Exemplos:\n" +
+                           "• !poke dar @fulano pokemon mewtwo 100\n" +
+                           "• !poke dar @fulano coin 5000\n" +
+                           "• !poke dar @fulano item bola 50";
+                }
+
+                return await this.giveReward(targetUser, rType, rValue, rAmount);
+
             case 'ajuda': 
             case 'help':
                 return await this.helpPoke(sender, param);
@@ -1335,9 +1542,15 @@ class PokemonHandler {
             case 'box':
                 return await this.handlePCCommand(sender, param);
             
-            case 'ajuda': 
             default:
-                return `🦕 *POKÉMON - GUIA*\n\n🌿 *!poke explorar*\n⚔️ *!poke atacar*\n🔴 *!poke capturar*\n🏥 *!poke curar*\n🏪 *!poke loja*\n🧪 *!poke usar poção*\n🏛️ *!poke ginasio*\n👤 *!poke perfil*`;
+                return `🦕 *POKÉMON - GUIA RÁPIDO*\n\n` +
+                       `🌿 *!poke explorar* ⚔️ *!poke atacar*\n` +
+                       `🔴 *!poke capturar* 🏃 *!poke fugir*\n` +
+                       `🏥 *!poke curar* 🔄 *!poke trocar*\n` +
+                       `🎒 *!poke time* 💻 *!poke pc*\n` +
+                       `📊 *!poke mostrar* 👤 *!poke perfil*\n` +
+                       `🏛️ *!poke ginasio* 🏪 *!poke loja*\n\n` +
+                       `💡 Digite *!poke ajuda [comando]* para detalhes.`;
         }
     }
 
@@ -1509,8 +1722,10 @@ class PokemonHandler {
         const caption = `⚠️ *DESAFIO DE TREINADOR!*\n` +
                         `**${trainerClass} ${trainerName}** quer batalhar!\n` +
                         `Ele enviou *${firstPokeData.name}* (Lvl ${firstPokeData.level})!\n` +
-                        `Pokémons do Treinador: ${trainerTeam.length}\n` +
-                        `Use *!poke atacar* para lutar!`;
+                        `Pokémon do Treinador: ${trainerTeam.length}\n\n` +
+                        `⚔️ *!poke atacar*\n` +
+                        `🔄 *!poke trocar [slot]*\n` +
+                        `🏃 *!poke fugir*`;
 
         if (sock) {
             try { await sock.sendMessage(groupId, { image: { url: trainerTemplate.sprite }, caption: caption }); } 
@@ -1635,8 +1850,11 @@ class PokemonHandler {
         const typeEmojis = this.getTypeEmojis(pokemon.type1, pokemon.type2);
 
         const caption = `${tag}${emoji} Um *${pokemon.name.toUpperCase()}* ${typeEmojis} (Lvl ${wildLevel}) selvagem apareceu!\n` +
-                        `❤️ HP: ${wildHp}/${wildHp}\n` +
-                        `Use *!poke atacar* ou *!poke capturar*`;
+                        `❤️ HP: ${wildHp}/${wildHp}\n\n` +
+                        `⚔️ *!poke atacar*\n` +
+                        `🔴 *!poke capturar*\n` +
+                        `🔄 *!poke trocar [slot]*\n` +
+                        `🏃 *!poke fugir*`;
 
         if (sock) {
             const sprite = isShiny ? pokemon.sprite_url.replace("front_default", "front_shiny") : pokemon.sprite_url;
@@ -1687,7 +1905,7 @@ class PokemonHandler {
         if (!gymLeader) return `${tag}🏆 Você já venceu todos os líderes disponíveis!`;
 
         const team = JSON.parse(gymLeader.team_json);
-        if (!team || team.length === 0) return "❌ Erro: Líder sem pokémons.";
+        if (!team || team.length === 0) return "❌ Erro: Líder sem pokémon.";
 
         const firstPokeData = team[0];
         const bossPokemon = await this.db.get("SELECT * FROM pokedex WHERE id = ?", [firstPokeData.pokedex_id]);
@@ -1726,7 +1944,7 @@ class PokemonHandler {
                         `🚨 *LÍDER ${gymLeader.name}* aceitou seu desafio!\n` + 
                         `Ele enviou *${bossPokemon.name}* (Lvl ${firstPokeData.level})!\n` + 
                         `⚠️ *Boss HP:* ${bossHp}/${bossHp}\n` + 
-                        `Pokémons restantes do Líder: ${remainingTeam.length + 1}\n` + 
+                        `Pokémon restantes do Líder: ${remainingTeam.length + 1}\n` + 
                         `Prepare-se! Digite *!poke atacar*`;
 
         if (sock) {
@@ -2052,6 +2270,10 @@ class PokemonHandler {
         // Salva HP Inimigo
         await this.db.run(`UPDATE active_encounters SET current_hp = ? WHERE user_id = ?`, [encounter.currentHp, userId]);
 
+        if (encounter.currentHp <= 0) {
+             return this.handleVictory(userId, encounter, battleState, log);
+        }
+
         // Verifica Morte Jogador
         const updatedUserPoke = await this.db.get("SELECT current_hp, max_hp, nickname, exp FROM user_pokemons WHERE id = ?", [userPoke.id]);
         if (updatedUserPoke.current_hp <= 0) {
@@ -2064,6 +2286,7 @@ class PokemonHandler {
         if (userRes) {
             log += `\n${userRes.msg} (-${userRes.dmg})`;
             await this.db.run("UPDATE user_pokemons SET current_hp = ? WHERE id = ?", [userPoke.current_hp, userPoke.id]);
+            updatedUserPoke.current_hp = userPoke.current_hp; 
         }
         
         // Inimigo
@@ -2091,9 +2314,11 @@ class PokemonHandler {
         finalExtraData.lockedMove = battleState.lockedMove;
         finalExtraData.field = battleState.field;
         finalExtraData.participants = battleState.participants;
+        finalExtraData.userStatus = battleState.userStatus;
+        finalExtraData.enemyStatus = battleState.enemyStatus;
 
         await this.db.run("UPDATE active_encounters SET extra_data = ? WHERE user_id = ?", [JSON.stringify(finalExtraData), userId]);
-        
+
         const currentLvlXp = updatedUserPoke.exp - Math.pow(userPoke.level, 3);
         const nextLvlXp = Math.pow(userPoke.level+1, 3) - Math.pow(userPoke.level, 3);
         const xpBar = this.getProgressBar(currentLvlXp, nextLvlXp);
@@ -2209,42 +2434,61 @@ class PokemonHandler {
 
     async processEnemyTurn(encounter, userPoke, battleState, userId) {
         let log = "";
+        const enemyName = encounter.pokemon.name;
 
+        // --- 1. CHECAGEM DE STATUS ---
+        const enemyCheck = await this.checkStatusBeforeMove(battleState, false, enemyName, null, null);
+        
+        if (enemyCheck.log) log += `\n${enemyCheck.log}`;
+        
+        if (enemyCheck.selfDamage) {
+            const selfDmg = Math.floor(encounter.maxHp * 0.15);
+            encounter.currentHp -= selfDmg;
+            log += ` (HP: ${encounter.currentHp}/${encounter.maxHp})`;
+        }
+
+        // Se o status impedir o movimento, encerra aqui
+        if (!enemyCheck.canMove) {
+            return log; 
+        }
+
+        // --- 2. ESCOLHA DO GOLPE ---
         const validMoves = encounter.moves.filter(m => m.current_pp > 0);
-
         let wildMove = encounter.moves[Math.floor(Math.random() * encounter.moves.length)] || {name: "Investida", power: 40, damage_class: 'physical', type: 'normal'};
         
         if (validMoves.length === 0) {
             wildMove = { name: "Struggle", power: 50, damage_class: 'physical', type: 'normal' };
             log += `\n⚠️ ${encounter.pokemon.name} não tem mais PP! Usou *Struggle*!`;
         } else {
+            // IA Simples: Escolhe aleatório dos que tem PP
             const moveIndex = Math.floor(Math.random() * validMoves.length);
             wildMove = validMoves[moveIndex];
 
+            // Gasta PP
             const originalMove = encounter.moves.find(m => m.name === wildMove.name);
             if (originalMove) {
                 originalMove.current_pp--;
             }
-            
             await this.db.run("UPDATE active_encounters SET moves = ? WHERE user_id = ?", [JSON.stringify(encounter.moves), userId]);
         }
 
         let damageToUser = 0;
 
+        // Dano de Recuo do Struggle
         if (wildMove.name === 'Struggle') {
                 const recoil = Math.floor(encounter.maxHp / 4);
-
                 encounter.currentHp -= recoil;
                 log += `\n💥 *${encounter.pokemon.name}* sofreu **${recoil}** de dano pelo recuo!`;
         }
 
         const enemyEmojis = this.getTypeEmojis(encounter.pokemon.type1, encounter.pokemon.type2);
-        const enemyName = `${encounter.pokemon.name} ${enemyEmojis}`;
+        const enemyDisplayName = `${encounter.pokemon.name} ${enemyEmojis}`;
 
+        // --- 3. EXECUÇÃO DO GOLPE ---
         if (wildMove.damage_class === 'status') {
             const res = await this.processStatusMove(wildMove.name, battleState, false, encounter.maxHp);
             
-            log += `\n✨ ${enemyName} ${res.msg}`;
+            log += `\n✨ ${enemyDisplayName} ${res.msg}`;
             
             if (res.healAmount > 0) {
                 encounter.currentHp = Math.min(encounter.maxHp, encounter.currentHp + res.healAmount);
@@ -2252,23 +2496,26 @@ class PokemonHandler {
             }
         
         } else {
+            // Cálculo de Atributos Reais
             const enemyAtkReal = Math.floor(((2 * encounter.pokemon.base_atk + 15) * encounter.level) / 100 + 5);
             const enemySpaReal = Math.floor(((2 * encounter.pokemon.base_spa + 15) * encounter.level) / 100 + 5);
             let calcEnemyAtk = (wildMove.damage_class === 'special') ? enemySpaReal : enemyAtkReal;
 
             const userDefReal = this.calculateStat(userPoke.base_def, userPoke.iv_def, userPoke.level, userPoke.nature, 'def');
             const userSpdReal = this.calculateStat(userPoke.base_spd, userPoke.iv_spd, userPoke.level, userPoke.nature, 'spd');
-            
             let calcUserDef = (wildMove.damage_class === 'special') ? userSpdReal : userDefReal;        
 
+            // Aplica Buffs/Debuffs
             let stageEnemyAtk = (wildMove.damage_class === 'physical') ? battleState.stages.enemy.atk : battleState.stages.enemy.spa;
             let stageUserDef = (wildMove.damage_class === 'physical') ? battleState.stages.user.def : battleState.stages.user.spd;
             let finalWildAtk = this.applyStages(calcEnemyAtk, stageEnemyAtk);
             let finalUserDef = this.applyStages(calcUserDef, stageUserDef);
 
+            // Fórmula de Dano
             const calcDmg = (lvl, pwr, atk, def) => Math.floor(((2 * lvl / 5 + 2) * pwr * (atk / def)) / 50 + 2);
-            damageToUser = calcDmg(encounter.level, wildMove.power, finalWildAtk, finalUserDef)+1;
+            damageToUser = calcDmg(encounter.level, wildMove.power, finalWildAtk, finalUserDef) + 1;
 
+            // Type Effectiveness
             const getTypeMultiplier = (moveType, t1, t2) => {
                if (!moveType || !TYPE_CHART[moveType.toLowerCase()]) return 1;
                let m = 1;
@@ -2280,13 +2527,16 @@ class PokemonHandler {
             const typeMultEnemy = getTypeMultiplier(wildMove.type, userPoke.type1, userPoke.type2);
             damageToUser = Math.floor(damageToUser * typeMultEnemy);
 
-            if (damageToUser < 1 && typeMultEnemy > 0) {
-                damageToUser = 1;
-            }
+            if (damageToUser < 1 && typeMultEnemy > 0) damageToUser = 1;
 
-            if (Math.random() < 0.05) { damageToUser *= 2; log += `\n⚠️ *CRÍTICO DO INIMIGO!*`; }
+            // Crítico e Variação
+            if (Math.random() < 0.0625) { 
+                damageToUser *= 2; 
+                log += `\n⚠️ *CRÍTICO DO INIMIGO!*`; 
+            }
             damageToUser = Math.floor(damageToUser * ((Math.random() * 0.15) + 0.85));
 
+            // STAB
             if (wildMove.type === encounter.pokemon.type1 || wildMove.type === encounter.pokemon.type2) {
                 damageToUser = Math.floor(damageToUser * 1.5);
             }
@@ -2297,7 +2547,7 @@ class PokemonHandler {
                 log +=`\n`
             }
             else{
-                log +=`\n💢 ${enemyName} usou *${wildMove.name}*!\n`
+                log +=`\n💢 ${enemyDisplayName} usou *${wildMove.name}*!\n`
             }
 
             log += `Te causou **${damageToUser}** de dano.`;
@@ -2340,12 +2590,22 @@ class PokemonHandler {
             const ivHp = randIv();
             const realMaxHp = Math.floor(((2 * pk.base_hp + ivHp + 100) * encounter.level) / 100 + 10);
             const initialXp = Math.pow(encounter.level, 3);
-            
+
+            // --- CORREÇÃO: PEGA OS PPS DOS GOLPES DO ENCOUNTER ---
             let m1 = encounter.moves[0]?.id;
+            let m2 = encounter.moves[1]?.id;
+            let m3 = encounter.moves[2]?.id;
+            let m4 = encounter.moves[3]?.id;
+            
             if(!m1) {
                 const t = await this.db.get("SELECT id FROM moves WHERE name='tackle'");
                 m1 = t ? t.id : null;
             }
+
+            const pp1 = encounter.moves[0]?.pp || (m1 ? 35 : null);
+            const pp2 = encounter.moves[1]?.pp || null;
+            const pp3 = encounter.moves[2]?.pp || null;
+            const pp4 = encounter.moves[3]?.pp || null;
 
             const nature = this.getRandomNature(); 
 
@@ -2361,9 +2621,12 @@ class PokemonHandler {
             }
 
             await this.db.run(`
-                INSERT INTO user_pokemons (user_id, pokedex_id, nickname, level, exp, iv_hp, iv_atk, iv_def, iv_spa, iv_spd, iv_spe, move1, move2, move3, move4, obtained_at, is_shiny, current_hp, max_hp, team_slot, nature)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                [userId, pk.id, pk.name, encounter.level, initialXp, ivHp, randIv(), randIv(), randIv(), randIv(), randIv(), m1, encounter.moves[1]?.id, encounter.moves[2]?.id, encounter.moves[3]?.id, Date.now(), encounter.isShiny?1:0, realMaxHp, realMaxHp, targetSlot, nature]
+                INSERT INTO user_pokemons (user_id, pokedex_id, nickname, level, exp, iv_hp, iv_atk, iv_def, iv_spa, iv_spd, iv_spe, move1, move2, move3, move4, move1_pp, move2_pp, move3_pp, move4_pp, obtained_at, is_shiny, current_hp, max_hp, team_slot, nature)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [userId, pk.id, pk.name, encounter.level, initialXp, ivHp, randIv(), randIv(), randIv(), randIv(), randIv(), 
+                 m1, m2, m3, m4, 
+                 pp1, pp2, pp3, pp4,
+                 Date.now(), encounter.isShiny?1:0, realMaxHp, realMaxHp, targetSlot, nature]
             );
             await this.clearEncounter(userId);
             
@@ -2476,7 +2739,7 @@ class PokemonHandler {
     }
 
     async showStarters(sender) {
-        const tag = await this.getUserTag(userId);
+        const tag = await this.getUserTag(sender);
         if (await this.checkIfUserHasPokemon(sender)) return `${tag}🚫 Você já tem um Pokémon!`;
         
         return `${tag}🌟 *ESCOLHA SEU INICIAL* 🌟\n\n` +
@@ -2509,15 +2772,12 @@ class PokemonHandler {
         if (c.includes('bulb')) id = 1;
         else if (c.includes('charm')) id = 4;
         else if (c.includes('squirt')) id = 7;
-        
         else if (c.includes('chiko')) id = 152;
         else if (c.includes('cynda')) id = 155;
         else if (c.includes('toto')) id = 158;
-    
         else if (c.includes('tree')) id = 252;
         else if (c.includes('torch')) id = 255;
         else if (c.includes('mud')) id = 258;
-        
         else return `${tag}❌ Inicial inválido! Escolha um da lista. Ex: !poke escolher squirtle (o GOAT).`;
 
         const pk = await this.db.get("SELECT * FROM pokedex WHERE id = ?", [id]);
@@ -2527,21 +2787,38 @@ class PokemonHandler {
         
         const randIv = () => Math.floor(Math.random() * 32);
         const hpIv = randIv();
-        
         const nature = this.getRandomNature(); 
-
         const initialXp = Math.pow(5, 3);
         const hp = Math.floor(((2 * pk.base_hp + hpIv + 100) * 5) / 100 + 10);
 
+        const m1 = moves[0]?.id || null;
+        const m2 = moves[1]?.id || null;
+        const m3 = moves[2]?.id || null;
+        const m4 = moves[3]?.id || null;
+
+        const pp1 = moves[0]?.pp || (m1 ? 35 : null);
+        const pp2 = moves[1]?.pp || null;
+        const pp3 = moves[2]?.pp || null;
+        const pp4 = moves[3]?.pp || null;
+
         await this.db.run(`INSERT INTO user_pokemons 
-            (user_id, pokedex_id, nickname, level, exp, current_hp, max_hp, move1, obtained_at, iv_hp, iv_atk, iv_def, iv_spa, iv_spd, iv_spe, team_slot, nature) 
-            VALUES (?,?,?,5, ?,?,?,?,?, ?,?,?,?,?,?, 1, ?)`,
+            (user_id, pokedex_id, nickname, level, exp, current_hp, max_hp, 
+             move1, move2, move3, move4, 
+             move1_pp, move2_pp, move3_pp, move4_pp, 
+             obtained_at, iv_hp, iv_atk, iv_def, iv_spa, iv_spd, iv_spe, team_slot, nature) 
+            VALUES (?,?,?,5, ?,?,?, 
+                    ?, ?, ?, ?, 
+                    ?, ?, ?, ?, 
+                    ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
             [
-                userId, pk.id, pk.name, initialXp, hp, hp, moves[0]?.id, Date.now(),
-                hpIv, randIv(), randIv(), randIv(), randIv(), randIv(), 
+                userId, pk.id, pk.name, initialXp, hp, hp, 
+                m1, m2, m3, m4, 
+                pp1, pp2, pp3, pp4, 
+                Date.now(), hpIv, randIv(), randIv(), randIv(), randIv(), randIv(), 
                 nature 
             ]
         );
+
         await this.db.run("UPDATE usuarios SET pokeballs = 20, potions = 5 WHERE id_usuario = ?", [userId]);
         return `${tag}🎉 Parabéns! Você escolheu *${pk.name}* como parceiro!`;
     }

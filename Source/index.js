@@ -999,10 +999,12 @@ async function connectToWhatsApp() {
 
             await sock.sendMessage(from, { react: { text: "👀", key: msg.key } });
 
-            const quotedMessageText = quotedMessage.conversation || 
-                                quotedMessage.extendedTextMessage?.text || 
-                                quotedMessage.imageMessage?.caption || 
-                                "[Midia/Sticker sem texto]";
+            const quotedMessageText = quotedMessage ? (
+                quotedMessage.conversation || 
+                quotedMessage.extendedTextMessage?.text || 
+                quotedMessage.imageMessage?.caption || 
+                "[Midia/Sticker sem texto]"
+            ) : "";
 
             let response
             const replyToUser = async (text) => {

@@ -708,18 +708,20 @@ async function connectToWhatsApp() {
 
         const mentions = messageContent?.contextInfo?.mentionedJid || [];
         
-        const isMentioned = mentions.some(jid => jidNormalizedUser(jid) === myFullJid);
+        const myFullLid = me?.lid ? jidNormalizedUser(me.lid) : '';
+
+        const isMentioned = mentions.some(jid => {
+            const normalizedMention = jidNormalizedUser(jid);
+            return normalizedMention === myFullJid || normalizedMention === myFullLid;
+        });
 
         if (mentions.length > 0) {
             console.log(`🔎 Menções encontradas:`, mentions);
-            console.log(`🤖 Meu ID: ${myFullJid} | Fui marcado? ${isMentioned}`);
+            console.log(`🤖 IDs do Bot: Phone=${myFullJid} | LID=${myFullLid}`);
+            console.log(`🎯 Fui marcado? ${isMentioned}`);
         }
 
         const isInteractWithBot = (quotedMessage && isReplyToBot) || isMentioned;
-        if (quotedMessage || isMentioned) {
-            console.log(`💬 INTERAÇÃO DETECTADA!`);
-            console.log(`   É pra mim? ${isInteractWithBot ? 'SIM ✅' : 'NÃO ❌'}`);
-        }
 
         if (command === '!status') {
             const GRUPO_CONTROLE = '120363422821336011@g.us';

@@ -2896,6 +2896,14 @@ class PokemonHandler {
             }
         }
 
+        const baseEnemyXp = Math.floor((encounter.pokemon.base_xp * encounter.level * xpMultiplier) / 7);
+
+        const dayCareMsg = await this.distributeDayCareXP(userId, baseEnemyXp);
+        logMsg += dayCareMsg;
+
+        const expShareMsg = await this.distributeExpShare(userId, baseEnemyXp);
+        logMsg += expShareMsg;
+
         if ((encounter.battle_type === 'GYM_LEADER' || encounter.battle_type === 'GYM_TRAINER' || encounter.battle_type === 'TRAINER') && encounter.gymData.remainingTeam && encounter.gymData.remainingTeam.length > 0) {
             const nextPokeData = encounter.gymData.remainingTeam.shift(); 
             const nextPokeDex = await this.db.get("SELECT name FROM pokedex WHERE id = ?", [nextPokeData.pokedex_id]);
@@ -2911,14 +2919,6 @@ class PokemonHandler {
             const title = encounter.isGym ? 'Líder' : 'Treinador';
             return `${log}\n${logMsg}\n\n🛑 *${title} ${encounter.gymData.leaderName}* vai enviar *${nextPokeDex.name}*.\n\nDeseja trocar de Pokémon?\n🔄 *!poke trocar [slot]*\n⚔️ *!poke atacar* (para manter)`;
         }
-
-        const baseEnemyXp = Math.floor((encounter.pokemon.base_xp * encounter.level * xpMultiplier) / 7);
-
-        const dayCareMsg = await this.distributeDayCareXP(userId, baseEnemyXp);
-        logMsg += dayCareMsg;
-
-        const expShareMsg = await this.distributeExpShare(userId, baseEnemyXp);
-        logMsg += expShareMsg;
 
         // VITÓRIA FINAL
         await this.clearEncounter(userId);

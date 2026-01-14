@@ -343,7 +343,7 @@ class PokemonHandler {
             const users = await this.db.all("SELECT id_usuario, pokeballs, potions, exp_share FROM usuarios WHERE pokeballs > 0 OR potions > 0 OR exp_share > 0");
             
             if (users.length > 0) {
-                console.log(`📦 Migrando itens de ${users.length} usuários para o novo inventário...`);
+                console.log(`📦 ENCONTRADOS ${users.length} USUÁRIOS PARA MIGRAR.`);
                 for (const u of users) {
                     if (u.pokeballs > 0) await this.addItem(u.id_usuario, 'pokeball', u.pokeballs);
                     if (u.potions > 0) await this.addItem(u.id_usuario, 'potion', u.potions);
@@ -351,9 +351,12 @@ class PokemonHandler {
                     
                     await this.db.run("UPDATE usuarios SET pokeballs = 0, potions = 0, exp_share = 0 WHERE id_usuario = ?", [u.id_usuario]);
                 }
-                console.log("✅ Migração de itens concluída!");
+                console.log("✅ Migração de itens concluída com sucesso!");
+            } else {
+                console.log("ℹ️ Nenhum usuário precisou de migração (Tabelas antigas vazias ou já migradas).");
             }
         } catch (e) {
+            console.error("❌ ERRO CRÍTICO NA MIGRAÇÃO:", e);
         }
 
         if (pokeCount.total < 152 || moveCount.total < 50 || pokeMoves.total < 50) {

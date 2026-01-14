@@ -566,6 +566,7 @@ async function connectToWhatsApp() {
 
     //Instancia o chatbot
     const chatbot = new ChatModel(db, genAI)
+    await chatbot.init();
     
     //Envia figurinha
     const sendSticker = async (sock, db, from, msg, mentions, command) => {

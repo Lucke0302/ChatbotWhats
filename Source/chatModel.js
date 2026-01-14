@@ -39,6 +39,12 @@ class ChatModel {
         this.initializeCommandHandlers();
     }
 
+    async init() {
+        if (this.pokemonHandler) {
+            await this.pokemonHandler.init();
+        }
+    }
+
     initializeCommandHandlers() {
         this.commandHandlers = {
             '!timeout': async (ctx) => {

@@ -1035,7 +1035,7 @@ class PokemonHandler {
             log += `\n💥 Sofreu **${selfDamage}** de dano de recuo!`;
         }
 
-        return { log, selfDamage, healAmount };
+        return { log, selfDamage, healAmount, flee, forceSwitch };
     }
 
     applyStatusDamage(battleState, isPlayer, pokeObj, maxHp) {
@@ -2647,9 +2647,6 @@ class PokemonHandler {
         if (encounter.currentHp <= 0) {
              return this.handleVictory(userId, encounter, battleState, log);
         }
-
-        const specialEffects = this.processSpecialMoveEffects(selectedMove, userPoke, encounter.pokemon, damageToWild, battleState, true);
-        log += specialEffects.log;
 
         // LÓGICA DE TELEPORT DO JOGADOR
         if (specialEffects.flee) {

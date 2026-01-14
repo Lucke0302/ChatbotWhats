@@ -2046,7 +2046,7 @@ class PokemonHandler {
             SELECT up.id, p.type1, p.type2 
             FROM user_pokemons up
             JOIN pokedex p ON up.pokedex_id = p.id
-            WHERE up.user_id = ? AND up.team_slot IS NOT NULL AND up.current_hp > 0 
+            WHERE up.user_id = ? AND up.team_slot > 0 AND up.current_hp > 0 
             ORDER BY up.team_slot ASC LIMIT 1`, [userId]);
 
         if (!leadPoke) return "🚑 Seus Pokémon estão desmaiados! Cure-os antes de aceitar desafios.";
@@ -2201,9 +2201,11 @@ class PokemonHandler {
         const badges = user.badges || 0;
 
         const leadPoke = await this.db.get(`
-            SELECT id FROM user_pokemons 
-            WHERE user_id = ? AND team_slot IS NOT NULL AND current_hp > 0 
-            ORDER BY team_slot ASC LIMIT 1`, [userId]);
+            SELECT up.id, p.type1, p.type2 
+            FROM user_pokemons up
+            JOIN pokedex p ON up.pokedex_id = p.id
+            WHERE up.user_id = ? AND up.team_slot > 0 AND up.current_hp > 0 
+            ORDER BY up.team_slot ASC LIMIT 1`, [userId]);
 
         if (!leadPoke) return `${tag}🚑 Todos os seus Pokémon estão desmaiados! Cure-os antes de batalhar.`;
         
@@ -2316,9 +2318,11 @@ class PokemonHandler {
         if (existing) return `${tag}🚫 Termine sua batalha atual primeiro!`;
 
         const leadPoke = await this.db.get(`
-            SELECT id FROM user_pokemons 
-            WHERE user_id = ? AND team_slot IS NOT NULL AND current_hp > 0 
-            ORDER BY team_slot ASC LIMIT 1`, [userId]);
+            SELECT up.id, p.type1, p.type2 
+            FROM user_pokemons up
+            JOIN pokedex p ON up.pokedex_id = p.id
+            WHERE up.user_id = ? AND up.team_slot > 0 AND up.current_hp > 0 
+            ORDER BY up.team_slot ASC LIMIT 1`, [userId]);
 
         if (!leadPoke) return `${tag}🚑 Todos os seus Pokémon estão desmaiados! Cure-os antes de entrar no ginásio.`;
 
@@ -2955,7 +2959,7 @@ class PokemonHandler {
     }
 
     async handlePlayerFaint(userId, userPoke, tag, log) {
-        const teamAlive = await this.db.get("SELECT COUNT(*) as total FROM user_pokemons WHERE user_id = ? AND team_slot IS NOT NULL AND current_hp > 0", [userId]);
+        const teamAlive = await this.db.get("SELECT COUNT(*) as total FROM user_pokemons WHERE user_id = ? AND team_slot > 0 AND current_hp > 0", [userId]);
         
         if (teamAlive.total > 0) {
             return `${log}\n\n💀 *${userPoke.nickname}* está fora de combate!\nUse *!poke trocar [slot]* para escolher outro Pokémon.`;
@@ -3068,7 +3072,7 @@ class PokemonHandler {
                 return `${log}\n🏃💨 Você foi espantado da batalha!`;
             } 
             else {
-                const team = await this.db.all("SELECT id, nickname FROM user_pokemons WHERE user_id = ? AND team_slot IS NOT NULL AND current_hp > 0 AND id != ?", [userId, userPoke.id]);
+                const team = await this.db.all("SELECT id, nickname FROM user_pokemons WHERE user_id = ? AND team_slot > 0 AND current_hp > 0 AND id != ?", [userId, userPoke.id]);
                 
                 if (team.length === 0) {
                     log += ` (Mas falhou! Você não tem outros Pokémon para trocar!)`;
@@ -3306,24 +3310,24 @@ class PokemonHandler {
         }
 
         if (userPoke) {
-             const encounterRaw = await this.db.get("SELECT extra_data FROM active_encounters WHERE user_id = ?", [userId]);
-             let battleState = this.getBattleState(encounterRaw);
+            const encounterRaw = await this.db.get("SELECT extra_data FROM active_encounters WHERE user_id = ?", [userId]);
+            let battleState = this.getBattleState(encounterRaw);
 
-             const enemyLog = await this.processEnemyTurn(encounter, userPoke, battleState, userId);
-             msg += enemyLog;
+            const enemyLog = await this.processEnemyTurn(encounter, userPoke, battleState, userId);
+            msg += enemyLog;
 
-             const updatedUserPoke = await this.db.get("SELECT current_hp, nickname FROM user_pokemons WHERE id = ?", [userPoke.id]);
-             
-             if (updatedUserPoke.current_hp <= 0) {
-                const hasBackup = await this.db.get("SELECT id FROM user_pokemons WHERE user_id = ? AND team_slot IS NOT NULL AND current_hp > 0 AND id != ?", [userId, userPoke.id]);
-                
+            const updatedUserPoke = await this.db.get("SELECT current_hp, nickname FROM user_pokemons WHERE id = ?", [userPoke.id]);
+            
+            if (updatedUserPoke.current_hp <= 0) {
+            const hasBackup = await this.db.get("SELECT id FROM user_pokemons WHERE user_id = ? AND team_slot > 0 AND current_hp > 0 AND id != ?", [userId, userPoke.id]);
+            
                 if (hasBackup) {
                     msg += `\n\n💀 *${updatedUserPoke.nickname}* desmaiou!\nA batalha continua! Use *!poke trocar [slot]* para enviar o próximo!`;
                 } else {
                     await this.clearEncounter(userId);
                     msg += `\n\n🏴 Você não tem mais Pokémon capazes de lutar!\nVocê correu para o CP (use *!poke curar*).`;
                 }
-             }
+            }
         }
 
         return msg;

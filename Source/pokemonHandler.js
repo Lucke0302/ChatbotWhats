@@ -2120,7 +2120,6 @@ class PokemonHandler {
         return caption;
     }
 
-
     async spawnWildPokemon(groupId, userId, sock, param) {
         const tag = await this.getUserTag(userId);
         const existing = await this.loadEncounter(userId);
@@ -2236,7 +2235,7 @@ class PokemonHandler {
         const typeEmojis = this.getTypeEmojis(pokemon.type1, pokemon.type2);
 
         const caption = `${tag}${emoji} Um *${pokemon.name.toUpperCase()}* ${typeEmojis} (Lvl ${wildLevel}) selvagem apareceu!\n` +
-                        `❤️ HP: ${wildHp}/${wildHp}\n\n` +
+                        `❤️ HP: ${wildStats.hp}/${wildStats.hp}\n\n` +
                         `⚔️ *!poke atacar*\n` +
                         `🔴 *!poke capturar*\n` +
                         `🔄 *!poke trocar [slot]*\n` +

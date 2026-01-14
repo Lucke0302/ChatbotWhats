@@ -2605,6 +2605,7 @@ class PokemonHandler {
                         if (t2) m *= (TYPE_CHART[moveType.toLowerCase()][t2.toLowerCase()] || 1);
                         return m;
                     };
+
                     const typeMult = getTypeMultiplier(selectedMove.type, encounter.pokemon.type1, encounter.pokemon.type2);
                     damageToWild = Math.floor(damageToWild * typeMult);
 
@@ -2640,83 +2641,83 @@ class PokemonHandler {
                      await this.db.run("UPDATE user_pokemons SET current_hp = ? WHERE id = ?", [userPoke.current_hp, userPoke.id]);
                      log += ` (+${specialEffects.healAmount} HP)`;
                 }
-            }
-        }
 
-        // --- VERIFICA SE O INIMIGO MORREU ---
-        if (encounter.currentHp <= 0) {
-             return this.handleVictory(userId, encounter, battleState, log);
-        }
+                // --- VERIFICA SE O INIMIGO MORREU ---
+                if (encounter.currentHp <= 0) {
+                    return this.handleVictory(userId, encounter, battleState, log);
+                }
 
-        // LÓGICA DE TELEPORT DO JOGADOR
-        if (specialEffects.flee) {
-            if (encounter.battle_type === 'WILD') {
-                await this.clearEncounter(userId);
-                return `${log}\n🏃💨 Você fugiu da batalha usando Teleport!`;
-            } else {
-                log += ` (Falhou! Não dá pra fugir dessa batalha)`;
-            }
-        }
-
-        // LÓGICA DE ROAR
-        if (specialEffects.forceSwitch) {
-            if (encounter.battle_type === 'WILD') {
-                await this.clearEncounter(userId);
-                return `${log}\n🌬️ O Pokémon selvagem foi levado pelo vento! A batalha acabou.`;
-            } 
-            else {
-                if (!encounter.gymData.remainingTeam || encounter.gymData.remainingTeam.length === 0) {
-                    log += ` (Mas falhou! O oponente não tem mais Pokémon!)`;
-                } else {
-                    const nextEnemyData = encounter.gymData.remainingTeam.shift(); 
-                    
-                    encounter.gymData.remainingTeam.push({
-                        pokedex_id: encounter.pokemon.id,
-                        level: encounter.level,
-                        moves: encounter.moves.map(m => m.name)
-                    });
-
-                    const nextPokeDex = await this.db.get("SELECT * FROM pokedex WHERE id = ?", [nextEnemyData.pokedex_id]);
-                    
-                    let nextMoves = [];
-                    const rawMoves = nextEnemyData.moves;
-
-                    if (rawMoves.length > 0) {
-                        const placeholders = rawMoves.map(() => '?').join(',');
-                        const dbMoves = await this.db.all(`SELECT * FROM moves WHERE name IN (${placeholders})`, rawMoves);
-                        
-                        nextMoves = rawMoves.map(mName => {
-                            const found = dbMoves.find(dbm => dbm.name === mName);
-                            return found ? {
-                                name: found.name, power: found.power, type: found.type, damage_class: found.damage_class,
-                                pp: found.pp, current_pp: found.pp
-                            } : { 
-                                name: mName, power: 40, type: 'normal', damage_class: 'physical', pp: 35, current_pp: 35 
-                            };
-                        });
+                // LÓGICA DE TELEPORT DO JOGADOR
+                if (specialEffects.flee) {
+                    if (encounter.battle_type === 'WILD') {
+                        await this.clearEncounter(userId);
+                        return `${log}\n🏃💨 Você fugiu da batalha usando Teleport!`;
                     } else {
-                        nextMoves = await this.getMovesForLevel(nextPokeDex.id, nextEnemyData.level);
+                        log += ` (Falhou! Não dá pra fugir dessa batalha)`;
                     }
+                }
 
-                    const hpMult = encounter.isGym ? 1.5 : 1.2;
-                    const nextHp = Math.floor(Math.floor(((2 * nextPokeDex.base_hp + 31 + 100) * nextEnemyData.level) / 100 + 10) * hpMult);
+                // LÓGICA DE ROAR
+                if (specialEffects.forceSwitch) {
+                    if (encounter.battle_type === 'WILD') {
+                        await this.clearEncounter(userId);
+                        return `${log}\n🌬️ O Pokémon selvagem foi levado pelo vento! A batalha acabou.`;
+                    } 
+                    else {
+                        if (!encounter.gymData.remainingTeam || encounter.gymData.remainingTeam.length === 0) {
+                            log += ` (Mas falhou! O oponente não tem mais Pokémon!)`;
+                        } else {
+                            const nextEnemyData = encounter.gymData.remainingTeam.shift(); 
+                            
+                            encounter.gymData.remainingTeam.push({
+                                pokedex_id: encounter.pokemon.id,
+                                level: encounter.level,
+                                moves: encounter.moves.map(m => m.name)
+                            });
 
-                    await this.db.run(`
-                        UPDATE active_encounters 
-                        SET pokedex_id = ?, current_hp = ?, max_hp = ?, level = ?, moves = ?, extra_data = ?
-                        WHERE user_id = ?`,
-                        [
-                            nextPokeDex.id, 
-                            nextHp, 
-                            nextHp, 
-                            nextEnemyData.level, 
-                            JSON.stringify(nextMoves), 
-                            JSON.stringify(encounter.gymData),
-                            userId
-                        ]
-                    );
+                            const nextPokeDex = await this.db.get("SELECT * FROM pokedex WHERE id = ?", [nextEnemyData.pokedex_id]);
+                            
+                            let nextMoves = [];
+                            const rawMoves = nextEnemyData.moves;
 
-                    log += `\n🔄 Você forçou a troca!\n🚨 **${encounter.gymData.leaderName || 'O Treinador'}** enviou **${nextPokeDex.name}**!`;
+                            if (rawMoves.length > 0) {
+                                const placeholders = rawMoves.map(() => '?').join(',');
+                                const dbMoves = await this.db.all(`SELECT * FROM moves WHERE name IN (${placeholders})`, rawMoves);
+                                
+                                nextMoves = rawMoves.map(mName => {
+                                    const found = dbMoves.find(dbm => dbm.name === mName);
+                                    return found ? {
+                                        name: found.name, power: found.power, type: found.type, damage_class: found.damage_class,
+                                        pp: found.pp, current_pp: found.pp
+                                    } : { 
+                                        name: mName, power: 40, type: 'normal', damage_class: 'physical', pp: 35, current_pp: 35 
+                                    };
+                                });
+                            } else {
+                                nextMoves = await this.getMovesForLevel(nextPokeDex.id, nextEnemyData.level);
+                            }
+
+                            const hpMult = encounter.isGym ? 1.5 : 1.2;
+                            const nextHp = Math.floor(Math.floor(((2 * nextPokeDex.base_hp + 31 + 100) * nextEnemyData.level) / 100 + 10) * hpMult);
+
+                            await this.db.run(`
+                                UPDATE active_encounters 
+                                SET pokedex_id = ?, current_hp = ?, max_hp = ?, level = ?, moves = ?, extra_data = ?
+                                WHERE user_id = ?`,
+                                [
+                                    nextPokeDex.id, 
+                                    nextHp, 
+                                    nextHp, 
+                                    nextEnemyData.level, 
+                                    JSON.stringify(nextMoves), 
+                                    JSON.stringify(encounter.gymData),
+                                    userId
+                                ]
+                            );
+
+                            log += `\n🔄 Você forçou a troca!\n🚨 **${encounter.gymData.leaderName || 'O Treinador'}** enviou **${nextPokeDex.name}**!`;
+                        }
+                    }
                 }
             }
         }

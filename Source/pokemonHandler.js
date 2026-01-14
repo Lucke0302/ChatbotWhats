@@ -1264,7 +1264,7 @@ class PokemonHandler {
             SELECT up.*, p.name, p.type1, p.type2 
             FROM user_pokemons up 
             JOIN pokedex p ON up.pokedex_id = p.id 
-            WHERE up.user_id = ? AND up.team_slot IS NOT NULL AND up.team_slot < 7
+            WHERE up.user_id = ? AND up.team_slot IS NOT NULL AND up.team_slot < 7 AND up.team_slot > 0
             ORDER BY up.team_slot ASC`, [userId]);
             
         if (!team.length) return "Seu time está vazio!";

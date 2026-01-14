@@ -349,7 +349,7 @@ class PokemonHandler {
                     if (u.potions > 0) await this.addItem(u.id_usuario, 'potion', u.potions);
                     if (u.exp_share > 0) await this.addItem(u.id_usuario, 'exp-share', u.exp_share);
                     
-                    await this.db.run("UPDATE usuarios SET pokeballs = 0, potions = 0, exp_share = 0 WHERE id_usuario = ?", [u.id_usuario]);
+                    await this.db.run("UPDATE usuarios SET pokeballs = 0, potions = 0 WHERE id_usuario = ?", [u.id_usuario]);
                 }
                 console.log("✅ Migração de itens concluída com sucesso!");
             } else {

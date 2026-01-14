@@ -1846,7 +1846,7 @@ class PokemonHandler {
 
     async loadEncounter(userId) {
         const encounter = await this.db.get(`
-            SELECT ae.*, p.name, p.type1, p.type2, p.base_hp, p.base_atk, p.base_def, p.base_spa, p.base_spd, p.base_spe, p.sprite_url, p.base_xp
+            SELECT ae.*, p.name, p.type1, p.type2, p.base_hp, p.base_atk, p.base_def, p.base_spa, p.base_spd, p.base_spe, p.sprite_url, p.base_xp, p.rarity
             FROM active_encounters ae
             JOIN pokedex p ON ae.pokedex_id = p.id
             WHERE ae.user_id = ?`, [userId]);
@@ -1867,6 +1867,7 @@ class PokemonHandler {
                 base_spe: encounter.base_spe,
                 base_xp: encounter.base_xp,
                 sprite_url: encounter.sprite_url,
+                rarity: encounter.rarity,
             },
             
             activePokemonId: encounter.active_pokemon_id,
@@ -2120,7 +2121,12 @@ class PokemonHandler {
         const wildHp = Math.floor(((2 * pokemon.base_hp + 15 + 100) * wildLevel) / 100 + 10);
         const isShiny = Math.random() < shinyChance;
 
-        const extraData = { participants: [leadPoke.id] };
+        const wildNature = this.getRandomNature(); 
+
+        const extraData = { 
+            participants: [leadPoke.id],
+            nature: wildNature 
+        };
 
         await this.db.run(`
             INSERT INTO active_encounters (
@@ -2734,7 +2740,45 @@ class PokemonHandler {
         let log = "";
         const enemyName = encounter.pokemon.name;
 
-        // --- 1. CHECAGEM DE STATUS ---
+       // --- LÓGICA DE FUGA ---
+        if (encounter.battle_type === 'WILD') {
+            if (!encounter.isShiny) {
+                
+                const encounterData = encounter.extra_data ? JSON.parse(encounter.extra_data) : {};
+                const wildNature = encounter.gymData?.nature || encounterData.nature || 'hardy';
+
+                const runMultipliers = {
+                    'timid': 2.5, 'hasty': 2.5, 'jolly': 2.5, 'naive': 2.5, 'careful': 2.0,
+                    'brave': 0.2, 'bold': 0.2, 'relaxed': 0.2, 'sassy': 0.2, 'serious': 0.2,
+                    'default': 1.0
+                };
+
+                const hpPercent = Math.max(0, encounter.currentHp / encounter.maxHp);
+                const hpLost = 1.0 - hpPercent;
+                const baseFleeChance = 0.04 * (1 + hpLost);
+
+                const natureMult = runMultipliers[wildNature] || runMultipliers['default'];
+
+                let rarityMult = 1.0;
+
+                if (encounter.pokemon.rarity === 'rare') {
+                    rarityMult = 0.0; // LENDÁRIOS NUNCA FOGEM
+                } 
+
+                else if (RARE_POKE.includes(encounter.pokemon.id)) {
+                    rarityMult = 0.5;
+                }
+
+                const finalFleeChance = baseFleeChance * natureMult * rarityMult;
+
+                if (finalFleeChance > 0 && Math.random() < finalFleeChance) {
+                    await this.clearEncounter(userId);
+                    return `🏃💨 O **${encounter.pokemon.name}** selvagem fugiu! (Natureza: ${wildNature})`;
+                }
+            }
+        }
+
+        // --- CHECAGEM DE STATUS ---
         const enemyCheck = await this.checkStatusBeforeMove(battleState, false, enemyName, null, null);
         
         if (enemyCheck.log) log += `\n${enemyCheck.log}`;
@@ -2745,12 +2789,11 @@ class PokemonHandler {
             log += ` (HP: ${encounter.currentHp}/${encounter.maxHp})`;
         }
 
-        // Se o status impedir o movimento, encerra aqui
         if (!enemyCheck.canMove) {
             return log; 
         }
 
-        // --- 2. ESCOLHA DO GOLPE ---
+        // --- ESCOLHA DO GOLPE ---
         const validMoves = encounter.moves.filter(m => m.current_pp > 0);
         let wildMove = encounter.moves[Math.floor(Math.random() * encounter.moves.length)] || {name: "Investida", power: 40, damage_class: 'physical', type: 'normal'};
         
@@ -2758,11 +2801,9 @@ class PokemonHandler {
             wildMove = { name: "Struggle", power: 50, damage_class: 'physical', type: 'normal' };
             log += `\n⚠️ ${encounter.pokemon.name} não tem mais PP! Usou *Struggle*!`;
         } else {
-            // IA Simples: Escolhe aleatório dos que tem PP
             const moveIndex = Math.floor(Math.random() * validMoves.length);
             wildMove = validMoves[moveIndex];
 
-            // Gasta PP
             const originalMove = encounter.moves.find(m => m.name === wildMove.name);
             if (originalMove) {
                 originalMove.current_pp--;
@@ -2772,7 +2813,6 @@ class PokemonHandler {
 
         let damageToUser = 0;
 
-        // Dano de Recuo do Struggle
         if (wildMove.name === 'Struggle') {
                 const recoil = Math.floor(encounter.maxHp / 4);
                 encounter.currentHp -= recoil;
@@ -2782,7 +2822,7 @@ class PokemonHandler {
         const enemyEmojis = this.getTypeEmojis(encounter.pokemon.type1, encounter.pokemon.type2);
         const enemyDisplayName = `${encounter.pokemon.name} ${enemyEmojis}`;
 
-        // --- 3. EXECUÇÃO DO GOLPE ---
+        // --- EXECUÇÃO DO GOLPE ---
         if (wildMove.damage_class === 'status') {
             const res = await this.processStatusMove(wildMove.name, battleState, false, encounter.maxHp);
             

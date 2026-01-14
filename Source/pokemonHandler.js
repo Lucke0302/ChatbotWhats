@@ -2212,7 +2212,7 @@ class PokemonHandler {
         
         const wildStats = this.generateStats(pokemon, wildIvs, wildLevel, wildNature);
 
-        const wildMoves = await this.getMovesForLevel(pokemon.id, wildLevel);
+        const wildMovesRaw = await this.getMovesForLevel(pokemon.id, wildLevel);
         const isShiny = Math.random() < shinyChance;
 
         const extraData = { participants: [leadPoke.id], nature: wildNature };

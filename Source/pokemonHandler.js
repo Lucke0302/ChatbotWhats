@@ -335,9 +335,20 @@ class PokemonHandler {
     }
 
     async init() {
-        const pokeCount = await this.db.get('SELECT COUNT(*) as total FROM pokedex');
-        const moveCount = await this.db.get('SELECT COUNT(*) as total FROM moves');
-        const pokeMoves = await this.db.get('SELECT COUNT(*) as total FROM pokemon_moves');
+        const defaultItems = [
+            ['pokeball', 'Pokébola', 'ball', 200, 'Uma ferramenta básica para capturar Pokémon selvagens.'],
+            ['greatball', 'Great Ball', 'ball', 600, 'Uma boa ferramenta para capturar Pokémon selvagens.'],
+            ['ultraball', 'Ultra Ball', 'ball', 2000, 'Uma ferramenta muito boa para capturar Pokémon selvagens.'],
+            ['potion', 'Poção', 'medicine', 300, 'Recupera 20 HP de um Pokémon.'],
+            ['superpotion', 'Super Poção', 'medicine', 700, 'Recupera 50 HP de um Pokémon.'],
+            ['hyperpotion', 'Hyper Poção', 'medicine', 1500, 'Recupera 200 HP de um Pokémon.'],
+            ['exp-share', 'Exp. Share', 'held', 5000, 'Distribui XP para o portador mesmo sem batalhar.'],
+            ['rare-candy', 'Rare Candy', 'medicine', 10000, 'Sobe 1 nível do Pokémon instantaneamente.']
+        ];
+        
+        for (const item of defaultItems) {
+            await this.db.run(`INSERT OR IGNORE INTO items (id, name, type, price, description) VALUES (?, ?, ?, ?, ?)`, item);
+        }
 
         try {
             const users = await this.db.all("SELECT id_usuario, pokeballs, potions, exp_share FROM usuarios WHERE pokeballs > 0 OR potions > 0 OR exp_share > 0");
@@ -347,20 +358,22 @@ class PokemonHandler {
                 for (const u of users) {
                     if (u.pokeballs > 0) await this.addItem(u.id_usuario, 'pokeball', u.pokeballs);
                     if (u.potions > 0) await this.addItem(u.id_usuario, 'potion', u.potions);
-                    if (u.exp_share > 0) await this.addItem(u.id_usuario, 'exp-share', u.exp_share);
-                    
+
                     await this.db.run("UPDATE usuarios SET pokeballs = 0, potions = 0 WHERE id_usuario = ?", [u.id_usuario]);
                 }
                 console.log("✅ Migração de itens concluída com sucesso!");
-            } else {
-                console.log("ℹ️ Nenhum usuário precisou de migração (Tabelas antigas vazias ou já migradas).");
             }
         } catch (e) {
             console.error("❌ ERRO CRÍTICO NA MIGRAÇÃO:", e);
         }
 
+        // 3. VERIFICAÇÕES DE BANCO DE DADOS (Pokedéx, Moves, etc)
+        const pokeCount = await this.db.get('SELECT COUNT(*) as total FROM pokedex');
+        const moveCount = await this.db.get('SELECT COUNT(*) as total FROM moves');
+        const pokeMoves = await this.db.get('SELECT COUNT(*) as total FROM pokemon_moves');
+
         if (pokeCount.total < 152 || moveCount.total < 50 || pokeMoves.total < 50) {
-            console.log(`⚠️ Banco de dados incompleto ou com poucos golpes (Moves: ${moveCount.total}, Pokemon Moves: ${pokeMoves.total}).`);
+            console.log(`⚠️ Banco de dados incompleto. Moves: ${moveCount.total}, Pokemon Moves: ${pokeMoves.total}.`);
             console.log("⬇️ Iniciando download da PokéAPI (Versão Emerald)...");
             await this.seedDatabase();
         } else {

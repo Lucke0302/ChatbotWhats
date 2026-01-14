@@ -1601,7 +1601,10 @@ class PokemonHandler {
         const teamPoke = await this.db.get("SELECT id, nickname, team_slot FROM user_pokemons WHERE user_id = ? AND team_slot = ?", [userId, teamSlot]);
         const pcPoke = await this.db.get("SELECT id, nickname, team_slot FROM user_pokemons WHERE user_id = ? AND team_slot = ?", [userId, realPcSlot]);
 
-        if (!teamPoke) return `🚫 Não tem ninguém no slot ${teamSlot} do seu time.`;
+        if (!teamPoke) {
+            await this.db.run("UPDATE user_pokemons SET team_slot = ? WHERE id = ?", [teamSlot, pcPoke.id]);
+            return `${pcPoke.nickname} foi enviado para o slot vazio no time principal!`
+        }
         if (!pcPoke) return `🚫 Não tem ninguém na Box ${pcBoxNum} do PC (Slot real ${realPcSlot}).`;
 
         await this.db.run("UPDATE user_pokemons SET team_slot = -1 WHERE id = ?", [teamPoke.id]);
@@ -1818,7 +1821,7 @@ class PokemonHandler {
         switch (action) {
             case 'daycare':
                 return await this.handleDayCare(sender, param)
-                
+
             case 'item':
                 return await this.handleItem(sender, param)
 

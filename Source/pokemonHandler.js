@@ -1501,9 +1501,9 @@ class PokemonHandler {
         const result = await this.applyPassiveXp(poke, shareXp);
 
         if (result.leveledUp) {
-            return `\n🏡 *Day Care:* ${result.name} subiu para o Nível ${result.newLevel}!`;
+            return `\n🏡 *Ligação do Day Care:* ${result.name} subiu para o Nível ${result.newLevel}!`;
         } else {
-            return `\n🏡 *Day Care:* ${result.name} ganhou ${shareXp} XP.`;
+            return `\n🏡 *Ligação do Day Care:* ${result.name} ganhou ${shareXp} XP.`;
         }
     }
 
@@ -3302,15 +3302,24 @@ class PokemonHandler {
                  pp1, pp2, pp3, pp4,
                  Date.now(), encounter.isShiny?1:0, realMaxHp, realMaxHp, targetSlot, nature]
             );
+
+            const wildDex = await this.db.get("SELECT base_xp FROM pokedex WHERE id = ?", [encounter.pokedex_id]);
+            
+            let xpMsg
+
+            if (userPoke && wildDex) {
+                xpMsg = await this.gainExperience(userPoke, wildDex, encounter.level, 1, 0.5, userId);
+            }
+
             await this.clearEncounter(userId);
             
             let msg = `${tag}🎉 Capturou *${encounter.pokemon.name}* usando uma **${selectedBall}**!`;
             
-            if(isFainted) msg += `\n😅 Foi por pouco! Você capturou *${encounter.pokemon.name}* usando uma **${selectedBall}** sem Pokémon em campo!`;
+            if(isFainted) msg += `\n😅 Foi por pouco! Você capturou sem Pokémon em campo!`;
             
             if (targetSlot > 6) msg += `\n📦 Time cheio! Enviado para o PC (Box ${targetSlot - 6}).`;
             else msg += `\n✅ Adicionado ao time principal.`;
-            
+            if(userPoke && wildDex) msg += `\n${xpMsg?.replace('✨ Ganhou', '🔹 Ganhou')}`;
             return msg;
         }
 

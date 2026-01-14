@@ -2213,6 +2213,10 @@ class PokemonHandler {
         const wildStats = this.generateStats(pokemon, wildIvs, wildLevel, wildNature);
 
         const wildMovesRaw = await this.getMovesForLevel(pokemon.id, wildLevel);
+        const wildMoves = wildMovesRaw.map(m => ({
+            ...m,
+            current_pp: m.pp
+        }));
         const isShiny = Math.random() < shinyChance;
 
         const extraData = { participants: [leadPoke.id], nature: wildNature };
@@ -2726,6 +2730,10 @@ class PokemonHandler {
         const enemyLog = await this.processEnemyTurn(encounter, userPoke, battleState, userId);
         log += enemyLog;
         
+        if (enemyLog.includes("fugiu!") || enemyLog.includes("acabou") || enemyLog.includes("espantado")){
+            return log + "\nA batalha está encerrada!"
+        }
+
         // Salva HP Inimigo
         await this.db.run(`UPDATE active_encounters SET current_hp = ? WHERE user_id = ?`, [encounter.currentHp, userId]);
 
@@ -2936,7 +2944,7 @@ class PokemonHandler {
 
                 if (finalFleeChance > 0 && Math.random() < finalFleeChance) {
                     await this.clearEncounter(userId);
-                    return `🏃💨 O **${encounter.pokemon.name}** selvagem fugiu! (Natureza: ${wildNature})`;
+                    return `🏃💨 O **${encounter.pokemon.name}** selvagem fugiu!`;
                 }
             }
         }

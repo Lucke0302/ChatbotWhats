@@ -351,7 +351,7 @@ class PokemonHandler {
         }
 
         try {
-            const users = await this.db.all("SELECT id_usuario, pokeballs, potions, exp_share FROM usuarios WHERE pokeballs > 0 OR potions > 0 OR exp_share > 0");
+            const users = await this.db.all("SELECT id_usuario, pokeballs, potions FROM usuarios WHERE pokeballs > 0 OR potions > 0");
             
             if (users.length > 0) {
                 console.log(`📦 ENCONTRADOS ${users.length} USUÁRIOS PARA MIGRAR.`);

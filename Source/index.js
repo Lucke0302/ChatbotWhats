@@ -456,9 +456,9 @@ async function initDatabase() {
     `);
 
     const defaultItems = [
-        ['pokeball', 'Pokéball', 'ball', 200, 'Uma ferramenta para capturar Pokémon selvagens.'],
-        ['greatball', 'Greatball', 'ball', 600, 'Uma ferramenta para capturar Pokémon selvagens.'],
-        ['ultraball', 'Ultraball', 'ball', 2000, 'Uma ferramenta para capturar Pokémon selvagens.'],
+        ['pokeball', 'Pokéball', 'ball', 200, 'Uma ferramenta básica para capturar Pokémon selvagens.'],
+        ['greatball', 'Greatball', 'ball', 600, 'Uma boa ferramenta para capturar Pokémon selvagens.'],
+        ['ultraball', 'Ultraball', 'ball', 2000, 'Uma ferramenta muito boa para capturar Pokémon selvagens.'],
         ['potion', 'Poção', 'medicine', 300, 'Recupera 20 HP de um Pokémon.'],
         ['superpotion', 'Poção', 'medicine', 600, 'Recupera 50 HP de um Pokémon.'],
         ['hyperpotion', 'Poção', 'medicine', 2000, 'Recupera 200 HP de um Pokémon.'],
@@ -467,7 +467,7 @@ async function initDatabase() {
     ];
 
     for (const item of defaultItems) {
-        await db.exec(`INSERT OR IGNORE INTO items (id, name, type, price, description) VALUES (?, ?, ?, ?, ?)`, item);
+        await db.run(`INSERT OR IGNORE INTO items (id, name, type, price, description) VALUES (?, ?, ?, ?, ?)`, item);
     }
 
     await db.exec(`
@@ -566,7 +566,6 @@ async function connectToWhatsApp() {
 
     //Instancia o chatbot
     const chatbot = new ChatModel(db, genAI)
-    await chatbot.init();
     
     //Envia figurinha
     const sendSticker = async (sock, db, from, msg, mentions, command) => {

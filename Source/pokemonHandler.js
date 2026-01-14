@@ -341,7 +341,7 @@ class PokemonHandler {
             ['ultraball', 'Ultra Ball', 'ball', 2000, 'Uma ferramenta muito boa para capturar Pokémon selvagens.'],
             ['potion', 'Poção', 'medicine', 300, 'Recupera 20 HP de um Pokémon.'],
             ['superpotion', 'Super Poção', 'medicine', 700, 'Recupera 50 HP de um Pokémon.'],
-            ['hyperpotion', 'Hyper Poção', 'medicine', 1500, 'Recupera 200 HP de um Pokémon.'],
+            ['hyperpotion', 'Híper Poção', 'medicine', 1500, 'Recupera 200 HP de um Pokémon.'],
             ['exp-share', 'Exp. Share', 'held', 5000, 'Distribui XP para o portador mesmo sem batalhar.'],
             ['rare-candy', 'Rare Candy', 'medicine', 10000, 'Sobe 1 nível do Pokémon instantaneamente.']
         ];
@@ -1612,74 +1612,110 @@ class PokemonHandler {
 
     async handleItem(userId, param) {
         const tag = await this.getUserTag(userId);
-        const args = param.split(' ');
-        const action = args[0]?.toLowerCase()
-        const slot = parseInt(args[1]);
+        
+        const args = param.trim().split(/\s+/);
+        const action = args[0]?.toLowerCase();
+        const pokeSlot = parseInt(args[1]);
+        const bagIndex = parseInt(args[2]); // Agora esperamos o número do item na mochila
 
-        if (!['dar', 'give', 'pegar', 'take'].includes(action) || isNaN(slot)) {
+        // Validação básica
+        if (!['dar', 'give', 'pegar', 'take'].includes(action) || isNaN(pokeSlot)) {
             return `${tag}🎒 *GERENCIAR ITENS*\n\n` +
-                   `• *!poke item dar [slot]* (Dá o Exp. Share da mochila para o Pokémon)\n` +
-                   `• *!poke item pegar [slot]* (Devolve o item do Pokémon para a mochila)`;
+                   `• *!poke item dar [slot_poke] [numero_da_bag]*\n` +
+                   `Ex: _!poke item dar 1 3_ (Dá o item nº 3 da mochila para o Pokémon 1)\n\n` +
+                   `• *!poke item pegar [slot_poke]*\n` +
+                   `Ex: _!poke item pegar 1_ (Pega o item de volta para a mochila)`;
         }
 
-        const poke = await this.db.get("SELECT * FROM user_pokemons WHERE user_id = ? AND team_slot = ?", [userId, slot]);
-        if (!poke) return `${tag}🚫 Slot vazio.`;
+        const poke = await this.db.get("SELECT * FROM user_pokemons WHERE user_id = ? AND team_slot = ?", [userId, pokeSlot]);
+        if (!poke) return `${tag}🚫 Não existe Pokémon no slot ${pokeSlot}.`;
 
-        // --- DAR ITEM (Mochila -> Pokémon) ---
+        // --- AÇÃO: DAR ITEM ---
         if (action === 'dar' || action === 'give') {
-            const hasItem = await this.removeItem(userId, 'exp-share', 1);
-            if (!hasItem) return `${tag}🚫 Você não tem Exp. Share na mochila.`;
+            if (isNaN(bagIndex) || bagIndex < 1) return `${tag}🚫 Digite o número do item na mochila. (Olhe em *!poke mochila*)`;
 
-            if (poke.held_item) return `${tag}🚫 *${poke.nickname}* já está segurando um item (${poke.held_item})! Tire-o primeiro.`;
+            const inventory = await this.db.all(`
+                SELECT i.id, i.name, i.type, inv.quantity 
+                FROM inventory inv 
+                JOIN items i ON inv.item_id = i.id 
+                WHERE inv.user_id = ? AND inv.quantity > 0
+                ORDER BY i.type ASC, i.name ASC`, [userId]);
 
-            await this.removeItem(userId, 'exp-share', 1);
-            await this.db.run("UPDATE user_pokemons SET held_item = 'exp-share' WHERE id = ?", [poke.id]);
+            const selectedItem = inventory[bagIndex - 1];
 
-            return `${tag}💡 Você deu o **Exp. Share** para *${poke.nickname}*!`;
+            if (!selectedItem) return `${tag}🚫 Item número ${bagIndex} não encontrado na sua mochila.`;
+
+            if (selectedItem.type !== 'held') {
+                return `${tag}🚫 Você não pode dar **${selectedItem.name}** para o Pokémon segurar. (Tipo: ${selectedItem.type})`;
+            }
+
+            await this.removeItem(userId, selectedItem.id, 1);
+
+            let msg = "";
+
+            if (poke.held_item) {
+                await this.addItem(userId, poke.held_item, 1);
+                
+                const oldItemName = (await this.db.get("SELECT name FROM items WHERE id = ?", [poke.held_item]))?.name || "Item Antigo";
+                
+                msg += `♻️ Trocou **${oldItemName}** por **${selectedItem.name}**.\n`;
+            } else {
+                msg += `💡 Você deu **${selectedItem.name}** para *${poke.nickname}*!\n`;
+            }
+
+            await this.db.run("UPDATE user_pokemons SET held_item = ? WHERE id = ?", [selectedItem.id, poke.id]);
+
+            return `${tag}${msg}`;
         }
 
-        // --- PEGAR ITEM (Pokémon -> Mochila) ---
+        // --- AÇÃO: PEGAR ITEM ---
         if (action === 'pegar' || action === 'take') {
             if (!poke.held_item) return `${tag}🚫 *${poke.nickname}* não está segurando nada.`;
 
-            if (poke.held_item === 'exp-share') {
-                await this.addItem(userId, 'exp-share', 1);
-                await this.db.run("UPDATE user_pokemons SET held_item = NULL WHERE id = ?", [poke.id]);
-                return `${tag}🎒 Você pegou o **Exp. Share** de volta para a mochila.`;
-            }
+            const itemId = poke.held_item;
+            
+            await this.addItem(userId, itemId, 1);
+            
+            const itemData = await this.db.get("SELECT name FROM items WHERE id = ?", [itemId]);
+            const nomeItem = itemData ? itemData.name : "Item";
 
-            return `${tag}🚫 Item desconhecido.`;
+            await this.db.run("UPDATE user_pokemons SET held_item = NULL WHERE id = ?", [poke.id]);
+
+            return `${tag}🎒 Você pegou **${nomeItem}** de volta.`;
         }
     }
 
     async showBag(userId) {
+
         const items = await this.db.all(`
-            SELECT i.name, i.type, inv.quantity, i.description 
+            SELECT i.id, i.name, i.type, inv.quantity, i.description 
             FROM inventory inv 
             JOIN items i ON inv.item_id = i.id 
             WHERE inv.user_id = ? AND inv.quantity > 0
-            ORDER BY i.type, i.name`, [userId]);
+            ORDER BY i.type ASC, i.name ASC`, [userId]);
 
         if (items.length === 0) return "🎒 Sua mochila está vazia.";
 
-        let msg = "🎒 **SUA MOCHILA**\n\n";
+        let msg = "🎒 **SUA MOCHILA**\nUse: *!poke item dar [slot_poke] [numero_item]*\n\n";
         
         const categories = {
             'ball': '🔴 Pokébolas',
             'medicine': '🧪 Medicamentos',
             'held': '💡 Itens de Equipar',
-            'key': '🔑 Itens Chave'
+            'key': '🔑 Itens Chave',
+            'stone': '💎 Pedras Evolutivas'
         };
 
         let currentType = '';
         
-        for (const item of items) {
+        items.forEach((item, index) => {
             if (item.type !== currentType) {
                 currentType = item.type;
                 msg += `\n*${categories[currentType] || '📦 Outros'}*\n`;
             }
-            msg += `• ${item.name}: x${item.quantity}\n`;
-        }
+
+            msg += `${index + 1}. **${item.name}**: x${item.quantity}\n   _${item.description}_\n`;
+        });
         
         return msg;
     }

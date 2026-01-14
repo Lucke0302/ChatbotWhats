@@ -419,6 +419,53 @@ class PokemonHandler {
         return `✅ Limpeza completa!\n- Duplicatas do sistema removidas.\n- ${count} Pokémon atualizados com os golpes certos.`;
     }
 
+    // Calcula o XP necessário para um determinado nível (Curva Medium Fast - Gen 3)
+    computeXp(level) {
+        return Math.pow(level, 3);
+    }
+
+    //Retorna o multiplicador da Natureza (1.1, 0.9 ou 1.0)
+    getNatureModifier(natureKey, statName) {
+        if (statName === 'hp') return 1.0;
+        
+        const nature = NATURES[natureKey?.toLowerCase()] || NATURES['hardy'];
+        
+        if (nature.up === statName) return 1.1;
+        if (nature.down === statName) return 0.9;
+        return 1.0;
+    }
+
+    // Calcula o valor final de um status
+    computeStat(base, iv, level, nature, statName) {
+        const ivVal = iv || 0;
+        
+        if (statName === 'hp') {
+            return Math.floor(((2 * base + ivVal + 100) * level) / 100 + 10);
+        } else {
+            const rawStat = Math.floor(((2 * base + ivVal) * level) / 100 + 5);
+            const multiplier = this.getNatureModifier(nature, statName);
+            return Math.floor(rawStat * multiplier);
+        }
+    }
+
+    // Gera um objeto completo com todos os stats calculados
+    generateStats(pkBase, ivs, level, nature) {
+        return {
+            hp: this.computeStat(pkBase.base_hp, ivs.hp, level, nature, 'hp'),
+            atk: this.computeStat(pkBase.base_atk, ivs.atk, level, nature, 'atk'),
+            def: this.computeStat(pkBase.base_def, ivs.def, level, nature, 'def'),
+            spa: this.computeStat(pkBase.base_spa, ivs.spa, level, nature, 'spa'),
+            spd: this.computeStat(pkBase.base_spd, ivs.spd, level, nature, 'spd'),
+            spe: this.computeStat(pkBase.base_spe, ivs.spe, level, nature, 'spe'),
+        };
+    }
+
+    // Gera IVs aleatórios (0-31)
+    generateRandomIVs() {
+        const rand = () => Math.floor(Math.random() * 32);
+        return { hp: rand(), atk: rand(), def: rand(), spa: rand(), spd: rand(), spe: rand() };
+    }
+
     /**
      * @param {string} userId - Quem recebe
      * @param {string} type - 'pokemon', 'coin', 'item', 'xp'
@@ -456,7 +503,7 @@ class PokemonHandler {
             const randIv = () => Math.floor(Math.random() * 32);
             const hpIv = randIv();
             const hp = Math.floor(((2 * pk.base_hp + hpIv + 100) * level) / 100 + 10);
-            const initialXp = Math.pow(level, 3);
+            const initialXp = this.computeXp(level);
             const nature = this.getRandomNature();
 
             const m1 = moves[0]?.id || null;
@@ -501,12 +548,12 @@ class PokemonHandler {
             const itemType = value.toLowerCase();
             const qtd = amount || 1;
             
-            if (itemType.includes('ball') || itemType === 'bola') {
-                await this.db.run("UPDATE usuarios SET pokeballs = pokeballs + ? WHERE id_usuario = ?", [qtd, userId]);
+            if (itemType.includes('ball') || itemType === 'bola') {                
+                await this.addItem(userId, 'potion', qtd);
                 return `${tag}🔴 **REFORÇO!**\nRecebeu ${qtd} Pokébolas.`;
             }
             if (itemType.includes('potion') || itemType === 'pocao') {
-                await this.db.run("UPDATE usuarios SET potions = potions + ? WHERE id_usuario = ?", [qtd, userId]);
+                await this.addItem(userId, 'potion', qtd);
                 return `${tag}🧪 **REFORÇO!**\nRecebeu ${qtd} Poções.`;
             }
             return `${tag}❌ Item desconhecido. Use 'bola' ou 'pocao'.`;
@@ -662,7 +709,7 @@ class PokemonHandler {
         let count = 0;
 
         for (const p of pokemons) {
-            const minXp = Math.pow(p.level, 3);
+            const minXp = this.computeXp(p.level);
             
             if (p.exp < minXp) {
                 await this.db.run("UPDATE user_pokemons SET exp = ? WHERE id = ?", [minXp, p.id]);
@@ -885,8 +932,44 @@ class PokemonHandler {
         let log = "";
         let selfDamage = 0;
         let healAmount = 0;
-        const targetKey = isPlayer ? 'user' : 'enemy';
+        let forceSwitch = false;
+        let flee = false;
+
+        const targetKey = isPlayer ? 'enemy' : 'user';
+        const userKey = isPlayer ? 'user' : 'enemy';
         const moveName = move.name.toLowerCase();
+
+        // === 👻 CURSE ===
+        if (moveName === 'curse') {
+            const isGhost = (userPoke.type1 === 'ghost' || userPoke.type2 === 'ghost');
+
+            if (isGhost) {
+                selfDamage = Math.floor(userPoke.max_hp / 2);
+                if (!battleState.counters[targetKey].cursed) {
+                    battleState.counters[targetKey].cursed = true;
+                    log += `\n👻 *${userPoke.nickname || userPoke.name}* cortou o próprio HP para lançar uma Maldição!`;
+                } else {
+                    log += `\n👻 O alvo já está amaldiçoado!`;
+                }
+            } else {
+                battleState.stages[userKey].spe = Math.max(-6, (battleState.stages[userKey].spe || 0) - 1);
+                battleState.stages[userKey].atk = Math.min(6, (battleState.stages[userKey].atk || 0) + 1);
+                battleState.stages[userKey].def = Math.min(6, (battleState.stages[userKey].def || 0) + 1);
+                log += `\n💪 *${userPoke.nickname || userPoke.name}* ficou mais lento, mas aumentou Ataque e Defesa!`;
+            }
+        }
+
+        // === TELEPORT ===
+        if (moveName === 'teleport') {
+            flee = true;
+            log += `\n✨ *${userPoke.nickname || userPoke.name}* se teleportou!`;
+        }
+
+        // === 🦁 ROAR / WHIRLWIND ===
+        if (moveName === 'roar' || moveName === 'whirlwind') {
+            forceSwitch = true;
+            log += `\n📢 *${userPoke.nickname || userPoke.name}* rugiu assustadoramente!`;
+        }
 
         // === GRUPO 1: THRASH, UPROAR, OUTRAGE ===
         const thrashMoves = ['uproar', 'thrash', 'outrage', 'petal-dance']; 
@@ -958,6 +1041,7 @@ class PokemonHandler {
     applyStatusDamage(battleState, isPlayer, pokeObj, maxHp) {
         const targetKey = isPlayer ? 'user' : 'enemy';
         const status = battleState[targetKey + 'Status'];
+        const counters = battleState.counters[targetKey];
         let dmg = 0;
         let msg = "";
 
@@ -974,6 +1058,13 @@ class PokemonHandler {
             const stacks = battleState.counters[targetKey].toxic;
             dmg = Math.floor(maxHp * (stacks / 16));
             msg = `🟣 *${pokeObj.nickname || pokeObj.name}* sofreu com o veneno grave! (x${stacks})`;
+        }
+
+        // --- DANO DE CURSE ---
+        if (counters && counters.cursed) {
+            const curseDmg = Math.floor(maxHp / 4);
+            dmg += curseDmg;
+            msg += `\n👻 *${pokeObj.nickname || pokeObj.name}* está sofrendo pela Maldição! (-${curseDmg})`;
         }
 
         if (dmg > 0) {
@@ -1028,10 +1119,13 @@ class PokemonHandler {
         
         if (!data.counters) {
             data.counters = {
-                user: { sleep: 0, confusion: 0, toxic: 0 },
-                enemy: { sleep: 0, confusion: 0, toxic: 0 }
+                user: { sleep: 0, confusion: 0, toxic: 0, cursed: false },
+                enemy: { sleep: 0, confusion: 0, toxic: 0, cursed: false }
             };
         }
+
+        if (data.counters.user.cursed === undefined) data.counters.user.cursed = false;
+        if (data.counters.enemy.cursed === undefined) data.counters.enemy.cursed = false;
 
         if (!data.lockedMove) {
             data.lockedMove = {
@@ -1213,11 +1307,11 @@ class PokemonHandler {
         if (!poke) return `${tag}🚫 Não há Pokémon no slot ${slot} do seu time.`;
 
         // --- CÁLCULO DOS STATS FINAIS ---
-        const atk = this.calculateStat(poke.base_atk, poke.iv_atk, poke.level, poke.nature, 'atk');
-        const def = this.calculateStat(poke.base_def, poke.iv_def, poke.level, poke.nature, 'def');
-        const spa = this.calculateStat(poke.base_spa, poke.iv_spa, poke.level, poke.nature, 'spa');
-        const spd = this.calculateStat(poke.base_spd, poke.iv_spd, poke.level, poke.nature, 'spd');
-        const spe = this.calculateStat(poke.base_spe, poke.iv_spe, poke.level, poke.nature, 'spe');
+        const atk = this.computeStat(poke.base_atk, poke.iv_atk, poke.level, poke.nature, 'atk');
+        const def = this.computeStat(poke.base_def, poke.iv_def, poke.level, poke.nature, 'def');
+        const spa = this.computeStat(poke.base_spa, poke.iv_spa, poke.level, poke.nature, 'spa');
+        const spd = this.computeStat(poke.base_spd, poke.iv_spd, poke.level, poke.nature, 'spd');
+        const spe = this.computeStat(poke.base_spe, poke.iv_spe, poke.level, poke.nature, 'spe');
 
         const natureData = NATURES[poke.nature] || NATURES['hardy'];
         let natureText = `*${natureData.name}*`;
@@ -1429,7 +1523,7 @@ class PokemonHandler {
         let newLevel = poke.level;
         let leveledUp = false;
 
-        while (newExp >= Math.pow(newLevel + 1, 3)) {
+        while (newExp >= this.computeXp(newLevel + 1)) {
             newLevel++;
             leveledUp = true;
         }
@@ -1527,7 +1621,7 @@ class PokemonHandler {
 
             if (poke.held_item) return `${tag}🚫 *${poke.nickname}* já está segurando um item (${poke.held_item})! Tire-o primeiro.`;
 
-            await this.db.run("UPDATE usuarios SET exp_share = exp_share - 1 WHERE id_usuario = ?", [userId]);
+            await this.removeItem(userId, 'exp-share', 1);
             await this.db.run("UPDATE user_pokemons SET held_item = 'exp-share' WHERE id = ?", [poke.id]);
 
             return `${tag}💡 Você deu o **Exp. Share** para *${poke.nickname}*!`;
@@ -2114,26 +2208,22 @@ class PokemonHandler {
             pokemon = await this.db.get(`SELECT * FROM pokedex WHERE id = 19`); 
         }
 
-        let wildMoves = await this.getMovesForLevel(pokemon.id, wildLevel);
-        if (!wildMoves || wildMoves.length === 0) wildMoves = [{name: "tackle", power: 40, damage_class: 'physical', type: 'normal', pp: 35}];
-        wildMoves = wildMoves.map(m => ({...m, current_pp: m.pp}));
+        const wildNature = this.getRandomNature();
+        const wildIvs = this.generateRandomIVs();
+        
+        const wildStats = this.generateStats(pokemon, wildIvs, wildLevel, wildNature);
 
-        const wildHp = Math.floor(((2 * pokemon.base_hp + 15 + 100) * wildLevel) / 100 + 10);
+        const wildMoves = await this.getMovesForLevel(pokemon.id, wildLevel);
         const isShiny = Math.random() < shinyChance;
 
-        const wildNature = this.getRandomNature(); 
-
-        const extraData = { 
-            participants: [leadPoke.id],
-            nature: wildNature 
-        };
+        const extraData = { participants: [leadPoke.id], nature: wildNature };
 
         await this.db.run(`
             INSERT INTO active_encounters (
                 user_id, group_id, pokedex_id, current_hp, max_hp, level, 
                 is_shiny, moves, battle_type, started_at, active_pokemon_id, extra_data
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'WILD', ?, ?, ?)`,
-            [userId, groupId, pokemon.id, wildHp, wildHp, wildLevel, isShiny ? 1 : 0, JSON.stringify(wildMoves), Date.now(), leadPoke.id, JSON.stringify(extraData)]
+            [userId, groupId, pokemon.id, wildStats.hp, wildStats.hp, wildLevel, isShiny ? 1 : 0, JSON.stringify(wildMoves), Date.now(), leadPoke.id, JSON.stringify(extraData)]
         );
 
         let emoji = ""
@@ -2484,8 +2574,8 @@ class PokemonHandler {
                      }
                 } else {
                      // Cálculo de Dano
-                    const userAtkReal = this.calculateStat(userPoke.base_atk, userPoke.iv_atk, userPoke.level, userPoke.nature, 'atk');
-                    const userSpaReal = this.calculateStat(userPoke.base_spa, userPoke.iv_spa, userPoke.level, userPoke.nature, 'spa');
+                    const userAtkReal = this.computeStat(userPoke.base_atk, userPoke.iv_atk, userPoke.level, userPoke.nature, 'atk');
+                    const userSpaReal = this.computeStat(userPoke.base_spa, userPoke.iv_spa, userPoke.level, userPoke.nature, 'spa');
                     let calcAtk = (selectedMove.damage_class === 'special') ? userSpaReal : userAtkReal;
 
                     const enemyDefReal = Math.floor(((2 * encounter.pokemon.base_def + 15) * encounter.level) / 100 + 5);
@@ -2559,6 +2649,82 @@ class PokemonHandler {
              return this.handleVictory(userId, encounter, battleState, log);
         }
 
+        const specialEffects = this.processSpecialMoveEffects(selectedMove, userPoke, encounter.pokemon, damageToWild, battleState, true);
+        log += specialEffects.log;
+
+        // LÓGICA DE TELEPORT DO JOGADOR
+        if (specialEffects.flee) {
+            if (encounter.battle_type === 'WILD') {
+                await this.clearEncounter(userId);
+                return `${log}\n🏃💨 Você fugiu da batalha usando Teleport!`;
+            } else {
+                log += ` (Falhou! Não dá pra fugir dessa batalha)`;
+            }
+        }
+
+        // LÓGICA DE ROAR
+        if (specialEffects.forceSwitch) {
+            if (encounter.battle_type === 'WILD') {
+                await this.clearEncounter(userId);
+                return `${log}\n🌬️ O Pokémon selvagem foi levado pelo vento! A batalha acabou.`;
+            } 
+            else {
+                if (!encounter.gymData.remainingTeam || encounter.gymData.remainingTeam.length === 0) {
+                    log += ` (Mas falhou! O oponente não tem mais Pokémon!)`;
+                } else {
+                    const nextEnemyData = encounter.gymData.remainingTeam.shift(); 
+                    
+                    encounter.gymData.remainingTeam.push({
+                        pokedex_id: encounter.pokemon.id,
+                        level: encounter.level,
+                        moves: encounter.moves.map(m => m.name)
+                    });
+
+                    const nextPokeDex = await this.db.get("SELECT * FROM pokedex WHERE id = ?", [nextEnemyData.pokedex_id]);
+                    
+                    let nextMoves = [];
+                    const rawMoves = nextEnemyData.moves;
+
+                    if (rawMoves.length > 0) {
+                        const placeholders = rawMoves.map(() => '?').join(',');
+                        const dbMoves = await this.db.all(`SELECT * FROM moves WHERE name IN (${placeholders})`, rawMoves);
+                        
+                        nextMoves = rawMoves.map(mName => {
+                            const found = dbMoves.find(dbm => dbm.name === mName);
+                            return found ? {
+                                name: found.name, power: found.power, type: found.type, damage_class: found.damage_class,
+                                pp: found.pp, current_pp: found.pp
+                            } : { 
+                                name: mName, power: 40, type: 'normal', damage_class: 'physical', pp: 35, current_pp: 35 
+                            };
+                        });
+                    } else {
+                        nextMoves = await this.getMovesForLevel(nextPokeDex.id, nextEnemyData.level);
+                    }
+
+                    const hpMult = encounter.isGym ? 1.5 : 1.2;
+                    const nextHp = Math.floor(Math.floor(((2 * nextPokeDex.base_hp + 31 + 100) * nextEnemyData.level) / 100 + 10) * hpMult);
+
+                    await this.db.run(`
+                        UPDATE active_encounters 
+                        SET pokedex_id = ?, current_hp = ?, max_hp = ?, level = ?, moves = ?, extra_data = ?
+                        WHERE user_id = ?`,
+                        [
+                            nextPokeDex.id, 
+                            nextHp, 
+                            nextHp, 
+                            nextEnemyData.level, 
+                            JSON.stringify(nextMoves), 
+                            JSON.stringify(encounter.gymData),
+                            userId
+                        ]
+                    );
+
+                    log += `\n🔄 Você forçou a troca!\n🚨 **${encounter.gymData.leaderName || 'O Treinador'}** enviou **${nextPokeDex.name}**!`;
+                }
+            }
+        }
+
         // --- TURNO DO INIMIGO ---
         const enemyLog = await this.processEnemyTurn(encounter, userPoke, battleState, userId);
         log += enemyLog;
@@ -2615,8 +2781,8 @@ class PokemonHandler {
 
         await this.db.run("UPDATE active_encounters SET extra_data = ? WHERE user_id = ?", [JSON.stringify(finalExtraData), userId]);
 
-        const currentLvlXp = updatedUserPoke.exp - Math.pow(userPoke.level, 3);
-        const nextLvlXp = Math.pow(userPoke.level+1, 3) - Math.pow(userPoke.level, 3);
+        const currentLvlXp = updatedUserPoke.exp - this.computeXp(userPoke.level);
+        const nextLvlXp = this.computeXp(userPoke.level+1) - this.computeXp(userPoke.level);
         const xpBar = this.getProgressBar(currentLvlXp, nextLvlXp);
 
         // Retorno Visual
@@ -2813,6 +2979,45 @@ class PokemonHandler {
 
         let damageToUser = 0;
 
+        // --- PROCESSAR EFEITOS ESPECIAIS ---
+        const specialEffects = this.processSpecialMoveEffects(wildMove, encounter.pokemon, userPoke, damageToUser, battleState, false);
+        log += specialEffects.log;
+
+        if (specialEffects.selfDamage > 0) {
+            encounter.currentHp -= specialEffects.selfDamage;
+            log += ` (Inimigo sofreu ${specialEffects.selfDamage} de dano)`;
+        }
+
+        // LÓGICA DE FUGA DO INIMIGO (Teleport)
+        if (specialEffects.flee) {
+            if (encounter.battle_type === 'WILD') {
+                await this.clearEncounter(userId);
+                return `${log}\n🏃💨 A batalha acabou!`;
+            } else {
+                log += ` (Mas falhou!)`;
+            }
+        }
+
+        // LÓGICA DE ROAR
+        if (specialEffects.forceSwitch) {
+            if (encounter.battle_type === 'WILD') {
+                await this.clearEncounter(userId);
+                return `${log}\n🏃💨 Você foi espantado da batalha!`;
+            } 
+            else {
+                const team = await this.db.all("SELECT id, nickname FROM user_pokemons WHERE user_id = ? AND team_slot IS NOT NULL AND current_hp > 0 AND id != ?", [userId, userPoke.id]);
+                
+                if (team.length === 0) {
+                    log += ` (Mas falhou! Você não tem outros Pokémon para trocar!)`;
+                } else {
+                    const randomPoke = team[Math.floor(Math.random() * team.length)];
+                    await this.db.run(`UPDATE active_encounters SET active_pokemon_id = ? WHERE user_id = ?`, [randomPoke.id, userId]);
+                    
+                    log += `\n🔄 **${userPoke.nickname}** foi forçado a sair!\n👉 **${randomPoke.nickname}** foi arrastado para o campo!`;
+                }
+            }
+        }
+
         if (wildMove.name === 'Struggle') {
                 const recoil = Math.floor(encounter.maxHp / 4);
                 encounter.currentHp -= recoil;
@@ -2839,8 +3044,8 @@ class PokemonHandler {
             const enemySpaReal = Math.floor(((2 * encounter.pokemon.base_spa + 15) * encounter.level) / 100 + 5);
             let calcEnemyAtk = (wildMove.damage_class === 'special') ? enemySpaReal : enemyAtkReal;
 
-            const userDefReal = this.calculateStat(userPoke.base_def, userPoke.iv_def, userPoke.level, userPoke.nature, 'def');
-            const userSpdReal = this.calculateStat(userPoke.base_spd, userPoke.iv_spd, userPoke.level, userPoke.nature, 'spd');
+            const userDefReal = this.computeStat(userPoke.base_def, userPoke.iv_def, userPoke.level, userPoke.nature, 'def');
+            const userSpdReal = this.computeStat(userPoke.base_spd, userPoke.iv_spd, userPoke.level, userPoke.nature, 'spd');
             let calcUserDef = (wildMove.damage_class === 'special') ? userSpdReal : userDefReal;        
 
             // Aplica Buffs/Debuffs
@@ -2943,7 +3148,7 @@ class PokemonHandler {
             const randIv = () => Math.floor(Math.random() * 32);
             const ivHp = randIv();
             const realMaxHp = Math.floor(((2 * pk.base_hp + ivHp + 100) * encounter.level) / 100 + 10);
-            const initialXp = Math.pow(encounter.level, 3);
+            const initialXp = this.computeXp(encounter.level);
 
             let m1 = encounter.moves[0]?.id;
             let m2 = encounter.moves[1]?.id;
@@ -3066,7 +3271,7 @@ class PokemonHandler {
                 return `${tag}🚫 ${targetPoke.nickname} já está no nível máximo!`;
             }
 
-            const nextLvlXp = Math.pow(targetPoke.level + 1, 3);
+            const nextLvlXp = this.computeXp(targetPoke.level + 1);
             const xpNeeded = nextLvlXp - targetPoke.exp;
             
             const res = await this.applyPassiveXp(targetPoke, xpNeeded);
@@ -3218,16 +3423,16 @@ class PokemonHandler {
 
         const moves = await this.getMovesForLevel(pk.id, 5);
         
-        const randIv = () => Math.floor(Math.random() * 32);
-        const hpIv = randIv();
-        const nature = this.getRandomNature(); 
-        const initialXp = Math.pow(5, 3);
-        const hp = Math.floor(((2 * pk.base_hp + hpIv + 100) * 5) / 100 + 10);
+        const level = 5;
+        const nature = this.getRandomNature();
+        const ivs = this.generateRandomIVs();
+        const stats = this.generateStats(pk, ivs, level, nature);
+        const initialXp = this.computeXp(level);
 
         const m1 = moves[0]?.id || null;
         const m2 = moves[1]?.id || null;
         const m3 = moves[2]?.id || null;
-        const m4 = moves[3]?.id || null;
+        const m4 = moves[3]?.id || null;        
 
         const pp1 = moves[0]?.pp || (m1 ? 35 : null);
         const pp2 = moves[1]?.pp || null;
@@ -3236,24 +3441,20 @@ class PokemonHandler {
 
         await this.db.run(`INSERT INTO user_pokemons 
             (user_id, pokedex_id, nickname, level, exp, current_hp, max_hp, 
-             move1, move2, move3, move4, 
-             move1_pp, move2_pp, move3_pp, move4_pp, 
+             move1, move1_pp, move2, move2_pp, move3, move3_pp, move4, move4_pp, 
              obtained_at, iv_hp, iv_atk, iv_def, iv_spa, iv_spd, iv_spe, team_slot, nature) 
-            VALUES (?,?,?,5, ?,?,?, 
-                    ?, ?, ?, ?, 
-                    ?, ?, ?, ?, 
-                    ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
+            VALUES (?,?,?,?, ?,?,?, ?,?,?,?,?,?,?,?, ?, ?,?,?,?,?,?,?, ?)`,
             [
-                userId, pk.id, pk.name, initialXp, hp, hp, 
-                m1, m2, m3, m4, 
-                pp1, pp2, pp3, pp4, 
-                Date.now(), hpIv, randIv(), randIv(), randIv(), randIv(), randIv(), 
-                nature 
+                userId, pk.id, pk.name, level, initialXp, stats.hp, stats.hp,
+                m1, pp1, m2, pp2, m3, pp3, m4, pp4,
+                Date.now(), ivs.hp, ivs.atk, ivs.def, ivs.spa, ivs.spd, ivs.spe, 1, nature 
             ]
         );
 
-        await this.db.run("UPDATE usuarios SET pokeballs = 20, potions = 5 WHERE id_usuario = ?", [userId]);
-        return `${tag}🎉 Parabéns! Você escolheu *${pk.name}* como parceiro!`;
+        await this.addItem(userId, 'pokeball', 20);
+        await this.addItem(userId, 'potion', 5);
+
+        return `${tag}🎉 Parabéns! Você escolheu *${pk.name}* como parceiro!\n🎒 Você recebeu 20 Pokébolas e 5 Poções de presente!`;
     }
 
     async getTeamMoves(userId) {
@@ -3337,7 +3538,7 @@ class PokemonHandler {
 
         let newXp = userPoke.exp + xp;
 
-        while(newXp >= Math.pow(lvl+1, 3) && !stopLvlUp) {
+        while(newXp >= this.computeXp(lvl+1) && !stopLvlUp) {
             lvl++;
             msg += `\n🆙 Subiu para Nvl ${lvl}!`;
 

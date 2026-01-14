@@ -2051,7 +2051,12 @@ class PokemonHandler {
 
         if (!leadPoke) return "🚑 Seus Pokémon estão desmaiados! Cure-os antes de aceitar desafios.";
 
-        const lvlResult = await this.db.get(`SELECT AVG(level) as media FROM user_pokemons WHERE user_id = ?`, [userId]);
+        const lvlResult = await this.db.get(`
+            SELECT AVG(level) as media 
+            FROM user_pokemons 
+            WHERE user_id = ? AND team_slot >= 1 AND team_slot <= 6`, 
+            [userId]
+        );
         const userAvgLvl = lvlResult && lvlResult.media ? Math.floor(lvlResult.media) : 5;
 
         let possibleTrainers = TRAINER_DATA;
@@ -2209,7 +2214,12 @@ class PokemonHandler {
 
         if (!leadPoke) return `${tag}🚑 Todos os seus Pokémon estão desmaiados! Cure-os antes de batalhar.`;
         
-        const lvlResult = await this.db.get(`SELECT AVG(level) as media FROM user_pokemons WHERE user_id = ?`, [userId]);
+        const lvlResult = await this.db.get(`
+            SELECT AVG(level) as media 
+            FROM user_pokemons 
+            WHERE user_id = ? AND team_slot >= 1 AND team_slot <= 6`, 
+            [userId]
+        );
         const userAvgLvl = lvlResult && lvlResult.media ? Math.floor(lvlResult.media) : 5;
         
         const minLvl = Math.max(2, userAvgLvl - 2 + Math.floor(badges / 2));

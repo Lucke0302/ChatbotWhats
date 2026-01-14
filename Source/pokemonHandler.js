@@ -3032,6 +3032,33 @@ class PokemonHandler {
         const enemyEmojis = this.getTypeEmojis(encounter.pokemon.type1, encounter.pokemon.type2);
         const enemyDisplayName = `${encounter.pokemon.name} ${enemyEmojis}`;
 
+        let moveAcc = wildMove.accuracy === null ? 100 : wildMove.accuracy;
+        const alwaysHitMoves = ['swift', 'aerial-ace', 'faint-attack', 'magical-leaf', 'shock-wave', 'shadow-punch'];
+        let enemyMissed = false;
+
+        if (!alwaysHitMoves.includes(wildMove.name) && moveAcc < 999) {
+            const accStage = battleState.stages.enemy.acc || 0;
+            const evaStage = battleState.stages.user.eva || 0; 
+            let combinedStage = Math.max(-6, Math.min(6, accStage - evaStage));
+
+            const stageMultipliers = {
+                '-6': 0.33, '-5': 0.38, '-4': 0.43, '-3': 0.50, '-2': 0.60, '-1': 0.75,
+                '0': 1.0,
+                '1': 1.33, '2': 1.67, '3': 2.0, '4': 2.33, '5': 2.67, '6': 3.0
+            };
+
+            const hitChance = moveAcc * (stageMultipliers[String(combinedStage)] || 1.0);
+
+            if (Math.random() * 100 > hitChance) {
+                enemyMissed = true;
+                log += `\n💨 *${encounter.pokemon.name}* tentou usar ${wildMove.name}, mas errou! (Azarado...)`;
+            }
+        }
+        
+        if (enemyMissed) {
+            return log;
+        }
+
         // --- EXECUÇÃO DO GOLPE ---
         if (wildMove.damage_class === 'status') {
             const res = await this.processStatusMove(wildMove.name, battleState, false, encounter.maxHp);
@@ -3047,33 +3074,6 @@ class PokemonHandler {
 
             let damageToUser = 0;
 
-            let moveAcc = wildMove.accuracy === null ? 100 : wildMove.accuracy;
-            const alwaysHitMoves = ['swift', 'aerial-ace', 'faint-attack', 'magical-leaf', 'shock-wave', 'shadow-punch'];
-            let enemyMissed = false;
-
-            if (!alwaysHitMoves.includes(wildMove.name) && moveAcc < 999) {
-                const accStage = battleState.stages.enemy.acc || 0;
-                const evaStage = battleState.stages.user.eva || 0; 
-                let combinedStage = Math.max(-6, Math.min(6, accStage - evaStage));
-
-                const stageMultipliers = {
-                    '-6': 0.33, '-5': 0.38, '-4': 0.43, '-3': 0.50, '-2': 0.60, '-1': 0.75,
-                    '0': 1.0,
-                    '1': 1.33, '2': 1.67, '3': 2.0, '4': 2.33, '5': 2.67, '6': 3.0
-                };
-
-                const hitChance = moveAcc * (stageMultipliers[String(combinedStage)] || 1.0);
-
-                if (Math.random() * 100 > hitChance) {
-                    enemyMissed = true;
-                    log += `\n💨 *${encounter.pokemon.name}* tentou usar ${wildMove.name}, mas errou! (Azarado...)`;
-                }
-            }
-            
-            if (enemyMissed) {
-                return log;
-            }
-            
             // Cálculo de Atributos Reais
             const enemyAtkReal = Math.floor(((2 * encounter.pokemon.base_atk + 15) * encounter.level) / 100 + 5);
             const enemySpaReal = Math.floor(((2 * encounter.pokemon.base_spa + 15) * encounter.level) / 100 + 5);

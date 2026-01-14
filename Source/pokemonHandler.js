@@ -2556,8 +2556,10 @@ class PokemonHandler {
                 moveExecuted = true;
 
                 if (!forcedMove) {
-                     const colName = `move${moveSlot}_pp`;
-                     await this.db.run(`UPDATE user_pokemons SET ${colName} = ${colName} - 1 WHERE id = ?`, [userPoke.id]);
+                    const slotNumber = parseInt(moveSlot); 
+                    const colName = `move${slotNumber}_pp`; 
+                    
+                    await this.db.run(`UPDATE user_pokemons SET ${colName} = ${colName} - 1 WHERE id = ?`, [userPoke.id]);
                 }
 
                 let movePower = selectedMove.power;

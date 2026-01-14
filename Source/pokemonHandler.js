@@ -3053,9 +3053,9 @@ class PokemonHandler {
                 enemyMissed = true;
                 log += `\n💨 *${encounter.pokemon.name}* tentou usar ${wildMove.name}, mas errou!`;
             }
+            
+            console.log(`enemyMissed: ${enemyMissed}\naccStage: ${accStage}\nhitChance: ${hitChance}`)
         }
-
-        console.log(`enemyMissed: ${enemyMissed}\naccStage: ${accStage}\nhitChance: ${hitChance}`)
         
         if (enemyMissed) {
             return log;

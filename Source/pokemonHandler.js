@@ -1492,16 +1492,17 @@ class PokemonHandler {
 
     async distributeDayCareXP(userId, totalXpEarned) {
         const poke = await this.db.get("SELECT * FROM user_pokemons WHERE user_id = ? AND team_slot = 0", [userId]);
-        if (!poke) return ""; 
+        
+        if (!poke || poke.level >= 100) return ""; 
 
-        const shareXp = Math.max(1, Math.floor(totalXpEarned / 6)); // 1/6 do XP
+        const shareXp = Math.max(1, Math.floor(totalXpEarned / 6)); 
         
         const result = await this.applyPassiveXp(poke, shareXp);
 
         if (result.leveledUp) {
-            return `\n🏡 *Ligação do Day Care:* ${result.name} subiu para o Nível ${result.newLevel}!`;
+            return `\n🏡 *Day Care:* ${result.name} subiu para o Nível ${result.newLevel}!`;
         } else {
-            return `\n🏡 *Ligação do Day Care:* ${result.name} ganhou ${shareXp} XP.`;
+            return `\n🏡 *Day Care:* ${result.name} ganhou ${shareXp} XP.`;
         }
     }
 
@@ -1815,9 +1816,12 @@ class PokemonHandler {
         }
 
         switch (action) {
+            case 'daycare':
+                return await this.handleDayCare(sender, param)
+                
             case 'item':
                 return await this.handleItem(sender, param)
-                
+
             case 'mochila':
             case 'bag':
                 return await this.showBag(sender);
@@ -2904,10 +2908,10 @@ class PokemonHandler {
         const baseEnemyXp = Math.floor((encounter.pokemon.base_xp * encounter.level * xpMultiplier) / 7);
 
         const dayCareMsg = await this.distributeDayCareXP(userId, baseEnemyXp);
-        log += dayCareMsg;
+        logMsg += dayCareMsg;
 
         const expShareMsg = await this.distributeExpShare(userId, baseEnemyXp);
-        log += expShareMsg;
+        logMsg += expShareMsg;
 
         // VITÓRIA FINAL
         await this.clearEncounter(userId);

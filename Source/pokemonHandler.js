@@ -3051,9 +3051,11 @@ class PokemonHandler {
 
             if (Math.random() * 100 > hitChance) {
                 enemyMissed = true;
-                log += `\n💨 *${encounter.pokemon.name}* tentou usar ${wildMove.name}, mas errou! (Azarado...)`;
+                log += `\n💨 *${encounter.pokemon.name}* tentou usar ${wildMove.name}, mas errou!`;
             }
         }
+
+        console.log(`enemyMissed: ${enemyMissed}\naccStage: ${accStage}\nhitChance: ${hitChance}`)
         
         if (enemyMissed) {
             return log;

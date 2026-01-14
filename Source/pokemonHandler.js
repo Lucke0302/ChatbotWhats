@@ -1815,6 +1815,9 @@ class PokemonHandler {
         }
 
         switch (action) {
+            case 'item':
+                return await this.handleItem(sender, param)
+                
             case 'mochila':
             case 'bag':
                 return await this.showBag(sender);
@@ -1824,7 +1827,6 @@ class PokemonHandler {
             case 'claim':
                 return await this.claimVeteranReward(sender, param);
 
-            case 'dar':
             case 'give':
             case 'novarecompensa':
                 if (sender !== ADMIN_ID) return "🔒 Sai daqui, hacker. Só o Admin manda aqui.";

@@ -975,9 +975,10 @@ class PokemonHandler {
         const thrashMoves = ['uproar', 'thrash', 'outrage', 'petal-dance']; 
         
         if (thrashMoves.includes(moveName)) {
-            if (!battleState.lockedMove[targetKey]) {
+            if (!battleState.lockedMove[userKey]) {
                 const turns = (moveName === 'uproar') ? 3 : (Math.floor(Math.random() * 2) + 2);
-                battleState.lockedMove[targetKey] = { name: moveName, turns: turns };
+                
+                battleState.lockedMove[userKey] = { name: moveName, turns: turns };
                 
                 if (moveName === 'uproar') {
                     battleState.field.uproar = turns;
@@ -987,15 +988,15 @@ class PokemonHandler {
                 }
             } 
             else {
-                battleState.lockedMove[targetKey].turns--;
-                if (moveName === 'uproar') battleState.field.uproar = battleState.lockedMove[targetKey].turns;
+                battleState.lockedMove[userKey].turns--;
+                if (moveName === 'uproar') battleState.field.uproar = battleState.lockedMove[userKey].turns;
 
-                if (battleState.lockedMove[targetKey].turns <= 0) {
-                    battleState.lockedMove[targetKey] = null;
+                if (battleState.lockedMove[userKey].turns <= 0) {
+                    battleState.lockedMove[userKey] = null;
                     if (moveName === 'uproar') {
                         log += `\n📢 A algazarra acabou.`;
                     } else {
-                        battleState.counters[targetKey].confusion = Math.floor(Math.random() * 4) + 1;
+                        battleState.counters[userKey].confusion = Math.floor(Math.random() * 4) + 1;
                         log += `\n😵 *${userPoke.nickname || userPoke.name}* ficou confuso devido à fadiga!`;
                     }
                 }
@@ -1004,15 +1005,15 @@ class PokemonHandler {
 
         // === GRUPO 2: ROLLOUT, ICE BALL ===
         if (['rollout', 'ice-ball'].includes(moveName)) {
-            if (!battleState.lockedMove[targetKey]) {
-                battleState.lockedMove[targetKey] = { name: moveName, stacks: 1 }; 
+            if (!battleState.lockedMove[userKey]) {
+                battleState.lockedMove[userKey] = { name: moveName, stacks: 1 }; 
                 log += `\n🔄 *${userPoke.nickname || userPoke.name}* começou a rolar!`;
             } 
             else {
-                battleState.lockedMove[targetKey].stacks++;
+                battleState.lockedMove[userKey].stacks++;
                 
-                if (battleState.lockedMove[targetKey].stacks >= 5) {
-                    battleState.lockedMove[targetKey] = null;
+                if (battleState.lockedMove[userKey].stacks >= 5) {
+                    battleState.lockedMove[userKey] = null;
                     log += `\n🔄 O *${userPoke.nickname || userPoke.name}* completou a sequência de giros!`;
                 }
             }

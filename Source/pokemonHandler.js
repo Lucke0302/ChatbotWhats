@@ -1444,10 +1444,21 @@ class PokemonHandler {
             
             log += enemyTurnLog; 
 
+            let finalExtraData = encounterRaw.extra_data ? JSON.parse(encounterRaw.extra_data) : {};
+            
+            finalExtraData.stages = battleState.stages;
+            finalExtraData.counters = battleState.counters;
+            finalExtraData.lockedMove = battleState.lockedMove;
+            finalExtraData.field = battleState.field;
+            finalExtraData.participants = battleState.participants;
+            finalExtraData.userStatus = battleState.userStatus;
+            finalExtraData.enemyStatus = battleState.enemyStatus;
+
+            await this.db.run("UPDATE active_encounters SET extra_data = ? WHERE user_id = ?", [JSON.stringify(finalExtraData), userId]);
+
         } else {
             log += `👉 Vai, *${targetPoke.nickname}*!`;
-        }
-        
+        }        
         return log;
     }
 

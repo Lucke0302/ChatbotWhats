@@ -891,7 +891,7 @@ class PokemonHandler {
             }
         }
 
-        return { canMove: true, log: log };
+        return { canMove: true, log: log , selfDamage};
     }
 
     async helpPoke(userId, param) {
@@ -926,6 +926,172 @@ class PokemonHandler {
         } else {
             return `${tag}❌ Tópico de ajuda não encontrado.\nDigite *!poke ajuda* para ver a lista.`;
         }
+    }
+
+    // Calcula velocidade considerando Estágios e Paralisia
+    getBattleSpeed(pokeObj, battleState, isPlayer, level) {
+        const key = isPlayer ? 'user' : 'enemy';
+        const stage = battleState.stages[key].spe || 0;
+        
+        let rawSpeed = pokeObj.spe; 
+        
+        if (!isPlayer) {
+            const baseSpe = pokeObj.base_spe;
+            rawSpeed = Math.floor(((2 * baseSpe + 15) * level) / 100 + 5);
+        }
+
+        const multiplier = stage >= 0 ? (2 + stage) / 2 : 2 / (2 + Math.abs(stage));
+        let finalSpeed = Math.floor(rawSpeed * multiplier);
+
+        const status = battleState[key + 'Status'];
+        if (status === 'par') {
+            finalSpeed = Math.floor(finalSpeed * 0.50);
+        }
+
+        return finalSpeed;
+    }
+
+    async executeMove(attacker, defender, move, battleState, isPlayer, userId, encounter) {
+        let log = "";
+        
+        const statusCheck = await this.checkStatusBeforeMove(battleState, isPlayer, attacker.nickname || attacker.name, null, null);
+        if (statusCheck.log) log += `\n${statusCheck.log}`;
+        
+        if (statusCheck.selfDamage) {
+            const selfDmg = Math.floor(attacker.max_hp * 0.15);
+            attacker.current_hp -= selfDmg;
+            
+            if (isPlayer) await this.db.run("UPDATE user_pokemons SET current_hp = ? WHERE id = ?", [attacker.current_hp, attacker.id]);
+            else await this.db.run("UPDATE active_encounters SET current_hp = ? WHERE user_id = ?", [attacker.current_hp, userId]);
+
+            log += ` (Sofreu ${selfDmg} de dano)`;
+        }
+
+        if (!statusCheck.canMove) return { log, damageDealt: 0 };
+
+        let moveAcc = move.accuracy === null ? 100 : move.accuracy;
+        const alwaysHitMoves = ['swift', 'aerial-ace', 'faint-attack', 'magical-leaf', 'shock-wave', 'shadow-punch'];
+        
+        if (!alwaysHitMoves.includes(move.name) && moveAcc < 999) {
+            const userKey = isPlayer ? 'user' : 'enemy';
+            const enemyKey = isPlayer ? 'enemy' : 'user';
+            
+            const accStage = battleState.stages[userKey].acc || 0;
+            const evaStage = battleState.stages[enemyKey].eva || 0;
+            const combinedStage = Math.max(-6, Math.min(6, accStage - evaStage));
+            
+            const stageMultipliers = {
+                '-6': 0.33, '-5': 0.38, '-4': 0.43, '-3': 0.50, '-2': 0.60, '-1': 0.75,
+                '0': 1.0, '1': 1.33, '2': 1.67, '3': 2.0, '4': 2.33, '5': 2.67, '6': 3.0
+            };
+            
+            const hitChance = moveAcc * (stageMultipliers[String(combinedStage)] || 1.0);
+            
+            if (Math.random() * 100 > hitChance) {
+                return { log: log + `\n💨 *${attacker.nickname || attacker.name}* usou ${move.name}, mas errou!`, damageDealt: 0 };
+            }
+        }
+
+        if (move.damage_class === 'status') {
+            const res = await this.processStatusMove(move.name, battleState, isPlayer, attacker.max_hp);
+            log += `\n✨ ${attacker.nickname || attacker.name} ${res.msg}`;
+            
+            if (res.healAmount > 0) {
+                attacker.current_hp = Math.min(attacker.max_hp, attacker.current_hp + res.healAmount);
+                if (isPlayer) await this.db.run("UPDATE user_pokemons SET current_hp = ? WHERE id = ?", [attacker.current_hp, attacker.id]);
+                else await this.db.run("UPDATE active_encounters SET current_hp = ? WHERE user_id = ?", [attacker.current_hp, userId]);
+            }
+            return { log, damageDealt: 0 };
+        }
+
+        const getStat = (poke, statName, isP, lvl) => {
+            if (isP) return this.computeStat(poke[`base_${statName}`], poke[`iv_${statName}`], lvl, poke.nature, statName);
+            return Math.floor(((2 * poke[`base_${statName}`] + 15) * lvl) / 100 + 5);
+        };
+
+        const atkStat = move.damage_class === 'special' ? 'spa' : 'atk';
+        const defStat = move.damage_class === 'special' ? 'spd' : 'def';
+
+        const rawAtk = getStat(attacker, atkStat, isPlayer, attacker.level || encounter.level);
+        const rawDef = getStat(defender, defStat, !isPlayer, defender.level || encounter.level);
+
+        const userKey = isPlayer ? 'user' : 'enemy';
+        const enemyKey = isPlayer ? 'enemy' : 'user';
+
+        const stageAtk = battleState.stages[userKey][atkStat];
+        const stageDef = battleState.stages[enemyKey][defStat];
+
+        const finalAtk = this.applyStages(rawAtk, stageAtk);
+        const finalDef = this.applyStages(rawDef, stageDef);
+
+        const level = attacker.level || encounter.level;
+        let damage = Math.floor(((2 * level / 5 + 2) * move.power * (finalAtk / finalDef)) / 50 + 2);
+
+        const getTypeMultiplier = (moveType, t1, t2) => {
+            if (!moveType || !TYPE_CHART[moveType.toLowerCase()]) return 1;
+            let m = 1;
+            const typeData = TYPE_CHART[moveType.toLowerCase()];
+            if (t1) { const val = typeData[t1.toLowerCase()]; m *= (val !== undefined ? val : 1); }
+            if (t2) { const val = typeData[t2.toLowerCase()]; m *= (val !== undefined ? val : 1); }
+            return m;
+        };
+
+        const typeMult = getTypeMultiplier(move.type, defender.type1, defender.type2);
+        damage = Math.floor(damage * typeMult);
+        if (damage < 1 && typeMult > 0) damage = 1;
+
+        let isCrit = false;
+        if (Math.random() < 0.0625) {
+            damage *= 2;
+            isCrit = true;
+        }
+        
+        // Random
+        damage = Math.floor(damage * ((Math.random() * 0.15) + 0.85));
+
+        // STAB
+        if (move.type === attacker.type1 || move.type === attacker.type2) {
+            damage = Math.floor(damage * 1.5);
+        }
+
+        // Aplica o Dano no Banco de Dados
+        defender.current_hp -= damage;
+        if(defender.current_hp < 0) defender.current_hp = 0;
+
+        if (!isPlayer) {
+             await this.db.run("UPDATE user_pokemons SET current_hp = MAX(0, current_hp - ?) WHERE id = ?", [damage, defender.id]);
+        } else {
+             await this.db.run("UPDATE active_encounters SET current_hp = MAX(0, current_hp - ?) WHERE user_id = ?", [damage, userId]);
+        }
+
+        // Gera Log
+        const typeEmoji = TYPE_EMOJIS[move.type] || '';
+        const classIcon = move.damage_class === 'physical' ? "💥" : "🔮";
+        
+        log += `\n${isPlayer ? '🗡️' : '💢'} ${attacker.nickname || attacker.name} usou *${move.name}* ${typeEmoji} ${classIcon}!`;
+        if (isCrit) log += `\n⚠️ *GOLPE CRÍTICO!*`;
+        log += `\nCausou **${damage}** de dano.`;
+
+        if (typeMult > 1) log += ` (Super Efetivo!)`;
+        if (typeMult < 1 && typeMult > 0) log += ` (Não muito efetivo...)`;
+        if (typeMult === 0) log += ` (Não afetou...)`;
+
+        const specialEffects = this.processSpecialMoveEffects(move, attacker, defender, damage, battleState, isPlayer);
+        log += specialEffects.log;
+
+        if (specialEffects.selfDamage > 0) {
+            attacker.current_hp -= specialEffects.selfDamage;
+            if (isPlayer) await this.db.run("UPDATE user_pokemons SET current_hp = MAX(0, current_hp - ?) WHERE id = ?", [specialEffects.selfDamage, attacker.id]);
+            else await this.db.run("UPDATE active_encounters SET current_hp = MAX(0, current_hp - ?) WHERE user_id = ?", [specialEffects.selfDamage, userId]);
+        }
+        
+        if (specialEffects.healAmount > 0) {
+             attacker.current_hp = Math.min(attacker.max_hp, attacker.current_hp + specialEffects.healAmount);
+             if (isPlayer) await this.db.run("UPDATE user_pokemons SET current_hp = ? WHERE id = ?", [attacker.current_hp, attacker.id]);
+             else await this.db.run("UPDATE active_encounters SET current_hp = ? WHERE user_id = ?", [attacker.current_hp, userId]);
+        }
+
+        return { log, damageDealt: damage, forceSwitch: specialEffects.forceSwitch, flee: specialEffects.flee };
     }
 
     processSpecialMoveEffects(move, userPoke, targetPoke, damageDealt, battleState, isPlayer) {
@@ -2540,7 +2706,7 @@ class PokemonHandler {
         return nextPokeDex.name;
     }
 
-    async battleTurn(groupId, userId, moveSlot, sock) {
+    /*async battleTurn(groupId, userId, moveSlot, sock) {
         const tag = await this.getUserTag(userId);
         let encounter = await this.loadEncounter(userId);
         if (!encounter) return `${tag}Não tem batalha rolando. Use *!poke explorar*.`;
@@ -2915,6 +3081,219 @@ class PokemonHandler {
         return `${log}\n\n` +
                `❤️ Inimigo: ${Math.floor(Math.max(0, encounter.currentHp))}/${Math.floor(encounter.maxHp)}\n` +
                `💚 Seu: ${Math.max(0, updatedUserPoke.current_hp)}/${userPoke.max_hp}\n` +
+               `🆙 XP: ${xpBar} (${currentLvlXp}/${nextLvlXp})\n\n` + 
+               `⚔️ *!poke atacar [n]*\n` +
+               `🔴 *!poke capturar*\n` +
+               `🔄 *!poke trocar [n]*\n` +
+               `🏃 *!poke fugir*`;
+    }*/
+
+    async battleTurn(groupId, userId, moveSlot, sock) {
+        const tag = await this.getUserTag(userId);
+        let encounter = await this.loadEncounter(userId);
+        if (!encounter) return `${tag}Não tem batalha rolando.`;
+
+        // Carrega Jogador
+        const userPoke = await this.db.get(`SELECT up.*, p.name, p.type1, p.type2, p.base_hp, p.base_atk, p.base_def, p.base_spa, p.base_spd, p.base_spe FROM user_pokemons up JOIN pokedex p ON up.pokedex_id = p.id WHERE up.id = ? AND up.user_id = ?`, [encounter.activePokemonId, userId]);
+        if (!userPoke) return "Erro: Pokémon não encontrado.";
+
+        // Carrega Estado
+        const encounterRaw = await this.db.get("SELECT extra_data FROM active_encounters WHERE user_id = ?", [userId]);
+        let battleState = this.getBattleState(encounterRaw);
+        
+        // Garante participantes
+        if (!battleState.participants) battleState.participants = [];
+        if (!battleState.participants.includes(userPoke.id)) battleState.participants.push(userPoke.id);
+
+        let log = "";
+
+        // ==========================================================
+        // SELEÇÃO DE GOLPES
+        // ==========================================================
+        
+        // Golpe do Jogador
+        let playerMove = null;
+        let forcedMove = null;
+
+        // Verifica Locked Move (Outrage, Rollout)
+        if (battleState.lockedMove.user) {
+            forcedMove = await this.db.get("SELECT * FROM moves WHERE name = ?", [battleState.lockedMove.user.name]);
+            if (forcedMove) {
+                log += `⚠️ *${userPoke.nickname}* está incontrolável e usou *${forcedMove.name}*!\n`;
+                playerMove = forcedMove;
+            }
+        }
+
+        if (!playerMove) {
+            if (!moveSlot) {                     
+                const moves = await this.getUserMoves(userPoke);
+                const typeEmojis = this.getTypeEmojis(userPoke.type1, userPoke.type2);
+                let msg = `${tag}👊 *${userPoke.nickname}* ${typeEmojis} (HP: ${userPoke.current_hp}/${userPoke.max_hp})\n*Ataques:*\n`;
+                moves.forEach((m, i) => {
+                    let classIcon = m.damage_class === 'physical' ? "💥" : (m.damage_class === 'special' ? "🔮" : "✨");
+                    msg += `${i+1}. ${m.name} (${m.type}) ${classIcon} [${m.current_pp}/${m.pp} PP]\n`
+                });
+                msg += `\nUse: *!poke atacar 1*`;
+                return msg;
+            }
+            
+            const movesList = await this.getUserMoves(userPoke);
+            playerMove = movesList[parseInt(moveSlot) - 1];
+            if (!playerMove) return `${tag}Golpe inválido!`;
+            if (playerMove.current_pp <= 0) return `${tag}🚫 Sem PP!`;
+            
+            // Consome PP
+            const slotNumber = parseInt(moveSlot); 
+            const colName = `move${slotNumber}_pp`; 
+            await this.db.run(`UPDATE user_pokemons SET ${colName} = ${colName} - 1 WHERE id = ?`, [userPoke.id]);
+        }
+        
+        // Nature Power (Player)
+        if (playerMove.name === 'nature-power') {
+            const natureOptions = [
+                { name: 'swift', power: 60, type: 'normal', damage_class: 'special' },
+                { name: 'razor-leaf', power: 55, type: 'grass', damage_class: 'special' },
+                { name: 'rock-slide', power: 75, type: 'rock', damage_class: 'physical' },
+                { name: 'bubble-beam', power: 65, type: 'water', damage_class: 'special' },
+                { name: 'earthquake', power: 100, type: 'ground', damage_class: 'physical' }
+            ];
+            const transformed = natureOptions[Math.floor(Math.random() * natureOptions.length)];
+            playerMove = { ...playerMove, ...transformed };
+            log += `\n🌿 *Nature Power* se transformou em *${transformed.name}*!`;
+        }
+
+
+        // Golpe do Inimigo (IA Simples)
+        const validEnemyMoves = encounter.moves.filter(m => m.current_pp > 0);
+        let enemyMove = encounter.moves[Math.floor(Math.random() * encounter.moves.length)];
+        
+        if (validEnemyMoves.length > 0) {
+            enemyMove = validEnemyMoves[Math.floor(Math.random() * validEnemyMoves.length)];
+            const originalMove = encounter.moves.find(m => m.name === enemyMove.name);
+            if(originalMove) originalMove.current_pp--;
+            await this.db.run("UPDATE active_encounters SET moves = ? WHERE user_id = ?", [JSON.stringify(encounter.moves), userId]);
+        } else {
+            enemyMove = { name: "Struggle", power: 50, damage_class: 'physical', type: 'normal', accuracy: 100 };
+            log += `\n⚠️ Inimigo sem PP! Usará Struggle.`;
+        }
+
+        // Nature Power (Enemy)
+        if (enemyMove.name === 'nature-power') {
+            const natureOptions = [
+                { name: 'swift', power: 60, type: 'normal', damage_class: 'special' },
+                { name: 'razor-leaf', power: 55, type: 'grass', damage_class: 'special' },
+                { name: 'rock-slide', power: 75, type: 'rock', damage_class: 'physical' },
+                { name: 'bubble-beam', power: 65, type: 'water', damage_class: 'special' },
+                { name: 'earthquake', power: 100, type: 'ground', damage_class: 'physical' }
+            ];
+            const transformed = natureOptions[Math.floor(Math.random() * natureOptions.length)];
+            enemyMove = { ...enemyMove, ...transformed };
+            log += `\n🌿 *Nature Power* se transformou em *${transformed.name}*!`;
+        }
+
+
+        // ==========================================================
+        // QUEM ATACA PRIMEIRO?
+        // ==========================================================
+        const userSpeed = this.getBattleSpeed(userPoke, battleState, true, userPoke.level);
+        const enemySpeed = this.getBattleSpeed(encounter.pokemon, battleState, false, encounter.level);
+
+        let first = 'user';
+        if (userSpeed < enemySpeed) first = 'enemy';
+        else if (userSpeed === enemySpeed) first = Math.random() < 0.5 ? 'user' : 'enemy';
+        
+        const turnOrder = [];
+        if (first === 'user') {
+            turnOrder.push({ actor: 'user', move: playerMove, attacker: userPoke, defender: encounter });
+            turnOrder.push({ actor: 'enemy', move: enemyMove, attacker: encounter, defender: userPoke });
+        } else {
+            turnOrder.push({ actor: 'enemy', move: enemyMove, attacker: encounter, defender: userPoke });
+            turnOrder.push({ actor: 'user', move: playerMove, attacker: userPoke, defender: encounter });
+        }
+
+        // ==========================================================
+        // EXECUÇÃO DOS TURNOS
+        // ==========================================================
+        
+        let battleEnded = false;
+
+        for (const turn of turnOrder) {
+            if (turn.attacker.current_hp <= 0 || turn.defender.current_hp <= 0 && !turn.defender.pokemon /*gambiarra pro encounter*/) continue;
+            
+            const currentHpAttacker = turn.actor === 'user' ? userPoke.current_hp : encounter.currentHp;
+            if (currentHpAttacker <= 0) continue;
+
+            let attackerObj = turn.actor === 'user' ? userPoke : { ...encounter.pokemon, current_hp: encounter.currentHp, max_hp: encounter.maxHp, level: encounter.level };
+            let defenderObj = turn.actor === 'user' ? { ...encounter.pokemon, current_hp: encounter.currentHp, max_hp: encounter.maxHp, level: encounter.level } : userPoke;
+            
+            // EXECUTA O ATAQUE
+            const result = await this.executeMove(attackerObj, defenderObj, turn.move, battleState, turn.actor === 'user', userId, encounter);
+            log += result.log;
+
+            if (turn.actor === 'user') {
+                encounter.currentHp = defenderObj.current_hp;
+                userPoke.current_hp = attackerObj.current_hp;
+            } else {
+                userPoke.current_hp = defenderObj.current_hp;
+                encounter.currentHp = attackerObj.current_hp;
+            }
+
+            // Verifica Vitória/Derrota Imediata
+            if (encounter.currentHp <= 0) {
+                 return this.handleVictory(userId, encounter, battleState, log);
+            }
+            if (userPoke.current_hp <= 0) {
+                 return this.handlePlayerFaint(userId, userPoke, tag, log);
+            }
+            
+            // Verifica Fuga/Roar
+            if (result.flee || result.forceSwitch) {
+                await this.clearEncounter(userId);
+                return `${log}\n💨 A batalha acabou devido a ${turn.move.name}!`;
+            }
+        }
+
+        // ==========================================================
+        // DANO RESIDUAL (FINAL DO TURNO)
+        // ==========================================================
+        const userRes = this.applyStatusDamage(battleState, true, userPoke, userPoke.max_hp);
+        if (userRes) {
+            log += `\n${userRes.msg} (-${userRes.dmg})`;
+            await this.db.run("UPDATE user_pokemons SET current_hp = MAX(0, current_hp - ?) WHERE id = ?", [userRes.dmg, userPoke.id]);
+            userPoke.current_hp -= userRes.dmg;
+        }
+
+        const enemyRes = this.applyStatusDamage(battleState, false, { ...encounter.pokemon, current_hp: encounter.currentHp }, encounter.maxHp);
+        if (enemyRes) {
+            log += `\n${enemyRes.msg} (-${enemyRes.dmg})`;
+            encounter.currentHp -= enemyRes.dmg;
+            await this.db.run("UPDATE active_encounters SET current_hp = MAX(0, current_hp - ?) WHERE user_id = ?", [enemyRes.dmg, userId]);
+        }
+
+        // Verifica Mortes por Status
+        if (encounter.currentHp <= 0) return this.handleVictory(userId, encounter, battleState, log);
+        if (userPoke.current_hp <= 0) return this.handlePlayerFaint(userId, userPoke, tag, log);
+
+        // Salva Battle State Final
+        let finalExtraData = encounterRaw.extra_data ? JSON.parse(encounterRaw.extra_data) : {};
+        finalExtraData.stages = battleState.stages;
+        finalExtraData.counters = battleState.counters;
+        finalExtraData.lockedMove = battleState.lockedMove;
+        finalExtraData.field = battleState.field;
+        finalExtraData.participants = battleState.participants;
+        finalExtraData.userStatus = battleState.userStatus;
+        finalExtraData.enemyStatus = battleState.enemyStatus;
+
+        await this.db.run("UPDATE active_encounters SET extra_data = ? WHERE user_id = ?", [JSON.stringify(finalExtraData), userId]);
+
+        const currentLvlXp = updatedUserPoke.exp - this.computeXp(userPoke.level);
+        const nextLvlXp = this.computeXp(userPoke.level+1) - this.computeXp(userPoke.level);
+        const xpBar = this.getProgressBar(currentLvlXp, nextLvlXp);
+
+        // Retorno Visual
+        return `${log}\n\n` +
+               `❤️ Inimigo: ${Math.max(0, encounter.currentHp)}/${encounter.maxHp}\n` +
+               `💚 Seu: ${Math.max(0, userPoke.current_hp)}/${userPoke.max_hp}\n` +
                `🆙 XP: ${xpBar} (${currentLvlXp}/${nextLvlXp})\n\n` + 
                `⚔️ *!poke atacar [n]*\n` +
                `🔴 *!poke capturar*\n` +

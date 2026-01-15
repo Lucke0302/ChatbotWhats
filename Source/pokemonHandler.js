@@ -491,6 +491,31 @@ class PokemonHandler {
         return { hp: rand(), atk: rand(), def: rand(), spa: rand(), spd: rand(), spe: rand() };
     }
 
+    // Verifica se o usuário já resgatou um código específico
+    async hasClaimed(userId, eventCode) {
+        const user = await this.db.get("SELECT claimed_events FROM usuarios WHERE id_usuario = ?", [userId]);
+        if (!user || !user.claimed_events) return false;
+        try {
+            const list = JSON.parse(user.claimed_events);
+            return Array.isArray(list) && list.includes(eventCode);
+        } catch (e) { return false; }
+    }
+
+    // Marca um código como resgatado
+    async markAsClaimed(userId, eventCode) {
+        const user = await this.db.get("SELECT claimed_events FROM usuarios WHERE id_usuario = ?", [userId]);
+        let list = [];
+        if (user && user.claimed_events) {
+            try { list = JSON.parse(user.claimed_events); } catch (e) {}
+        }
+        if (!Array.isArray(list)) list = [];
+        
+        if (!list.includes(eventCode)) {
+            list.push(eventCode);
+            await this.db.run("UPDATE usuarios SET claimed_events = ? WHERE id_usuario = ?", [JSON.stringify(list), userId]);
+        }
+    }
+
     /**
      * @param {string} userId - Quem recebe
      * @param {string} type - 'pokemon', 'coin', 'item', 'xp'

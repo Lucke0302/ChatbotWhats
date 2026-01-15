@@ -842,6 +842,7 @@ class PokemonHandler {
         const status = battleState[targetKey + 'Status']; 
         const counters = battleState.counters[targetKey];
         let canMove = true;
+        let selfDamage = false;
         let log = "";
 
         // --- EFEITO DO UPROAR ---

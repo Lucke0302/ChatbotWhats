@@ -473,7 +473,7 @@ async function initDatabase() {
 
         await this.db.run(`
             UPDATE usuarios 
-            SET claimed_events = '["veteran_reward"]' 
+            SET claimed_events = '["vet01"]' 
             WHERE reward_claimed = 1 AND (claimed_events IS NULL OR claimed_events = '[]')
         `);
         console.log("✅ Migração de veteranos para o novo sistema concluída.");

@@ -2017,7 +2017,8 @@ class PokemonHandler {
         }
     }
 
-    async showBag(userId) {
+    async showBag(userId) {        
+        const tag = await this.getUserTag(userId);
 
         const items = await this.db.all(`
             SELECT i.id, i.name, i.type, inv.quantity, i.description 
@@ -2028,7 +2029,7 @@ class PokemonHandler {
 
         if (items.length === 0) return "🎒 Sua mochila está vazia.";
 
-        let msg = "🎒 **SUA MOCHILA**\nUse: *!poke item dar [slot_poke] [numero_item]*\n\n";
+        let msg = `${tag}🎒 **SUA MOCHILA**\nUse: *!poke item dar [slot_poke] [numero_item]*\nOu *!poke usar [numero_item] [slot_poke]*\n`;
         
         const categories = {
             'ball': '🔴 Pokébolas',

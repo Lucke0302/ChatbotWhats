@@ -1286,6 +1286,8 @@ class PokemonHandler {
             let natureInfo = `[${natureData.name}]`;
             if (natureData.up) natureInfo = `[${natureData.name}: +${natureData.up.toUpperCase()}/-${natureData.down.toUpperCase()}]`;
 
+            if (p.current_hp < 0) p.current_hp = 0
+
             msg += `${p.team_slot}. ${status} ${p.nickname} ${types} (Lvl ${p.level})\nHP: ${p.current_hp}/${p.max_hp} `;
             
             if (isDetailed){
@@ -1341,11 +1343,13 @@ class PokemonHandler {
         const shinyStar = poke.is_shiny ? "✨" : "";
         const typeEmojis = this.getTypeEmojis(poke.type1, poke.type2);
 
+        const displayHp = Math.max(0, poke.current_hp);
+
         const caption = `${tag}📊 *FICHA TÉCNICA* 📊\n\n` +
                         `${shinyStar} *${poke.nickname.toUpperCase()}* ${typeEmojis}\n` +
                         `🆙 Nível: ${poke.level} | XP: ${poke.exp}\n` +
                         `🌱 Nature: ${natureText}\n\n` +
-                        `❤️ HP: ${poke.current_hp}/${poke.max_hp} (IV: ${poke.iv_hp})\n` +
+                        `❤️ HP: ${displayHp}/${poke.max_hp} (IV: ${poke.iv_hp})\n` +
                         `⚔️ Atk: ${atk} (IV: ${poke.iv_atk})\n` +
                         `🛡️ Def: ${def} (IV: ${poke.iv_def})\n` +
                         `🔮 Sp.A: ${spa} (IV: ${poke.iv_spa})\n` +
@@ -1589,7 +1593,8 @@ class PokemonHandler {
             pcMons.forEach(p => {
                 const boxNum = p.team_slot - 6;
                 const shiny = p.is_shiny ? "✨ " : "";
-                msg += `📦 *${boxNum}*. ${shiny}${p.nickname} (Lvl ${p.level}) - HP: ${p.current_hp}/${p.max_hp}\n`;
+                const safeHp = Math.max(0, p.current_hp);
+                msg += `📦 *${boxNum}*. ${shiny}${p.nickname} (Lvl ${p.level}) - HP: ${safeHp}/${p.max_hp}\n`;
             });
 
             return msg;
@@ -2571,7 +2576,7 @@ class PokemonHandler {
         if (userCheck.selfDamage) {
             const selfDmg = Math.floor(userPoke.max_hp * 0.15);
             userPoke.current_hp -= selfDmg;
-            await this.db.run("UPDATE user_pokemons SET current_hp = ? WHERE id = ?", [userPoke.current_hp, userPoke.id]);
+            await this.db.run("UPDATE user_pokemons SET current_hp = MAX(0, ?) WHERE id = ?", [userPoke.current_hp, userPoke.id]);
         }
 
         if (userPoke.current_hp <= 0) {
@@ -2680,7 +2685,7 @@ class PokemonHandler {
                      log += `✨ ${userPoke.nickname} ${res.msg}\n`;
                      if (res.healAmount > 0) {
                         userPoke.current_hp = Math.min(userPoke.max_hp, userPoke.current_hp + res.healAmount);
-                        await this.db.run("UPDATE user_pokemons SET current_hp = ? WHERE id = ?", [userPoke.current_hp, userPoke.id]);
+                        await this.db.run("UPDATE user_pokemons SET current_hp = MAX(0, ?) WHERE id = ?", [userPoke.current_hp, userPoke.id]);
                      }
                 } else {
                      // Cálculo de Dano
@@ -2754,11 +2759,11 @@ class PokemonHandler {
                 
                 if (specialEffects.selfDamage > 0) {
                      userPoke.current_hp -= specialEffects.selfDamage;
-                     await this.db.run("UPDATE user_pokemons SET current_hp = ? WHERE id = ?", [userPoke.current_hp, userPoke.id]);
+                     await this.db.run("UPDATE user_pokemons SET current_hp = MAX(0, ?) WHERE id = ?", [userPoke.current_hp, userPoke.id]);
                 }
                 if (specialEffects.healAmount > 0) {
                      userPoke.current_hp = Math.min(userPoke.max_hp, userPoke.current_hp + specialEffects.healAmount);
-                     await this.db.run("UPDATE user_pokemons SET current_hp = ? WHERE id = ?", [userPoke.current_hp, userPoke.id]);
+                     await this.db.run("UPDATE user_pokemons SET current_hp = MAX(0, ?) WHERE id = ?", [userPoke.current_hp, userPoke.id]);
                      log += ` (+${specialEffects.healAmount} HP)`;
                 }
 
@@ -2851,7 +2856,7 @@ class PokemonHandler {
         }
 
         // Salva HP Inimigo
-        await this.db.run(`UPDATE active_encounters SET current_hp = ? WHERE user_id = ?`, [encounter.currentHp, userId]);
+        await this.db.run(`UPDATE active_encounters SET current_hp = MAX(0, ?) WHERE user_id = ?`, [encounter.currentHp, userId]);
 
         if (encounter.currentHp <= 0) {
              return this.handleVictory(userId, encounter, battleState, log);
@@ -2868,7 +2873,7 @@ class PokemonHandler {
         const userRes = this.applyStatusDamage(battleState, true, userPoke, userPoke.max_hp);
         if (userRes) {
             log += `\n${userRes.msg} (-${userRes.dmg})`;
-            await this.db.run("UPDATE user_pokemons SET current_hp = ? WHERE id = ?", [userPoke.current_hp, userPoke.id]);
+            await this.db.run("UPDATE user_pokemons SET current_hp = MAX(0, ?) WHERE id = ?", [userPoke.current_hp, userPoke.id]);
             updatedUserPoke.current_hp = userPoke.current_hp; 
         }
         
@@ -2877,7 +2882,7 @@ class PokemonHandler {
         if (enemyRes) {
             log += `\n${enemyRes.msg} (-${enemyRes.dmg})`;
             encounter.currentHp = enemyRes.currentHp;
-            await this.db.run(`UPDATE active_encounters SET current_hp = ? WHERE user_id = ?`, [encounter.currentHp, userId]);
+            await this.db.run(`UPDATE active_encounters SET current_hp = MAX(0, ?) WHERE user_id = ?`, [encounter.currentHp, userId]);
             
             // Verifica morte por status
             if (encounter.currentHp <= 0) {
@@ -3132,7 +3137,7 @@ class PokemonHandler {
             
             if (res.healAmount > 0) {
                 encounter.currentHp = Math.min(encounter.maxHp, encounter.currentHp + res.healAmount);
-                await this.db.run(`UPDATE active_encounters SET current_hp = ? WHERE user_id = ?`, [encounter.currentHp, userId]);
+                await this.db.run(`UPDATE active_encounters SET current_hp = MAX(0, ?) WHERE user_id = ?`, [encounter.currentHp, userId]);
             }
         } else {
             // Cálculo de Atributos

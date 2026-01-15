@@ -467,6 +467,18 @@ async function initDatabase() {
         
     console.log("✅ Sistema de Itens carregado.");
 
+    try {
+        await this.db.exec(`ALTER TABLE usuarios ADD COLUMN claimed_events TEXT DEFAULT '[]';`);
+        console.log("✅ Coluna 'claimed_events' criada.");
+
+        await this.db.run(`
+            UPDATE usuarios 
+            SET claimed_events = '["veteran_reward"]' 
+            WHERE reward_claimed = 1 AND (claimed_events IS NULL OR claimed_events = '[]')
+        `);
+        console.log("✅ Migração de veteranos para o novo sistema concluída.");
+    } catch (e) {}
+
     console.log('✅ Banco de dados SQLite inicializado e tabelas verificadas.');
 }
 

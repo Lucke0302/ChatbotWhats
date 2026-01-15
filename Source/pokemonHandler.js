@@ -343,7 +343,7 @@ class PokemonHandler {
             ['superpotion', 'Super Poção', 'medicine', 700, 'Recupera 50 HP de um Pokémon.'],
             ['hyperpotion', 'Híper Poção', 'medicine', 1500, 'Recupera 200 HP de um Pokémon.'],
             ['exp-share', 'Exp. Share', 'held', 5000, 'Distribui XP para o portador mesmo sem batalhar.'],
-            ['rare-candy', 'Rare Candy', 'medicine', 10000, 'Sobe 1 nível do Pokémon instantaneamente.']
+            ['rare-candy', 'Rare Candy', 'medicine', 30000, 'Sobe 1 nível do Pokémon instantaneamente.']
         ];
         
         for (const item of defaultItems) {
@@ -3871,13 +3871,16 @@ class PokemonHandler {
         const args = param.split(' ');
         const itemName = args[0]?.toLowerCase();
         
+        // Permite passar o slot: !poke usar potion 2
+        const targetSlot = parseInt(args[1]) || 1; 
+        
         let itemId = '';
         if (['potion', 'pocao'].includes(itemName)) itemId = 'potion';
         else if (['superpotion', 'super'].includes(itemName)) itemId = 'superpotion';
         else if (['hyperpotion', 'hyper'].includes(itemName)) itemId = 'hyperpotion';
         else if (['rarecandy', 'candy', 'doce'].includes(itemName)) itemId = 'rare-candy';
         else {
-            return `${tag}💊 *USAR ITEM*\nUse: *!poke usar [item]*\n\nItens suportados:\n• poção, super, hyper\n• candy (Rare Candy)`;
+            return `${tag}💊 *USAR ITEM*\nUse: *!poke usar [item] [slot]*\nEx: _!poke usar potion 1_\n\nItens suportados:\n• poção, super, hyper\n• candy (Rare Candy)`;
         }
 
         const hasItem = await this.removeItem(userId, itemId, 1);
@@ -3886,16 +3889,25 @@ class PokemonHandler {
         const encounter = await this.loadEncounter(userId);
         let targetPoke = null;
 
+        // --- SELECIONA O ALVO ---
         if (encounter) {
             targetPoke = await this.db.get("SELECT * FROM user_pokemons WHERE id = ?", [encounter.activePokemonId]);
         } else {
-            targetPoke = await this.db.get("SELECT * FROM user_pokemons WHERE user_id = ? AND team_slot = 1", [userId]);
+            targetPoke = await this.db.get("SELECT * FROM user_pokemons WHERE user_id = ? AND team_slot = ?", [userId, targetSlot]);
         }
 
-        if (!targetPoke) return `${tag}🚫 Nenhum Pokémon para usar o item.`;
+        if (!targetPoke) {
+            await this.addItem(userId, itemId, 1); // Devolve o item
+            return `${tag}🚫 Nenhum Pokémon encontrado no slot ${targetSlot}.`;
+        }
 
         // --- LÓGICA: RARE CANDY ---
         if (itemId === 'rare-candy') {
+            if (encounter) {
+                await this.addItem(userId, itemId, 1);
+                return `${tag}🚫 O Professor Oak diz: "Não é hora de usar isso!" (Saia da batalha para evoluir).`;
+            }
+
             if (targetPoke.level >= 100) {
                 await this.addItem(userId, itemId, 1);
                 return `${tag}🚫 ${targetPoke.nickname} já está no nível máximo!`;
@@ -3906,7 +3918,10 @@ class PokemonHandler {
             
             const res = await this.applyPassiveXp(targetPoke, xpNeeded);
             
-            return `${tag}🍬 **Rare Candy!**\n${targetPoke.nickname} subiu para o Nível ${res.newLevel}!`;
+            let msg = `${tag}🍬 **Rare Candy!**\n${targetPoke.nickname} subiu para o Nível ${res.newLevel}!`;
+            if (res.extraMsg) msg += `\n${res.extraMsg}`;
+            
+            return msg;
         }
 
         // --- LÓGICA: POÇÕES ---
@@ -3924,15 +3939,26 @@ class PokemonHandler {
         const newHp = Math.min(targetPoke.max_hp, targetPoke.current_hp + healAmount);
         const healed = newHp - oldHp;
 
+        // Se estiver em batalha, atualiza active_encounters também se for o pokemon ativo
+        if (encounter && targetPoke.id === encounter.activePokemonId) {
+        }
+
         await this.db.run("UPDATE user_pokemons SET current_hp = ? WHERE id = ?", [newHp, targetPoke.id]);
 
         let msg = `${tag}🧪 Usou **${itemId}** em ${targetPoke.nickname}!\nRecuperou +${healed} HP (${newHp}/${targetPoke.max_hp}).`;
 
+        // SE ESTIVER EM BATALHA: O INIMIGO ATACA
         if (encounter) {
              const encounterRaw = await this.db.get("SELECT extra_data FROM active_encounters WHERE user_id = ?", [userId]);
              let battleState = this.getBattleState(encounterRaw);
+             
              const enemyLog = await this.processEnemyTurn(encounter, targetPoke, battleState, userId);
              msg += `\n${enemyLog}`;
+             
+             let finalExtraData = encounterRaw.extra_data ? JSON.parse(encounterRaw.extra_data) : {};
+             finalExtraData.stages = battleState.stages;
+             finalExtraData.counters = battleState.counters;
+             await this.db.run("UPDATE active_encounters SET extra_data = ? WHERE user_id = ?", [JSON.stringify(finalExtraData), userId]);
         }
 
         return msg;

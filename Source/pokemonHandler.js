@@ -1036,6 +1036,13 @@ class PokemonHandler {
             log += `\n💥 Sofreu **${selfDamage}** de dano de recuo!`;
         }
 
+        // === SELF-DESTRUCT / EXPLOSION ===
+        if (['self-destruct', 'explosion'].includes(moveName)) {
+            // O usuário desmaia instantaneamente (Self Damage = HP Atual)
+            selfDamage = userPoke.current_hp; 
+            log += `\n💥 *${userPoke.nickname || userPoke.name}* explodiu e desmaiou!`;
+        }
+
         return { log, selfDamage, healAmount, flee, forceSwitch };
     }
 
@@ -2189,18 +2196,28 @@ class PokemonHandler {
             return `${tag}🚫 Você já está em batalha contra *${existing.pokemon.name}*! Termine ela primeiro.`;
         }
 
-        let trainerPercent = 0.2
-
-        if (userId == ADMIN_ID && param == "force"){
-            trainerPercent = 1
+        let forcedPokemon = null;
+        if (userId === ADMIN_ID && param && param.startsWith('force ') && !param.includes('trainer')) {
+            const target = param.replace('force ', '').trim();
+            forcedPokemon = await this.db.get("SELECT * FROM pokedex WHERE name LIKE ? OR id = ?", [target, target]);
+            
+            if (!forcedPokemon) return `${tag}⚠️ Admin, não achei o Pokémon *${target}*.`;
         }
 
-        // Encontro com treinador!
-        if (Math.random() < trainerPercent) {
-             const hasMinLvl = await this.db.get("SELECT level FROM user_pokemons WHERE user_id = ? ORDER BY level DESC LIMIT 1", [userId]);
-             if (hasMinLvl && hasMinLvl.level >= 5) {
-                 return await this.spawnTrainer(groupId, userId, sock);
-             }
+        if (!forcedPokemon) {
+            let trainerPercent = 0.2;
+ 
+            if (userId == ADMIN_ID && param == "force trainer"){
+                trainerPercent = 1
+            }
+
+            // Encontro com treinador!
+            if (Math.random() < trainerPercent) {
+            const hasMinLvl = await this.db.get("SELECT level FROM user_pokemons WHERE user_id = ? ORDER BY level DESC LIMIT 1", [userId]);
+                if (hasMinLvl && hasMinLvl.level >= 5) {
+                    return await this.spawnTrainer(groupId, userId, sock);
+                }
+            }
         }
 
         const user = await this.db.get("SELECT badges FROM usuarios WHERE id_usuario = ?", [userId]);
@@ -2267,6 +2284,10 @@ class PokemonHandler {
         }
 
         let pokemon = await this.db.get(query, params);
+
+        if (forcedPokemon) {
+            pokemon = forcedPokemon;
+        }
 
         if (!pokemon) {
             pokemon = await this.db.get(`SELECT * FROM pokedex WHERE rarity = 'common' AND tier <= ? ORDER BY RANDOM() LIMIT 1`, [maxTier]);

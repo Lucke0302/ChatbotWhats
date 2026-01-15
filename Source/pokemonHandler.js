@@ -2616,8 +2616,16 @@ class PokemonHandler {
         
         const bossMoves = moveNames.map(mName => {
             const found = dbMoves.find(dbm => dbm.name === mName);
-            return found ? { name: found.name, power: found.power, type: found.type, damage_class: found.damage_class } 
-                         : { name: mName, power: 40, type: 'normal', damage_class: 'physical' };
+            return found ? { 
+                name: found.name, 
+                power: found.power, 
+                type: found.type, 
+                damage_class: found.damage_class,
+                pp: found.pp,
+                current_pp: found.pp
+            } : { 
+                name: mName, power: 40, type: 'normal', damage_class: 'physical', current_pp: 35 
+            };
         });
 
         const bossHp = Math.floor(Math.floor(((2 * bossPokemon.base_hp + 31 + 100) * firstPokeData.level) / 100 + 10) * 1.5);
@@ -2637,7 +2645,18 @@ class PokemonHandler {
                 user_id, group_id, pokedex_id, current_hp, max_hp, level, 
                 is_shiny, moves, battle_type, extra_data, started_at, active_pokemon_id
             ) VALUES (?, ?, ?, ?, ?, ?, 0, ?, 'GYM_LEADER', ?, ?, ?)`,
-            [userId, groupId, bossPokemon.id, bossHp, bossHp, firstPokeData.level, JSON.stringify(bossMoves), JSON.stringify(extraData), Date.now(), leadPoke]
+            [
+                userId, 
+                groupId, 
+                bossPokemon.id, 
+                bossHp, 
+                bossHp, 
+                firstPokeData.level, 
+                JSON.stringify(bossMoves), 
+                JSON.stringify(extraData), 
+                Date.now(), 
+                leadPoke.id
+            ]
         );
 
         const caption = `${tag}🏛️ *GINÁSIO DE ${gymLeader.city.toUpperCase()}*\n` + 
@@ -2679,7 +2698,9 @@ class PokemonHandler {
         }
 
         const hp = Math.floor(((2 * pokemon.base_hp + 15 + 100) * level) / 100 + 10);
-        const moves = await this.getMovesForLevel(pokemon.id, level);
+        
+        const movesRaw = await this.getMovesForLevel(pokemon.id, level);
+        const moves = movesRaw.map(m => ({ ...m, current_pp: m.pp }));
 
         const extraData = { participants: [leadPokeId] };
 

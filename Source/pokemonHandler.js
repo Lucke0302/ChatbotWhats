@@ -3094,6 +3094,16 @@ class PokemonHandler {
         let encounter = await this.loadEncounter(userId);
         if (!encounter) return `${tag}Não tem batalha rolando.`;
 
+        if (encounter.gymData && encounter.gymData.waitingSwitch) {
+            const newEnemyName = await this.advanceBattle(userId, encounter);
+            
+            encounter = await this.loadEncounter(userId); 
+            
+            if (sock) {
+                await sock.sendMessage(groupId, { text: `${tag}🚨 **${newEnemyName}** entrou em campo!` });
+            }
+        }
+
         // Carrega Jogador
         const userPoke = await this.db.get(`SELECT up.*, p.name, p.type1, p.type2, p.base_hp, p.base_atk, p.base_def, p.base_spa, p.base_spd, p.base_spe FROM user_pokemons up JOIN pokedex p ON up.pokedex_id = p.id WHERE up.id = ? AND up.user_id = ?`, [encounter.activePokemonId, userId]);
         if (!userPoke) return "Erro: Pokémon não encontrado.";

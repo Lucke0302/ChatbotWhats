@@ -3027,41 +3027,29 @@ class PokemonHandler {
         let log = "";
         const enemyName = encounter.pokemon.name;
 
-       // --- LÓGICA DE FUGA ---
-        if (encounter.battle_type === 'WILD') {
-            if (!encounter.isShiny) {
-                
-                const encounterData = encounter.extra_data ? JSON.parse(encounter.extra_data) : {};
-                const wildNature = encounter.gymData?.nature || encounterData.nature || 'hardy';
+        // --- LÓGICA DE FUGA ---
+        if (encounter.battle_type === 'WILD' && !encounter.isShiny) {
+            // (Código de fuga mantém igual...)
+            const encounterData = encounter.extra_data ? JSON.parse(encounter.extra_data) : {};
+            const wildNature = encounter.gymData?.nature || encounterData.nature || 'hardy';
+            const runMultipliers = {
+                'timid': 2.5, 'hasty': 2.5, 'jolly': 2.5, 'naive': 2.5, 'careful': 2.0,
+                'brave': 0.2, 'bold': 0.2, 'relaxed': 0.2, 'sassy': 0.2, 'serious': 0.2,
+                'default': 1.0
+            };
+            const hpPercent = Math.max(0, encounter.currentHp / encounter.maxHp);
+            const hpLost = 1.0 - hpPercent;
+            const baseFleeChance = 0.04 * (1 + hpLost);
+            const natureMult = runMultipliers[wildNature] || runMultipliers['default'];
+            let rarityMult = 1.0;
+            if (encounter.pokemon.rarity === 'rare') rarityMult = 0.0; 
+            else if (RARE_POKE.includes(encounter.pokemon.id)) rarityMult = 0.5;
 
-                const runMultipliers = {
-                    'timid': 2.5, 'hasty': 2.5, 'jolly': 2.5, 'naive': 2.5, 'careful': 2.0,
-                    'brave': 0.2, 'bold': 0.2, 'relaxed': 0.2, 'sassy': 0.2, 'serious': 0.2,
-                    'default': 1.0
-                };
+            const finalFleeChance = baseFleeChance * natureMult * rarityMult;
 
-                const hpPercent = Math.max(0, encounter.currentHp / encounter.maxHp);
-                const hpLost = 1.0 - hpPercent;
-                const baseFleeChance = 0.04 * (1 + hpLost);
-
-                const natureMult = runMultipliers[wildNature] || runMultipliers['default'];
-
-                let rarityMult = 1.0;
-
-                if (encounter.pokemon.rarity === 'rare') {
-                    rarityMult = 0.0; // LENDÁRIOS NUNCA FOGEM
-                } 
-
-                else if (RARE_POKE.includes(encounter.pokemon.id)) {
-                    rarityMult = 0.5;
-                }
-
-                const finalFleeChance = baseFleeChance * natureMult * rarityMult;
-
-                if (finalFleeChance > 0 && Math.random() < finalFleeChance) {
-                    await this.clearEncounter(userId);
-                    return `🏃💨 O **${encounter.pokemon.name}** selvagem fugiu!`;
-                }
+            if (finalFleeChance > 0 && Math.random() < finalFleeChance) {
+                await this.clearEncounter(userId);
+                return `🏃💨 O **${encounter.pokemon.name}** selvagem fugiu!`;
             }
         }
 
@@ -3090,14 +3078,12 @@ class PokemonHandler {
         } else {
             const moveIndex = Math.floor(Math.random() * validMoves.length);
             wildMove = validMoves[moveIndex];
-
             const originalMove = encounter.moves.find(m => m.name === wildMove.name);
-            if (originalMove) {
-                originalMove.current_pp--;
-            }
+            if (originalMove) originalMove.current_pp--;
             await this.db.run("UPDATE active_encounters SET moves = ? WHERE user_id = ?", [JSON.stringify(encounter.moves), userId]);
         }
 
+        // Nature Power Transform
         if (wildMove.name === 'nature-power') {
             const natureOptions = [
                 { name: 'swift', power: 60, type: 'normal', damage_class: 'special' },
@@ -3107,17 +3093,109 @@ class PokemonHandler {
                 { name: 'earthquake', power: 100, type: 'ground', damage_class: 'physical' },
                 { name: 'shadow-ball', power: 80, type: 'ghost', damage_class: 'special' }
             ];
-            
             const transformed = natureOptions[Math.floor(Math.random() * natureOptions.length)];
-            
             wildMove = { ...wildMove, ...transformed };
             log += `\n🌿 *Nature Power* se transformou em *${transformed.name}*!`;
         }
 
-        let damageToUser = 0;
+        // --- PRECISÃO (Hit Check) ---
+        let moveAcc = wildMove.accuracy === null ? 100 : wildMove.accuracy;
+        const alwaysHitMoves = ['swift', 'aerial-ace', 'faint-attack', 'magical-leaf', 'shock-wave', 'shadow-punch'];
+        let enemyMissed = false;
 
-        // --- PROCESSAR EFEITOS ESPECIAIS ---
-        const specialEffects = this.processSpecialMoveEffects(wildMove, encounter.pokemon, userPoke, damageToUser, battleState, false);
+        if (!alwaysHitMoves.includes(wildMove.name) && moveAcc < 999) {
+            const accStage = battleState.stages.enemy.acc || 0;
+            const evaStage = battleState.stages.user.eva || 0; 
+            let combinedStage = Math.max(-6, Math.min(6, accStage - evaStage));
+            const stageMultipliers = {
+                '-6': 0.33, '-5': 0.38, '-4': 0.43, '-3': 0.50, '-2': 0.60, '-1': 0.75,
+                '0': 1.0, '1': 1.33, '2': 1.67, '3': 2.0, '4': 2.33, '5': 2.67, '6': 3.0
+            };
+            const hitChance = moveAcc * (stageMultipliers[String(combinedStage)] || 1.0);
+
+            if (Math.random() * 100 > hitChance) {
+                enemyMissed = true;
+                log += `\n💨 *${encounter.pokemon.name}* tentou usar ${wildMove.name}, mas errou!`;
+            }
+        }
+        
+        if (enemyMissed) return log;
+
+        let damageToUser = 0;
+        const enemyEmojis = this.getTypeEmojis(encounter.pokemon.type1, encounter.pokemon.type2);
+        const enemyDisplayName = `${encounter.pokemon.name} ${enemyEmojis}`;
+
+        // --- EXECUÇÃO DO GOLPE (CÁLCULO DE DANO) ---
+        if (wildMove.damage_class === 'status') {
+            const res = await this.processStatusMove(wildMove.name, battleState, false, encounter.maxHp);
+            log += `\n✨ ${enemyDisplayName} ${res.msg}`;
+            
+            if (res.healAmount > 0) {
+                encounter.currentHp = Math.min(encounter.maxHp, encounter.currentHp + res.healAmount);
+                await this.db.run(`UPDATE active_encounters SET current_hp = ? WHERE user_id = ?`, [encounter.currentHp, userId]);
+            }
+        } else {
+            // Cálculo de Atributos
+            const enemyAtkReal = Math.floor(((2 * encounter.pokemon.base_atk + 15) * encounter.level) / 100 + 5);
+            const enemySpaReal = Math.floor(((2 * encounter.pokemon.base_spa + 15) * encounter.level) / 100 + 5);
+            let calcEnemyAtk = (wildMove.damage_class === 'special') ? enemySpaReal : enemyAtkReal;
+
+            const userDefReal = this.computeStat(userPoke.base_def, userPoke.iv_def, userPoke.level, userPoke.nature, 'def');
+            const userSpdReal = this.computeStat(userPoke.base_spd, userPoke.iv_spd, userPoke.level, userPoke.nature, 'spd');
+            let calcUserDef = (wildMove.damage_class === 'special') ? userSpdReal : userDefReal;        
+
+            // Buffs/Debuffs
+            let stageEnemyAtk = (wildMove.damage_class === 'physical') ? battleState.stages.enemy.atk : battleState.stages.enemy.spa;
+            let stageUserDef = (wildMove.damage_class === 'physical') ? battleState.stages.user.def : battleState.stages.user.spd;
+            let finalWildAtk = this.applyStages(calcEnemyAtk, stageEnemyAtk);
+            let finalUserDef = this.applyStages(calcUserDef, stageUserDef);
+
+            // Fórmula de Dano
+            const calcDmg = (lvl, pwr, atk, def) => Math.floor(((2 * lvl / 5 + 2) * pwr * (atk / def)) / 50 + 2);
+            damageToUser = calcDmg(encounter.level, wildMove.power, finalWildAtk, finalUserDef) + 1;
+
+            // Multiplicador de Tipo
+            const getTypeMultiplier = (moveType, t1, t2) => {
+               if (!moveType || !TYPE_CHART[moveType.toLowerCase()]) return 1;
+               let m = 1;
+               const typeData = TYPE_CHART[moveType.toLowerCase()];
+               if (t1) { const val = typeData[t1.toLowerCase()]; m *= (val !== undefined ? val : 1); }
+               if (t2) { const val = typeData[t2.toLowerCase()]; m *= (val !== undefined ? val : 1); }
+               return m;
+            }
+
+            const typeMultEnemy = getTypeMultiplier(wildMove.type, userPoke.type1, userPoke.type2);
+            damageToUser = Math.floor(damageToUser * typeMultEnemy);
+            if (damageToUser < 1 && typeMultEnemy > 0) damageToUser = 1;
+
+            // Crítico e Variação
+            if (Math.random() < 0.0625) { damageToUser *= 2; log += `\n⚠️ *CRÍTICO DO INIMIGO!*`; }
+            damageToUser = Math.floor(damageToUser * ((Math.random() * 0.15) + 0.85));
+
+            // STAB
+            if (wildMove.type === encounter.pokemon.type1 || wildMove.type === encounter.pokemon.type2) {
+                damageToUser = Math.floor(damageToUser * 1.5);
+            }
+
+            // Aplica Dano no Usuário
+            await this.db.run(`UPDATE user_pokemons SET current_hp = current_hp - ? WHERE id = ?`, [damageToUser, userPoke.id]);
+            
+            if(wildMove.name.toLowerCase() === 'struggle') log +=`\n`;
+            else log +=`\n💢 ${enemyDisplayName} usou *${wildMove.name}*!\n`;
+
+            log += `Te causou **${damageToUser}** de dano.`;
+            if (typeMultEnemy > 1) log += ` (Super Efetivo!)`;
+            if (typeMultEnemy < 1 && typeMultEnemy > 0) log += ` (Não muito efetivo...)`;
+        }
+
+        const enemyPokeObj = {
+            ...encounter.pokemon,
+            current_hp: encounter.currentHp,
+            max_hp: encounter.maxHp,
+            nickname: encounter.pokemon.name
+        };
+
+        const specialEffects = this.processSpecialMoveEffects(wildMove, enemyPokeObj, userPoke, damageToUser, battleState, false);
         log += specialEffects.log;
 
         if (specialEffects.selfDamage > 0) {
@@ -3125,17 +3203,14 @@ class PokemonHandler {
             log += ` (Inimigo sofreu ${specialEffects.selfDamage} de dano)`;
         }
 
-        // LÓGICA DE FUGA DO INIMIGO (Teleport)
         if (specialEffects.flee) {
             if (encounter.battle_type === 'WILD') {
                 await this.clearEncounter(userId);
                 return `${log}\n🏃💨 A batalha acabou!`;
-            } else {
-                log += ` (Mas falhou!)`;
-            }
+            } else log += ` (Mas falhou!)`;
         }
-
-        // LÓGICA DE ROAR
+        
+        // Roar/Whirlwind Inimigo
         if (specialEffects.forceSwitch) {
             if (encounter.battle_type === 'WILD') {
                 await this.clearEncounter(userId);
@@ -3143,13 +3218,10 @@ class PokemonHandler {
             } 
             else {
                 const team = await this.db.all("SELECT id, nickname FROM user_pokemons WHERE user_id = ? AND team_slot > 0 AND current_hp > 0 AND id != ?", [userId, userPoke.id]);
-                
-                if (team.length === 0) {
-                    log += ` (Mas falhou! Você não tem outros Pokémon para trocar!)`;
-                } else {
+                if (team.length === 0) log += ` (Mas falhou! Você não tem outros Pokémon!)`;
+                else {
                     const randomPoke = team[Math.floor(Math.random() * team.length)];
                     await this.db.run(`UPDATE active_encounters SET active_pokemon_id = ? WHERE user_id = ?`, [randomPoke.id, userId]);
-                    
                     log += `\n🔄 **${userPoke.nickname}** foi forçado a sair!\n👉 **${randomPoke.nickname}** foi arrastado para o campo!`;
                 }
             }
@@ -3160,122 +3232,7 @@ class PokemonHandler {
                 encounter.currentHp -= recoil;
                 log += `\n💥 *${encounter.pokemon.name}* sofreu **${recoil}** de dano pelo recuo!`;
         }
-
-        const enemyEmojis = this.getTypeEmojis(encounter.pokemon.type1, encounter.pokemon.type2);
-        const enemyDisplayName = `${encounter.pokemon.name} ${enemyEmojis}`;
-
-        let moveAcc = wildMove.accuracy === null ? 100 : wildMove.accuracy;
-        const alwaysHitMoves = ['swift', 'aerial-ace', 'faint-attack', 'magical-leaf', 'shock-wave', 'shadow-punch'];
-        let enemyMissed = false;
-
-        if (!alwaysHitMoves.includes(wildMove.name) && moveAcc < 999) {
-            const accStage = battleState.stages.enemy.acc || 0;
-            const evaStage = battleState.stages.user.eva || 0; 
-            let combinedStage = Math.max(-6, Math.min(6, accStage - evaStage));
-
-            const stageMultipliers = {
-                '-6': 0.33, '-5': 0.38, '-4': 0.43, '-3': 0.50, '-2': 0.60, '-1': 0.75,
-                '0': 1.0,
-                '1': 1.33, '2': 1.67, '3': 2.0, '4': 2.33, '5': 2.67, '6': 3.0
-            };
-
-            const hitChance = moveAcc * (stageMultipliers[String(combinedStage)] || 1.0);
-
-            if (Math.random() * 100 > hitChance) {
-                enemyMissed = true;
-                log += `\n💨 *${encounter.pokemon.name}* tentou usar ${wildMove.name}, mas errou!`;
-            }
-            
-            console.log(`enemyMissed: ${enemyMissed}\naccStage: ${accStage}\nhitChance: ${hitChance}`)
-        }
         
-        if (enemyMissed) {
-            return log;
-        }
-
-        // --- EXECUÇÃO DO GOLPE ---
-        if (wildMove.damage_class === 'status') {
-            const res = await this.processStatusMove(wildMove.name, battleState, false, encounter.maxHp);
-            
-            log += `\n✨ ${enemyDisplayName} ${res.msg}`;
-            
-            if (res.healAmount > 0) {
-                encounter.currentHp = Math.min(encounter.maxHp, encounter.currentHp + res.healAmount);
-                await this.db.run(`UPDATE active_encounters SET current_hp = ? WHERE user_id = ?`, [encounter.currentHp, userId]);
-            }
-        
-        } else {
-
-            let damageToUser = 0;
-
-            // Cálculo de Atributos Reais
-            const enemyAtkReal = Math.floor(((2 * encounter.pokemon.base_atk + 15) * encounter.level) / 100 + 5);
-            const enemySpaReal = Math.floor(((2 * encounter.pokemon.base_spa + 15) * encounter.level) / 100 + 5);
-            let calcEnemyAtk = (wildMove.damage_class === 'special') ? enemySpaReal : enemyAtkReal;
-
-            const userDefReal = this.computeStat(userPoke.base_def, userPoke.iv_def, userPoke.level, userPoke.nature, 'def');
-            const userSpdReal = this.computeStat(userPoke.base_spd, userPoke.iv_spd, userPoke.level, userPoke.nature, 'spd');
-            let calcUserDef = (wildMove.damage_class === 'special') ? userSpdReal : userDefReal;        
-
-            // Aplica Buffs/Debuffs
-            let stageEnemyAtk = (wildMove.damage_class === 'physical') ? battleState.stages.enemy.atk : battleState.stages.enemy.spa;
-            let stageUserDef = (wildMove.damage_class === 'physical') ? battleState.stages.user.def : battleState.stages.user.spd;
-            let finalWildAtk = this.applyStages(calcEnemyAtk, stageEnemyAtk);
-            let finalUserDef = this.applyStages(calcUserDef, stageUserDef);
-
-            // Fórmula de Dano
-            const calcDmg = (lvl, pwr, atk, def) => Math.floor(((2 * lvl / 5 + 2) * pwr * (atk / def)) / 50 + 2);
-            damageToUser = calcDmg(encounter.level, wildMove.power, finalWildAtk, finalUserDef) + 1;
-
-            // Type Effectiveness
-            const getTypeMultiplier = (moveType, t1, t2) => {
-               if (!moveType || !TYPE_CHART[moveType.toLowerCase()]) return 1;
-               
-               let m = 1;
-               const typeData = TYPE_CHART[moveType.toLowerCase()];
-
-               if (t1) {
-                   const val = typeData[t1.toLowerCase()];
-                   m *= (val !== undefined ? val : 1);
-               }
-               if (t2) {
-                   const val = typeData[t2.toLowerCase()];
-                   m *= (val !== undefined ? val : 1);
-               }
-               return m;
-            }
-
-            const typeMultEnemy = getTypeMultiplier(wildMove.type, userPoke.type1, userPoke.type2);
-            damageToUser = Math.floor(damageToUser * typeMultEnemy);
-
-            if (damageToUser < 1 && typeMultEnemy > 0) damageToUser = 1;
-
-            // Crítico e Variação
-            if (Math.random() < 0.0625) { 
-                damageToUser *= 2; 
-                log += `\n⚠️ *CRÍTICO DO INIMIGO!*`; 
-            }
-            damageToUser = Math.floor(damageToUser * ((Math.random() * 0.15) + 0.85));
-
-            // STAB
-            if (wildMove.type === encounter.pokemon.type1 || wildMove.type === encounter.pokemon.type2) {
-                damageToUser = Math.floor(damageToUser * 1.5);
-            }
-
-            await this.db.run(`UPDATE user_pokemons SET current_hp = current_hp - ? WHERE id = ?`, [damageToUser, userPoke.id]);
-            
-            if(wildMove.name.toLowerCase() === 'struggle'){
-                log +=`\n`
-            }
-            else{
-                log +=`\n💢 ${enemyDisplayName} usou *${wildMove.name}*!\n`
-            }
-
-            log += `Te causou **${damageToUser}** de dano.`;
-            
-            if (typeMultEnemy > 1) log += ` (Super Efetivo!)`;
-            if (typeMultEnemy < 1 && typeMultEnemy > 0) log += ` (Não muito efetivo...)`;
-        }       
         return log;
     }
 

@@ -2677,9 +2677,18 @@ class PokemonHandler {
 
                     const getTypeMultiplier = (moveType, t1, t2) => {
                         if (!moveType || !TYPE_CHART[moveType.toLowerCase()]) return 1;
+                        
                         let m = 1;
-                        if (t1) m *= (TYPE_CHART[moveType.toLowerCase()][t1.toLowerCase()] || 1);
-                        if (t2) m *= (TYPE_CHART[moveType.toLowerCase()][t2.toLowerCase()] || 1);
+                        const typeData = TYPE_CHART[moveType.toLowerCase()];
+
+                        if (t1) {
+                            const val = typeData[t1.toLowerCase()];
+                            m *= (val !== undefined ? val : 1);
+                        }
+                        if (t2) {
+                            const val = typeData[t2.toLowerCase()];
+                            m *= (val !== undefined ? val : 1);
+                        }
                         return m;
                     };
 

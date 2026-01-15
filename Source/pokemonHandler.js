@@ -3287,7 +3287,7 @@ class PokemonHandler {
 
         await this.db.run("UPDATE active_encounters SET extra_data = ? WHERE user_id = ?", [JSON.stringify(finalExtraData), userId]);
 
-        const currentLvlXp = updatedUserPoke.exp - this.computeXp(userPoke.level);
+        const currentLvlXp = userPoke.exp - this.computeXp(userPoke.level);
         const nextLvlXp = this.computeXp(userPoke.level+1) - this.computeXp(userPoke.level);
         const xpBar = this.getProgressBar(currentLvlXp, nextLvlXp);
 

@@ -1224,6 +1224,11 @@ class PokemonHandler {
             log += `\n💥 Sofreu **${selfDamage}** de dano de recuo!`;
         }
 
+        if (moveName === 'struggle') {
+            selfDamage = Math.floor(userPoke.max_hp / 4);
+            log += `\n💥 *${userPoke.nickname || userPoke.name}* sofreu dano pelo recuo!`;
+        }
+
         // === SELF-DESTRUCT / EXPLOSION ===
         if (['self-destruct', 'explosion'].includes(moveName)) {
             // O usuário desmaia instantaneamente (Self Damage = HP Atual)
@@ -2698,7 +2703,7 @@ class PokemonHandler {
         }
 
         const hp = Math.floor(((2 * pokemon.base_hp + 15 + 100) * level) / 100 + 10);
-        
+
         const movesRaw = await this.getMovesForLevel(pokemon.id, level);
         const moves = movesRaw.map(m => ({ ...m, current_pp: m.pp }));
 
@@ -2764,9 +2769,12 @@ class PokemonHandler {
                     name: found.name,
                     power: found.power,
                     type: found.type,
-                    damage_class: found.damage_class
+                    damage_class: found.damage_class,
+                    pp: found.pp,
+                    current_pp: found.pp
                 } : { 
-                    name: mName, power: 40, type: 'normal', damage_class: 'physical' 
+                    name: mName, power: 40, type: 'normal', damage_class: 'physical', 
+                    current_pp: 35
                 };
             });
         }

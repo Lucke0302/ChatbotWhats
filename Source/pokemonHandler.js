@@ -2647,6 +2647,19 @@ class PokemonHandler {
             if (!missed) {
                 moveExecuted = true;
 
+                if (selectedMove.name === 'nature-power') {
+                     const natureOptions = [
+                        { name: 'swift', power: 60, type: 'normal', damage_class: 'special' },
+                        { name: 'razor-leaf', power: 55, type: 'grass', damage_class: 'special' },
+                        { name: 'rock-slide', power: 75, type: 'rock', damage_class: 'physical' },
+                        { name: 'bubble-beam', power: 65, type: 'water', damage_class: 'special' },
+                        { name: 'earthquake', power: 100, type: 'ground', damage_class: 'physical' }
+                    ];
+                    const transformed = natureOptions[Math.floor(Math.random() * natureOptions.length)];
+                    selectedMove = { ...selectedMove, ...transformed };
+                    log += `\n🌿 *Nature Power* se transformou em *${transformed.name}*!`;
+                }
+
                 if (!forcedMove) {
                     const slotNumber = parseInt(moveSlot); 
                     const colName = `move${slotNumber}_pp`; 

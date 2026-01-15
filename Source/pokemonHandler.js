@@ -623,7 +623,7 @@ class PokemonHandler {
         return `${tag}❌ Tipo de recompensa inválido. Use: pokemon, coin, item`;
     }
 
-    async claimSpecialGift(userId, codeParam) {
+    async claimSpecialGift(userId, codeParam, extraArg = '') {
         const tag = await this.getUserTag(userId);
         
         const eventCode = codeParam ? codeParam.toLowerCase().trim() : 'grc01';

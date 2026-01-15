@@ -182,6 +182,31 @@ const STATUS_EFFECTS = {
     con: { name: "Confuso", msg: "está confuso..."}
 };
 
+const EVENTS_DB = {
+    // Código do Evento (ID Abstrato)
+    'grc01': { 
+        name: "Doce Raro de Boas-vindas",
+        type: 'item',      // Tipo da recompensa (item, coin, pokemon)
+        reward_id: 'rare-candy', // ID do item/pokemon
+        amount: 1,         // Quantidade
+        active: true,      // Se o código ainda funciona
+        msg: "🍬 Um doce mágico! Use no seu Pokémon (fora de batalha) para subir de nível."
+    },
+    'vet01': {
+        name: "Recompensa de Veterano",
+        type: 'custom',    // Tipo 'custom' para lógicas complexas (como escolher o inicial)
+        active: true,
+        msg: "🏅 Um presente para quem está aqui desde o início."
+    },
+    'coin5k': {
+        name: "Bolsa de Ouro",
+        type: 'coin',
+        amount: 5000,
+        active: true,
+        msg: "💰 Dinheiro na mão! Gaste na loja com sabedoria."
+    }
+};
+
 const POKE_HELP = {
     'default': `🦕 *CENTRO DE AJUDA POKÉMON* 🦕
 
@@ -523,7 +548,7 @@ class PokemonHandler {
 
             await this.db.run(`INSERT INTO user_pokemons 
                 (user_id, pokedex_id, nickname, level, exp, current_hp, max_hp, move1, move2, move3, move4, move1_pp, move2_pp, move3_pp, move4_pp, obtained_at, iv_hp, iv_atk, iv_def, iv_spa, iv_spd, iv_spe, team_slot, nature) 
-                VALUES (?,?,?,?, ?,?,?, ?,?,?,?, ?,?,?,?, ?, ?,?,?,?,?,?,?, ?, ?)`,
+                VALUES (?,?,?,?, ?,?,?, ?,?,?,?, ?,?,?,?, ?, ?,?,?,?,?,?, ?, ?)`, // <--- Agora tem 24 '?'
                 [
                     userId, pk.id, pk.name, level, initialXp, hp, hp, 
                     m1, m2, m3, m4, 
@@ -573,23 +598,80 @@ class PokemonHandler {
         return `${tag}❌ Tipo de recompensa inválido. Use: pokemon, coin, item`;
     }
 
-    async claimVeteranReward(userId, choice) {
+    async claimSpecialGift(userId, codeParam) {
         const tag = await this.getUserTag(userId);
+        
+        const eventCode = codeParam ? codeParam.toLowerCase().trim() : 'grc01';
+        const event = EVENTS_DB[eventCode];
 
-        const user = await this.db.get("SELECT reward_claimed FROM usuarios WHERE id_usuario = ?", [userId]);
-        if (user && user.reward_claimed) {
-            return `${tag}🚫 Você já resgatou sua recompensa de veterano!`;
+        // Validações do Código
+        if (!event) {
+            return `${tag}❌ Código de evento *"${eventCode}"* inválido ou inexistente.`;
+        }
+        if (!event.active) {
+            return `${tag}🚫 O evento *${event.name}* expirou ou está inativo.`;
         }
 
+        // Verifica se já pegou (usando a coluna JSON claimed_events)
+        if (await this.hasClaimed(userId, eventCode)) {
+            return `${tag}🎁 Você já resgatou: *${event.name}*!\nDeixe um pouco para os outros.`;
+        }
+
+        // Verifica pré-requisitos (Tem que ter pokémon pra ganhar item/coin)
+        const hasPoke = await this.checkIfUserHasPokemon(userId);
+        if (!hasPoke) return `${tag}🚫 Você precisa começar sua jornada primeiro (*!poke comecar*) para resgatar códigos!`;
+
+        // Entrega a Recompensa
+        let log = "";
+        
+        if (event.type === 'item') {
+            await this.addItem(userId, event.reward_id, event.amount);
+            log = `Você recebeu **${event.amount}x ${(await this.getItemName(event.reward_id))}**!`;
+        } 
+        else if (event.type === 'coin') {
+            await this.db.run("UPDATE usuarios SET pokecoins = pokecoins + ? WHERE id_usuario = ?", [event.amount, userId]);
+            log = `Você recebeu **${event.amount} Pokécoins**!`;
+        }
+        else if (event.type === 'pokemon') {
+            await this.giveReward(userId, 'pokemon', event.reward_id, event.amount); 
+            log = `Você recebeu um novo Pokémon!`;
+        }
+        else if (event.type === 'custom') {
+            if (eventCode === 'vet01') {
+                return await this.claimVeteranReward(userId, extraArg);
+            }
+            return `${tag}⚠️ Código customizado sem função vinculada.`;
+        }
+
+        // Marca como resgatado no JSON
+        await this.markAsClaimed(userId, eventCode);
+
+        return `${tag}🎁 **CÓDIGO RESGATADO: ${eventCode.toUpperCase()}**\n` +
+               `🎉 *${event.name}*\n\n` +
+               `${log}\n` +
+               `_${event.msg}_`;
+    }
+
+    async getItemName(itemId) {
+        const item = await this.db.get("SELECT name FROM items WHERE id = ?", [itemId]);
+        return item ? item.name : itemId;
+    }
+
+    async claimVeteranReward(userId, choice) {
+        const tag = await this.getUserTag(userId);
+        const eventCode = 'vet01';
+
+        // Verifica Elegibilidade (Lógica exclusiva deste evento)
         const veteranPoke = await this.db.get(
             "SELECT id FROM user_pokemons WHERE user_id = ? AND obtained_at < ? LIMIT 1", 
             [userId, REWARD_CUTOFF]
         );
 
         if (!veteranPoke) {
-            return `${tag}🚫 *Evento Exclusivo*\nEssa recompensa é apenas para treinadores antigos (Veteranos).`;
+            return `${tag}🚫 *Evento Exclusivo*\nO código *VET01* é reservado para treinadores veteranos (antigos).`;
         }
 
+        // Mapa de Escolhas
         const starterMap = {
             1: { id: 1,   name: "Bulbasaur (Grama)" },
             2: { id: 4,   name: "Charmander (Fogo)" },
@@ -604,36 +686,25 @@ class PokemonHandler {
 
         const selection = parseInt(choice);
 
+        // Se não escolheu ou escolheu errado -> Retorna o Menu
         if (!choice || isNaN(selection) || !starterMap[selection]) {
-            let msg = `${tag}🎁 *RECOMPENSA DE VETERANO* 🎁\n\n` +
-                      `Obrigado por jogar! Escolha um segundo inicial para sua jornada:\n\n` +
-                      `*Kanto (Gen 1)*\n` +
-                      `1. Bulbasaur 🍃\n` +
-                      `2. Charmander 🔥\n` +
-                      `3. Squirtle 💧\n\n` +
-                      
-                      `*Johto (Gen 2)*\n` +
-                      `4. Chikorita 🍃\n` +
-                      `5. Cyndaquil 🔥\n` +
-                      `6. Totodile 💧\n\n` +
-                      
-                      `*Hoenn (Gen 3)*\n` +
-                      `7. Treecko 🍃\n` +
-                      `8. Torchic 🔥\n` +
-                      `9. Mudkip 💧\n\n` +
-                      
-                      `Digite o número da sua escolha.\n` +
-                      `Ex: *!poke recompensa 2* (para Charmander)`;
-            return msg;
+            return `${tag}🎁 *RECOMPENSA DE VETERANO* 🎁\n\n` +
+                   `Obrigado por jogar! Escolha um segundo inicial:\n\n` +
+                   `*Kanto:* 1.Bulbasaur 🍃 | 2.Charmander 🔥 | 3.Squirtle 💧\n` +
+                   `*Johto:* 4.Chikorita 🍃 | 5.Cyndaquil 🔥 | 6.Totodile 💧\n` +
+                   `*Hoenn:* 7.Treecko 🍃 | 8.Torchic 🔥 | 9.Mudkip 💧\n\n` +
+                   `Para escolher, digite:\n` +
+                   `👉 *!poke presente vet01 [numero]*\n` +
+                   `_Exemplo: !poke presente vet01 2_`;
         }
 
         const selectedStarter = starterMap[selection];
-
         const rewardMsg = await this.giveReward(userId, 'pokemon', selectedStarter.id);
-
-        await this.db.run("UPDATE usuarios SET reward_claimed = 1 WHERE id_usuario = ?", [userId]);
         
-        return `${tag}🎉 *PARABÉNS VETERANO!* 🎉\nVocê escolheu o número ${selection}!\n\n${rewardMsg}`;
+        // IMPORTANTE: Marca como resgatado aqui, pois só agora o processo terminou com sucesso
+        await this.markAsClaimed(userId, eventCode);
+        
+        return `${tag}🎉 *PARABÉNS VETERANO!* 🎉\nVocê escolheu: **${selectedStarter.name}**\n\n${rewardMsg}`;
     }
 
     async fixNullPP() {
@@ -2051,6 +2122,13 @@ class PokemonHandler {
         }
 
         switch (action) {
+
+            case 'presente':
+            case 'gift':
+            case 'resgatar':
+            case 'claim':
+                return await this.claimSpecialGift(sender, args[2], args[3]);
+
             case 'daycare':
                 return await this.handleDayCare(sender, param)
 
@@ -2060,11 +2138,6 @@ class PokemonHandler {
             case 'mochila':
             case 'bag':
                 return await this.showBag(sender);
-
-            case 'recompensa':
-            case 'gift':
-            case 'claim':
-                return await this.claimVeteranReward(sender, param);
 
             case 'give':
             case 'novarecompensa':

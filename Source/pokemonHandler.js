@@ -1005,6 +1005,27 @@ class PokemonHandler {
             return { log, damageDealt: 0 };
         }
 
+        let power = move.power;
+
+        if (['flail', 'reversal'].includes(move.name)) {
+            const P = Math.floor((48 * attacker.current_hp) / attacker.max_hp);
+            if (P <= 1) power = 200;
+            else if (P <= 4) power = 150;
+            else if (P <= 9) power = 100;
+            else if (P <= 16) power = 80;
+            else if (P <= 32) power = 40;
+            else power = 20;
+        }
+
+        if (['eruption', 'water-spout'].includes(move.name)) {
+            power = Math.floor((150 * attacker.current_hp) / attacker.max_hp);
+            if (power < 1) power = 1;
+        }
+        
+        if (['low-kick', 'grass-knot'].includes(move.name)) {
+             power = 50; 
+        }
+
         const getStat = (poke, statName, isP, lvl) => {
             if (isP) return this.computeStat(poke[`base_${statName}`], poke[`iv_${statName}`], lvl, poke.nature, statName);
             return Math.floor(((2 * poke[`base_${statName}`] + 15) * lvl) / 100 + 5);
@@ -1026,7 +1047,7 @@ class PokemonHandler {
         const finalDef = this.applyStages(rawDef, stageDef);
 
         const level = attacker.level || encounter.level;
-        let damage = Math.floor(((2 * level / 5 + 2) * move.power * (finalAtk / finalDef)) / 50 + 2);
+        let damage = Math.floor(((2 * level / 5 + 2) * power * (finalAtk / finalDef)) / 50 + 2);
 
         const getTypeMultiplier = (moveType, t1, t2) => {
             if (!moveType || !TYPE_CHART[moveType.toLowerCase()]) return 1;
@@ -1679,7 +1700,7 @@ class PokemonHandler {
         const result = await this.applyPassiveXp(poke, shareXp);
 
         if (result.leveledUp) {
-            return `\n🏡 *Ligação do Day Care:* ${result.name} subiu para o Nível ${result.newLevel}!`;
+            return `\n🏡 *Ligação do Day Care:* ${result.name} subiu para o Nível ${result.newLevel}!${result.extraMsg}`;
         } else {
             return `\n🏡 *Ligação do Day Care:* ${result.name} ganhou ${shareXp} XP.`;
         }
@@ -1701,7 +1722,7 @@ class PokemonHandler {
             const result = await this.applyPassiveXp(poke, bonusXp);
             
             if (result.leveledUp) {
-                msg += `\n💡 *Exp. Share:* ${result.name} subiu para o Nível ${result.newLevel}!`;
+                msg += `\n💡 *Exp. Share:* ${result.name} subiu para o Nível ${result.newLevel}!${result.extraMsg}`;
             } else {
                 msg += `\n💡 *Exp. Share:* ${result.name} ganhou ${bonusXp} XP.`;
             }
@@ -1711,19 +1732,45 @@ class PokemonHandler {
 
     async applyPassiveXp(poke, xpAmount) {
         let newExp = poke.exp + xpAmount;
-        let newLevel = poke.level;
+        let currentLvl = poke.level;
         let leveledUp = false;
+        let learnMsg = "";
 
-        while (newExp >= this.computeXp(newLevel + 1)) {
-            newLevel++;
+        // Loop de Level Up
+        while (newExp >= this.computeXp(currentLvl + 1)) {
+            currentLvl++;
             leveledUp = true;
+
+            const learnedMoves = await this.db.all(
+                `SELECT m.id, m.name FROM pokemon_moves pm
+                 JOIN moves m ON pm.move_id = m.id
+                 WHERE pm.pokemon_id = ? AND pm.level_learned = ?`,
+                [poke.pokedex_id, currentLvl]
+            );
+
+            const p = await this.db.get("SELECT move1, move2, move3, move4, pending_move FROM user_pokemons WHERE id = ?", [poke.id]);
+            let currentMoves = [p.move1, p.move2, p.move3, p.move4];
+
+            for (const move of learnedMoves) {
+                if (currentMoves.includes(move.id)) continue;
+
+                const emptyIndex = currentMoves.indexOf(null);
+
+                if (emptyIndex !== -1) {
+                    await this.db.run(`UPDATE user_pokemons SET move${emptyIndex + 1} = ? WHERE id = ?`, [move.id, poke.id]);
+                    currentMoves[emptyIndex] = move.id;
+                    learnMsg += `\n💡 Aprendeu *${move.name}*!`;
+                } else {
+                    await this.db.run(`UPDATE user_pokemons SET pending_move = ? WHERE id = ?`, [move.id, poke.id]);
+                    learnMsg += `\n💡 Quer aprender *${move.name}*, mas tem 4 golpes. Use *!poke esquecer [1-4]*!`;
+                }
+            }
         }
 
         if (leveledUp) {
             const pkInfo = await this.db.get("SELECT base_hp FROM pokedex WHERE id = ?", [poke.pokedex_id]);
             
-            const newMaxHp = Math.floor(((2 * pkInfo.base_hp + (poke.iv_hp || 0) + 100) * newLevel) / 100 + 10);
-            
+            const newMaxHp = Math.floor(((2 * pkInfo.base_hp + (poke.iv_hp || 0) + 100) * currentLvl) / 100 + 10);
             const hpDiff = newMaxHp - poke.max_hp;
             const newCurrentHp = poke.current_hp + hpDiff;
 
@@ -1731,13 +1778,13 @@ class PokemonHandler {
                 UPDATE user_pokemons 
                 SET exp = ?, level = ?, max_hp = ?, current_hp = ? 
                 WHERE id = ?`, 
-                [newExp, newLevel, newMaxHp, newCurrentHp, poke.id]
+                [newExp, currentLvl, newMaxHp, newCurrentHp, poke.id]
             );
 
-            return { success: true, leveledUp: true, newLevel: newLevel, name: poke.nickname };
+            return { success: true, leveledUp: true, newLevel: currentLvl, name: poke.nickname, extraMsg: learnMsg };
         } else {
             await this.db.run("UPDATE user_pokemons SET exp = ? WHERE id = ?", [newExp, poke.id]);
-            return { success: true, leveledUp: false, name: poke.nickname };
+            return { success: true, leveledUp: false, name: poke.nickname, extraMsg: "" };
         }
     }
     

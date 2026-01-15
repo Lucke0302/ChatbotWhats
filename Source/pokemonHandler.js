@@ -2672,6 +2672,15 @@ class PokemonHandler {
 
         const nextPokeDex = await this.db.get("SELECT * FROM pokedex WHERE id = ?", [nextPokeData.pokedex_id]);
         
+        if (encounter.gymData.stages) {
+            encounter.gymData.stages.enemy = { atk: 0, def: 0, spa: 0, spd: 0, spe: 0, acc: 0, eva: 0 };
+        }
+        if (encounter.gymData.counters) {
+            encounter.gymData.counters.enemy = { sleep: 0, confusion: 0, toxic: 0, cursed: false };
+        }
+        encounter.gymData.enemyStatus = null;
+        if (encounter.gymData.lockedMove) encounter.gymData.lockedMove.enemy = null;
+
         let nextMoves = [];
         const rawMoves = nextPokeData.moves;
 

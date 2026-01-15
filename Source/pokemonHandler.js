@@ -3085,6 +3085,22 @@ class PokemonHandler {
             await this.db.run("UPDATE active_encounters SET moves = ? WHERE user_id = ?", [JSON.stringify(encounter.moves), userId]);
         }
 
+        if (wildMove.name === 'nature-power') {
+            const natureOptions = [
+                { name: 'swift', power: 60, type: 'normal', damage_class: 'special' },
+                { name: 'razor-leaf', power: 55, type: 'grass', damage_class: 'special' },
+                { name: 'rock-slide', power: 75, type: 'rock', damage_class: 'physical' },
+                { name: 'bubble-beam', power: 65, type: 'water', damage_class: 'special' }, 
+                { name: 'earthquake', power: 100, type: 'ground', damage_class: 'physical' },
+                { name: 'shadow-ball', power: 80, type: 'ghost', damage_class: 'special' }
+            ];
+            
+            const transformed = natureOptions[Math.floor(Math.random() * natureOptions.length)];
+            
+            wildMove = { ...wildMove, ...transformed };
+            log += `\n🌿 *Nature Power* se transformou em *${transformed.name}*!`;
+        }
+
         let damageToUser = 0;
 
         // --- PROCESSAR EFEITOS ESPECIAIS ---

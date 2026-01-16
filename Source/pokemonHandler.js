@@ -2974,8 +2974,15 @@ class PokemonHandler {
         );
         const userAvgLvl = lvlResult && lvlResult.media ? Math.floor(lvlResult.media) : 5;
         
-        const minLvl = Math.max(2, userAvgLvl - 2 + Math.floor(badges / 2));
-        const wildLevel = minLvl + Math.floor(Math.random() * 5);
+        let minWild = Math.max(2, userAvgLvl - 4);
+        let maxWild = Math.max(3, userAvgLvl - 2);
+
+        if (userAvgLvl <= 5) {
+            minWild = 2;
+            maxWild = userAvgLvl;
+        }
+
+        const wildLevel = Math.floor(Math.random() * (maxWild - minWild + 1)) + minWild;
 
         let maxTier = 1;
         if (wildLevel >= 14) maxTier = 2;

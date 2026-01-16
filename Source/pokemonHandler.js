@@ -357,6 +357,10 @@ Compra itens essenciais.
 class PokemonHandler {
     constructor(db) {
         this.db = db;
+        this.dailyShopCache = {
+            date: '',
+            items: []
+        };
     }
 
     async init() {
@@ -371,14 +375,34 @@ class PokemonHandler {
             ['rare-candy', 'Rare Candy', 'medicine', 30000, 'Sobe 1 nível do Pokémon instantaneamente.'],
             
             // --- TMs ---
-            ['tm39', 'TM39 (Rock Tomb)', 'tm', 5000, 'Lança pedras no inimigo e reduz a velocidade. (Brock)'],
-            ['tm03', 'TM03 (Water Pulse)', 'tm', 5000, 'Ataque de água que pode confundir. (Misty)'],
-            ['tm34', 'TM34 (Shock Wave)', 'tm', 7500, 'Choque elétrico rápido que nunca erra. (Lt. Surge)'],
-            ['tm19', 'TM19 (Giga Drain)', 'tm', 7500, 'Drena a vida do oponente. (Erika)'],
-            ['tm06', 'TM06 (Toxic)', 'tm', 8000, 'Envenena gravemente o oponente. (Koga)'],
-            ['tm04', 'TM04 (Calm Mind)', 'tm', 8000, 'Aumenta Atq. Esp. e Def. Esp. (Sabrina)'],
-            ['tm38', 'TM38 (Fire Blast)', 'tm', 10000, 'Uma explosão de fogo poderosa. (Blaine)'],
-            ['tm26', 'TM26 (Earthquake)', 'tm', 10000, 'Um terremoto devastador. (Giovanni)'],
+            // --- LÍDERES - PREÇO 0 (Não vendem) ---
+            ['tm39', 'TM39 (Rock Tomb)', 'tm', 0, 'Lança pedras no inimigo e reduz a velocidade. (Brock)'],
+            ['tm03', 'TM03 (Water Pulse)', 'tm', 0, 'Ataque de água que pode confundir. (Misty)'],
+            ['tm34', 'TM34 (Shock Wave)', 'tm', 0, 'Choque elétrico rápido que nunca erra. (Lt. Surge)'],
+            ['tm19', 'TM19 (Giga Drain)', 'tm', 0, 'Drena a vida do oponente. (Erika)'],
+            ['tm06', 'TM06 (Toxic)', 'tm', 0, 'Envenena gravemente o oponente. (Koga)'],
+            ['tm04', 'TM04 (Calm Mind)', 'tm', 0, 'Aumenta Atq. Esp. e Def. Esp. (Sabrina)'],
+            ['tm38', 'TM38 (Fire Blast)', 'tm', 0, 'Uma explosão de fogo poderosa. (Blaine)'],
+            ['tm26', 'TM26 (Earthquake)', 'tm', 0, 'Um terremoto devastador. (Giovanni)'],
+            
+            // --- TMs PREMIUM (Loja Rotativa) ---
+            ['tm01', 'TM01 (Focus Punch)', 'tm', 10000, 'Soco devastador, mas precisa carregar.'],
+            ['tm02', 'TM02 (Dragon Claw)', 'tm', 15000, 'Garra de dragão que retalha o inimigo.'],
+            ['tm13', 'TM13 (Ice Beam)', 'tm', 20000, 'Raio de gelo com chance de congelar.'],
+            ['tm14', 'TM14 (Blizzard)', 'tm', 20000, 'Nevasca poderosa, mas com baixa precisão.'],
+            ['tm15', 'TM15 (Hyper Beam)', 'tm', 15000, 'Disparo poderoso, mas precisa descansar.'],
+            ['tm22', 'TM22 (Solar Beam)', 'tm', 10000, 'Absorve luz no 1º turno e ataca no 2º.'],
+            ['tm24', 'TM24 (Thunderbolt)', 'tm', 20000, 'Raio elétrico forte e preciso.'],
+            ['tm25', 'TM25 (Thunder)', 'tm', 15000, 'Trovão devastador, mas com baixa precisão.'],
+            ['tm29', 'TM29 (Psychic)', 'tm', 20000, 'Poder telecinético intenso.'],
+            ['tm30', 'TM30 (Shadow Ball)', 'tm', 20000, 'Esfera de sombras que pode baixar a Def. Esp.'],
+            ['tm31', 'TM31 (Brick Break)', 'tm', 7500, 'Quebra barreiras como Reflect e Light Screen.'],
+            ['tm35', 'TM35 (Flamethrower)', 'tm', 20000, 'Lança-chamas forte e preciso.'],
+            ['tm36', 'TM36 (Sludge Bomb)', 'tm', 17500, 'Bomba de lodo que pode envenenar.'],
+            ['tm40', 'TM40 (Aerial Ace)', 'tm', 10000, 'Ataque aéreo super rápido que nunca erra.'],
+            ['tm42', 'TM42 (Facade)', 'tm', 10000, 'Dobra o dano se estiver queimado/paralisado.'],
+            ['tm44', 'TM44 (Rest)', 'tm', 10000, 'Dorme para recuperar toda a vida.'],
+            ['tm47', 'TM47 (Steel Wing)', 'tm', 15000, 'Asas de aço que podem aumentar a Defesa.']
             
             // --- HMs ---
             ['hm01', 'HM01 (Cut)', 'hm', 0, 'Corta árvores pequenas.'],
@@ -388,6 +412,10 @@ class PokemonHandler {
         for (const item of defaultItems) {
             await this.db.run(`INSERT OR IGNORE INTO items (id, name, type, price, description) VALUES (?, ?, ?, ?, ?)`, item);
         }
+
+        const leaderTMs = ['tm39', 'tm03', 'tm34', 'tm19', 'tm06', 'tm04', 'tm38', 'tm26'];
+        const placeholders = leaderTMs.map(() => '?').join(',');
+        await this.db.run(`UPDATE items SET price = 0 WHERE id IN (${placeholders})`, leaderTMs);
 
         try {
             const users = await this.db.all("SELECT id_usuario, pokeballs, potions FROM usuarios WHERE pokeballs > 0 OR potions > 0");
@@ -419,6 +447,30 @@ class PokemonHandler {
             console.log(`✅ Pokédex carregada: ${pokeCount.total} Pokémon e ${moveCount.total} Golpes.`);
         }
         await this.fixNullPP();
+    }
+
+    async getDailyShopItems() {
+        const today = new Date().toLocaleDateString('pt-BR');
+
+        if (this.dailyShopCache.date === today && this.dailyShopCache.items.length > 0) {
+            return this.dailyShopCache.items;
+        }
+
+        const allTMs = await this.db.all("SELECT * FROM items WHERE type = 'tm' AND price > 0");
+        
+        for (let i = allTMs.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [allTMs[i], allTMs[j]] = [allTMs[j], allTMs[i]];
+        }
+
+        const selectedTMs = allTMs.slice(0, 10);
+
+        this.dailyShopCache = {
+            date: today,
+            items: selectedTMs
+        };
+
+        return selectedTMs;
     }
 
     async cleanDatabaseDuplicates() {
@@ -4238,20 +4290,33 @@ class PokemonHandler {
     async showShop(userId) {
         const user = await this.db.get("SELECT pokecoins FROM usuarios WHERE id_usuario = ?", [userId]);
         
-        const shopItems = await this.db.all("SELECT * FROM items WHERE price > 0 ORDER BY price ASC");
+        const standardItems = await this.db.all("SELECT * FROM items WHERE type != 'tm' AND price > 0 ORDER BY type ASC, price ASC");
         
-        let msg = `🏪 *LOJA POKÉMON* (💰 ${user.pokecoins})\n\n`;
-        
-        shopItems.forEach((item, index) => {
-            let icon = '📦';
-            if (item.type === 'ball') icon = '🔴';
-            if (item.type === 'medicine') icon = '🧪';
-            if (item.type === 'held') icon = '💡';
+        const dailyTMs = await this.getDailyShopItems();
 
-            msg += `${index + 1}. ${icon} **${item.name}** (${item.price} coins)\n   _${item.description}_\n\n`;
+        const allShopItems = [...standardItems, ...dailyTMs];
+        
+        let msg = `🏪 *POKÉ MART & TMs* (💰 ${user.pokecoins})\n` +
+                  `_Os TMs mudam todo dia!_\n\n`;
+        
+        let currentType = '';
+        const typeNames = {
+            'ball': '🔴 Pokébolas',
+            'medicine': '🧪 Medicamentos',
+            'held': '💡 Equipamentos',
+            'stone': '💎 Pedras',
+            'tm': '💿 TMs (Estoque Diário)'
+        };
+
+        allShopItems.forEach((item, index) => {
+            if (item.type !== currentType) {
+                currentType = item.type;
+                msg += `\n*${typeNames[currentType] || '📦 Outros'}*\n`;
+            }
+            msg += `${index + 1}. **${item.name}** - 💰 ${item.price}\n   _${item.description}_\n`;
         });
 
-        msg += `Use: *!poke comprar [numero] [qtd]*\nEx: _!poke comprar 1 10_`;
+        msg += `\n🛒 Use: *!poke comprar [numero] [qtd]*\nEx: _!poke comprar 1 10_`;
         return msg;
     }
 
@@ -4260,16 +4325,19 @@ class PokemonHandler {
         const qtd = parseInt(amount) || 1;
         const user = await this.db.get("SELECT pokecoins FROM usuarios WHERE id_usuario = ?", [userId]);
         
-        const shopItems = await this.db.all("SELECT * FROM items WHERE price > 0 ORDER BY price ASC");
-        const selectedItem = shopItems[parseInt(itemIndex) - 1];
+        const standardItems = await this.db.all("SELECT * FROM items WHERE type != 'tm' AND price > 0 ORDER BY type ASC, price ASC");
+        const dailyTMs = await this.getDailyShopItems();
+        const allShopItems = [...standardItems, ...dailyTMs];
 
-        if (!selectedItem) return `${tag}🚫 Item inválido.`;
+        const selectedItem = allShopItems[parseInt(itemIndex) - 1];
 
+        if (!selectedItem) return `${tag}🚫 Item número ${itemIndex} não existe na loja de hoje.`;
+
+        // Regra do Exp. Share
         if (selectedItem.id === 'exp-share') {
             if (qtd > 1) return `${tag}🚫 Você só precisa de um Exp. Share.`;
             const hasItem = await this.getItemCount(userId, 'exp-share');
             const equipped = await this.db.get("SELECT COUNT(*) as total FROM user_pokemons WHERE user_id = ? AND held_item = 'exp-share'", [userId]);
-            
             if (hasItem > 0 || equipped.total > 0) return `${tag}🚫 Você já possui este item!`;
         }
 
@@ -4281,10 +4349,6 @@ class PokemonHandler {
         await this.addItem(userId, selectedItem.id, qtd);
         
         return `${tag}✅ Comprou ${qtd}x **${selectedItem.name}**!\n💰 Saldo restante: ${user.pokecoins - cost}`;
-    }
-
-    async checkIfUserHasPokemon(userId) {
-        return !!(await this.db.get("SELECT id FROM user_pokemons WHERE user_id = ?", [userId]));
     }
 
     async showStarters(sender) {

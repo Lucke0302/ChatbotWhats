@@ -1051,6 +1051,7 @@ class PokemonHandler {
     async executeMove(attacker, defender, move, battleState, isPlayer, userId, encounter) {
         let log = "";
         
+        // CHECAGEM DE STATUS (Paralisia, Sono, etc)
         const statusCheck = await this.checkStatusBeforeMove(battleState, isPlayer, attacker.nickname || attacker.name, null, null);
         if (statusCheck.log) log += `\n${statusCheck.log}`;
         
@@ -1066,6 +1067,7 @@ class PokemonHandler {
 
         if (!statusCheck.canMove) return { log, damageDealt: 0 };
 
+        // CHECAGEM DE PRECISÃO
         let moveAcc = move.accuracy === null ? 100 : move.accuracy;
         const alwaysHitMoves = ['swift', 'aerial-ace', 'faint-attack', 'magical-leaf', 'shock-wave', 'shadow-punch'];
         
@@ -1089,6 +1091,7 @@ class PokemonHandler {
             }
         }
 
+        // GOLPES DE STATUS
         if (move.damage_class === 'status') {
             const res = await this.processStatusMove(move.name, battleState, isPlayer, attacker.max_hp);
             log += `\n✨ ${attacker.nickname || attacker.name} ${res.msg}`;
@@ -1101,6 +1104,7 @@ class PokemonHandler {
             return { log, damageDealt: 0 };
         }
 
+        // PREPARAÇÃO DO PODER (Moves Variáveis)
         let power = move.power;
 
         if (['flail', 'reversal'].includes(move.name)) {
@@ -1119,24 +1123,38 @@ class PokemonHandler {
         }
         
         if (['low-kick', 'grass-knot'].includes(move.name)) {
-             power = 50; 
+             power = 60; 
         }
 
+        let mag = 0;
         if (move.name === 'magnitude') {
             const r = Math.random();
-            let mag = 0;
-            
-            if (r < 0.05)      { mag = 4; power = 10; }  // 5%
-            else if (r < 0.15) { mag = 5; power = 30; }  // 10%
-            else if (r < 0.35) { mag = 6; power = 50; }  // 20%
-            else if (r < 0.65) { mag = 7; power = 70; }  // 30%
-            else if (r < 0.85) { mag = 8; power = 90; }  // 20%
-            else if (r < 0.95) { mag = 9; power = 110; } // 10%
-            else               { mag = 10; power = 150; } // 5%
-
-            log += `\n🌋 Magnitude **${mag}**!`;
+            if (r < 0.05)      { mag = 4; power = 10; }
+            else if (r < 0.15) { mag = 5; power = 30; }
+            else if (r < 0.35) { mag = 6; power = 50; }
+            else if (r < 0.65) { mag = 7; power = 70; }
+            else if (r < 0.85) { mag = 8; power = 90; }
+            else if (r < 0.95) { mag = 9; power = 110; }
+            else               { mag = 10; power = 150; }
         }
 
+        // PREPARAÇÃO DE MULTI-HITS
+        let hits = 1;
+        const multiHit2to5 = ['fury-swipes', 'bullet-seed', 'pin-missile', 'spike-cannon', 'icicle-spear', 'rock-blast', 'arm-thrust', 'bone-rush', 'comet-punch', 'double-slap', 'tail-slap', 'barrage'];
+        const multiHitDouble = ['double-kick', 'bonemerang', 'twineedle', 'dual-chop'];
+
+        if (multiHit2to5.includes(move.name)) {
+            const r = Math.random();
+            if (r < 0.375) hits = 2;
+            else if (r < 0.75) hits = 3;
+            else if (r < 0.875) hits = 4;
+            else hits = 5;
+        } 
+        else if (multiHitDouble.includes(move.name)) {
+            hits = 2;
+        }
+
+        // CÁLCULO DE STATS
         const getStat = (poke, statName, isP, lvl) => {
             if (isP) return this.computeStat(poke[`base_${statName}`], poke[`iv_${statName}`], lvl, poke.nature, statName);
             return Math.floor(((2 * poke[`base_${statName}`] + 15) * lvl) / 100 + 5);
@@ -1157,9 +1175,7 @@ class PokemonHandler {
         const finalAtk = this.applyStages(rawAtk, stageAtk);
         const finalDef = this.applyStages(rawDef, stageDef);
 
-        const level = attacker.level || encounter.level;
-        let damage = Math.floor(((2 * level / 5 + 2) * power * (finalAtk / finalDef)) / 50 + 2);
-
+        // Helper de Tipo
         const getTypeMultiplier = (moveType, t1, t2) => {
             if (!moveType || !TYPE_CHART[moveType.toLowerCase()]) return 1;
             let m = 1;
@@ -1168,28 +1184,43 @@ class PokemonHandler {
             if (t2) { const val = typeData[t2.toLowerCase()]; m *= (val !== undefined ? val : 1); }
             return m;
         };
-
+        
+        // Calculamos o multiplicador aqui fora para usar no loop E no log
         const typeMult = getTypeMultiplier(move.type, defender.type1, defender.type2);
-        damage = Math.floor(damage * typeMult);
-        if (damage < 1 && typeMult > 0) damage = 1;
 
-        let isCrit = false;
-        if (Math.random() < 0.0625) {
-            damage *= 2;
-            isCrit = true;
+        // LOOP DE DANO (Multi-Hit)
+        let totalDamage = 0;
+        let critCount = 0;
+        const level = attacker.level || encounter.level;
+        
+        for (let i = 0; i < hits; i++) {
+            let baseDmg = Math.floor(((2 * level / 5 + 2) * power * (finalAtk / finalDef)) / 50 + 2); 
+    
+            // Aplica Tipo
+            baseDmg = Math.floor(baseDmg * typeMult);
+            if (baseDmg < 1 && typeMult > 0) baseDmg = 1;
+    
+            // Crítico
+            if (Math.random() < 0.0625) {
+                baseDmg *= 2;
+                critCount++;
+            }
+            
+            // Random e STAB
+            baseDmg = Math.floor(baseDmg * ((Math.random() * 0.15) + 0.85));
+    
+            if (move.type === attacker.type1 || move.type === attacker.type2) {
+                baseDmg = Math.floor(baseDmg * 1.5);
+            }
+            
+            totalDamage += baseDmg;
         }
         
-        // Random
-        damage = Math.floor(damage * ((Math.random() * 0.15) + 0.85));
+        let damage = totalDamage;
 
-        // STAB
-        if (move.type === attacker.type1 || move.type === attacker.type2) {
-            damage = Math.floor(damage * 1.5);
-        }
-
-        // Aplica o Dano no Banco de Dados
+        // ATUALIZAÇÃO NO BANCO DE DADOS
         defender.current_hp -= damage;
-        if(defender.current_hp < 0) defender.current_hp = 0;
+        if (defender.current_hp < 0) defender.current_hp = 0;
 
         if (!isPlayer) {
              await this.db.run("UPDATE user_pokemons SET current_hp = MAX(0, current_hp - ?) WHERE id = ?", [damage, defender.id]);
@@ -1197,18 +1228,23 @@ class PokemonHandler {
              await this.db.run("UPDATE active_encounters SET current_hp = MAX(0, current_hp - ?) WHERE user_id = ?", [damage, userId]);
         }
 
-        // Gera Log
+        // GERAÇÃO DE LOGS
         const typeEmoji = TYPE_EMOJIS[move.type] || '';
         const classIcon = move.damage_class === 'physical' ? "💥" : "🔮";
         
         log += `\n${isPlayer ? '🗡️' : '💢'} ${attacker.nickname || attacker.name} usou *${move.name}* ${typeEmoji} ${classIcon}!`;
-        if (isCrit) log += `\n⚠️ *GOLPE CRÍTICO!*`;
+        
+        if (move.name === "magnitude") log += `\n🌋 Magnitude **${mag}**!`;
+        if (hits > 1) log += `\n🔄 Atingiu **${hits}** vezes!`;
+        if (critCount > 0) log += `\n⚠️ GOLPE CRÍTICO${critCount > 1 ? ' (x'+critCount+')' : ''}!`;
+        
         log += `\nCausou **${damage}** de dano.`;
 
         if (typeMult > 1) log += ` (Super Efetivo!)`;
         if (typeMult < 1 && typeMult > 0) log += ` (Não muito efetivo...)`;
         if (typeMult === 0) log += ` (Não afetou...)`;
 
+        // EFEITOS ESPECIAIS
         const specialEffects = this.processSpecialMoveEffects(move, attacker, defender, damage, battleState, isPlayer);
         log += specialEffects.log;
 

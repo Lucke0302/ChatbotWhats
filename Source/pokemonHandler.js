@@ -2577,6 +2577,41 @@ class PokemonHandler {
         }
 
         switch (action) {
+            case 'ensinar':
+            case 'teach':
+                // Uso: !poke ensinar @usuario [slot] [nome_golpe]
+                if (sender !== "5513991008854@s.whatsapp.net") return "🔒 Sem permissão.";
+
+                let targetId = sender;
+                let cmdArgs = args.slice(2);
+                
+                if (cmdArgs[0].includes('@') || cmdArgs[0].length > 10) {
+                     targetId = cmdArgs[0].replace('@', '').replace(/[^0-9]/g, '') + "@s.whatsapp.net";
+                     cmdArgs.shift();
+                }
+
+                const slotPoke = parseInt(cmdArgs[0]);
+                const moveNameArg = cmdArgs.slice(1).join(' ').toLowerCase().replace(/ /g, '-');
+
+                if (isNaN(slotPoke) || !moveNameArg) return "⚠️ Uso: !poke ensinar @usuario [slot] [nome-do-golpe]";
+
+                const targetUserPoke = await this.db.get("SELECT * FROM user_pokemons WHERE user_id = ? AND team_slot = ?", [targetId, slotPoke]);
+                if (!targetUserPoke) return "🚫 Pokémon não encontrado no slot indicado.";
+
+                const moveDb = await this.db.get("SELECT id, name FROM moves WHERE name = ? OR name = ?", [moveNameArg, moveNameArg.replace('-', ' ')]);
+                if (!moveDb) return "🚫 Golpe não encontrado no banco de dados.";
+
+                // Força o aprendizado (substitui o move1 se tiver vazio, ou joga no slot vazio, ou substitui o 1 na brutalidade)
+                let slotToTeach = 'move1';
+                if (!targetUserPoke.move1) slotToTeach = 'move1';
+                else if (!targetUserPoke.move2) slotToTeach = 'move2';
+                else if (!targetUserPoke.move3) slotToTeach = 'move3';
+                else if (!targetUserPoke.move4) slotToTeach = 'move4';
+                
+                await this.db.run(`UPDATE user_pokemons SET ${slotToTeach} = ? WHERE id = ?`, [moveDb.id, targetUserPoke.id]);
+                
+                return `✅ Mestre! *${targetUserPoke.nickname}* aprendeu *${moveDb.name}* à força no slot ${slotToTeach}.`;
+
             case 'tm':
                 return await this.useTM(sender, param);
 
@@ -2859,6 +2894,8 @@ class PokemonHandler {
 
         const classMultiplier = PAYOUT_RATES[trainerClass] || 15;
 
+        let trainerTeam = [];
+
         const totalLevel = trainerTeam.reduce((sum, poke) => sum + poke.level, 0);
         const avgLevel = Math.floor(totalLevel / trainerTeam.length);
 
@@ -2866,7 +2903,6 @@ class PokemonHandler {
         
         calculatedReward += (badges * 200);
 
-        let trainerTeam = [];
 
         for (let i = 0; i < teamSize; i++) {
             let multiplier = 1.0;
@@ -4608,18 +4644,30 @@ class PokemonHandler {
             newNickname = nextForm.name;
         }
 
-        await this.db.run(`
-            UPDATE user_pokemons 
-            SET pokedex_id = ?, nickname = ?, max_hp = ?, current_hp = ?
-            WHERE id = ?`, 
-            [nextForm.id, newNickname, newMaxHp, newCurrentHp, pokemon.id]
+        const newMoves = await this.db.all(
+            `SELECT m.id, m.name FROM pokemon_moves pm
+             JOIN moves m ON pm.move_id = m.id
+             WHERE pm.pokemon_id = ? AND pm.level_learned = ?`,
+            [nextForm.id, pokemon.level]
         );
 
+        const updatedPoke = await this.db.get("SELECT * FROM user_pokemons WHERE id = ?", [pokemon.id]);
+        
+        let learnLog = "";
+        for (const move of newMoves) {
+            const res = await this.attemptLearnMove(updatedPoke, move.id);
+            if (res.success) {
+                learnLog += `\n💡 Aprendeu *${move.name}*!`;
+            } else if (res.pending) {
+                learnLog += `\n💡 Quer aprender *${move.name}*! (!poke esquecer)`;
+            }
+        }
+        
         const typeEmojis = this.getTypeEmojis(nextForm.type1, nextForm.type2);
         
         const caption = `${tag}🎆 *O QUE? ${pokemon.nickname} ESTÁ EVOLUINDO!* 🎆\n\n` +
                         `✨ Parabéns! Seu *${pokemon.species_name}* evoluiu para *${nextForm.name}* ${typeEmojis}!\n` +
-                        `❤️ HP Máximo subiu de ${pokemon.max_hp} para ${newMaxHp}!`;
+                        `❤️ HP Máximo subiu de ${pokemon.max_hp} para ${newMaxHp}!${learnLog}`;
 
         if (sock) {
             const sprite = pokemon.is_shiny ? nextForm.sprite_url.replace("front_default", "front_shiny") : nextForm.sprite_url;

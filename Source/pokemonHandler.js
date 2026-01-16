@@ -2697,17 +2697,11 @@ class PokemonHandler {
         if (badges === 0) {
             const weakTrainers = TRAINER_DATA.filter(t => {
                 if (!t.type) return false;
-                
                 const eff1 = (TYPE_CHART[leadPoke.type1] && TYPE_CHART[leadPoke.type1][t.type]) || 1;
-                
                 const eff2 = (leadPoke.type2 && TYPE_CHART[leadPoke.type2] && TYPE_CHART[leadPoke.type2][t.type]) || 1;
-
                 return eff1 >= 2 || eff2 >= 2;
             });
-
-            if (weakTrainers.length > 0) {
-                possibleTrainers = weakTrainers;
-            }
+            if (weakTrainers.length > 0) possibleTrainers = weakTrainers;
         }
 
         const trainerTemplate = possibleTrainers[Math.floor(Math.random() * possibleTrainers.length)];
@@ -2739,7 +2733,6 @@ class PokemonHandler {
             }
 
             query += " ORDER BY RANDOM() LIMIT 1";
-            
             let pokemon = await this.db.get(query, params);
 
             if (!pokemon) {
@@ -2747,13 +2740,11 @@ class PokemonHandler {
             }
 
             let moves = await this.getMovesForLevel(pokemon.id, pokeLevel);
-            if (!moves.length) moves = [{name: "tackle", power: 40, damage_class: 'physical', type: 'normal', pp: 35}];
-
-            const moveObjects = moves.map(m => ({
-                name: m.name, power: m.power, type: m.type, damage_class: m.damage_class, 
-                pp: m.pp, current_pp: m.pp
-            }));
+            let moveObjects = moves.map(m => ({ ...m, current_pp: m.pp }));
             
+            if (moves.length === 0) {
+                moveObjects = [{name: "tackle", power: 40, damage_class: 'physical', type: 'normal', pp: 35, current_pp: 35}];
+            }
 
             trainerTeam.push({
                 pokedex_id: pokemon.id,
@@ -2798,10 +2789,13 @@ class PokemonHandler {
                 leadPoke.id
             ]
         );
+
+        const balls = "🔴".repeat(trainerTeam.length);
+
         const caption = `⚠️ *DESAFIO DE TREINADOR!*\n` +
                         `**${trainerClass} ${trainerName}** quer batalhar!\n` +
                         `Ele enviou *${firstPokeData.name}* (Lvl ${firstPokeData.level})!\n` +
-                        `Pokémon do Treinador: ${trainerTeam.length}\n\n` +
+                        `🧢 *Time Inimigo:* ${balls} (${trainerTeam.length})\n\n` +
                         `⚔️ *!poke atacar*\n` +
                         `🔄 *!poke trocar [slot]*\n` +
                         `🏃 *!poke fugir*`;
@@ -3042,7 +3036,7 @@ class PokemonHandler {
             leaderName: gymLeader.name,
             badgeName: gymLeader.badge_name,
             reward: gymLeader.reward_coins,
-            participants: [leadPoke],
+            participants: [leadPoke.id],
             remainingTeam: remainingTeam 
         };
 
@@ -3065,11 +3059,13 @@ class PokemonHandler {
             ]
         );
 
+        const balls = "🔴".repeat(team.length);
+
         const caption = `${tag}🏛️ *GINÁSIO DE ${gymLeader.city.toUpperCase()}*\n` + 
                         `🚨 *LÍDER ${gymLeader.name}* aceitou seu desafio!\n` + 
                         `Ele enviou *${bossPokemon.name}* (Lvl ${firstPokeData.level})!\n` + 
-                        `⚠️ *Boss HP:* ${bossHp}/${bossHp}\n` + 
-                        `Pokémon restantes do Líder: ${remainingTeam.length + 1}\n` + 
+                        `🧢 *Time Inimigo:* ${balls} (${team.length})\n` +
+                        `⚠️ *Boss HP:* ${bossHp}/${bossHp}\n\n` + 
                         `Prepare-se! Digite *!poke atacar*`;
 
         if (sock) {
@@ -3087,8 +3083,11 @@ class PokemonHandler {
         const tag = await this.getUserTag(userId);
         const gymType = GYM_TYPES[badgeIndex] || 'normal';
         
+        // Nível base aumenta com as insígnias
         const baseLevel = 10 + (badgeIndex * 4); 
-
+        
+        // Tamanho do time: Aleatório entre 1 e (Insígnias + 2)
+        // Ex: 0 Insígnias = 1 a 2 Pokémon
         let teamSize = Math.floor(Math.random() * (badgeIndex + 2)) + 1;
         if (teamSize > 6) teamSize = 6;
 
@@ -3096,7 +3095,7 @@ class PokemonHandler {
 
         for (let i = 0; i < teamSize; i++) {
             const level = Math.floor(baseLevel + (Math.random() * 3));
-            
+
             let pokemon = await this.db.get(`
                 SELECT * FROM pokedex 
                 WHERE (type1 = ? OR type2 = ?) 
@@ -3132,12 +3131,12 @@ class PokemonHandler {
 
         const hp = Math.floor(((2 * firstPokeData.base_hp + 15 + 100) * firstPokeData.level) / 100 + 10);
 
-        const trainerNames = ["Jovem", "Escoteiro", "Montanhista", "Nadador", "Mecânico", "Ciclista", "Faixa Preta", "Médium"];
+        const trainerNames = ["Jovem", "Escoteiro", "Montanhista", "Nadador", "Mecânico", "Careca", "Faixa Preta", "Médium"];
         const randomClass = trainerNames[Math.floor(Math.random() * trainerNames.length)];
 
         const extraData = { 
             participants: [leadPokeId],
-            leaderName: `${randomClass} do Ginásio`,
+            leaderName: `${randomClass} do Ginásio`, 
             remainingTeam: remainingTeam,
             reward: 200 + (badgeIndex * 100)
         };
@@ -3161,13 +3160,16 @@ class PokemonHandler {
             ]
         );
 
+        // --- INFORMAÇÕES VISUAIS ---
         const totalTrainers = 2 + badgeIndex;
         const currentBattleNum = (totalTrainers - remaining) + 1;
-        const teamSizeInfo = teamSize > 1 ? `\nEle tem *${teamSize}* Pokémon!` : "";
+        
+        const balls = "🔴".repeat(teamSize);
 
         const caption = `${tag}🏛️ *GINÁSIO - BATALHA ${currentBattleNum} de ${totalTrainers}*\n` +
                         `O *${randomClass}*, bloqueou seu caminho!\n` +
-                        `Ele usa um *${firstPokeData.name}* (Lvl ${firstPokeData.level}).${teamSizeInfo}\n\n` +
+                        `Ele enviou um *${firstPokeData.name}* (Lvl ${firstPokeData.level}).\n` +
+                        `🧢 *Time Inimigo:* ${balls} (${teamSize})\n\n` +
                         `⚔️ Digite *!poke atacar* para lutar!`;
 
         if (sock) {

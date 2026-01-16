@@ -2075,12 +2075,18 @@ class PokemonHandler {
         
         if (!item || item.quantity < 1) return `${tag}🚫 Você não tem esse TM/HM na mochila.`;
 
-        const poke = await this.db.get("SELECT * FROM user_pokemons WHERE user_id = ? AND team_slot = ?", [userId, slot]);
+        const poke = await this.db.get(`
+            SELECT up.*, p.type1, p.type2 
+            FROM user_pokemons up 
+            JOIN pokedex p ON up.pokedex_id = p.id 
+            WHERE up.user_id = ? AND up.team_slot = ?`, 
+            [userId, slot]
+        );
+        
         if (!poke) return `${tag}🚫 Slot ${slot} vazio.`;
 
         const moveNameRegex = /\((.*?)\)/;
         const match = item.name.match(moveNameRegex);
-        
         const moveName = match ? match[1].toLowerCase().replace(/ /g, '-') : null;
 
         if (!moveName) return `${tag}❌ Erro: Não consegui identificar o golpe desse TM.`;
@@ -2088,7 +2094,7 @@ class PokemonHandler {
         const move = await this.db.get("SELECT id, type FROM moves WHERE name LIKE ?", [moveName]);
         if (!move) return `${tag}❌ Erro: Golpe *${moveName}* não existe no banco.`;
 
-        // Validação de Compatibilidade Simples (Por Tipo)
+        // Validação de Compatibilidade Simples
         if (move.type !== poke.type1 && move.type !== poke.type2 && move.type !== 'normal') {
              return `${tag}🚫 *${poke.nickname}* não parece compatível com golpes do tipo ${move.type}.`;
         }

@@ -368,7 +368,21 @@ class PokemonHandler {
             ['superpotion', 'Super Poção', 'medicine', 700, 'Recupera 50 HP de um Pokémon.'],
             ['hyperpotion', 'Híper Poção', 'medicine', 1500, 'Recupera 200 HP de um Pokémon.'],
             ['exp-share', 'Exp. Share', 'held', 5000, 'Distribui XP para o portador mesmo sem batalhar.'],
-            ['rare-candy', 'Rare Candy', 'medicine', 30000, 'Sobe 1 nível do Pokémon instantaneamente.']
+            ['rare-candy', 'Rare Candy', 'medicine', 30000, 'Sobe 1 nível do Pokémon instantaneamente.'],
+            
+            // --- TMs ---
+            ['tm39', 'TM39 (Rock Tomb)', 'tm', 5000, 'Lança pedras no inimigo e reduz a velocidade. (Brock)'],
+            ['tm03', 'TM03 (Water Pulse)', 'tm', 5000, 'Ataque de água que pode confundir. (Misty)'],
+            ['tm34', 'TM34 (Shock Wave)', 'tm', 7500, 'Choque elétrico rápido que nunca erra. (Lt. Surge)'],
+            ['tm19', 'TM19 (Giga Drain)', 'tm', 7500, 'Drena a vida do oponente. (Erika)'],
+            ['tm06', 'TM06 (Toxic)', 'tm', 8000, 'Envenena gravemente o oponente. (Koga)'],
+            ['tm04', 'TM04 (Calm Mind)', 'tm', 8000, 'Aumenta Atq. Esp. e Def. Esp. (Sabrina)'],
+            ['tm38', 'TM38 (Fire Blast)', 'tm', 10000, 'Uma explosão de fogo poderosa. (Blaine)'],
+            ['tm26', 'TM26 (Earthquake)', 'tm', 10000, 'Um terremoto devastador. (Giovanni)'],
+            
+            // --- HMs ---
+            ['hm01', 'HM01 (Cut)', 'hm', 0, 'Corta árvores pequenas.'],
+            ['hm02', 'HM02 (Fly)', 'hm', 0, 'Voa para cidades visitadas.']
         ];
         
         for (const item of defaultItems) {
@@ -730,6 +744,45 @@ class PokemonHandler {
         await this.markAsClaimed(userId, eventCode);
         
         return `${tag}🎉 *PARABÉNS VETERANO!* 🎉\nVocê escolheu: **${selectedStarter.name}**\n\n${rewardMsg}`;
+    }
+
+    getGymRewardTM(badgeIndex) {
+        const rewards = [
+            'tm39', // 0: Brock (Rock Tomb)
+            'tm03', // 1: Misty (Water Pulse)
+            'tm34', // 2: Surge (Shock Wave)
+            'tm19', // 3: Erika (Giga Drain)
+            'tm06', // 4: Koga (Toxic)
+            'tm04', // 5: Sabrina (Calm Mind)
+            'tm38', // 6: Blaine (Fire Blast)
+            'tm26'  // 7: Giovanni (Earthquake)
+        ];
+        return rewards[badgeIndex] || null;
+    }
+
+    async giveRetroactiveGymTMs() {
+        console.log("🔄 Iniciando distribuição retroativa de TMs...");
+        const users = await this.db.all("SELECT id_usuario, badges FROM usuarios WHERE badges > 0");
+        let count = 0;
+
+        for (const user of users) {
+            let given = 0;
+            for (let i = 0; i < user.badges; i++) {
+                const tmId = this.getGymRewardTM(i);
+                if (tmId) {
+                    const hasItem = await this.getItemCount(user.id_usuario, tmId);
+                    if (hasItem === 0) {
+                        await this.addItem(user.id_usuario, tmId, 1);
+                        given++;
+                    }
+                }
+            }
+            if (given > 0) {
+                console.log(`🎁 ${user.id_usuario} recebeu ${given} TMs retroativos.`);
+                count++;
+            }
+        }
+        return `✅ Distribuição completa! ${count} usuários receberam seus TMs esquecidos.`;
     }
 
     async fixNullPP() {
@@ -1842,6 +1895,51 @@ class PokemonHandler {
         return res ? res.quantity : 0;
     }
 
+    async useTM(userId, param) {
+        const tag = await this.getUserTag(userId);
+        const args = param.split(' ');
+        
+        const itemCode = args[0]?.toLowerCase();
+        const slot = parseInt(args[1]);
+
+        if (!itemCode || isNaN(slot)) {
+            return `${tag}💿 *USO DE TMs*\nUse: *!poke tm [item] [slot_poke]*\nEx: _!poke tm tm26 1_ (Ensina Earthquake pro líder)`;
+        }
+        const item = await this.db.get("SELECT i.*, inv.quantity FROM inventory inv JOIN items i ON inv.item_id = i.id WHERE inv.user_id = ? AND (i.id = ? OR i.name LIKE ?)", [userId, itemCode, `%${itemCode}%`]);
+        
+        if (!item || item.quantity < 1) return `${tag}🚫 Você não tem esse TM/HM na mochila.`;
+
+        const poke = await this.db.get("SELECT * FROM user_pokemons WHERE user_id = ? AND team_slot = ?", [userId, slot]);
+        if (!poke) return `${tag}🚫 Slot ${slot} vazio.`;
+
+        const moveNameRegex = /\((.*?)\)/;
+        const match = item.name.match(moveNameRegex);
+        const moveName = match ? match[1] : null;
+
+        if (!moveName) return `${tag}❌ Erro: Não consegui identificar o golpe desse TM.`;
+
+        const move = await this.db.get("SELECT id, type FROM moves WHERE name LIKE ?", [moveName]);
+        if (!move) return `${tag}❌ Erro: Golpe *${moveName}* não existe no banco.`;
+
+        // Validação de Compatibilidade Simples (Por Tipo)
+        if (move.type !== poke.type1 && move.type !== poke.type2 && move.type !== 'normal') {
+             return `${tag}🚫 *${poke.nickname}* não parece compatível com golpes do tipo ${move.type}.`;
+        }
+
+        const result = await this.attemptLearnMove(poke, move.id);
+
+        if (!result.success) {
+            return `${tag}🚫 ${poke.nickname} ${result.msg}`;
+        }
+
+        if (item.type === 'tm') {
+            await this.removeItem(userId, item.id, 1);
+            return `${tag}💿 Você usou **${item.name}**!\n${poke.nickname} ${result.msg}`;
+        } else {
+            return `${tag}💿 Você ativou o **${item.name}**!\n${poke.nickname} ${result.msg}`;
+        }
+    }
+
     async distributeDayCareXP(userId, totalXpEarned) {
         const poke = await this.db.get("SELECT * FROM user_pokemons WHERE user_id = ? AND team_slot = 0", [userId]);
         
@@ -1900,21 +1998,10 @@ class PokemonHandler {
                 [poke.pokedex_id, currentLvl]
             );
 
-            const p = await this.db.get("SELECT move1, move2, move3, move4, pending_move FROM user_pokemons WHERE id = ?", [poke.id]);
-            let currentMoves = [p.move1, p.move2, p.move3, p.move4];
-
             for (const move of learnedMoves) {
-                if (currentMoves.includes(move.id)) continue;
-
-                const emptyIndex = currentMoves.indexOf(null);
-
-                if (emptyIndex !== -1) {
-                    await this.db.run(`UPDATE user_pokemons SET move${emptyIndex + 1} = ? WHERE id = ?`, [move.id, poke.id]);
-                    currentMoves[emptyIndex] = move.id;
-                    learnMsg += `\n💡 Aprendeu *${move.name}*!`;
-                } else {
-                    await this.db.run(`UPDATE user_pokemons SET pending_move = ? WHERE id = ?`, [move.id, poke.id]);
-                    learnMsg += `\n💡 Quer aprender *${move.name}*, mas tem 4 golpes. Use *!poke esquecer [1-4]*!`;
+                const res = await this.attemptLearnMove(poke, move.id);
+                if (res.success) {
+                    learnMsg += `\n💡 ${res.msg}`;
                 }
             }
         }
@@ -2199,6 +2286,12 @@ class PokemonHandler {
         }
 
         switch (action) {
+            case 'tm':
+                return await this.useTM(sender, param);
+
+            case 'fixrewards':
+                if (sender !== ADMIN_ID) return "🔒 Sem permissão.";
+                return await this.giveRetroactiveGymTMs();
 
             case 'presente':
             case 'gift':
@@ -2220,24 +2313,24 @@ class PokemonHandler {
             case 'novarecompensa':
                 if (sender !== ADMIN_ID) return "🔒 Sai daqui, hacker. Só o Admin manda aqui.";
                 
+                let targetInput = args[2];
                 let targetUser = sender;
-                
-                if (sock && msg.message?.extendedTextMessage?.contextInfo?.mentionedJid?.length > 0) {
-                    targetUser = msg.message.extendedTextMessage.contextInfo.mentionedJid[0];
+
+                if (targetInput && targetInput.includes('@')) {
+                    const cleanNum = targetInput.replace('@', '').replace(/[^0-9]/g, '');
+                    targetUser = cleanNum + "@s.whatsapp.net";
                 }
 
-                const cleanArgs = args.filter(a => !a.includes('@'));
-                
-                const rType = cleanArgs[2]; 
-                const rValue = cleanArgs[3];
-                const rAmount = parseInt(cleanArgs[4]) || 1;
+                const rType = args[3]; 
+                const rValue = args[4];
+                const rAmount = parseInt(args[5]) || 1;
 
                 if (!rType || !rValue) {
                     return "🛠️ *FERRAMENTA DE ADMIN*\nUse: *!poke dar @user [tipo] [valor] [qtd]*\n\n" +
                            "Exemplos:\n" +
-                           "• !poke dar @fulano pokemon mewtwo 100\n" +
-                           "• !poke dar @fulano coin 5000\n" +
-                           "• !poke dar @fulano item bola 50";
+                           "• !poke dar @55139... pokemon mewtwo 100\n" +
+                           "• !poke dar @55139... coin 5000\n" +
+                           "• !poke dar @55139... item bola 50";
                 }
 
                 return await this.giveReward(targetUser, rType, rValue, rAmount);
@@ -3624,8 +3717,20 @@ class PokemonHandler {
 
         if (encounter.battle_type === 'GYM_LEADER') { 
             const badgeInfo = encounter.gymData;
+            
+            const currentBadgeCount = (await this.db.get("SELECT badges FROM usuarios WHERE id_usuario = ?", [userId])).badges || 0;
+            const tmId = this.getGymRewardTM(currentBadgeCount);
+            let tmMsg = "";
+            
+            if (tmId) {
+                await this.addItem(userId, tmId, 1);
+                const tmName = (await this.db.get("SELECT name FROM items WHERE id = ?", [tmId]))?.name;
+                tmMsg = `\n💿 Recebeu: **${tmName}**!`;
+            }
+
             await this.db.run("UPDATE usuarios SET badges = badges + 1, pokecoins = pokecoins + ?, gym_progress = NULL WHERE id_usuario = ?", [badgeInfo.reward, userId]);
-            return `${log}\n🏆 *VITÓRIA NO GINÁSIO!*\nVocê derrotou o Líder ${badgeInfo.leaderName}!\n\n🏅 Recebeu: *Insígnia ${badgeInfo.badgeName}*\n💰 Recebeu: *${badgeInfo.reward} coins*\n${logMsg}`;
+            
+            return `${log}\n🏆 *VITÓRIA NO GINÁSIO!*\nVocê derrotou o Líder ${badgeInfo.leaderName}!\n\n🏅 Recebeu: *Insígnia ${badgeInfo.badgeName}*\n💰 Recebeu: *${badgeInfo.reward} coins*${tmMsg}\n${logMsg}`;
         }
 
         if (encounter.battle_type === 'TRAINER') {
@@ -4327,6 +4432,40 @@ class PokemonHandler {
         return await this.db.all(`SELECT m.* FROM pokemon_moves pm JOIN moves m ON pm.move_id = m.id WHERE pm.pokemon_id = ? AND pm.level_learned <= ? ORDER BY pm.level_learned DESC LIMIT 4`, [pid, lvl]);
     }
 
+    // Tenta ensinar um golpe
+    async attemptLearnMove(userPoke, moveId) {
+        const currentMoves = [userPoke.move1, userPoke.move2, userPoke.move3, userPoke.move4];
+        if (currentMoves.includes(moveId)) {
+            return { success: false, reason: 'already_known', msg: "já conhece esse movimento." };
+        }
+
+        const move = await this.db.get("SELECT name FROM moves WHERE id = ?", [moveId]);
+        if (!move) return { success: false, reason: 'invalid_move', msg: "movimento inválido." };
+
+        const emptyIndex = currentMoves.indexOf(null);
+
+        if (emptyIndex !== -1) {
+            await this.db.run(`UPDATE user_pokemons SET move${emptyIndex + 1} = ? WHERE id = ?`, [moveId, userPoke.id]);
+            
+            userPoke[`move${emptyIndex + 1}`] = moveId; 
+            
+            return { success: true, learned: true, moveName: move.name, msg: `aprendeu *${move.name}*!` };
+        } else {
+            // Vai para pending_move
+            await this.db.run(`UPDATE user_pokemons SET pending_move = ? WHERE id = ?`, [moveId, userPoke.id]);
+            
+            userPoke.pending_move = moveId;
+
+            return { 
+                success: true, 
+                learned: false, 
+                pending: true, 
+                moveName: move.name, 
+                msg: `quer aprender *${move.name}*, mas já tem 4 golpes. Use *!poke esquecer [1-4]*!` 
+            };
+        }
+    }
+
     async gainExperience(userPoke, enemy, enemyLevel, splitFactor = 1, multiplier, userId) {
         if (userPoke.pending_move) {
             const moveName = (await this.db.get("SELECT name FROM moves WHERE id = ?", [userPoke.pending_move]))?.name;
@@ -4354,36 +4493,11 @@ class PokemonHandler {
                  WHERE pm.pokemon_id = ? AND pm.level_learned = ?`,
                 [userPoke.pokedex_id, lvl]
             );
-
-            let currentMoves = [userPoke.move1, userPoke.move2, userPoke.move3, userPoke.move4];
             
             for (const move of learnedMoves) {
-                if (currentMoves.includes(move.id)) continue;
-
-                const emptyIndex = currentMoves.indexOf(null);
-
-                if (emptyIndex !== -1) {
-                    await this.db.run(`UPDATE user_pokemons SET move${emptyIndex + 1} = ? WHERE id = ?`, [move.id, userPoke.id]);
-                    currentMoves[emptyIndex] = move.id;
-                    msg += `\n💡 Aprendeu *${move.name}*!`;
-                } else {
-                    stopLvlUp = true;
-                    
-                    const newHp = Math.floor(((2*userPoke.base_hp + (userPoke.iv_hp||15) + 100)*lvl)/100+10);
-                    
-                    await this.db.run(
-                        `UPDATE user_pokemons SET exp=?, level=?, max_hp=?, current_hp=?, pending_move=? WHERE id=?`, 
-                        [newXp, lvl, newHp, newHp, move.id, userPoke.id]
-                    );
-
-                    return `🆙 Subiu para Nvl ${lvl}!\n` +
-                           `💡 ${userPoke.nickname} quer aprender *${move.name}*.\n` +
-                           `Mas já conhece 4 movimentos:\n` +
-                           `1. ${(await this.getMoveName(currentMoves[0]))}\n` +
-                           `2. ${(await this.getMoveName(currentMoves[1]))}\n` +
-                           `3. ${(await this.getMoveName(currentMoves[2]))}\n` +
-                           `4. ${(await this.getMoveName(currentMoves[3]))}\n\n` +
-                           `Use: *!poke esquecer 1* (para esquecer o 1º) ou *!poke ignorar*.`;
+                const res = await this.attemptLearnMove(poke, move.id);
+                if (res.success) {
+                    learnMsg += `\n💡 ${res.msg}`;
                 }
             }
         }

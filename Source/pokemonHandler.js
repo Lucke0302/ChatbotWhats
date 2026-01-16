@@ -2080,7 +2080,8 @@ class PokemonHandler {
 
         const moveNameRegex = /\((.*?)\)/;
         const match = item.name.match(moveNameRegex);
-        const moveName = match ? match[1] : null;
+        
+        const moveName = match ? match[1].toLowerCase().replace(/ /g, '-') : null;
 
         if (!moveName) return `${tag}❌ Erro: Não consegui identificar o golpe desse TM.`;
 

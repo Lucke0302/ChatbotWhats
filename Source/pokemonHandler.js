@@ -2564,7 +2564,7 @@ class PokemonHandler {
                `⚠️ Taxa de retirada: 200 coins por nível subido.`;
     }
 
-    async handleCommand(from, sender, command, sock) {
+    async handleCommand(from, sender, command, sock, msg) {
         const args = command.trim().split(' ');
         const action = args[1] ? args[1].toLowerCase() : 'ajuda';
         const param = args.slice(2).join(' ');
@@ -2584,8 +2584,14 @@ class PokemonHandler {
 
                 let targetId = sender;
                 let cmdArgs = args.slice(2);
-                
-                if (cmdArgs[0].includes('@') || cmdArgs[0].length > 10) {
+
+                const mentions = msg?.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
+
+                if (mentions.length > 0) {
+                    targetId = mentions[0];
+                    cmdArgs.shift();
+                } 
+                else if (cmdArgs[0].includes('@') || cmdArgs[0].length > 10) {
                      targetId = cmdArgs[0].replace('@', '').replace(/[^0-9]/g, '') + "@s.whatsapp.net";
                      cmdArgs.shift();
                 }
@@ -2594,7 +2600,6 @@ class PokemonHandler {
                 const moveNameArg = cmdArgs.slice(1).join(' ').toLowerCase().replace(/ /g, '-');
 
                 if (isNaN(slotPoke) || !moveNameArg) return "⚠️ Uso: !poke ensinar @usuario [slot] [nome-do-golpe]";
-
                 const targetUserPoke = await this.db.get("SELECT * FROM user_pokemons WHERE user_id = ? AND team_slot = ?", [targetId, slotPoke]);
                 if (!targetUserPoke) return "🚫 Pokémon não encontrado no slot indicado.";
 

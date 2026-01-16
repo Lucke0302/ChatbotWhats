@@ -3451,6 +3451,10 @@ class PokemonHandler {
         if (encounter.currentHp <= 0) return this.handleVictory(userId, encounter, battleState, log);
         if (userPoke.current_hp <= 0) return this.handlePlayerFaint(userId, userPoke, tag, log);
 
+        // Limpa o flinch de todos para não persistir no próximo turno
+        if (battleState.counters.user) battleState.counters.user.flinched = false;
+        if (battleState.counters.enemy) battleState.counters.enemy.flinched = false;
+
         // Salva Battle State Final
         let finalExtraData = encounterRaw.extra_data ? JSON.parse(encounterRaw.extra_data) : {};
         finalExtraData.stages = battleState.stages;

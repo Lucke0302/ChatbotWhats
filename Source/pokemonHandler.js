@@ -1122,6 +1122,21 @@ class PokemonHandler {
              power = 50; 
         }
 
+        if (move.name === 'magnitude') {
+            const r = Math.random();
+            let mag = 0;
+            
+            if (r < 0.05)      { mag = 4; power = 10; }  // 5%
+            else if (r < 0.15) { mag = 5; power = 30; }  // 10%
+            else if (r < 0.35) { mag = 6; power = 50; }  // 20%
+            else if (r < 0.65) { mag = 7; power = 70; }  // 30%
+            else if (r < 0.85) { mag = 8; power = 90; }  // 20%
+            else if (r < 0.95) { mag = 9; power = 110; } // 10%
+            else               { mag = 10; power = 150; } // 5%
+
+            log += `\n🌋 Magnitude **${mag}**!`;
+        }
+
         const getStat = (poke, statName, isP, lvl) => {
             if (isP) return this.computeStat(poke[`base_${statName}`], poke[`iv_${statName}`], lvl, poke.nature, statName);
             return Math.floor(((2 * poke[`base_${statName}`] + 15) * lvl) / 100 + 5);

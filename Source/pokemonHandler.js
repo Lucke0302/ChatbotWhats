@@ -2804,6 +2804,28 @@ class PokemonHandler {
         let teamSize = (Math.floor(Math.random() * 3) + 1) + Math.floor(badges / 2);
         if (teamSize > 6) teamSize = 6;
 
+        const PAYOUT_RATES = {
+            "Youngster": 10,
+            "Bug Catcher": 8, 
+            "Lass": 12,
+            "Hiker": 15,
+            "Fisherman": 15,
+            "Black Belt": 20,
+            "Scientist": 25,
+            "Team Rocket": 30,
+            "Psychic": 25,
+            "Cooltrainer": 40
+        };
+
+        const classMultiplier = PAYOUT_RATES[trainerClass] || 15;
+
+        const totalLevel = trainerTeam.reduce((sum, poke) => sum + poke.level, 0);
+        const avgLevel = Math.floor(totalLevel / trainerTeam.length);
+
+        let calculatedReward = Math.floor(avgLevel * trainerTeam.length * classMultiplier);
+        
+        calculatedReward += (badges * 200);
+
         let trainerTeam = [];
 
         for (let i = 0; i < teamSize; i++) {
@@ -2858,7 +2880,7 @@ class PokemonHandler {
         const extraData = { 
             leaderName: `${trainerClass} ${trainerName}`, 
             badgeName: null, 
-            reward: 100 + (badges * 50) + (userAvgLvl * 10), 
+            reward: calculatedReward,
             participants: [leadPoke.id],
             remainingTeam: remainingTeam 
         };
@@ -3224,14 +3246,33 @@ class PokemonHandler {
 
         const hp = Math.floor(((2 * firstPokeData.base_hp + 15 + 100) * firstPokeData.level) / 100 + 10);
 
-        const trainerNames = ["Jovem", "Escoteiro", "Montanhista", "Nadador", "Mecânico", "Careca", "Faixa Preta", "Médium"];
+        const trainerNames = ["Jovem", "Escoteiro", "Montanhista", "Nadador", "Mecânico", "Ciclista", "Faixa Preta", "Médium"];
         const randomClass = trainerNames[Math.floor(Math.random() * trainerNames.length)];
+
+        const GYM_PAYOUT_RATES = {
+            "Jovem": 12,        
+            "Escoteiro": 15,
+            "Montanhista": 18,
+            "Nadador": 18,
+            "Mecânico": 22,
+            "Ciclista": 20,
+            "Faixa Preta": 25,
+            "Médium": 30
+        };
+
+        const classMultiplier = GYM_PAYOUT_RATES[randomClass] || 18;
+        const totalLevel = trainerTeam.reduce((sum, poke) => sum + poke.level, 0);
+        const avgLevel = Math.floor(totalLevel / trainerTeam.length);
+
+        let calculatedReward = Math.floor(avgLevel * trainerTeam.length * classMultiplier);
+        
+        calculatedReward += (badgeIndex * 300); 
 
         const extraData = { 
             participants: [leadPokeId],
             leaderName: `${randomClass} do Ginásio`, 
             remainingTeam: remainingTeam,
-            reward: 200 + (badgeIndex * 100)
+            reward: calculatedReward
         };
 
         await this.db.run(`
@@ -3631,7 +3672,11 @@ class PokemonHandler {
         if (encounter.battle_type === 'GYM_TRAINER') {
             await this.db.run("UPDATE usuarios SET gym_progress = gym_progress - 1 WHERE id_usuario = ?", [userId]);
             const remaining = (await this.db.get("SELECT gym_progress FROM usuarios WHERE id_usuario = ?", [userId])).gym_progress;
-            const reward = 750; 
+            
+            const rawReward = encounter.gymData.reward || 750;
+            const variation = (Math.random() * 0.2) + 0.9;
+            const reward = Math.floor(rawReward * variation);
+            
             await this.db.run("UPDATE usuarios SET pokecoins = pokecoins + ? WHERE id_usuario = ?", [reward, userId]);
 
             let nextMsg = "";
@@ -3663,7 +3708,10 @@ class PokemonHandler {
 
         if (encounter.battle_type === 'TRAINER') {
             const rawReward = encounter.gymData.reward || 500;
-            const reward = Math.floor((Math.random() + 1) * rawReward)
+            
+            const variation = (Math.random() * 0.2) + 0.9; 
+            const reward = Math.floor(rawReward * variation);
+
             await this.db.run("UPDATE usuarios SET pokecoins = pokecoins + ? WHERE id_usuario = ?", [reward, userId]);
             return `${log}\n🏆 *VOCÊ VENCEU O TREINADOR!*\nRecebeu 💰 ${reward}!\n${logMsg}`;
         }
@@ -3946,7 +3994,7 @@ class PokemonHandler {
             WHERE up.id = ?`, 
             [encounter.activePokemonId]
         );
-        
+
         const isFainted = userPoke && userPoke.current_hp <= 0;
 
         const xp = encounter.pokemon.base_xp || 60;

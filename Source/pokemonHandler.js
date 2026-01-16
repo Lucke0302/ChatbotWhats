@@ -1096,6 +1096,12 @@ class PokemonHandler {
         return { canMove: true, log: log , selfDamage};
     }
 
+    // Verifica se o usuário tem pelo menos 1 Pokémon
+    async checkIfUserHasPokemon(userId) {
+        const result = await this.db.get("SELECT count(*) as total FROM user_pokemons WHERE user_id = ?", [userId]);
+        return result && result.total > 0;
+    }
+
     async helpPoke(userId, param) {
         const tag = await this.getUserTag(userId);
         const topic = param ? param.trim().toLowerCase() : 'default';

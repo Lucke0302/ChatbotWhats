@@ -488,6 +488,11 @@ class PokemonHandler {
             console.error("❌ ERRO CRÍTICO NA MIGRAÇÃO:", e);
         }
 
+        try {
+            await this.db.exec(`ALTER TABLE user_pokemons ADD COLUMN status TEXT DEFAULT NULL;`);
+            console.log(`✅ Coluna 'status' adicionada com sucesso!`);
+        } catch (e) { }
+
         // 3. VERIFICAÇÕES DE BANCO DE DADOS (Pokedéx, Moves, etc)
         const pokeCount = await this.db.get('SELECT COUNT(*) as total FROM pokedex');
         const moveCount = await this.db.get('SELECT COUNT(*) as total FROM moves');
@@ -1166,10 +1171,15 @@ class PokemonHandler {
         if (status === 'slp') {
             if (counters.sleep > 0) {
                 counters.sleep--;
-                return { canMove: false, log: `😴 *${pokeName}* está dormindo!` };
+                return { canMove: false, log: `😴 *${pokeObj.nickname || pokeObj.name}* está dormindo!` };
             } else {
                 battleState[targetKey + 'Status'] = null;
-                log += `⏰ *${pokeName}* acordou!\n`;
+                
+                if (isPlayer) {
+                     await this.db.run("UPDATE user_pokemons SET status = NULL WHERE id = ?", [pokeObj.id]);
+                }
+                
+                log += `⏰ *${pokeObj.nickname || pokeObj.name}* acordou!\n`;
             }
         }
 
@@ -1177,6 +1187,11 @@ class PokemonHandler {
         if (status === 'frz') {
             if (Math.random() < 0.3) {
                 battleState[targetKey + 'Status'] = null;
+
+                if (isPlayer) {
+                     await this.db.run("UPDATE user_pokemons SET status = NULL WHERE id = ?", [pokeObj.id]);
+                }
+
                 log += `🔥 *${pokeName}* descongelou!\n`;
             } else {
                 return { canMove: false, log: `🧊 *${pokeName}* está congelado!` };
@@ -1320,7 +1335,7 @@ class PokemonHandler {
 
         // GOLPES DE STATUS
         if (move.damage_class === 'status') {
-            const res = await this.processStatusMove(move.name, battleState, isPlayer, attacker.max_hp);
+            const res = await this.processStatusMove(move.name, battleState, isPlayer, attacker.max_hp, userPoke);
             log += `\n✨ ${attacker.nickname || attacker.name} ${res.msg}`;
             
             if (res.healAmount > 0) {
@@ -1740,7 +1755,7 @@ class PokemonHandler {
         return `✅ ${count} Pokémon antigos receberam uma natureza aleatória.`;
     }
 
-    getBattleState(encounter) {
+    getBattleState(encounter, userPoke) {
         let data = encounter.extra_data ? JSON.parse(encounter.extra_data) : {};
         
         if (!data.stages) {
@@ -1779,6 +1794,14 @@ class PokemonHandler {
                 uproar: 0 
             };
         }
+
+        if (userPoke) {
+            data.userStatus = userPoke.status || null;
+        } else if (!data.userStatus) {
+            data.userStatus = null;
+        }
+
+        if (!data.enemyStatus) data.enemyStatus = null;
         
         return data;
     }
@@ -1818,7 +1841,7 @@ class PokemonHandler {
         return Math.floor(statValue * multiplier);
     }
 
-    async processStatusMove(moveName, state, isPlayerTurn, maxHp) {
+    async processStatusMove(moveName, state, isPlayerTurn, maxHp, userPoke) {
         const effect = STATUS_MOVES[moveName.toLowerCase()];
         
         if (!effect) return { msg: `usou ${moveName}.` };
@@ -1860,18 +1883,22 @@ class PokemonHandler {
 
         if (effect.status) {
             const currentStatus = state[targetKey + 'Status'];
+            
             if (currentStatus) {
                 result.msg = `tentou usar ${moveName}, mas falhou!`;
             } else {
                 state[targetKey + 'Status'] = effect.status; 
                 
+                if (targetKey === 'user' && userPoke) {
+                    await this.db.run("UPDATE user_pokemons SET status = ? WHERE id = ?", [effect.status, userPoke.id]);
+                }
+
                 if (effect.status === 'slp') {
                     state.counters[targetKey].sleep = Math.floor(Math.random() * 3) + 1;
                 }
                 if (effect.status === 'tox') {
                     state.counters[targetKey].toxic = 0;
                 }
-
                 result.msg = `usou ${moveName} e ${effect.msg}`;
             }
         }
@@ -1981,11 +2008,23 @@ class PokemonHandler {
 
         const displayHp = Math.max(0, poke.current_hp);
 
+        // ... cálculos de stats ...
+
+        const statusEmojis = {
+            'brn': '🔥 (Queimado)',
+            'psn': '☠️ (Envenenado)',
+            'tox': '🟣 (Gravemente Envenenado)',
+            'par': '⚡ (Paralisado)',
+            'slp': '💤 (Dormindo)',
+            'frz': '🧊 (Congelado)'
+        };
+        const statusDisplay = poke.status ? `\n🤕 *Status:* ${statusEmojis[poke.status] || poke.status}` : "";
+
         const caption = `${tag}📊 *FICHA TÉCNICA* 📊\n\n` +
                         `${shinyStar} *${poke.nickname.toUpperCase()}* ${typeEmojis}\n` +
                         `🆙 Nível: ${poke.level} | XP: ${poke.exp}\n` +
                         `🌱 Nature: ${natureText}\n\n` +
-                        `❤️ HP: ${displayHp}/${poke.max_hp} (IV: ${poke.iv_hp})\n` +
+                        `❤️ HP: ${displayHp}/${poke.max_hp} (IV: ${poke.iv_hp})${statusDisplay}\n` + 
                         `⚔️ Atk: ${atk} (IV: ${poke.iv_atk})\n` +
                         `🛡️ Def: ${def} (IV: ${poke.iv_def})\n` +
                         `🔮 Sp.A: ${spa} (IV: ${poke.iv_spa})\n` +
@@ -2087,7 +2126,7 @@ class PokemonHandler {
         // --- SÓ PROCESSA TURNO INIMIGO SE NÃO FOI TROCA POR MORTE ---
         if (!isFaintSwitch) {
             const encounterRaw = await this.db.get("SELECT extra_data FROM active_encounters WHERE user_id = ?", [userId]);
-            let battleState = this.getBattleState(encounterRaw);
+            let battleState = this.getBattleState(encounterRaw, targetPoke);
 
             const enemyTurnLog = await this.processEnemyTurn(encounter, targetPoke, battleState, userId);
             
@@ -3398,7 +3437,7 @@ class PokemonHandler {
 
         // Carrega Estado
         const encounterRaw = await this.db.get("SELECT extra_data FROM active_encounters WHERE user_id = ?", [userId]);
-        let battleState = this.getBattleState(encounterRaw);
+        let battleState = this.getBattleState(encounterRaw, userPoke);
         
         // Garante participantes
         if (!battleState.participants) battleState.participants = [];
@@ -3845,7 +3884,7 @@ class PokemonHandler {
 
         // --- EXECUÇÃO DO GOLPE (CÁLCULO DE DANO) ---
         if (wildMove.damage_class === 'status') {
-            const res = await this.processStatusMove(wildMove.name, battleState, false, encounter.maxHp);
+            const res = await this.processStatusMove(wildMove.name, battleState, false, encounter.maxHp, userPoke);
             log += `\n✨ ${enemyDisplayName} ${res.msg}`;
             
             if (res.healAmount > 0) {
@@ -4091,7 +4130,7 @@ class PokemonHandler {
 
         if (userPoke) {
             const encounterRaw = await this.db.get("SELECT extra_data FROM active_encounters WHERE user_id = ?", [userId]);
-            let battleState = this.getBattleState(encounterRaw);
+            let battleState = this.getBattleState(encounterRaw, userPoke);
 
             const enemyLog = await this.processEnemyTurn(encounter, userPoke, battleState, userId);
             msg += enemyLog;
@@ -4223,7 +4262,7 @@ class PokemonHandler {
         const tag = await this.getUserTag(userId);
         const encounter = await this.loadEncounter(userId);
         if(encounter) return `${tag}🚫 Termine a batalha antes de curar!`;
-        await this.db.run("UPDATE user_pokemons SET current_hp = max_hp WHERE user_id = ?", [userId]);
+        await this.db.run("UPDATE user_pokemons SET current_hp = max_hp, status = NULL WHERE user_id = ?", [userId]);
         await this.db.run(`
             UPDATE user_pokemons 
             SET move1_pp = (SELECT pp FROM moves WHERE id = user_pokemons.move1),

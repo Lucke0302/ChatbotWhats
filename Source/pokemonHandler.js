@@ -4453,7 +4453,7 @@ class PokemonHandler {
             for (const move of learnedMoves) {
                 const res = await this.attemptLearnMove(userPoke, move.id);
                 if (res.success) {
-                    learnMsg += `\n💡 ${res.msg}`;
+                    msg += `\n💡 ${res.msg}`;
                 }
             }
         }

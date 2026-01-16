@@ -1335,7 +1335,8 @@ class PokemonHandler {
 
         // GOLPES DE STATUS
         if (move.damage_class === 'status') {
-            const res = await this.processStatusMove(move.name, battleState, isPlayer, attacker.max_hp, userPoke);
+            const playerPoke = isPlayer ? attacker : defender;
+            const res = await this.processStatusMove(move.name, battleState, isPlayer, attacker.max_hp, playerPoke);
             log += `\n✨ ${attacker.nickname || attacker.name} ${res.msg}`;
             
             if (res.healAmount > 0) {

@@ -1,4 +1,5 @@
 const axios = require('axios');
+const fs = require('fs');
 const { gracefulShutdown } = require('node-schedule');
 const STARTER_IDS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 152, 153, 154, 155, 156, 157, 158, 159, 160, 252, 253, 254, 255, 256, 257, 258, 259, 260];
 const ADMIN_ID = "5513991008854@s.whatsapp.net";
@@ -2778,7 +2779,7 @@ class PokemonHandler {
             
             case 'capturar': 
             case 'catch': 
-                return await this.catchPokemon(from, sender, param);
+                return await this.catchPokemon(from, sender, param, sock);
 
             case 'perfil': 
             case 'box': 
@@ -4053,9 +4054,10 @@ class PokemonHandler {
         return log;
     }
 
-    async catchPokemon(groupId, userId, param) {
+    async catchPokemon(groupId, userId, param, sock) {
         const tag = await this.getUserTag(userId);
         const encounter = await this.loadEncounter(userId);
+        
         if (!encounter) return `${tag}🤷 Nenhuma batalha ativa.`;
         if (encounter.isGym) return `${tag}🚫 Você não pode roubar o Pokémon do Líder!`;
         if (encounter.battle_type === 'TRAINER' || encounter.battle_type === 'GYM_TRAINER') return `${tag}🚫 Você não pode roubar o Pokémon de outro treinador! Isso é crime!`;
@@ -4067,9 +4069,6 @@ class PokemonHandler {
         if (ballType.includes('ultra')) { selectedBall = 'ultraball'; multiplier = 2.0; }
         else if (ballType.includes('great')) { selectedBall = 'greatball'; multiplier = 1.5; }
         else if (ballType.includes('poke') || ballType === 'bola') { selectedBall = 'pokeball'; multiplier = 1.0; }
-        else {
-            selectedBall = 'pokeball'; 
-        }
 
         const hasBall = await this.removeItem(userId, selectedBall, 1);
         if (!hasBall) {
@@ -4077,41 +4076,43 @@ class PokemonHandler {
             return `${tag}🚫 Sem Pokébolas! Compre na loja.`;
         }
 
-        const userPoke = await this.db.get(`
-            SELECT up.*, p.base_def, p.base_spd, p.type1, p.type2 
-            FROM user_pokemons up 
-            JOIN pokedex p ON up.pokedex_id = p.id 
-            WHERE up.id = ?`, 
-            [encounter.activePokemonId]
-        );
-
+        // --- CÁLCULO DA CAPTURA (ANTECIPADO) ---
+        const userPoke = await this.db.get(`SELECT up.* FROM user_pokemons up WHERE up.id = ?`, [encounter.activePokemonId]);
         const isFainted = userPoke && userPoke.current_hp <= 0;
-
+        
         const xp = encounter.pokemon.base_xp || 60;
         let estimatedCatchRate = Math.floor(5000 / xp); 
-        
         estimatedCatchRate = Math.max(15, Math.min(200, estimatedCatchRate));
 
         let hpFactor = ((3 * encounter.maxHp) - (2 * encounter.currentHp)) / (3 * encounter.maxHp);
-        
         let statusFactor = isFainted ? 0.75 : 1.0; 
-
         let finalChance = (estimatedCatchRate / 255) * hpFactor * multiplier * statusFactor;
-
         finalChance += 0.05; 
 
         const isCaught = Math.random() < finalChance;
         const resultSuffix = isCaught ? 'catch' : 'fail';
 
-        this.lastSticker = `${selectedBall}-${resultSuffix}`;
+        // --- ENVIO DA FIGURINHA ---
+        // Agora enviamos direto daqui, sem depender do chatModel
+        const stickerName = `${selectedBall}-${resultSuffix}.webp`;
+        const stickerPath = `Assets/${stickerName}`; // O caminho é relativo à raiz do projeto (onde roda o index.js)
 
-        if (this.sock) await this.sock.sendMessage(groupId, { text: `🔄 *${tag.replace('*', '').trim()}* jogou uma **${selectedBall}**...` });
+        if (sock && fs.existsSync(stickerPath)) {
+            try {
+                const stickerBuffer = fs.readFileSync(stickerPath);
+                await sock.sendMessage(groupId, { sticker: stickerBuffer });
+            } catch (e) {
+                console.error("Erro ao enviar sticker no PokemonHandler:", e);
+            }
+        } else {
+            console.log(`[PokemonHandler] Sticker não encontrado ou Sock indisponível: ${stickerPath}`);
+        }
 
+        // --- MOMENTO DE TENSÃO (DELAY) ---
         await new Promise(resolve => setTimeout(resolve, 4000));
 
+        // --- LÓGICA DE SUCESSO ---
         if (isCaught) {
-            this.lastSticker = `${selectedBall}-catch`;            
-            await new Promise(resolve => setTimeout(resolve, 4000));
             const pk = encounter.pokemon;
             const randIv = () => Math.floor(Math.random() * 32);
             const ivHp = randIv();
@@ -4119,46 +4120,30 @@ class PokemonHandler {
             const initialXp = this.computeXp(encounter.level);
 
             let m1 = encounter.moves[0]?.id;
-            let m2 = encounter.moves[1]?.id;
-            let m3 = encounter.moves[2]?.id;
-            let m4 = encounter.moves[3]?.id;
-            
+            // Se precisar buscar tackle fallback
             if(!m1) {
-                const t = await this.db.get("SELECT id FROM moves WHERE name='tackle'");
-                m1 = t ? t.id : null;
+                 const t = await this.db.get("SELECT id FROM moves WHERE name='tackle'");
+                 m1 = t ? t.id : null;
             }
 
-            const pp1 = encounter.moves[0]?.pp || (m1 ? 35 : null);
-            const pp2 = encounter.moves[1]?.pp || null;
-            const pp3 = encounter.moves[2]?.pp || null;
-            const pp4 = encounter.moves[3]?.pp || null;
-
-            const nature = this.getRandomNature(); 
-
+            // Acha slot vazio
             const slots = await this.db.all("SELECT team_slot FROM user_pokemons WHERE user_id = ? AND team_slot IS NOT NULL ORDER BY team_slot ASC", [userId]);
-            const occupiedSlots = slots.map(s => s.team_slot);
-            const totalPokes = await this.db.get("SELECT COUNT(*) as total FROM user_pokemons WHERE user_id = ?", [userId]);
-            
+            const occupied = slots.map(s => s.team_slot);
             let targetSlot = 1;
-            if (totalPokes.total > 0 && occupiedSlots.length === 0) {
-                targetSlot = totalPokes.total + 1;
-            } else {
-                while (occupiedSlots.includes(targetSlot)) { targetSlot++; }
-            }
+            while (occupied.includes(targetSlot)) targetSlot++;
 
             await this.db.run(`
                 INSERT INTO user_pokemons (user_id, pokedex_id, nickname, level, exp, iv_hp, iv_atk, iv_def, iv_spa, iv_spd, iv_spe, move1, move2, move3, move4, move1_pp, move2_pp, move3_pp, move4_pp, obtained_at, is_shiny, current_hp, max_hp, team_slot, nature)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [userId, pk.id, pk.name, encounter.level, initialXp, ivHp, randIv(), randIv(), randIv(), randIv(), randIv(), 
-                 m1, m2, m3, m4, 
-                 pp1, pp2, pp3, pp4,
-                 Date.now(), encounter.isShiny?1:0, realMaxHp, realMaxHp, targetSlot, nature]
+                 m1, encounter.moves[1]?.id, encounter.moves[2]?.id, encounter.moves[3]?.id, 
+                 35, null, null, null, 
+                 Date.now(), encounter.isShiny?1:0, realMaxHp, realMaxHp, targetSlot, this.getRandomNature()]
             );
 
+            // Ganha XP se tiver lutado
             const wildDex = await this.db.get("SELECT base_xp FROM pokedex WHERE id = ?", [encounter.pokedex_id]);
-            
-            let xpMsg
-
+            let xpMsg = "";
             if (userPoke && wildDex) {
                 xpMsg = await this.gainExperience(userPoke, wildDex, encounter.level, 1, 0.5, userId);
             }
@@ -4166,45 +4151,40 @@ class PokemonHandler {
             await this.clearEncounter(userId);
             
             let msg = `${tag}🎉 Capturou *${encounter.pokemon.name}* usando uma **${selectedBall}**!`;
-            
             if(isFainted) msg += `\n😅 Foi por pouco! Você capturou sem Pokémon em campo!`;
-            
             if (targetSlot > 6) msg += `\n📦 Time cheio! Enviado para o PC (Box ${targetSlot - 6}).`;
             else msg += `\n✅ Adicionado ao time principal.`;
-            if(userPoke && wildDex) msg += `\n${xpMsg?.replace('✨ Ganhou', '🔹 Ganhou')}`;
+            if(xpMsg) msg += `\n${xpMsg.replace('✨ Ganhou', '🔹 Ganhou')}`;
+            
             return msg;
-        }
 
-        this.lastSticker = `${selectedBall}-fail`;
-        await new Promise(resolve => setTimeout(resolve, 4000));
-        let msg = `${tag}💢 A **${selectedBall}** quebrou! O *${encounter.pokemon.name}* escapou!`;
+        } else {
+            // --- LÓGICA DE FALHA ---
+            let msg = `${tag}💢 A **${selectedBall}** quebrou! O *${encounter.pokemon.name}* escapou!`;
 
-        if (isFainted) {
-            return msg + `\n😓 Como você está sem Pokémon, o *${encounter.pokemon.name}* te ignorou.\n🍀 Chance de captura reduzida nessa situação!`;
-        }
+            if (isFainted) {
+                return msg + `\n😓 Como você está sem Pokémon, o *${encounter.pokemon.name}* te ignorou.`;
+            }
 
-        if (userPoke) {
-            const encounterRaw = await this.db.get("SELECT extra_data FROM active_encounters WHERE user_id = ?", [userId]);
-            let battleState = this.getBattleState(encounterRaw, userPoke);
-
-            const enemyLog = await this.processEnemyTurn(encounter, userPoke, battleState, userId);
-            msg += enemyLog;
-
-            const updatedUserPoke = await this.db.get("SELECT current_hp, nickname FROM user_pokemons WHERE id = ?", [userPoke.id]);
-            
-            if (updatedUserPoke.current_hp <= 0) {
-            const hasBackup = await this.db.get("SELECT id FROM user_pokemons WHERE user_id = ? AND team_slot > 0 AND current_hp > 0 AND id != ?", [userId, userPoke.id]);
-            
-                if (hasBackup) {
-                    msg += `\n\n💀 *${updatedUserPoke.nickname}* desmaiou!\nA batalha continua! Use *!poke trocar [slot]* para enviar o próximo!`;
-                } else {
-                    await this.clearEncounter(userId);
-                    msg += `\n\n🏴 Você não tem mais Pokémon capazes de lutar!\nVocê correu para o CP (use *!poke curar*).`;
+            if (userPoke) {
+                const encounterRaw = await this.db.get("SELECT extra_data FROM active_encounters WHERE user_id = ?", [userId]);
+                let battleState = this.getBattleState(encounterRaw, userPoke);
+                const enemyLog = await this.processEnemyTurn(encounter, userPoke, battleState, userId);
+                msg += enemyLog;
+                
+                const updatedUserPoke = await this.db.get("SELECT current_hp, nickname FROM user_pokemons WHERE id = ?", [userPoke.id]);
+                if (updatedUserPoke.current_hp <= 0) {
+                    const hasBackup = await this.db.get("SELECT id FROM user_pokemons WHERE user_id = ? AND team_slot > 0 AND current_hp > 0 AND id != ?", [userId, userPoke.id]);
+                    if (hasBackup) {
+                        msg += `\n\n💀 *${updatedUserPoke.nickname}* desmaiou!\nA batalha continua! Use *!poke trocar [slot]* para enviar o próximo!`;
+                    } else {
+                        await this.clearEncounter(userId);
+                        msg += `\n\n🏴 Você não tem mais Pokémon capazes de lutar!\nVocê correu para o CP (use *!poke curar*).`;
+                    }
                 }
             }
+            return msg;
         }
-
-        return msg;
     }
 
     async fleeBattle(groupId, userId) {        

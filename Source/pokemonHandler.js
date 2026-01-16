@@ -3088,49 +3088,90 @@ class PokemonHandler {
         const gymType = GYM_TYPES[badgeIndex] || 'normal';
         
         const baseLevel = 10 + (badgeIndex * 4); 
-        const level = Math.floor(baseLevel + (Math.random() * 3));
 
-        let pokemon = await this.db.get(`
-            SELECT * FROM pokedex 
-            WHERE (type1 = ? OR type2 = ?) 
-            AND rarity = 'common' 
-            AND tier <= 2 
-            ORDER BY RANDOM() LIMIT 1`, 
-            [gymType, gymType]
-        );
+        let teamSize = Math.floor(Math.random() * (badgeIndex + 2)) + 1;
+        if (teamSize > 6) teamSize = 6;
 
-        if (!pokemon) {
-            pokemon = await this.db.get("SELECT * FROM pokedex WHERE rarity = 'common' ORDER BY RANDOM() LIMIT 1");
+        let trainerTeam = [];
+
+        for (let i = 0; i < teamSize; i++) {
+            const level = Math.floor(baseLevel + (Math.random() * 3));
+            
+            let pokemon = await this.db.get(`
+                SELECT * FROM pokedex 
+                WHERE (type1 = ? OR type2 = ?) 
+                AND rarity = 'common' 
+                AND tier <= 2 
+                ORDER BY RANDOM() LIMIT 1`, 
+                [gymType, gymType]
+            );
+
+            if (!pokemon) {
+                pokemon = await this.db.get("SELECT * FROM pokedex WHERE rarity = 'common' ORDER BY RANDOM() LIMIT 1");
+            }
+
+            const movesRaw = await this.getMovesForLevel(pokemon.id, level);
+            let moves = movesRaw.map(m => ({ ...m, current_pp: m.pp }));
+            
+            if (moves.length === 0) {
+                moves = [{name: "tackle", power: 40, damage_class: 'physical', type: 'normal', pp: 35, current_pp: 35}];
+            }
+
+            trainerTeam.push({
+                pokedex_id: pokemon.id,
+                level: level,
+                moves: moves,
+                name: pokemon.name,
+                base_hp: pokemon.base_hp,
+                sprite: pokemon.sprite_url
+            });
         }
 
-        const hp = Math.floor(((2 * pokemon.base_hp + 15 + 100) * level) / 100 + 10);
+        const firstPokeData = trainerTeam[0];
+        const remainingTeam = trainerTeam.slice(1);
 
-        const movesRaw = await this.getMovesForLevel(pokemon.id, level);
-        const moves = movesRaw.map(m => ({ ...m, current_pp: m.pp }));
+        const hp = Math.floor(((2 * firstPokeData.base_hp + 15 + 100) * firstPokeData.level) / 100 + 10);
 
-        const extraData = { participants: [leadPokeId] };
+        const trainerNames = ["Jovem", "Escoteiro", "Montanhista", "Nadador", "Mecânico", "Ciclista", "Faixa Preta", "Médium"];
+        const randomClass = trainerNames[Math.floor(Math.random() * trainerNames.length)];
+
+        const extraData = { 
+            participants: [leadPokeId],
+            leaderName: `${randomClass} do Ginásio`,
+            remainingTeam: remainingTeam,
+            reward: 200 + (badgeIndex * 100)
+        };
 
         await this.db.run(`
             INSERT INTO active_encounters (
                 user_id, group_id, pokedex_id, current_hp, max_hp, level, 
                 is_shiny, moves, battle_type, started_at, active_pokemon_id, extra_data
             ) VALUES (?, ?, ?, ?, ?, ?, 0, ?, 'GYM_TRAINER', ?, ?, ?)`,
-            [userId, groupId, pokemon.id, hp, hp, level, JSON.stringify(moves), Date.now(), leadPokeId, JSON.stringify(extraData)]
+            [
+                userId, 
+                groupId, 
+                firstPokeData.pokedex_id, 
+                hp, 
+                hp, 
+                firstPokeData.level, 
+                JSON.stringify(firstPokeData.moves), 
+                Date.now(), 
+                leadPokeId, 
+                JSON.stringify(extraData)
+            ]
         );
-
-        const trainerNames = ["Jovem", "Escoteiro", "Montanhista", "Nadador", "Mecânico", "Careca"];
-        const randomClass = trainerNames[Math.floor(Math.random() * trainerNames.length)];
 
         const totalTrainers = 2 + badgeIndex;
         const currentBattleNum = (totalTrainers - remaining) + 1;
+        const teamSizeInfo = teamSize > 1 ? `\nEle tem *${teamSize}* Pokémon!` : "";
 
         const caption = `${tag}🏛️ *GINÁSIO - BATALHA ${currentBattleNum} de ${totalTrainers}*\n` +
-                        `O treinador do ginásio, *${randomClass}*, bloqueou seu caminho!\n` +
-                        `Ele usa um *${pokemon.name}* (Lvl ${level}).\n\n` +
+                        `O *${randomClass}*, bloqueou seu caminho!\n` +
+                        `Ele usa um *${firstPokeData.name}* (Lvl ${firstPokeData.level}).${teamSizeInfo}\n\n` +
                         `⚔️ Digite *!poke atacar* para lutar!`;
 
         if (sock) {
-            try { await sock.sendMessage(groupId, { image: { url: pokemon.sprite_url }, caption: caption }); } 
+            try { await sock.sendMessage(groupId, { image: { url: firstPokeData.sprite }, caption: caption }); } 
             catch (e) { await sock.sendMessage(groupId, { text: caption }); }
             return null;
         }
@@ -3337,9 +3378,13 @@ class PokemonHandler {
             
             const actorKey = turn.actor === 'user' ? 'user' : 'enemy';
             if (battleState.counters[actorKey] && battleState.counters[actorKey].flinched) {
-                log += `\n🚫 *${turn.attacker.nickname || turn.attacker.name}* recuou (flinched) e não atacou!`;
-                battleState.counters[actorKey].flinched = false;
-                continue;
+                let attackerName = turn.attacker.nickname || turn.attacker.name;
+                if (!attackerName && turn.attacker.pokemon) attackerName = turn.attacker.pokemon.name;
+                if (!attackerName) attackerName = "Inimigo";
+
+                log += `\n🚫 *${attackerName}* recuou (flinched) e não atacou!`;
+                battleState.counters[actorKey].flinched = false; 
+                continue; 
             }
 
             const currentHpAttacker = turn.actor === 'user' ? userPoke.current_hp : encounter.currentHp;

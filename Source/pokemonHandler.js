@@ -1963,7 +1963,7 @@ class PokemonHandler {
         const tag = await this.getUserTag(userId);
         const slot = parseInt(param);
 
-        if (isNaN(slot) || slot < 1 || slot > 6) {
+        if (isNaN(slot) || slot < 0 || slot > 6) {
             return `${tag}❌ Uso correto: *!poke mostrar [slot]*\nEx: _!poke mostrar 1_ (para ver o primeiro do time)`;
         }
 

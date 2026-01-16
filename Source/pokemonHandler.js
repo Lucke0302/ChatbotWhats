@@ -1974,7 +1974,8 @@ class PokemonHandler {
             JOIN pokedex p ON up.pokedex_id = p.id
             WHERE up.user_id = ? AND up.team_slot = ?`, [userId, slot]);
 
-        if (!poke) return `${tag}🚫 Não há Pokémon no slot ${slot} do seu time.`;
+        if (slot === 0) `${tag}🚫 Não há Pokémon no daycare.`
+        else if (!poke) return `${tag}🚫 Não há Pokémon no slot ${slot} do seu time.`;
 
         // --- CÁLCULO DOS STATS FINAIS ---
         const atk = this.computeStat(poke.base_atk, poke.iv_atk, poke.ev_atk || 0, poke.level, poke.nature, 'atk');

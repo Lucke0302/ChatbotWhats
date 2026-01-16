@@ -1186,9 +1186,17 @@ class PokemonHandler {
         const key = isPlayer ? 'user' : 'enemy';
         const stage = battleState.stages[key].spe || 0;
         
-        let rawSpeed = pokeObj.spe; 
-        
-        if (!isPlayer) {
+        let rawSpeed;
+
+        if (isPlayer) {
+            rawSpeed = this.computeStat(
+                pokeObj.base_spe, 
+                pokeObj.iv_spe, 
+                level, 
+                pokeObj.nature, 
+                'spe'
+            );
+        } else {
             const baseSpe = pokeObj.base_spe;
             rawSpeed = Math.floor(((2 * baseSpe + 15) * level) / 100 + 5);
         }

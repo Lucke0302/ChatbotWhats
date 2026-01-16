@@ -4076,7 +4076,6 @@ class PokemonHandler {
             return `${tag}🚫 Sem Pokébolas! Compre na loja.`;
         }
 
-        // --- CÁLCULO DA CAPTURA (ANTECIPADO) ---
         const userPoke = await this.db.get(`SELECT up.* FROM user_pokemons up WHERE up.id = ?`, [encounter.activePokemonId]);
         const isFainted = userPoke && userPoke.current_hp <= 0;
         
@@ -4092,10 +4091,8 @@ class PokemonHandler {
         const isCaught = Math.random() < finalChance;
         const resultSuffix = isCaught ? 'catch' : 'fail';
 
-        // --- ENVIO DA FIGURINHA ---
-        // Agora enviamos direto daqui, sem depender do chatModel
         const stickerName = `${selectedBall}-${resultSuffix}.webp`;
-        const stickerPath = `Assets/${stickerName}`; // O caminho é relativo à raiz do projeto (onde roda o index.js)
+        const stickerPath = `Assets/${stickerName}`;
 
         if (sock && fs.existsSync(stickerPath)) {
             try {
@@ -4108,10 +4105,8 @@ class PokemonHandler {
             console.log(`[PokemonHandler] Sticker não encontrado ou Sock indisponível: ${stickerPath}`);
         }
 
-        // --- MOMENTO DE TENSÃO (DELAY) ---
         await new Promise(resolve => setTimeout(resolve, 4000));
 
-        // --- LÓGICA DE SUCESSO ---
         if (isCaught) {
             const pk = encounter.pokemon;
             const randIv = () => Math.floor(Math.random() * 32);
@@ -4120,13 +4115,11 @@ class PokemonHandler {
             const initialXp = this.computeXp(encounter.level);
 
             let m1 = encounter.moves[0]?.id;
-            // Se precisar buscar tackle fallback
             if(!m1) {
                  const t = await this.db.get("SELECT id FROM moves WHERE name='tackle'");
                  m1 = t ? t.id : null;
             }
 
-            // Acha slot vazio
             const slots = await this.db.all("SELECT team_slot FROM user_pokemons WHERE user_id = ? AND team_slot IS NOT NULL ORDER BY team_slot ASC", [userId]);
             const occupied = slots.map(s => s.team_slot);
             let targetSlot = 1;
@@ -4141,7 +4134,6 @@ class PokemonHandler {
                  Date.now(), encounter.isShiny?1:0, realMaxHp, realMaxHp, targetSlot, this.getRandomNature()]
             );
 
-            // Ganha XP se tiver lutado
             const wildDex = await this.db.get("SELECT base_xp FROM pokedex WHERE id = ?", [encounter.pokedex_id]);
             let xpMsg = "";
             if (userPoke && wildDex) {

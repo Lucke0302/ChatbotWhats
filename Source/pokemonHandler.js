@@ -461,7 +461,7 @@ class PokemonHandler {
         const evCols = ['ev_hp', 'ev_atk', 'ev_def', 'ev_spa', 'ev_spd', 'ev_spe'];
         for (const col of evCols) {
             try {
-                await db.exec(`ALTER TABLE user_pokemons ADD COLUMN ${col} INTEGER DEFAULT 0;`);
+                await this.db.exec(`ALTER TABLE user_pokemons ADD COLUMN ${col} INTEGER DEFAULT 0;`);
                 console.log(`✅ Coluna '${col}' adicionada com sucesso!`);
             } catch (e) {
             }

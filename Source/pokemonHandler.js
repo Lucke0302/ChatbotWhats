@@ -3940,12 +3940,13 @@ class PokemonHandler {
         }
 
         const userPoke = await this.db.get(`
-            SELECT up.*, p.base_def, p.base_spd 
+            SELECT up.*, p.base_def, p.base_spd, p.type1, p.type2 
             FROM user_pokemons up 
             JOIN pokedex p ON up.pokedex_id = p.id 
             WHERE up.id = ?`, 
             [encounter.activePokemonId]
         );
+        
         const isFainted = userPoke && userPoke.current_hp <= 0;
 
         const xp = encounter.pokemon.base_xp || 60;

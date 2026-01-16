@@ -10,6 +10,7 @@ const ttsCommandHandler = require('./ttsCommand');
 const PokemonHandler = require('./pokemonHandler');
 const migrationCommandHandler = require('./migrarCommand');
 const RIOT_API_KEY = process.env.RIOT_API_KEY;
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 class ChatModel {
     constructor(db, genAI) {
@@ -311,6 +312,14 @@ class ChatModel {
             },
             '!resumo': async () =>{
                 return "resumo"+await this.rollDice(2)+".webp"
+            },
+            '!poke': async () => {
+                if (this.pokemonHandler && this.pokemonHandler.lastSticker) {
+                    const stickerName = this.pokemonHandler.lastSticker;
+                    this.pokemonHandler.lastSticker = null;
+                    return stickerName + ".webp";
+                }
+                return null;
             }
         };
 
@@ -319,7 +328,12 @@ class ChatModel {
         }
 
         else if (commandActions[cmd]) {
-            stickerPath += await commandActions[cmd]();
+            const result = await commandActions[cmd]();
+            if (result) {
+                stickerPath += result;
+            } else {
+                return null; 
+            }
         }
         
         else return null

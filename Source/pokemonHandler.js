@@ -406,6 +406,7 @@ class PokemonHandler {
             date: '',
             items: []
         };
+        this.lastSticker = null;
     }
 
     async init() {
@@ -4099,9 +4100,18 @@ class PokemonHandler {
 
         finalChance += 0.05; 
 
-        console.log(`[CATCH] ${encounter.pokemon.name} | Rate: ${estimatedCatchRate} | HP Fac: ${hpFactor.toFixed(2)} | Ball: ${multiplier} | Final: ${(finalChance*100).toFixed(1)}%`);
+        const isCaught = Math.random() < finalChance;
+        const resultSuffix = isCaught ? 'catch' : 'fail';
 
-        if (Math.random() < finalChance) {
+        this.lastSticker = `${selectedBall}-${resultSuffix}`;
+
+        if (this.sock) await this.sock.sendMessage(groupId, { text: `🔄 *${tag.replace('*', '').trim()}* jogou uma **${selectedBall}**...` });
+
+        await new Promise(resolve => setTimeout(resolve, 4000));
+
+        if (isCaught) {
+            this.lastSticker = `${selectedBall}-catch`;            
+            await new Promise(resolve => setTimeout(resolve, 4000));
             const pk = encounter.pokemon;
             const randIv = () => Math.floor(Math.random() * 32);
             const ivHp = randIv();
@@ -4165,6 +4175,8 @@ class PokemonHandler {
             return msg;
         }
 
+        this.lastSticker = `${selectedBall}-fail`;
+        await new Promise(resolve => setTimeout(resolve, 4000));
         let msg = `${tag}💢 A **${selectedBall}** quebrou! O *${encounter.pokemon.name}* escapou!`;
 
         if (isFainted) {

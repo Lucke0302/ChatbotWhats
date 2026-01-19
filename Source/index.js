@@ -967,7 +967,7 @@ async function connectToWhatsApp() {
                 const response = await chatbot.handleCommand(msg, sender, from, isGroup, command, quotedMessageText, sock);
 
                 //Controla o envio dos stickers
-                await sendSticker(sock, db, from, msg, [sender], toLowerCase(texto))
+                await sendSticker(sock, db, from, msg, [sender], texto.toLowerCase)
 
                 if (command.includes('capturar') || command.includes('catch') || command.includes('ball')) {
                     await new Promise(r => setTimeout(r, 4000));

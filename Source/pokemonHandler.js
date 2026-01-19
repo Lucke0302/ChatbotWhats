@@ -2766,7 +2766,7 @@ class PokemonHandler {
             
             case 'capturar': 
             case 'catch': 
-                return await this.catchPokemon(from, sender, param);
+                return await this.catchPokemon(from, sender, param, sock);
 
             case 'perfil': 
             case 'box': 
@@ -4048,7 +4048,7 @@ class PokemonHandler {
         return log;
     }
 
-    async catchPokemon(groupId, userId, param) {
+    async catchPokemon(groupId, userId, param, sock) {
         const tag = await this.getUserTag(userId);
         const encounter = await this.loadEncounter(userId);
         if (!encounter) return `${tag}🤷 Nenhuma batalha ativa.`;

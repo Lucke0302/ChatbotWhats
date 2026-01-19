@@ -4095,9 +4095,17 @@ class PokemonHandler {
 
         finalChance += 0.05; 
 
+        const isCaught = Math.random() < finalChance;
+        const resultSuffix = isCaught ? 'catch' : 'fail';
+
+        const stickerName = `${selectedBall}-${resultSuffix}.webp`;
+        const stickerPath = `Assets/${stickerName}`;
+
         console.log(`[CATCH] ${encounter.pokemon.name} | Rate: ${estimatedCatchRate} | HP Fac: ${hpFactor.toFixed(2)} | Ball: ${multiplier} | Final: ${(finalChance*100).toFixed(1)}%`);
 
-        if (Math.random() < finalChance) {
+        await new Promise(resolve => setTimeout(resolve, 4000));
+
+        if (isCaught) {
             const pk = encounter.pokemon;
             const randIv = () => Math.floor(Math.random() * 32);
             const ivHp = randIv();

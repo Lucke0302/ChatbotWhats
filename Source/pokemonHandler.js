@@ -1837,7 +1837,13 @@ class PokemonHandler {
     async processStatusMove(moveName, state, isPlayerTurn, maxHp, userPoke) {
         const effect = STATUS_MOVES[moveName.toLowerCase()];
 
-        // === LÓGICA DO CURSE ===
+        const userKey = isPlayerTurn ? 'user' : 'enemy';
+        const enemyKey = isPlayerTurn ? 'enemy' : 'user';
+
+        // Objeto de retorno padrão
+        let result = { msg: `usou ${moveName}.`, healAmount: 0, selfDamage: 0 };
+
+        // === LÓGICA DO CURSE (Maldição) ===
         if (moveName === 'curse') {
             const t1 = userPoke.type1 ? userPoke.type1.toLowerCase() : '';
             const t2 = userPoke.type2 ? userPoke.type2.toLowerCase() : '';
@@ -1846,25 +1852,25 @@ class PokemonHandler {
             if (isGhost) {
                 result.selfDamage = Math.floor(maxHp / 2);
                 
-                if (!state.counters[targetKey].cursed) {
-                    state.counters[targetKey].cursed = true;
+                if (!state.counters[enemyKey].cursed) {
+                    state.counters[enemyKey].cursed = true;
                     result.msg = "cortou o próprio HP para lançar uma Maldição!";
                 } else {
-                    result.selfDamage = 0
-                    result.msg = "mas o alvo já estava amaldiçoado!";
+                    result.msg = "sacrificou HP, mas o alvo já estava amaldiçoado!";
                 }
             } else {
+                // Não-Fantasma: Speed -1, Atk +1, Def +1 no USUÁRIO
                 state.stages[userKey].spe = Math.max(-6, (state.stages[userKey].spe || 0) - 1);
                 state.stages[userKey].atk = Math.min(6, (state.stages[userKey].atk || 0) + 1);
                 state.stages[userKey].def = Math.min(6, (state.stages[userKey].def || 0) + 1);
-                result.msg = "diminuiu SPEED, mas aumentou o ATAQUE e a DEFESA!";
+                result.msg = "ficou mais lento, mas aumentou o ATAQUE e a DEFESA!";
             }
             return result;
         }
         
         if (!effect) return { msg: `usou ${moveName}.` };
 
-        let result = { msg: `usou ${moveName}.`, healAmount: 0 };
+        result = { msg: `usou ${moveName}.`, healAmount: 0 };
 
         let targetKey = '';
         if (effect.target === 'self') {

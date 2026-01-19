@@ -1340,12 +1340,22 @@ class PokemonHandler {
             const playerPoke = isPlayer ? attacker : defender;
             const res = await this.processStatusMove(move.name, battleState, isPlayer, attacker.max_hp, playerPoke);
             log += `\n✨ ${attacker.nickname || attacker.name} ${res.msg}`;
+
+            // CORREÇÃO: Aplicar Auto-Dano (Para o Curse)
+            if (res.selfDamage && res.selfDamage > 0) {
+                attacker.current_hp -= res.selfDamage;
+                if (isPlayer) await this.db.run("UPDATE user_pokemons SET current_hp = ? WHERE id = ?", [attacker.current_hp, attacker.id]);
+                else await this.db.run("UPDATE active_encounters SET current_hp = ? WHERE user_id = ?", [attacker.current_hp, userId]);
+                
+                log += ` (Perdeu ${res.selfDamage} HP)`;
+            }
             
             if (res.healAmount > 0) {
                 attacker.current_hp = Math.min(attacker.max_hp, attacker.current_hp + res.healAmount);
                 if (isPlayer) await this.db.run("UPDATE user_pokemons SET current_hp = ? WHERE id = ?", [attacker.current_hp, attacker.id]);
                 else await this.db.run("UPDATE active_encounters SET current_hp = ? WHERE user_id = ?", [attacker.current_hp, userId]);
             }
+
             return { log, damageDealt: 0 };
         }
 
@@ -1575,26 +1585,6 @@ class PokemonHandler {
                     if (!battleState.counters[targetKey]) battleState.counters[targetKey] = {};
                     battleState.counters[targetKey].flinched = true;
                 }
-            }
-        }
-
-        // === 👻 CURSE ===
-        if (moveName === 'curse') {
-            const isGhost = (userPoke.type1 === 'ghost' || userPoke.type2 === 'ghost');
-
-            if (isGhost) {
-                selfDamage = Math.floor(userPoke.max_hp / 2);
-                if (!battleState.counters[targetKey].cursed) {
-                    battleState.counters[targetKey].cursed = true;
-                    log += `\n👻 *${userPoke.nickname || userPoke.name}* cortou o próprio HP para lançar uma Maldição!`;
-                } else {
-                    log += `\n👻 O alvo já está amaldiçoado!`;
-                }
-            } else {
-                battleState.stages[userKey].spe = Math.max(-6, (battleState.stages[userKey].spe || 0) - 1);
-                battleState.stages[userKey].atk = Math.min(6, (battleState.stages[userKey].atk || 0) + 1);
-                battleState.stages[userKey].def = Math.min(6, (battleState.stages[userKey].def || 0) + 1);
-                log += `\n💪 *${userPoke.nickname || userPoke.name}* ficou mais lento, mas aumentou Ataque e Defesa!`;
             }
         }
 
@@ -1846,6 +1836,31 @@ class PokemonHandler {
 
     async processStatusMove(moveName, state, isPlayerTurn, maxHp, userPoke) {
         const effect = STATUS_MOVES[moveName.toLowerCase()];
+
+        // === LÓGICA DO CURSE ===
+        if (moveName === 'curse') {
+            const t1 = userPoke.type1 ? userPoke.type1.toLowerCase() : '';
+            const t2 = userPoke.type2 ? userPoke.type2.toLowerCase() : '';
+            const isGhost = (t1 === 'ghost' || t2 === 'ghost');
+
+            if (isGhost) {
+                result.selfDamage = Math.floor(maxHp / 2);
+                
+                if (!state.counters[targetKey].cursed) {
+                    state.counters[targetKey].cursed = true;
+                    result.msg = "cortou o próprio HP para lançar uma Maldição!";
+                } else {
+                    result.selfDamage = 0
+                    result.msg = "mas o alvo já estava amaldiçoado!";
+                }
+            } else {
+                state.stages[userKey].spe = Math.max(-6, (state.stages[userKey].spe || 0) - 1);
+                state.stages[userKey].atk = Math.min(6, (state.stages[userKey].atk || 0) + 1);
+                state.stages[userKey].def = Math.min(6, (state.stages[userKey].def || 0) + 1);
+                result.msg = "diminuiu SPEED, mas aumentou o ATAQUE e a DEFESA!";
+            }
+            return result;
+        }
         
         if (!effect) return { msg: `usou ${moveName}.` };
 
@@ -3611,7 +3626,7 @@ class PokemonHandler {
         // ==========================================================
         // DANO RESIDUAL (FINAL DO TURNO)
         // ==========================================================
-        
+
         const userRes = this.applyStatusDamage(battleState, true, userPoke, userPoke.max_hp);
         if (userRes) {
             log += `\n${userRes.msg} (-${userRes.dmg})`;
@@ -3890,8 +3905,16 @@ class PokemonHandler {
 
         // --- EXECUÇÃO DO GOLPE (CÁLCULO DE DANO) ---
         if (wildMove.damage_class === 'status') {
-            const res = await this.processStatusMove(wildMove.name, battleState, false, encounter.maxHp, userPoke);
+            const res = await this.processStatusMove(wildMove.name, battleState, false, encounter.maxHp, encounter.pokemon);
             log += `\n✨ ${enemyDisplayName} ${res.msg}`;
+
+            if (res.selfDamage && res.selfDamage > 0) {
+                encounter.currentHp -= res.selfDamage;
+                // Atualiza o HP do inimigo no banco
+                await this.db.run(`UPDATE active_encounters SET current_hp = MAX(0, ?) WHERE user_id = ?`, [encounter.currentHp, userId]);
+                
+                log += ` (Inimigo perdeu ${res.selfDamage} HP)`;
+            }
             
             if (res.healAmount > 0) {
                 encounter.currentHp = Math.min(encounter.maxHp, encounter.currentHp + res.healAmount);

@@ -314,10 +314,10 @@ class ChatModel {
                 return "resumo"+await this.rollDice(2)+".webp"
             },
             '!poke': async () => {
-                console.log("[ChatModel] LastSticker: " + this.pokemonHandler.lastSticker)
                 if (this.pokemonHandler && this.pokemonHandler.lastSticker) {
                     const stickerName = this.pokemonHandler.lastSticker;
                     this.pokemonHandler.lastSticker = null;
+                    console.log("[ChatModel] LastSticker: " + stickerName)
                     return stickerName;
                 }
                 return null;
@@ -339,7 +339,7 @@ class ChatModel {
         
         else return null
 
-        return "[SendSticker] StickerPath: "+ stickerPath;
+        return stickerPath;
     }      
 
     //Essa função verifica a quantidade de letras maiúsculas na mensagem pra responder

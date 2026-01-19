@@ -1860,15 +1860,15 @@ class PokemonHandler {
                 
                 if (!state.counters[enemyKey].cursed) {
                     state.counters[enemyKey].cursed = true;
-                    result.msg = "cortou o próprio HP para lançar uma Maldição!";
+                    result.msg += `cortou o próprio HP para lançar uma Maldição!`;
                 } else {
-                    result.msg = "sacrificou HP, mas o alvo já estava amaldiçoado!";
+                    result.msg += `sacrificou HP, mas o alvo já estava amaldiçoado!`;
                 }
             } else {
                 state.stages[userKey].spe = Math.max(-6, (state.stages[userKey].spe || 0) - 1);
                 state.stages[userKey].atk = Math.min(6, (state.stages[userKey].atk || 0) + 1);
                 state.stages[userKey].def = Math.min(6, (state.stages[userKey].def || 0) + 1);
-                result.msg = "ficou mais lento, mas aumentou o ATAQUE e a DEFESA!";
+                result.msg += `ficou mais lento, mas aumentou o ATAQUE e a DEFESA!`;
             }
             return result;
         }

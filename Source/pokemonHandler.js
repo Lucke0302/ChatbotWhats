@@ -4039,7 +4039,7 @@ class PokemonHandler {
         }
 
         const userPoke = await this.db.get(`
-            SELECT up.*, p.base_def, p.base_spd, p.type1, p.type2 
+            SELECT up.*, p.base_def, p.base_spd, p.type1, p.type2, p.base_atk, p.base_spa 
             FROM user_pokemons up 
             JOIN pokedex p ON up.pokedex_id = p.id 
             WHERE up.id = ?`, 

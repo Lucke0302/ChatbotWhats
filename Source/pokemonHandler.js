@@ -1835,7 +1835,7 @@ class PokemonHandler {
         return Math.floor(statValue * multiplier);
     }
 
-    async processStatusMove(moveName, state, isPlayerTurn, maxHp, userPoke, playerPokeForDb) {
+    async processStatusMove(moveName, state, isPlayerTurn, maxHp, attacker, playerPokeForDb) {
         const effect = STATUS_MOVES[moveName.toLowerCase()];
 
         const userKey = isPlayerTurn ? 'user' : 'enemy';

@@ -303,7 +303,7 @@ class ChatModel {
     //Escolhe qual figurinha deve ser enviada (ou nenhuma)
     async getSticker(command) {
         let stickerPath = "Assets/";
-        const cmd = command.split(' ')[0];
+        const cmd = command.split(' ')[0].toLowerCase();
 
         const commandActions = {
             '!gpt': async () => {

@@ -1607,7 +1607,7 @@ class PokemonHandler {
         // === 🦁 ROAR / WHIRLWIND ===
         if (moveName === 'roar' || moveName === 'whirlwind') {
             forceSwitch = true;
-            log += `\n📢 *${userPoke.nickname || userPoke.name}* rugiu assustadoramente!`;
+            log += `\n📢 *${userPoke.nickname || userPoke.name}* ${moveName === 'roar' ? 'bateu as asas muito forte' : 'rugiu assustadoramente'}!`;
         }
 
         // === GRUPO 1: THRASH, UPROAR, OUTRAGE ===
@@ -3611,6 +3611,7 @@ class PokemonHandler {
         // ==========================================================
         // DANO RESIDUAL (FINAL DO TURNO)
         // ==========================================================
+        
         const userRes = this.applyStatusDamage(battleState, true, userPoke, userPoke.max_hp);
         if (userRes) {
             log += `\n${userRes.msg} (-${userRes.dmg})`;
@@ -3981,7 +3982,7 @@ class PokemonHandler {
             log += ` (Inimigo sofreu ${specialEffects.selfDamage} de dano)`;
         }
 
-        if (specialEffects.flee) {
+        if (specialEffects.flee || specialEffects.forceSwitch) {
             if (encounter.battle_type === 'WILD') {
                 await this.clearEncounter(userId);
                 return `${log}\n🏃💨 A batalha acabou!`;

@@ -969,6 +969,10 @@ async function connectToWhatsApp() {
                 //Controla o envio dos stickers
                 await sendSticker(sock, db, from, msg, [sender], texto)
 
+                if (command.includes('capturar') || command.includes('catch') || command.includes('ball')) {
+                    await new Promise(r => setTimeout(r, 4000));
+                }
+
                 const intro = commandIntros[commandName] || commandIntros['undefined'];
                 const finalResponse = `${intro}${response}`;
                 

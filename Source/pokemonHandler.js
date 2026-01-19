@@ -4102,8 +4102,6 @@ class PokemonHandler {
         const stickerName = `${selectedBall}-${resultSuffix}.webp`;
         this.lastSticker = stickerName
 
-        await new Promise(resolve => setTimeout(resolve, 4000));
-
         if (isCaught) {
             const pk = encounter.pokemon;
             const randIv = () => Math.floor(Math.random() * 32);

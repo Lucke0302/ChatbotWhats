@@ -314,7 +314,7 @@ class ChatModel {
                 return "resumo"+await this.rollDice(2)+".webp"
             },
             '!poke': async () => {
-                console.log(this.pokemonHandler.lastSticker)
+                console.log("LastSticker: " + this.pokemonHandler.lastSticker)
                 if (this.pokemonHandler && this.pokemonHandler.lastSticker) {
                     const stickerName = this.pokemonHandler.lastSticker;
                     this.pokemonHandler.lastSticker = null;

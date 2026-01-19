@@ -1843,10 +1843,16 @@ class PokemonHandler {
         // Objeto de retorno padrão
         let result = { msg: `usou ${moveName}.`, healAmount: 0, selfDamage: 0 };
 
-        // === LÓGICA DO CURSE (Maldição) ===
+        // === CURSE ===
         if (moveName === 'curse') {
-            const t1 = userPoke.type1 ? userPoke.type1.toLowerCase() : '';
-            const t2 = userPoke.type2 ? userPoke.type2.toLowerCase() : '';
+            let t1 = userPoke.type1 || (userPoke.pokemon ? userPoke.pokemon.type1 : '');
+            let t2 = userPoke.type2 || (userPoke.pokemon ? userPoke.pokemon.type2 : '');
+            
+            t1 = t1 ? t1.toLowerCase().trim() : '';
+            t2 = t2 ? t2.toLowerCase().trim() : '';
+
+            console.log(`[DEBUG CURSE] Pokemon: ${userPoke.nickname || userPoke.name} | Tipos: ${t1} / ${t2}`);
+
             const isGhost = (t1 === 'ghost' || t2 === 'ghost');
 
             if (isGhost) {
@@ -1859,7 +1865,6 @@ class PokemonHandler {
                     result.msg = "sacrificou HP, mas o alvo já estava amaldiçoado!";
                 }
             } else {
-                // Não-Fantasma: Speed -1, Atk +1, Def +1 no USUÁRIO
                 state.stages[userKey].spe = Math.max(-6, (state.stages[userKey].spe || 0) - 1);
                 state.stages[userKey].atk = Math.min(6, (state.stages[userKey].atk || 0) + 1);
                 state.stages[userKey].def = Math.min(6, (state.stages[userKey].def || 0) + 1);

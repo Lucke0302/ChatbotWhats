@@ -318,7 +318,7 @@ class ChatModel {
                 if (this.pokemonHandler && this.pokemonHandler.lastSticker) {
                     const stickerName = this.pokemonHandler.lastSticker;
                     this.pokemonHandler.lastSticker = null;
-                    return stickerName + ".webp";
+                    return stickerName;
                 }
                 return null;
             }

@@ -963,11 +963,11 @@ async function connectToWhatsApp() {
                     await sock.sendMessage(from, { react: { text: '🤨', key: msg.key } });
                 }
 
-                //Controla o envio dos stickers
-                await sendSticker(sock, db, from, msg, [sender], texto)
-
                 //Pega a resposta do handleCommand do chatModel.js
                 const response = await chatbot.handleCommand(msg, sender, from, isGroup, command, quotedMessageText, sock);
+
+                //Controla o envio dos stickers
+                await sendSticker(sock, db, from, msg, [sender], texto)
 
                 const intro = commandIntros[commandName] || commandIntros['undefined'];
                 const finalResponse = `${intro}${response}`;

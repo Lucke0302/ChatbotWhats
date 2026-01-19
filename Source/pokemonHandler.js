@@ -4100,10 +4100,9 @@ class PokemonHandler {
         const resultSuffix = isCaught ? 'catch' : 'fail';
 
         const stickerName = `${selectedBall}-${resultSuffix}.webp`;
-        const stickerPath = `Assets/${stickerName}`;
-        this.lastSticker = stickerPath
+        this.lastSticker = stickerName
 
-        console.log(`[CATCH] latsSticker: ${this.lastSticker} | ${encounter.pokemon.name} | Rate: ${estimatedCatchRate} | HP Fac: ${hpFactor.toFixed(2)} | Ball: ${multiplier} | Final: ${(finalChance*100).toFixed(1)}%`);
+        console.log(`[CATCH] lastSticker: ${this.lastSticker} | ${encounter.pokemon.name} | Rate: ${estimatedCatchRate} | HP Fac: ${hpFactor.toFixed(2)} | Ball: ${multiplier} | Final: ${(finalChance*100).toFixed(1)}%`);
 
         await new Promise(resolve => setTimeout(resolve, 4000));
 

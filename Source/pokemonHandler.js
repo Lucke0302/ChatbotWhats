@@ -2900,9 +2900,9 @@ class PokemonHandler {
         calculatedReward += (badges * 200);
 
         for (let i = 0; i < teamSize; i++) {
-            let multiplier = 1.0;
-            if (i === 0) multiplier = 1.2;
-            else if (i === 1) multiplier = 1.1;
+            let multiplier = .7;
+            if (i === 0) multiplier = .9;
+            else if (i === 1) multiplier = .8;
 
             const pokeLevel = Math.max(3, Math.floor(userAvgLvl * multiplier));
             
@@ -3010,7 +3010,7 @@ class PokemonHandler {
         }
 
         if (!forcedPokemon) {
-            let trainerPercent = 0.2;
+            let trainerPercent = 0.3;
  
             if (userId == ADMIN_ID && param == "force trainer"){
                 trainerPercent = 1
@@ -3795,10 +3795,6 @@ class PokemonHandler {
             return `${log}\n🏆 *VOCÊ VENCEU O TREINADOR!*\nRecebeu 💰 ${reward}!\n${logMsg}`;
         }
 
-        const baseGain = 15;
-        const luckGain = Math.random() * 25;
-        const coins = Math.floor(encounter.level * (baseGain + luckGain));
-        await this.db.run("UPDATE usuarios SET pokecoins = pokecoins + ? WHERE id_usuario = ?", [coins, userId]);
         return `${log}\n${logMsg}\n💰 +${coins} coins.`;
     }
 

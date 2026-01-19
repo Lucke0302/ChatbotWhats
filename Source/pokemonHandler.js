@@ -406,6 +406,7 @@ class PokemonHandler {
             date: '',
             items: []
         };
+        this.lastSticker = null
     }
 
     async init() {
@@ -4100,6 +4101,7 @@ class PokemonHandler {
 
         const stickerName = `${selectedBall}-${resultSuffix}.webp`;
         const stickerPath = `Assets/${stickerName}`;
+        this.lastSticker = stickerPath
 
         console.log(`[CATCH] ${encounter.pokemon.name} | Rate: ${estimatedCatchRate} | HP Fac: ${hpFactor.toFixed(2)} | Ball: ${multiplier} | Final: ${(finalChance*100).toFixed(1)}%`);
 

@@ -1918,8 +1918,8 @@ class PokemonHandler {
             } else {
                 state[targetKey + 'Status'] = effect.status; 
                 
-                if (targetKey === 'user' && userPoke) {
-                    await this.db.run("UPDATE user_pokemons SET status = ? WHERE id = ?", [effect.status, userPoke.id]);
+                if (targetKey === 'user' && playerPokeForDb) {
+                    await this.db.run("UPDATE user_pokemons SET status = ? WHERE id = ?", [effect.status, playerPokeForDb.id]);
                 }
 
                 if (effect.status === 'slp') {

@@ -2885,7 +2885,9 @@ class PokemonHandler {
             "Team Rocket": 30,
             "Psychic": 25,
             "Cooltrainer": 40
-        };
+        };        
+
+        let trainerTeam = [];
 
         const classMultiplier = PAYOUT_RATES[trainerClass] || 15;
 
@@ -2895,8 +2897,6 @@ class PokemonHandler {
         let calculatedReward = Math.floor(avgLevel * trainerTeam.length * classMultiplier);
         
         calculatedReward += (badges * 200);
-
-        let trainerTeam = [];
 
         for (let i = 0; i < teamSize; i++) {
             let multiplier = 1.0;

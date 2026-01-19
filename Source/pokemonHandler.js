@@ -1704,7 +1704,8 @@ class PokemonHandler {
 
         // --- DANO DE CURSE ---
         if (counters && counters.cursed) {
-            const curseDmg = Math.floor(maxHp / 4);
+            const curseDmg = Math.floor(maxHp / 4);            
+            dmg += curseDmg
             msg += `\n👻 *${pokeObj.nickname || pokeObj.name}* está sofrendo pela Maldição!`;
         }
 

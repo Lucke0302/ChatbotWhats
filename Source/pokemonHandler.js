@@ -3703,7 +3703,7 @@ class PokemonHandler {
         let logMsg = `💀 O inimigo desmaiou!\n`;
         let xpMultiplier = 1.0;
 
-        if (encounter.battle_type === 'GYM_LEADER' || encounter.battle_type === 'GYM_TRAINER' || encounter.battle_type === 'TRAINER') const isTrainer = true;
+        if (encounter.battle_type === 'GYM_LEADER' || encounter.battle_type === 'GYM_TRAINER' || encounter.battle_type === 'TRAINER') {const isTrainer = true;}
         if (encounter.battle_type === 'GYM_LEADER') xpMultiplier = 2.5; 
         else if (encounter.battle_type === 'GYM_TRAINER') xpMultiplier = 2; 
         else if (encounter.battle_type === 'TRAINER') xpMultiplier = 1.5;

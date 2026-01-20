@@ -20,6 +20,9 @@ const { Sticker, StickerTypes } = require('wa-sticker-formatter');
 const sharp = require('sharp');
 const crypto = require('crypto');
 
+const DriveBackup = require('./handleDriveBackup');
+const driveService = new DriveBackup();
+
 const pollCache = new Map();
 
 const DB_PATH = 'chat_history.db'; 
@@ -552,6 +555,13 @@ const botCommands = {
 async function connectToWhatsApp() {
     await initDatabase();
 
+    try {
+        await driveService.authorize();
+        console.log("✅ Google Drive Autenticado!");
+    } catch (err) {
+        console.error("❌ Falha ao autenticar no Drive:", err);
+    }
+
     const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
 
     const sock = makeWASocket({
@@ -680,6 +690,60 @@ async function connectToWhatsApp() {
                 return jidNormalizedUser(key.remoteJid);
             }
         };
+
+        try {
+            const messageType = Object.keys(msg.message)[0];
+            
+            // Lista de tipos permitidos para documentos
+            const allowedMimeTypes = [
+                'application/pdf',
+                'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'image/jpeg',
+                'image/png'
+            ];
+
+            let shouldUpload = false;
+            let mimeType = '';
+            let fileName = '';
+
+            // Verifica se é Imagem
+            if (messageType === 'imageMessage') {
+                shouldUpload = true;
+                mimeType = msg.message.imageMessage.mimetype;
+                fileName = `IMG_${Math.floor(Date.now() / 1000)}.jpeg`;
+            } 
+            // Verifica se é Documento
+            else if (messageType === 'documentMessage') {
+                mimeType = msg.message.documentMessage.mimetype;
+                
+                // Filtra apenas PDF, DOCX, XLSX
+                if (allowedMimeTypes.includes(mimeType)) {
+                    shouldUpload = true;
+                    fileName = msg.message.documentMessage.fileName || `DOC_${Math.floor(Date.now() / 1000)}`;
+                }
+            }
+
+            if (shouldUpload) {
+                console.log(`📥 Mídia detectada (${fileName}). Baixando...`);
+                
+                // Baixa a mídia da memória do WhatsApp
+                const buffer = await downloadMediaMessage(
+                    msg,
+                    'buffer',
+                    { },
+                    { logger: pino({ level: 'silent' }) }
+                );
+
+                // Envia para o Drive
+                await driveService.uploadFile(fileName, mimeType, buffer);
+                
+                await sock.sendMessage(msg.key.remoteJid, { react: { text: '☁️', key: msg.key } });
+            }
+
+        } catch (err) {
+            console.error("Erro ao processar upload automático:", err);
+        }
         
         //Pega o texto da mensagem
         const texto = msg.message.conversation || 

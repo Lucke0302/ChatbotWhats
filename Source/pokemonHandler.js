@@ -3699,12 +3699,12 @@ class PokemonHandler {
         let participants = battleState.participants || [];
         const uniqueParticipants = [...new Set(participants)];
         const splitFactor = uniqueParticipants.length;
-        let isTrainer = null
+        let isTrainer = false
 
         let logMsg = `💀 O inimigo desmaiou!\n`;
         let xpMultiplier = 1.0;
 
-        if (encounter.battle_type === 'GYM_LEADER' || encounter.battle_type === 'GYM_TRAINER' || encounter.battle_type === 'TRAINER') {const isTrainer = true;}
+        if (encounter.battle_type === 'GYM_LEADER' || encounter.battle_type === 'GYM_TRAINER' || encounter.battle_type === 'TRAINER') {isTrainer = true;}
         if (encounter.battle_type === 'GYM_LEADER') xpMultiplier = 2.5; 
         else if (encounter.battle_type === 'GYM_TRAINER') xpMultiplier = 2; 
         else if (encounter.battle_type === 'TRAINER') xpMultiplier = 1.5;

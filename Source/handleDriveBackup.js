@@ -7,7 +7,7 @@ const { google } = require('googleapis');
 const SCOPES = ['https://www.googleapis.com/auth/drive.file'];
 // Caminho onde o token de acesso será salvo após a primeira autenticação
 const TOKEN_PATH = path.join(process.cwd(), 'token.json');
-const CREDENTIALS_PATH = path.join(process.cwd(), 'credentials.json');
+const CREDENTIALS_PATH = path.join(process.cwd(), '../credentials.json');
 
 class DriveBackup {
     constructor() {

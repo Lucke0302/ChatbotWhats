@@ -3699,6 +3699,7 @@ class PokemonHandler {
         let participants = battleState.participants || [];
         const uniqueParticipants = [...new Set(participants)];
         const splitFactor = uniqueParticipants.length;
+        let isTrainer = null
 
         let logMsg = `💀 O inimigo desmaiou!\n`;
         let xpMultiplier = 1.0;

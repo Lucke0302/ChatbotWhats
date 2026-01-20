@@ -555,12 +555,12 @@ const botCommands = {
 async function connectToWhatsApp() {
     await initDatabase();
 
-    try {
+    /*try {
         await driveService.authorize();
         console.log("✅ Google Drive Autenticado!");
     } catch (err) {
         console.error("❌ Falha ao autenticar no Drive:", err);
-    }
+    }*/
 
     const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
 

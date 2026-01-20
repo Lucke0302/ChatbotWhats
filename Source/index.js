@@ -555,12 +555,12 @@ const botCommands = {
 async function connectToWhatsApp() {
     await initDatabase();
 
-    try {
+    /*try {
         await driveService.authorize();
         console.log("✅ Google Drive Autenticado!");
     } catch (err) {
         console.error("❌ Falha ao autenticar no Drive:", err);
-    }
+    }*/
 
     const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
 
@@ -691,7 +691,7 @@ async function connectToWhatsApp() {
             }
         };
 
-        try {
+        /*try {
             const messageType = Object.keys(msg.message)[0];
             
             // Lista de tipos permitidos para documentos
@@ -743,7 +743,7 @@ async function connectToWhatsApp() {
 
         } catch (err) {
             console.error("Erro ao processar upload automático:", err);
-        }
+        }*/
         
         //Pega o texto da mensagem
         const texto = msg.message.conversation || 

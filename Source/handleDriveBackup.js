@@ -49,25 +49,43 @@ class DriveBackup {
      * Método principal de autenticação
      */
     async authorize() {
-        // Tenta carregar token existente
+        console.log("🔑 [Drive] Iniciando autenticação...");
+        
+        // Tenta carregar token salvo
         let client = await this.loadSavedCredentialsIfExist();
         if (client) {
+            console.log("🔑 [Drive] Token encontrado! Usando credenciais salvas.");
             this.auth = client;
-            return client;
+        } else {
+            console.log("⚠️ [Drive] Token não encontrado. Iniciando fluxo de login via navegador...");
+            console.log(`📂 [Drive] Procurando credenciais em: ${CREDENTIALS_PATH}`);
+            
+            // Verifica se o arquivo credentials existe antes de tentar
+            try {
+                await fs.access(CREDENTIALS_PATH);
+            } catch {
+                throw new Error(`Arquivo credentials.json NÃO encontrado no caminho: ${CREDENTIALS_PATH}`);
+            }
+
+            // Inicia o servidor local para autenticação
+            try {
+                client = await authenticate({
+                    scopes: SCOPES,
+                    keyfilePath: CREDENTIALS_PATH,
+                });
+            } catch (authErr) {
+                console.error("❌ [Drive] Erro na biblioteca de autenticação. Se você estiver em uma VPS, isso não vai funcionar direto.");
+                throw authErr;
+            }
+
+            if (client.credentials) {
+                await this.saveCredentials(client);
+                console.log("💾 [Drive] Novo token salvo com sucesso!");
+            }
+            this.auth = client;
         }
 
-        // Se não existir, faz o login via navegador
-        client = await authenticate({
-            scopes: SCOPES,
-            keyfilePath: CREDENTIALS_PATH,
-        });
-
-        // Salva para a próxima vez
-        if (client.credentials) {
-            await this.saveCredentials(client);
-        }
-        
-        this.auth = client;
+        this.drive = google.drive({ version: 'v3', auth: this.auth });
         return client;
     }
 

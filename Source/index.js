@@ -691,7 +691,7 @@ async function connectToWhatsApp() {
             }
         };
 
-        // Função de Normalização com Debug Detalhado e Comparação Flexível
+        // Função de normalização de menções
         const getNormalizedMentions = async (sock, from, msg) => {
             const normalized = [];
             
@@ -706,7 +706,6 @@ async function connectToWhatsApp() {
                 const quotedJid = jidNormalizedUser(contextInfo.participant);
                 if (quotedJid.includes('@s.whatsapp.net')) {
                     normalized.push(quotedJid);
-                    console.log("✅ [Normalizer] ID recuperado via Reply:", quotedJid);
                 }
             }
 
@@ -718,31 +717,28 @@ async function connectToWhatsApp() {
             normalized.push(...phones);
 
             if (lids.length > 0 && from.endsWith('@g.us')) {
-                console.log(`🔎 [Normalizer] Tentando converter ${lids.length} LIDs...`);
                 try {
                     const groupMetadata = await sock.groupMetadata(from);
                     const participants = groupMetadata.participants || [];
 
-                    if (participants.length > 0) {
-                        console.log("[DEBUG] Exemplo de Participante:", JSON.stringify(participants[0])); 
-                    }
-
                     lids.forEach(targetLid => {
-                        const found = participants.find(p => p.lid === targetLid || (p.lid && targetLid.includes(p.lid)));
+                        const found = participants.find(p => 
+                            p.id === targetLid || 
+                            (p.id && targetLid.includes(p.id)) ||
+                            (p.lid && p.lid === targetLid)
+                        );
 
-                        if (found && found.id) {
-                            const phoneJid = jidNormalizedUser(found.id);
-                            normalized.push(phoneJid);
-                            console.log(`✅ [Normalizer] Sucesso: ${targetLid} -> ${phoneJid}`);
-                        } else {
-                            console.log(`⚠️ [Normalizer] Falha ao converter: ${targetLid} (Não achou match nos participantes)`);
+                        if (found) {
+                            const realNumber = found.phoneNumber || found.id;
+                            
+                            if (realNumber && realNumber.includes('@s.whatsapp.net')) {
+                                normalized.push(realNumber);
+                            }
                         }
                     });
                 } catch (error) {
-                    console.log("❌ [Normalizer] Erro ao buscar metadados do grupo:", error);
+                    console.error("❌ Erro ao buscar metadados:", error);
                 }
-            } else if (lids.length > 0) {
-                console.log("⚠️ [Normalizer] LIDs encontrados, mas não estou em um grupo. Impossível converter.");
             }
 
             return [...new Set(normalized)];

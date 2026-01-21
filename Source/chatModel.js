@@ -704,7 +704,7 @@ class ChatModel {
         
         await this.db.run(`UPDATE usuarios SET banido_ate = ? WHERE id_usuario = ?`, [banUntil, targetUser]);
 
-        return `🚫 Usuário silenciado por ${minutes > 1 ? "minutos" : "minuto" }. Fica pianinho aí.`;
+        return `🚫 Usuário silenciado por ${minutes > 1 ? minutes + " minutos" : minutes + " minuto" }. Fica pianinho aí.`;
     }
     
     async handleFaladorCommand(from){

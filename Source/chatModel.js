@@ -680,9 +680,13 @@ class ChatModel {
     // 5. Comando para aplicar Timeout (!timeout @pessoa tempo)
     // Ex: !timeout @551199999999 10 (bane por 10 minutos)
     async handleTimeoutCommand(name, command, sender, isGroup, mentions) {
+        const ADMINS = [
+            "5513991008854@s.whatsapp.net"
+        ];
 
-        if(sender !== "266180732403881@lid"){
-            return
+        if (!ADMINS.includes(sender)) {
+            console.log(`[Timeout] Acesso negado para: ${sender}`);
+            return "🔒 Você não tem a insígnia de mestre para isso.";
         }
         
         const args = command.split(' ');

@@ -49,7 +49,7 @@ class ChatModel {
     initializeCommandHandlers() {
         this.commandHandlers = {
             '!timeout': async (ctx) => {
-                return await this.handleTimeoutCommand(ctx.name, ctx.command, ctx.sender, ctx.isGroup, ctx.normalizedMentions);
+                return await this.handleTimeoutCommand(ctx.name, ctx.command, ctx.sender, ctx.isGroup, ctx.mentions);
             },
             '!d': async (ctx) => await this.handleDiceCommand(ctx.command, ctx.sender),
             '!menu': async () => await this.handleMenuCommand(),

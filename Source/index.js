@@ -672,35 +672,6 @@ async function connectToWhatsApp() {
 
         if (!msg.message || msg.key.fromMe) return;
 
-                // Resolve LIDs usando os dados do grupo
-        const getNormalizedMentions = async (sock, from, msg) => {
-            const rawMentions = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
-            const normalized = [];
-
-            const lids = rawMentions.filter(jid => jid.includes('@lid'));
-            const phones = rawMentions.filter(jid => jid.includes('@s.whatsapp.net'));
-
-            normalized.push(...phones);
-
-            if (lids.length > 0 && from.endsWith('@g.us')) {
-                try {
-                    const groupMetadata = await sock.groupMetadata(from);
-                    const participants = groupMetadata.participants;
-
-                    lids.forEach(lid => {
-                        const found = participants.find(p => p.lid === lid);
-                        if (found && found.id) {
-                            normalized.push(jidNormalizedUser(found.id));
-                        }
-                    });
-                } catch (error) {
-                    console.error("Erro ao resolver menções de LID:", error);
-                }
-            }
-
-            return [...new Set(normalized)];
-        };
-
         // Pega de quem é a mensagem e verifica se é de um grupo
         const from = msg.key.remoteJid;        
         const isGroup = from.endsWith('@g.us');
@@ -718,6 +689,55 @@ async function connectToWhatsApp() {
                 }
                 return jidNormalizedUser(key.remoteJid);
             }
+        };
+
+        // Função robusta extrair JIDs reais (Telefone)
+        const getNormalizedMentions = async (sock, from, msg) => {
+            const normalized = [];
+            
+            const messageContent = msg.message?.extendedTextMessage || 
+                                msg.message?.imageMessage || 
+                                msg.message?.videoMessage;
+            const contextInfo = messageContent?.contextInfo;
+
+            if (contextInfo?.participant) {
+                const quotedJid = jidNormalizedUser(contextInfo.participant);
+                if (quotedJid.includes('@s.whatsapp.net')) {
+                    normalized.push(quotedJid);
+                    console.log("✅ ID recuperado via Resposta (Quote):", quotedJid);
+                }
+            }
+
+            const rawMentions = contextInfo?.mentionedJid || [];
+            
+            const phones = rawMentions.filter(jid => jid.includes('@s.whatsapp.net'));
+            const lids = rawMentions.filter(jid => jid.includes('@lid'));
+            
+            normalized.push(...phones);
+
+            if (lids.length > 0 && from.endsWith('@g.us')) {
+                try {
+                    const groupMetadata = await sock.groupMetadata(from);
+                    const participants = groupMetadata.participants;
+
+                    if (participants.length > 0) console.log("🔎 Estrutura Participante:", JSON.stringify(participants[0]));
+
+                    lids.forEach(lid => {
+                        const found = participants.find(p => p.lid === lid);
+                        if (found && found.id) {
+                            const phoneJid = jidNormalizedUser(found.id);
+                            normalized.push(phoneJid);
+                            console.log(`✅ LID Convertido: ${lid} -> ${phoneJid}`);
+                        } else {
+                            console.log(`⚠️ Não achei dono para o LID: ${lid}`);
+                        }
+                    });
+                } catch (error) {
+                    console.error("❌ Erro ao buscar participantes do grupo:", error);
+                }
+            }
+            
+            return [...new Set(normalized)];
         };
 
         /*try {

@@ -1008,6 +1008,8 @@ async function connectToWhatsApp() {
         //Início da lógica geral do bot, se o texto começar com !, o chatbot estiver online
         //e o texto tenha mais de 1 caractere
         if(command.startsWith("!") &&  chatbot.isOnline && command.length > 1){
+            const normalizedMentions = getNormalizedMentions(msg, texto);
+            console.log("🔎 Menções Normalizadas:", normalizedMentions);
             
             const sender = getSenderJid(msg);
 

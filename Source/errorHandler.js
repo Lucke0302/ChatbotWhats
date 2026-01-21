@@ -24,7 +24,8 @@ const ERROR_DICTIONARY = {
     "USER_TRANSLATE_EXCEEDED": "❌ Traduziu demais hoje",
     "NOT_A_NUMBER": "🔢 O parâmetro precisa ser um número",
     "NON-EXISTENT_CURRENCY": "💵 A moeda digitada não está disponível para cotação.",
-    "SAME_CURRENCY": "🤡 Trocar seis por meia dúzia dá no mesmo, né, gênio."
+    "SAME_CURRENCY": "🤡 Trocar seis por meia dúzia dá no mesmo, né, gênio.",
+    "NO_USER_TO_TIMEOUT": "❌ Usuário inválido"
 };
 
 // Mensagem padrão para erros não mapeados (bugs reais)

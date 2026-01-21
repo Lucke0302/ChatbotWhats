@@ -690,13 +690,13 @@ class ChatModel {
         }
         
         const args = command.split(' ');
-        if (args.length < 3) return;
+        if (args.length < 3) throw new Error("MISSING_ARGS");
 
         const targetUser = mentions[0];
         const minutes = parseInt(args[args.length - 1]); 
 
-        if (!targetUser) return;
-        if (isNaN(minutes) || minutes <= 0) return;
+        if (!targetUser) throw new Error("NO_USER_TO_TIMEOUT");
+        if (isNaN(minutes) || minutes <= 0) throw new Error("NOT_A_NUMBER");
 
         const banUntil = Math.floor(Date.now() / 1000) + (minutes * 60);
         

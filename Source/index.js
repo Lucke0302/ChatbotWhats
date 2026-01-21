@@ -673,25 +673,19 @@ async function connectToWhatsApp() {
             const rawMentions = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
             const normalized = [];
 
-            // Separa o que é LID (o ID oculto) do que já é número certo
             const lids = rawMentions.filter(jid => jid.includes('@lid'));
             const phones = rawMentions.filter(jid => jid.includes('@s.whatsapp.net'));
 
-            // Se já tiver números de telefone normais, adiciona
             normalized.push(...phones);
 
-            // Se houver LIDs e for um grupo, vamos buscar quem são esses participantes
             if (lids.length > 0 && from.endsWith('@g.us')) {
                 try {
-                    // Baixa os dados do grupo (participantes)
                     const groupMetadata = await sock.groupMetadata(from);
                     const participants = groupMetadata.participants;
 
-                    // Para cada LID encontrado na mensagem, busca o telefone correspondente
                     lids.forEach(lid => {
                         const found = participants.find(p => p.lid === lid);
                         if (found && found.id) {
-                            // found.id é o número real (JID)
                             normalized.push(jidNormalizedUser(found.id));
                         }
                     });
@@ -1018,7 +1012,7 @@ async function connectToWhatsApp() {
         //Início da lógica geral do bot, se o texto começar com !, o chatbot estiver online
         //e o texto tenha mais de 1 caractere
         if(command.startsWith("!") &&  chatbot.isOnline && command.length > 1){
-            const normalizedMentions = getNormalizedMentions(msg, texto);
+            const normalizedMentions = await getNormalizedMentions(msg, texto);
             console.log("🔎 Menções Normalizadas:", normalizedMentions);
 
             const sender = getSenderJid(msg);

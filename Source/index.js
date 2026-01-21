@@ -736,7 +736,7 @@ async function connectToWhatsApp() {
                     console.error("❌ Erro ao buscar participantes do grupo:", error);
                 }
             }
-            
+
             return [...new Set(normalized)];
         };
 
@@ -1032,7 +1032,7 @@ async function connectToWhatsApp() {
         //Início da lógica geral do bot, se o texto começar com !, o chatbot estiver online
         //e o texto tenha mais de 1 caractere
         if(command.startsWith("!") &&  chatbot.isOnline && command.length > 1){
-            const normalizedMentions = await getNormalizedMentions(sock, from, msg, texto);
+            const normalizedMentions = await getNormalizedMentions(sock, from, msg);
             console.log("🔎 Menções Normalizadas:", normalizedMentions);
 
             const sender = getSenderJid(msg);

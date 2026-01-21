@@ -672,28 +672,14 @@ async function connectToWhatsApp() {
 
         if (!msg.message || msg.key.fromMe) return;
 
-        // Função para extrair JIDs reais
+                // Resolve LIDs usando os dados do grupo
         const getNormalizedMentions = async (sock, from, msg) => {
+            const rawMentions = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
             const normalized = [];
-            
-            const messageContent = msg.message?.extendedTextMessage || 
-                                msg.message?.imageMessage || 
-                                msg.message?.videoMessage;
-            const contextInfo = messageContent?.contextInfo;
 
-            if (contextInfo?.participant) {
-                const quotedJid = jidNormalizedUser(contextInfo.participant);
-                if (quotedJid.includes('@s.whatsapp.net')) {
-                    normalized.push(quotedJid);
-                    console.log("✅ ID recuperado via Resposta (Quote):", quotedJid);
-                }
-            }
-
-            const rawMentions = contextInfo?.mentionedJid || [];
-            
-            const phones = rawMentions.filter(jid => jid.includes('@s.whatsapp.net'));
             const lids = rawMentions.filter(jid => jid.includes('@lid'));
-            
+            const phones = rawMentions.filter(jid => jid.includes('@s.whatsapp.net'));
+
             normalized.push(...phones);
 
             if (lids.length > 0 && from.endsWith('@g.us')) {
@@ -701,25 +687,37 @@ async function connectToWhatsApp() {
                     const groupMetadata = await sock.groupMetadata(from);
                     const participants = groupMetadata.participants;
 
-                    if (participants.length > 0) console.log("🔎 Estrutura Participante:", JSON.stringify(participants[0]));
-
                     lids.forEach(lid => {
                         const found = participants.find(p => p.lid === lid);
                         if (found && found.id) {
-                            const phoneJid = jidNormalizedUser(found.id);
-                            normalized.push(phoneJid);
-                            console.log(`✅ LID Convertido: ${lid} -> ${phoneJid}`);
-                        } else {
-                            console.log(`⚠️ Não achei dono para o LID: ${lid}`);
+                            normalized.push(jidNormalizedUser(found.id));
                         }
                     });
                 } catch (error) {
-                    console.error("❌ Erro ao buscar participantes do grupo:", error);
+                    console.error("Erro ao resolver menções de LID:", error);
                 }
             }
 
-            // Retorna lista única sem duplicatas
             return [...new Set(normalized)];
+        };
+
+        // Pega de quem é a mensagem e verifica se é de um grupo
+        const from = msg.key.remoteJid;        
+        const isGroup = from.endsWith('@g.us');
+
+        const getSenderJid = (msg) => {
+            const key = msg.key;
+            if (key.participant) {
+                if (key.participant.includes('@lid') && key.participantAlt) {
+                    return jidNormalizedUser(key.participantAlt);
+                }
+                return jidNormalizedUser(key.participant);
+            } else {
+                if (key.remoteJid && key.remoteJid.includes('@lid') && key.remoteJidAlt) {
+                    return jidNormalizedUser(key.remoteJidAlt);
+                }
+                return jidNormalizedUser(key.remoteJid);
+            }
         };
 
         /*try {
@@ -814,7 +812,7 @@ async function connectToWhatsApp() {
                         VALUES (?, ?, ?, ?, ?, ?)`,
                         [id_conversa, timestamp, id_remetente, nome_remetente, texto, id_mensagem_externo]
                     );
-                    console.log(`✅ INCOMING: Mensagem de "${nome_remetente} : ${id_remetente}" salva no BD.`);
+                    console.log(`✅ INCOMING: Mensagem de "${nome_remetente}" salva no BD.`);
                 } catch (error) {
                     if (!error.message.includes('UNIQUE constraint failed')) {
                         console.error("❌ Erro ao salvar mensagem no BD:", error);
@@ -1014,7 +1012,7 @@ async function connectToWhatsApp() {
         //Início da lógica geral do bot, se o texto começar com !, o chatbot estiver online
         //e o texto tenha mais de 1 caractere
         if(command.startsWith("!") &&  chatbot.isOnline && command.length > 1){
-            const normalizedMentions = await getNormalizedMentions(sock, from, msg);
+            const normalizedMentions = await getNormalizedMentions(sock, from, msg, texto);
             console.log("🔎 Menções Normalizadas:", normalizedMentions);
 
             const sender = getSenderJid(msg);

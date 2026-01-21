@@ -551,6 +551,26 @@ const botCommands = {
     }
 };
 
+// Função auxiliar para extrair e normalizar menções
+const getNormalizedMentions = (msg, text) => {
+    const rawMentions = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
+    const textMentions = [];
+    
+    const mentionRegex = /@(\d+)/g;
+    let match;
+
+    while ((match = mentionRegex.exec(text)) !== null) {
+        const jid = `${match[1]}@s.whatsapp.net`;
+        textMentions.push(jid);
+    }
+
+    const allMentions = [...new Set([...rawMentions, ...textMentions])];
+
+    const validMentions = allMentions.filter(jid => jid.includes('@s.whatsapp.net'));
+
+    return validMentions;
+};
+
 //Inicia a conexão com mo Whatsapp para fazer todas as operações
 async function connectToWhatsApp() {
     await initDatabase();
@@ -980,6 +1000,8 @@ async function connectToWhatsApp() {
             }
         }
 
+        const normalizedMentions = getNormalizedMentions(msg, texto);
+
         //Início da lógica geral do bot, se o texto começar com !, o chatbot estiver online
         //e o texto tenha mais de 1 caractere
         if(command.startsWith("!") &&  chatbot.isOnline && command.length > 1){
@@ -1028,7 +1050,16 @@ async function connectToWhatsApp() {
                 }
 
                 //Pega a resposta do handleCommand do chatModel.js
-                const response = await chatbot.handleCommand(msg, sender, from, isGroup, command, quotedMessageText, sock);
+                const response = await chatbot.handleCommand(
+                    msg, 
+                    sender, 
+                    from, 
+                    isGroup, 
+                    command, 
+                    quotedMessageText, 
+                    sock, 
+                    normalizedMentions
+                );
 
                 //Controla o envio dos stickers
                 await sendSticker(sock, db, from, msg, [sender], texto)

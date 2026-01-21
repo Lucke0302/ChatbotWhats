@@ -49,8 +49,7 @@ class ChatModel {
     initializeCommandHandlers() {
         this.commandHandlers = {
             '!timeout': async (ctx) => {
-                const mentions = ctx.msg.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
-                return await this.handleTimeoutCommand(ctx.name, ctx.command, ctx.sender, ctx.isGroup, mentions);
+                return await this.handleTimeoutCommand(ctx.name, ctx.command, ctx.sender, ctx.isGroup, ctx.mentions);
             },
             '!d': async (ctx) => await this.handleDiceCommand(ctx.command, ctx.sender),
             '!menu': async () => await this.handleMenuCommand(),
@@ -859,7 +858,7 @@ class ChatModel {
     }
 
     // Faz o controle de todos os comandos
-    async handleCommand(msg, sender, from, isGroup, command, quotedMessage, sock) {
+    async handleCommand(msg, sender, from, isGroup, command, quotedMessage, sock, mentions = []) {
         let name = msg.pushName || ''
         
         const user = await this.getUserData(name, sender)
@@ -877,7 +876,7 @@ class ChatModel {
 
         if (handler) {
             const ctx = {
-                msg, sender, from, isGroup, command, quotedMessage, sock, name, user
+                msg, sender, from, isGroup, command, quotedMessage, sock, name, user, mentions
             };
 
             return await handler(ctx);

@@ -668,35 +668,6 @@ async function connectToWhatsApp() {
             return;
         }
 
-        // Resolve LIDs usando os dados do grupo
-        const getNormalizedMentions = async (sock, from, msg) => {
-            const rawMentions = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
-            const normalized = [];
-
-            const lids = rawMentions.filter(jid => jid.includes('@lid'));
-            const phones = rawMentions.filter(jid => jid.includes('@s.whatsapp.net'));
-
-            normalized.push(...phones);
-
-            if (lids.length > 0 && from.endsWith('@g.us')) {
-                try {
-                    const groupMetadata = await sock.groupMetadata(from);
-                    const participants = groupMetadata.participants;
-
-                    lids.forEach(lid => {
-                        const found = participants.find(p => p.lid === lid);
-                        if (found && found.id) {
-                            normalized.push(jidNormalizedUser(found.id));
-                        }
-                    });
-                } catch (error) {
-                    console.error("Erro ao resolver menções de LID:", error);
-                }
-            }
-
-            return [...new Set(normalized)];
-        };
-
         const msg = m.messages[0];
 
         if (!msg.message || msg.key.fromMe) return;
@@ -1137,6 +1108,35 @@ async function connectToWhatsApp() {
                 await handleBotError(error, replyToUser, contextObj);
             }
         }
+
+        // Resolve LIDs usando os dados do grupo
+        const getNormalizedMentions = async (sock, from, msg) => {
+            const rawMentions = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
+            const normalized = [];
+
+            const lids = rawMentions.filter(jid => jid.includes('@lid'));
+            const phones = rawMentions.filter(jid => jid.includes('@s.whatsapp.net'));
+
+            normalized.push(...phones);
+
+            if (lids.length > 0 && from.endsWith('@g.us')) {
+                try {
+                    const groupMetadata = await sock.groupMetadata(from);
+                    const participants = groupMetadata.participants;
+
+                    lids.forEach(lid => {
+                        const found = participants.find(p => p.lid === lid);
+                        if (found && found.id) {
+                            normalized.push(jidNormalizedUser(found.id));
+                        }
+                    });
+                } catch (error) {
+                    console.error("Erro ao resolver menções de LID:", error);
+                }
+            }
+
+            return [...new Set(normalized)];
+        };
 
         //Se é um quote para o bot e ele está online, responde
         //e reage com emoji de olho

@@ -691,20 +691,22 @@ async function connectToWhatsApp() {
             }
         };
 
-        // Função robusta extrair JIDs reais (Telefone)
+        // Função de Normalização com Debug Detalhado e Comparação Flexível
         const getNormalizedMentions = async (sock, from, msg) => {
             const normalized = [];
             
             const messageContent = msg.message?.extendedTextMessage || 
                                 msg.message?.imageMessage || 
-                                msg.message?.videoMessage;
+                                msg.message?.videoMessage ||
+                                msg.message?.conversation;
+                                
             const contextInfo = messageContent?.contextInfo;
 
             if (contextInfo?.participant) {
                 const quotedJid = jidNormalizedUser(contextInfo.participant);
                 if (quotedJid.includes('@s.whatsapp.net')) {
                     normalized.push(quotedJid);
-                    console.log("✅ ID recuperado via Resposta (Quote):", quotedJid);
+                    console.log("✅ [Normalizer] ID recuperado via Reply:", quotedJid);
                 }
             }
 
@@ -716,25 +718,31 @@ async function connectToWhatsApp() {
             normalized.push(...phones);
 
             if (lids.length > 0 && from.endsWith('@g.us')) {
+                console.log(`🔎 [Normalizer] Tentando converter ${lids.length} LIDs...`);
                 try {
                     const groupMetadata = await sock.groupMetadata(from);
-                    const participants = groupMetadata.participants;
+                    const participants = groupMetadata.participants || [];
 
-                    if (participants.length > 0) console.log("🔎 Estrutura Participante:", JSON.stringify(participants[0]));
+                    if (participants.length > 0) {
+                        console.log("[DEBUG] Exemplo de Participante:", JSON.stringify(participants[0])); 
+                    }
 
-                    lids.forEach(lid => {
-                        const found = participants.find(p => p.lid === lid);
+                    lids.forEach(targetLid => {
+                        const found = participants.find(p => p.lid === targetLid || (p.lid && targetLid.includes(p.lid)));
+
                         if (found && found.id) {
                             const phoneJid = jidNormalizedUser(found.id);
                             normalized.push(phoneJid);
-                            console.log(`✅ LID Convertido: ${lid} -> ${phoneJid}`);
+                            console.log(`✅ [Normalizer] Sucesso: ${targetLid} -> ${phoneJid}`);
                         } else {
-                            console.log(`⚠️ Não achei dono para o LID: ${lid}`);
+                            console.log(`⚠️ [Normalizer] Falha ao converter: ${targetLid} (Não achou match nos participantes)`);
                         }
                     });
                 } catch (error) {
-                    console.error("❌ Erro ao buscar participantes do grupo:", error);
+                    console.log("❌ [Normalizer] Erro ao buscar metadados do grupo:", error);
                 }
+            } else if (lids.length > 0) {
+                console.log("⚠️ [Normalizer] LIDs encontrados, mas não estou em um grupo. Impossível converter.");
             }
 
             return [...new Set(normalized)];

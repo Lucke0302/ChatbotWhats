@@ -552,10 +552,13 @@ const botCommands = {
 };
 
 // Função auxiliar para extrair e normalizar menções
+// Função para extrair números de telefone do texto e ignorar LIDs
 const getNormalizedMentions = (msg, text) => {
-    const rawMentions = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
-    const textMentions = [];
+    if (!text) return [];
     
+    const rawMentions = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
+    
+    const textMentions = [];
     const mentionRegex = /@(\d+)/g;
     let match;
 
@@ -564,9 +567,9 @@ const getNormalizedMentions = (msg, text) => {
         textMentions.push(jid);
     }
 
-    const allMentions = [...new Set([...rawMentions, ...textMentions])];
-
-    const validMentions = allMentions.filter(jid => jid.includes('@s.whatsapp.net'));
+    const allMentions = [...rawMentions, ...textMentions];
+    
+    const validMentions = [...new Set(allMentions)].filter(jid => jid.includes('@s.whatsapp.net'));
 
     return validMentions;
 };

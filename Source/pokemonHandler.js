@@ -407,6 +407,7 @@ class PokemonHandler {
             items: []
         };
         this.lastSticker = null
+        this.tradeSessions = new Map()
     }
 
     async init() {
@@ -494,6 +495,21 @@ class PokemonHandler {
             console.log(`✅ Coluna 'status' adicionada com sucesso!`);
         } catch (e) { }
 
+            // No método init()
+        try {
+            // Adiciona coluna de Amizade nos Pokémons do usuário (0 a 255)
+            await this.db.exec(`ALTER TABLE user_pokemons ADD COLUMN friendship INTEGER DEFAULT 70;`);
+            console.log("✅ Coluna 'friendship' adicionada.");
+        } catch (e) {}
+
+        try {
+            // Método de evolução: 'level', 'item', 'trade', 'friendship'
+            await this.db.exec(`ALTER TABLE pokedex ADD COLUMN evolve_method TEXT DEFAULT 'level';`);
+            // Condição: Nível (ex: 16), ID do Item (ex: 'thunder-stone') ou Valor de Amizade (ex: 220)
+            await this.db.exec(`ALTER TABLE pokedex ADD COLUMN evolve_condition TEXT DEFAULT NULL;`);
+            console.log("✅ Colunas de evolução complexa adicionadas na Pokedex.");
+        } catch (e) {}
+
         // 3. VERIFICAÇÕES DE BANCO DE DADOS (Pokedéx, Moves, etc)
         const pokeCount = await this.db.get('SELECT COUNT(*) as total FROM pokedex');
         const moveCount = await this.db.get('SELECT COUNT(*) as total FROM moves');
@@ -531,6 +547,19 @@ class PokemonHandler {
         };
 
         return selectedTMs;
+    }
+
+    async modifyFriendship(userPoke, amount) {
+        if (!userPoke || !userPoke.id) return;
+
+        let newValue = (userPoke.friendship || 70) + amount;
+        if (newValue > 255) newValue = 255;
+        if (newValue < 0) newValue = 0;
+
+        if (newValue !== userPoke.friendship) {
+            userPoke.friendship = newValue;
+            await this.db.run("UPDATE user_pokemons SET friendship = ? WHERE id = ?", [newValue, userPoke.id]);
+        }
     }
 
     async cleanDatabaseDuplicates() {
@@ -2595,6 +2624,187 @@ class PokemonHandler {
                `⚠️ Taxa de retirada: 200 coins por nível subido.`;
     }
 
+    async handleTradeCommand(from, sender, command, sock) {
+        const tag = await this.getUserTag(sender);
+        const args = command.split(' ');
+        const subAction = args[2] ? args[2].toLowerCase() : '';
+        
+        const now = Date.now();
+        for (const [key, session] of this.tradeSessions) {
+            if (now - session.startedAt > 300000) this.tradeSessions.delete(key);
+        }
+
+        // --- INICIAR TROCA (!poke trocar @usuario) ---
+        if (subAction.startsWith('@') || subAction === 'iniciar') {
+            const mentionedJid = args[2].replace('@', '').replace(/[^0-9]/g, '') + "@s.whatsapp.net";
+            
+            if (mentionedJid === sender) return `${tag}🚫 Você não pode trocar consigo mesmo (esquizofrenia tem tratamento).`;
+            
+            const targetHasPoke = await this.checkIfUserHasPokemon(mentionedJid);
+            if (!targetHasPoke) return `${tag}🚫 O usuário mencionado não é um treinador Pokémon.`;
+
+            const sessionKey = [sender, mentionedJid].sort().join('_');
+            
+            if (this.tradeSessions.has(sessionKey)) return `${tag}⚠️ Já existe uma negociação ativa entre vocês. Terminem ou cancelem (Use *!poke trocar cancelar*).`;
+
+            this.tradeSessions.set(sessionKey, {
+                userA: sender,
+                userB: mentionedJid,
+                status: 'PENDING',
+                offerA: null,
+                offerB: null,
+                confirmA: false,
+                confirmB: false,
+                startedAt: Date.now()
+            });
+
+            return `${tag}🤝 **PEDIDO DE TROCA ENVIADO!**\n\n@${mentionedJid.split('@')[0]}, digite:\n👉 *!poke trocar aceitar* para iniciar a negociação.`;
+        }
+
+        let sessionKey = null;
+        let session = null;
+        for (const [key, s] of this.tradeSessions) {
+            if (s.userA === sender || s.userB === sender) {
+                sessionKey = key;
+                session = s;
+                break;
+            }
+        }
+
+        if (!session && subAction !== 'ajuda') {
+            return `${tag}🤷 Nenhuma troca ativa encontrada.\nUse: *!poke trocar @usuario* para começar.`;
+        }
+
+        const isUserA = session && session.userA === sender;
+        const otherUser = session ? (isUserA ? session.userB : session.userA) : null;
+
+        // --- ACEITAR (!poke trocar aceitar) ---
+        if (subAction === 'aceitar') {
+            if (session.status !== 'PENDING') return `${tag}A troca já está ativa!`;
+            if (session.userB !== sender) return `${tag}🚫 Só o desafiado pode aceitar.`;
+
+            session.status = 'ACTIVE';
+            return `🤝 **TROCA INICIADA!**\n\nAgora escolham seus Pokémon:\nUse: *!poke trocar ofertar [slot_time]*\nEx: _!poke trocar ofertar 1_`;
+        }
+
+        // --- CANCELAR (!poke trocar cancelar) ---
+        if (subAction === 'cancelar') {
+            this.tradeSessions.delete(sessionKey);
+            return `🗑️ A troca foi cancelada.`;
+        }
+
+        // --- OFERTAR (!poke trocar ofertar X) ---
+        if (subAction === 'ofertar' || subAction === 'offer') {
+            if (session.status !== 'ACTIVE') return `${tag}Aceite a troca primeiro!`;
+
+            const slot = parseInt(args[3]);
+            if (isNaN(slot)) return `${tag}Use o número do slot. Ex: *!poke trocar ofertar 1*`;
+
+            const poke = await this.db.get(`
+                SELECT up.*, p.name, p.evolve_method, p.evolve_condition 
+                FROM user_pokemons up 
+                JOIN pokedex p ON up.pokedex_id = p.id 
+                WHERE up.user_id = ? AND up.team_slot = ?`, [sender, slot]);
+
+            if (!poke) return `${tag}🚫 Slot vazio.`;
+            if (poke.current_hp <= 0) return `${tag}🚫 Cure seu Pokémon antes de trocar.`;
+
+            const offerData = { 
+                id: poke.id, 
+                name: poke.nickname, 
+                level: poke.level, 
+                pokedex_id: poke.pokedex_id,
+                held_item: poke.held_item,
+                evolve_method: poke.evolve_method,
+                evolve_condition: poke.evolve_condition
+            };
+
+            if (isUserA) { session.offerA = offerData; session.confirmA = false; session.confirmB = false; }
+            else { session.offerB = offerData; session.confirmA = false; session.confirmB = false; }
+
+            let msg = `${tag}📦 Você ofertou: **${poke.nickname}** (Lvl ${poke.level}).`;
+            
+            if (session.offerA && session.offerB) {
+                msg += `\n\n🔄 **RESUMO DA TROCA:**\n`;
+                msg += `👤 ${session.userA.split('@')[0]}: ${session.offerA.name} (Lvl ${session.offerA.level})\n`;
+                msg += `👤 ${session.userB.split('@')[0]}: ${session.offerB.name} (Lvl ${session.offerB.level})\n`;
+                msg += `\n⚠️ Confiram os dados! Se estiverem de acordo, ambos digitem:\n👉 *!poke trocar confirmar*`;
+            } else {
+                msg += `\n⏳ Aguardando a oferta do outro jogador...`;
+            }
+            return msg;
+        }
+
+        // --- CONFIRMAR (!poke trocar confirmar) ---
+        if (subAction === 'confirmar' || subAction === 'ok') {
+            if (!session.offerA || !session.offerB) return `${tag}🚫 Ambos precisam ofertar um Pokémon antes.`;
+
+            if (isUserA) session.confirmA = true;
+            else session.confirmB = true;
+
+            if (session.confirmA && session.confirmB) {
+                // EXECUTA A TROCA
+                return await this.executeTrade(sessionKey);
+            }
+
+            return `${tag}✅ Você confirmou! Aguardando o outro jogador...`;
+        }
+
+        return `${tag}ℹ️ Comandos de Troca:\n!poke trocar @user\n!poke trocar aceitar\n!poke trocar ofertar [slot]\n!poke trocar confirmar\n!poke trocar cancelar`;
+    }
+
+    // Recalcula HP Máximo e ajusta HP Atual 
+    async recalculateStats(userPokeId) {
+        const poke = await this.db.get(`
+            SELECT up.id, up.level, up.iv_hp, up.ev_hp, up.nature, up.current_hp, up.max_hp, p.base_hp
+            FROM user_pokemons up
+            JOIN pokedex p ON up.pokedex_id = p.id
+            WHERE up.id = ?`, [userPokeId]);
+
+        if (!poke) return null;
+
+        const newMaxHp = this.computeStat(
+            poke.base_hp,
+            poke.iv_hp,
+            poke.ev_hp || 0,
+            poke.level,
+            poke.nature,
+            'hp'
+        );
+
+        const diff = newMaxHp - poke.max_hp;
+        const newCurrentHp = Math.max(0, poke.current_hp + diff);
+
+        await this.db.run(
+            "UPDATE user_pokemons SET max_hp = ?, current_hp = ? WHERE id = ?", 
+            [newMaxHp, newCurrentHp, poke.id]
+        );
+
+        return { newMaxHp, newCurrentHp, diff };
+    }
+
+    async executeTrade(sessionKey) {
+        const session = this.tradeSessions.get(sessionKey);
+        if (!session) return "❌ Sessão expirou.";
+
+        const { userA, userB, offerA, offerB } = session;
+
+        await this.db.run("UPDATE user_pokemons SET user_id = ?, friendship = 70, team_slot = -1 WHERE id = ?", [userB, offerA.id]);
+        await this.db.run("UPDATE user_pokemons SET user_id = ?, friendship = 70, team_slot = -1 WHERE id = ?", [userA, offerB.id]);
+        
+        this.tradeSessions.delete(sessionKey);
+
+        let log = `🎉 **TROCA REALIZADA COM SUCESSO!**\n_Os pokémon foram enviados para o PC dos novos donos._\n\n`;
+        
+        const adviceA = await this.getEvolutionAdvice(offerA.id);
+        if (adviceA) log += `👉 @${userB.split('@')[0]}: ${adviceA}\n`;
+
+        const adviceB = await this.getEvolutionAdvice(offerB.id);
+        if (adviceB) log += `👉 @${userA.split('@')[0]}: ${adviceB}\n`;
+
+        return log;
+    }
+
     async handleCommand(from, sender, command, sock) {
         const args = command.trim().split(' ');
         const action = args[1] ? args[1].toLowerCase() : 'ajuda';
@@ -2608,6 +2818,7 @@ class PokemonHandler {
         }
 
         switch (action) {
+
             case 'tm':
                 return await this.useTM(sender, param);
 
@@ -2695,6 +2906,10 @@ class PokemonHandler {
             case 'time':
             case 'team':
                 return await this.getTeam(sender, param);
+
+            case 'troca':
+            case 'trade':
+                return await this.handleTradeCommand(from, sender, command, sock);
 
             case 'trocar':
             case 'switch':
@@ -3749,6 +3964,7 @@ class PokemonHandler {
 
         // VITÓRIA FINAL
         await this.clearEncounter(userId);
+        this.modifyFriendship(p, 1);
 
         if (encounter.battle_type === 'GYM_TRAINER') {
             await this.db.run("UPDATE usuarios SET gym_progress = gym_progress - 1 WHERE id_usuario = ?", [userId]);
@@ -3804,8 +4020,10 @@ class PokemonHandler {
         const teamAlive = await this.db.get("SELECT COUNT(*) as total FROM user_pokemons WHERE user_id = ? AND team_slot > 0 AND current_hp > 0", [userId]);
         
         if (teamAlive.total > 0) {
+            this.modifyFriendship(userPoke, -5);
             return `${log}\n\n💀 *${userPoke.nickname}* está fora de combate!\nUse *!poke trocar [slot]* para escolher outro Pokémon.`;
         } else {
+            this.modifyFriendship(userPoke, -5);
             await this.clearEncounter(userId);
             return `${log}\n\n💀 Toda sua equipe foi derrotada! Você correu para o Centro Pokémon (e perdeu algumas moedas na fuga...).`;
         }
@@ -4600,6 +4818,7 @@ class PokemonHandler {
         
         if (!stopLvlUp) {
             if(lvl > userPoke.level) {
+                this.modifyFriendship(userPoke, 3);
                 const newHp = this.computeStat(userPoke.base_hp, userPoke.iv_hp, userPoke.ev_hp || 0, lvl, userPoke.nature, 'hp');
                 await this.db.run("UPDATE user_pokemons SET exp=?, level=?, max_hp=?, current_hp=? WHERE id=?", [newXp, lvl, newHp, newHp, userPoke.id]);
             } else {
@@ -4627,43 +4846,108 @@ class PokemonHandler {
         if (isNaN(slot)) return `${tag}⚠️ Uso correto: *!poke evoluir [slot]*\nEx: _!poke evoluir 1_`;
 
         const pokemon = await this.db.get(`
-            SELECT up.*, p.name as species_name, p.evolve_to, p.evolve_level, p.base_hp
+            SELECT up.*, 
+                   p.name as species_name, p.evolve_to, 
+                   p.evolve_level, p.evolve_method, p.evolve_condition
             FROM user_pokemons up
             JOIN pokedex p ON up.pokedex_id = p.id
             WHERE up.user_id = ? AND up.team_slot = ?`, [userId, slot]);
 
         if (!pokemon) return `${tag}🚫 Não há Pokémon no slot ${slot}.`;
 
-        if (!pokemon.evolve_to) return `${tag}🤷 *${pokemon.nickname}* já está na forma final (ou não evolui por nível).`;
-        
-        if (pokemon.level < pokemon.evolve_level) {
-            return `${tag}⏳ *${pokemon.nickname}* ainda não está pronto para evoluir.\nNível atual: ${pokemon.level} | Necessário: ${pokemon.evolve_level}`;
+        if (!pokemon.evolve_to) return `${tag}🤷 *${pokemon.nickname}* já está na forma final (ou não evolui).`;
+
+        let canEvolve = false;
+        let failReason = "";
+        let consumeItem = false;
+
+        const method = pokemon.evolve_method || 'level';
+
+        switch (method) {
+            case 'level':
+                if (pokemon.level >= pokemon.evolve_level) {
+                    canEvolve = true;
+                } else {
+                    failReason = `precisa chegar no nível ${pokemon.evolve_level}`;
+                }
+                break;
+
+            case 'friendship':
+                const reqFriendship = parseInt(pokemon.evolve_condition || 220);
+                const currentFriendship = pokemon.friendship || 0;
+                
+                if (currentFriendship >= reqFriendship) {
+                    canEvolve = true;
+                } else {
+                    failReason = `precisa confiar mais em você`;
+                }
+                break;
+
+            case 'item':
+                if (!pokemon.held_item) {
+                    failReason = `precisa estar segurando o item evolutivo correto`;
+                } else {
+                    if (pokemon.held_item === pokemon.evolve_condition) {
+                        canEvolve = true;
+                        consumeItem = true;
+                    } else {
+                        const reqItemName = (await this.db.get("SELECT name FROM items WHERE id = ?", [pokemon.evolve_condition]))?.name || pokemon.evolve_condition;
+                        failReason = `precisa estar segurando **${reqItemName}**`;
+                    }
+                }
+                break;
+
+                case 'trade':                
+                if (pokemon.evolve_condition) {
+                    if (pokemon.held_item === pokemon.evolve_condition) {
+                        canEvolve = true;
+                        consumeItem = true;
+                    } else {
+                        const reqItemName = (await this.db.get("SELECT name FROM items WHERE id = ?", [pokemon.evolve_condition]))?.name || "Item Especial";
+                        failReason = `precisa estar segurando **${reqItemName}**`;
+                    }
+                } else {
+                    canEvolve = true;
+                }
+                
+                break;
+
+            default:
+                failReason = `tem um método de evolução desconhecido`;
+        }
+
+        if (!canEvolve) {
+            return `${tag}⏳ *${pokemon.nickname}* ainda não pode evoluir.\nMotivo: Ele ${failReason}.`;
         }
 
         const nextForm = await this.db.get("SELECT * FROM pokedex WHERE id = ?", [pokemon.evolve_to]);
         if (!nextForm) return `${tag}❌ Erro: Evolução desconhecida na Pokédex.`;
-
-        const newMaxHp = this.computeStat(nextForm.base_hp, pokemon.iv_hp, pokemon.ev_hp || 0, pokemon.level, pokemon.nature, 'hp');
-        const hpDiff = newMaxHp - pokemon.max_hp;
-        const newCurrentHp = pokemon.current_hp + hpDiff;
 
         let newNickname = pokemon.nickname;
         if (pokemon.nickname === pokemon.species_name) {
             newNickname = nextForm.name;
         }
 
+        let itemSql = "";
+        if (consumeItem) {
+            itemSql = ", held_item = NULL";
+        }
+
         await this.db.run(`
             UPDATE user_pokemons 
-            SET pokedex_id = ?, nickname = ?, max_hp = ?, current_hp = ?
+            SET pokedex_id = ?, nickname = ? ${itemSql}
             WHERE id = ?`, 
-            [nextForm.id, newNickname, newMaxHp, newCurrentHp, pokemon.id]
+            [nextForm.id, newNickname, pokemon.id]
         );
 
+        const statsDiff = await this.recalculateStats(pokemon.id);
+
         const typeEmojis = this.getTypeEmojis(nextForm.type1, nextForm.type2);
+        const consumedMsg = consumeItem ? `\n💎 O item *${pokemon.held_item}* foi consumido.` : "";
         
         const caption = `${tag}🎆 *O QUE? ${pokemon.nickname} ESTÁ EVOLUINDO!* 🎆\n\n` +
                         `✨ Parabéns! Seu *${pokemon.species_name}* evoluiu para *${nextForm.name}* ${typeEmojis}!\n` +
-                        `❤️ HP Máximo subiu de ${pokemon.max_hp} para ${newMaxHp}!`;
+                        `❤️ HP Máximo subiu para ${statsDiff.newMaxHp} (+${statsDiff.diff})!${consumedMsg}`;
 
         if (sock) {
             const sprite = pokemon.is_shiny ? nextForm.sprite_url.replace("front_default", "front_shiny") : nextForm.sprite_url;
@@ -4677,6 +4961,65 @@ class PokemonHandler {
         }
         
         return caption;
+    }
+
+    async getEvolutionAdvice(userPokeId) {
+        const poke = await this.db.get(`
+            SELECT up.*, p.name, p.evolve_to, p.evolve_level, p.evolve_method, p.evolve_condition 
+            FROM user_pokemons up 
+            JOIN pokedex p ON up.pokedex_id = p.id 
+            WHERE up.id = ?`, [userPokeId]);
+
+        if (!poke || !poke.evolve_to) return null; 
+
+        const method = poke.evolve_method || 'level';
+        const nickname = poke.nickname || poke.name;
+
+        // Evolução por NÍVEL
+        if (method === 'level') {
+            if (poke.level >= poke.evolve_level) {
+                return `✨ *${nickname}* pode evoluir! Use *!poke evoluir*.`;
+            } else {
+                return `🔒 *${nickname}* precisa chegar ao nível ${poke.evolve_level}.`;
+            }
+        }
+
+        // Evolução por ITEM (Pedras)
+        if (method === 'item') {
+            if (poke.held_item === poke.evolve_condition) {
+                return `✨ *${nickname}* tem o item certo! Use *!poke evoluir*.`;
+            } else {
+                const reqItem = (await this.db.get("SELECT name FROM items WHERE id = ?", [poke.evolve_condition]))?.name || "Item especial";
+                return `🔒 *${nickname}* precisa segurar: **${reqItem}**.`;
+            }
+        }
+
+        // Evolução por AMIZADE
+        if (method === 'friendship') {
+            const reqFriend = parseInt(poke.evolve_condition || 220);
+            if (poke.friendship >= reqFriend) {
+                return `✨ *${nickname}* te ama o suficiente! Use *!poke evoluir*.`;
+            } else {
+                return `🔒 *${nickname}* precisa de mais amizade (A troca resetou isso).`;
+            }
+        }
+
+        // Evolução por TROCA
+        if (method === 'trade') {
+            if (poke.evolve_condition) {
+                if (poke.held_item === poke.evolve_condition) {
+                    return `✨ *${nickname}* evolui por troca com item e está pronto! Use *!poke evoluir*.`;
+                } else {
+                    const reqItem = (await this.db.get("SELECT name FROM items WHERE id = ?", [poke.evolve_condition]))?.name || "Item especial";
+                    return `🔒 *${nickname}* evolui por troca, mas precisava estar segurando **${reqItem}** durante o processo.`;
+                }
+            } 
+            else {
+                return `✨ *${nickname}* evolui por troca! Como acabou de chegar, use *!poke evoluir*.`;
+            }
+        }
+
+        return null;
     }
 
     async learnPendingMove(userId, choice) {

@@ -10,6 +10,7 @@ const ttsCommandHandler = require('./ttsCommand');
 const PokemonHandler = require('./pokemonHandler');
 const migrationCommandHandler = require('./migrarCommand');
 const RIOT_API_KEY = process.env.RIOT_API_KEY;
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 class ChatModel {
     constructor(db, genAI) {
@@ -39,11 +40,16 @@ class ChatModel {
         this.initializeCommandHandlers();
     }
 
+    async init() {
+        if (this.pokemonHandler) {
+            await this.pokemonHandler.init();
+        }
+    }
+
     initializeCommandHandlers() {
         this.commandHandlers = {
             '!timeout': async (ctx) => {
-                const mentions = ctx.msg.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
-                return await this.handleTimeoutCommand(ctx.name, ctx.command, ctx.sender, ctx.isGroup, mentions);
+                return await this.handleTimeoutCommand(ctx.name, ctx.command, ctx.sender, ctx.isGroup, ctx.mentions);
             },
             '!d': async (ctx) => await this.handleDiceCommand(ctx.command, ctx.sender),
             '!menu': async () => await this.handleMenuCommand(),
@@ -69,7 +75,7 @@ class ChatModel {
                 await ttsCommandHandler.handleAudioCommand(ctx.sock, ctx.from, ctx.command, ctx.msg);
             },
             '!poke': async (ctx) => {
-                return await this.pokemonHandler.handleCommand(ctx.from, ctx.sender, ctx.command, ctx.sock);
+                return await this.pokemonHandler.handleCommand(ctx.from, ctx.sender, ctx.command, ctx.sock, ctx.msg);
             },
             '!id': async (ctx) => `${ctx.from}`,
             '!migrar': async (ctx) => {
@@ -296,7 +302,7 @@ class ChatModel {
     //Escolhe qual figurinha deve ser enviada (ou nenhuma)
     async getSticker(command) {
         let stickerPath = "Assets/";
-        const cmd = command.split(' ')[0];
+        const cmd = command.split(' ')[0].toLowerCase();
 
         const commandActions = {
             '!gpt': async () => {
@@ -305,6 +311,15 @@ class ChatModel {
             },
             '!resumo': async () =>{
                 return "resumo"+await this.rollDice(2)+".webp"
+            },
+            '!poke': async () => {
+                if (this.pokemonHandler && this.pokemonHandler.lastSticker) {
+                    const stickerName = this.pokemonHandler.lastSticker;
+                    this.pokemonHandler.lastSticker = null;
+                    console.log("[ChatModel] LastSticker: " + stickerName)
+                    return stickerName;
+                }
+                return null;
             }
         };
 
@@ -313,7 +328,12 @@ class ChatModel {
         }
 
         else if (commandActions[cmd]) {
-            stickerPath += await commandActions[cmd]();
+            const result = await commandActions[cmd]();
+            if (result) {
+                stickerPath += result;
+            } else {
+                return null; 
+            }
         }
         
         else return null
@@ -660,19 +680,23 @@ class ChatModel {
     // 5. Comando para aplicar Timeout (!timeout @pessoa tempo)
     // Ex: !timeout @551199999999 10 (bane por 10 minutos)
     async handleTimeoutCommand(name, command, sender, isGroup, mentions) {
+        const ADMINS = [
+            "5513991008854@s.whatsapp.net"
+        ];
 
-        if(sender !== "266180732403881@lid"){
-            return
+        if (!ADMINS.includes(sender)) {
+            console.log(`[Timeout] Acesso negado para: ${sender}`);
+            return "🔒 Você não tem a insígnia de mestre para isso.";
         }
         
         const args = command.split(' ');
-        if (args.length < 3) return;
+        if (args.length < 3) throw new Error("MISSING_ARGS");
 
         const targetUser = mentions[0];
         const minutes = parseInt(args[args.length - 1]); 
 
-        if (!targetUser) return;
-        if (isNaN(minutes) || minutes <= 0) return;
+        if (!targetUser) throw new Error("NO_USER_TO_TIMEOUT");
+        if (isNaN(minutes) || minutes <= 0) throw new Error("NOT_A_NUMBER");
 
         const banUntil = Math.floor(Date.now() / 1000) + (minutes * 60);
         
@@ -680,7 +704,7 @@ class ChatModel {
         
         await this.db.run(`UPDATE usuarios SET banido_ate = ? WHERE id_usuario = ?`, [banUntil, targetUser]);
 
-        return `🚫 Usuário silenciado por ${minutes} minutos. Fica pianinho aí.`;
+        return `🚫 Usuário silenciado por ${minutes > 1 ? minutes + " minutos" : minutes + " minuto" }. Fica pianinho aí.`;
     }
     
     async handleFaladorCommand(from){
@@ -838,7 +862,7 @@ class ChatModel {
     }
 
     // Faz o controle de todos os comandos
-    async handleCommand(msg, sender, from, isGroup, command, quotedMessage, sock) {
+    async handleCommand(msg, sender, from, isGroup, command, quotedMessage, sock, mentions = []) {
         let name = msg.pushName || ''
         
         const user = await this.getUserData(name, sender)
@@ -856,7 +880,7 @@ class ChatModel {
 
         if (handler) {
             const ctx = {
-                msg, sender, from, isGroup, command, quotedMessage, sock, name, user
+                msg, sender, from, isGroup, command, quotedMessage, sock, name, user, mentions
             };
 
             return await handler(ctx);

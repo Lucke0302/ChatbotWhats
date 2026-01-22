@@ -20,6 +20,9 @@ const { Sticker, StickerTypes } = require('wa-sticker-formatter');
 const sharp = require('sharp');
 const crypto = require('crypto');
 
+const DriveBackup = require('./handleDriveBackup');
+const driveService = new DriveBackup();
+
 const pollCache = new Map();
 
 const DB_PATH = 'chat_history.db'; 
@@ -435,6 +438,50 @@ async function initDatabase() {
         console.log("✅ Coluna 'reward_claimed' criada com sucesso!");
     } catch (e) {}
 
+    try {
+        await db.exec(`ALTER TABLE user_pokemons ADD COLUMN deposit_level INTEGER DEFAULT NULL;`);
+        console.log("✅ Coluna 'deposit_level' criada para o Day Care.");
+    } catch (e) {}
+
+    try {
+    await db.exec(`ALTER TABLE user_pokemons ADD COLUMN held_item TEXT DEFAULT NULL;`);
+    console.log("✅ Coluna 'held_item' criada.");
+    } catch (e) {}
+
+    await db.exec(`
+        CREATE TABLE IF NOT EXISTS items (
+            id TEXT PRIMARY KEY, 
+            name TEXT, 
+            type TEXT, -- 'ball', 'medicine', 'held', 'key', 'stone'
+            price INTEGER, 
+            description TEXT
+        )
+    `);
+
+    await db.exec(`
+        CREATE TABLE IF NOT EXISTS inventory (
+            user_id TEXT, 
+            item_id TEXT, 
+            quantity INTEGER DEFAULT 0,
+            PRIMARY KEY (user_id, item_id),
+            FOREIGN KEY(item_id) REFERENCES items(id)
+        )
+    `);
+        
+    console.log("✅ Sistema de Itens carregado.");
+
+    try {
+        await this.db.exec(`ALTER TABLE usuarios ADD COLUMN claimed_events TEXT DEFAULT '[]';`);
+        console.log("✅ Coluna 'claimed_events' criada.");
+
+        await this.db.run(`
+            UPDATE usuarios 
+            SET claimed_events = '["vet01"]' 
+            WHERE reward_claimed = 1 AND (claimed_events IS NULL OR claimed_events = '[]')
+        `);
+        console.log("✅ Migração de veteranos para o novo sistema concluída.");
+    } catch (e) {}
+
     console.log('✅ Banco de dados SQLite inicializado e tabelas verificadas.');
 }
 
@@ -507,6 +554,13 @@ const botCommands = {
 //Inicia a conexão com mo Whatsapp para fazer todas as operações
 async function connectToWhatsApp() {
     await initDatabase();
+
+    /*try {
+        await driveService.authorize();
+        console.log("✅ Google Drive Autenticado!");
+    } catch (err) {
+        console.error("❌ Falha ao autenticar no Drive:", err);
+    }*/
 
     const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
 
@@ -636,6 +690,113 @@ async function connectToWhatsApp() {
                 return jidNormalizedUser(key.remoteJid);
             }
         };
+
+        // Função de normalização de menções
+        const getNormalizedMentions = async (sock, from, msg) => {
+            const normalized = [];
+            
+            const messageContent = msg.message?.extendedTextMessage || 
+                                msg.message?.imageMessage || 
+                                msg.message?.videoMessage ||
+                                msg.message?.conversation;
+                                
+            const contextInfo = messageContent?.contextInfo;
+
+            if (contextInfo?.participant) {
+                const quotedJid = jidNormalizedUser(contextInfo.participant);
+                if (quotedJid.includes('@s.whatsapp.net')) {
+                    normalized.push(quotedJid);
+                }
+            }
+
+            const rawMentions = contextInfo?.mentionedJid || [];
+            
+            const phones = rawMentions.filter(jid => jid.includes('@s.whatsapp.net'));
+            const lids = rawMentions.filter(jid => jid.includes('@lid'));
+            
+            normalized.push(...phones);
+
+            if (lids.length > 0 && from.endsWith('@g.us')) {
+                try {
+                    const groupMetadata = await sock.groupMetadata(from);
+                    const participants = groupMetadata.participants || [];
+
+                    lids.forEach(targetLid => {
+                        const found = participants.find(p => 
+                            p.id === targetLid || 
+                            (p.id && targetLid.includes(p.id)) ||
+                            (p.lid && p.lid === targetLid)
+                        );
+
+                        if (found) {
+                            const realNumber = found.phoneNumber || found.id;
+                            
+                            if (realNumber && realNumber.includes('@s.whatsapp.net')) {
+                                normalized.push(realNumber);
+                            }
+                        }
+                    });
+                } catch (error) {
+                    console.error("❌ Erro ao buscar metadados:", error);
+                }
+            }
+
+            return [...new Set(normalized)];
+        };
+
+        /*try {
+            const messageType = Object.keys(msg.message)[0];
+            
+            // Lista de tipos permitidos para documentos
+            const allowedMimeTypes = [
+                'application/pdf',
+                'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'image/jpeg',
+                'image/png'
+            ];
+
+            let shouldUpload = false;
+            let mimeType = '';
+            let fileName = '';
+
+            // Verifica se é Imagem
+            if (messageType === 'imageMessage') {
+                shouldUpload = true;
+                mimeType = msg.message.imageMessage.mimetype;
+                fileName = `IMG_${Math.floor(Date.now() / 1000)}.jpeg`;
+            } 
+            // Verifica se é Documento
+            else if (messageType === 'documentMessage') {
+                mimeType = msg.message.documentMessage.mimetype;
+                
+                // Filtra apenas PDF, DOCX, XLSX
+                if (allowedMimeTypes.includes(mimeType)) {
+                    shouldUpload = true;
+                    fileName = msg.message.documentMessage.fileName || `DOC_${Math.floor(Date.now() / 1000)}`;
+                }
+            }
+
+            if (shouldUpload) {
+                console.log(`📥 Mídia detectada (${fileName}). Baixando...`);
+                
+                // Baixa a mídia da memória do WhatsApp
+                const buffer = await downloadMediaMessage(
+                    msg,
+                    'buffer',
+                    { },
+                    { logger: pino({ level: 'silent' }) }
+                );
+
+                // Envia para o Drive
+                await driveService.uploadFile(fileName, mimeType, buffer);
+                
+                await sock.sendMessage(msg.key.remoteJid, { react: { text: '☁️', key: msg.key } });
+            }
+
+        } catch (err) {
+            console.error("Erro ao processar upload automático:", err);
+        }*/
         
         //Pega o texto da mensagem
         const texto = msg.message.conversation || 
@@ -701,15 +862,27 @@ async function connectToWhatsApp() {
         //Verifica se o quote é para o bot
         const isReplyToBot = replyNumber && (replyNumber === myPhone || replyNumber === myLid);
 
-        //Logs de quote
-        if (quotedMessage) {
-            console.log(`💬 DETECTEI UMA RESPOSTA!`);
-            console.log(`   Quem foi respondido (Clean): ${replyNumber}`);
-            console.log(`   Meus IDs: Phone=${myPhone} | LID=${myLid}`);
-            console.log(`   É pra mim? ${isReplyToBot ? 'SIM ✅' : 'NÃO ❌'}`);
+        const messageContent = msg.message?.extendedTextMessage || 
+                               msg.message?.imageMessage || 
+                               msg.message?.videoMessage || 
+                               msg.message?.documentMessage;
+
+        const mentions = messageContent?.contextInfo?.mentionedJid || [];
+        
+        const myFullLid = me?.lid ? jidNormalizedUser(me.lid) : '';
+
+        const isMentioned = mentions.some(jid => {
+            const normalizedMention = jidNormalizedUser(jid);
+            return normalizedMention === myFullJid || normalizedMention === myFullLid;
+        });
+
+        if (mentions.length > 0) {
+            console.log(`🔎 Menções encontradas:`, mentions);
+            console.log(`🤖 IDs do Bot: Phone=${myFullJid} | LID=${myFullLid}`);
+            console.log(`🎯 Fui marcado? ${isMentioned}`);
         }
 
-
+        const isInteractWithBot = (quotedMessage && isReplyToBot) || isMentioned;
 
         if (command === '!status') {
             const GRUPO_CONTROLE = '120363422821336011@g.us';
@@ -863,7 +1036,9 @@ async function connectToWhatsApp() {
         //Início da lógica geral do bot, se o texto começar com !, o chatbot estiver online
         //e o texto tenha mais de 1 caractere
         if(command.startsWith("!") &&  chatbot.isOnline && command.length > 1){
-            
+            const normalizedMentions = await getNormalizedMentions(sock, from, msg);
+            console.log("🔎 Menções Normalizadas:", normalizedMentions);
+
             const sender = getSenderJid(msg);
 
             const contextObj = {
@@ -907,11 +1082,24 @@ async function connectToWhatsApp() {
                     await sock.sendMessage(from, { react: { text: '🤨', key: msg.key } });
                 }
 
+                //Pega a resposta do handleCommand do chatModel.js
+                const response = await chatbot.handleCommand(
+                    msg, 
+                    sender, 
+                    from, 
+                    isGroup, 
+                    command, 
+                    quotedMessageText, 
+                    sock, 
+                    normalizedMentions
+                );
+
                 //Controla o envio dos stickers
                 await sendSticker(sock, db, from, msg, [sender], texto)
 
-                //Pega a resposta do handleCommand do chatModel.js
-                const response = await chatbot.handleCommand(msg, sender, from, isGroup, command, quotedMessageText, sock);
+                if (command.includes('capturar') || command.includes('catch') || command.includes('ball')) {
+                    await new Promise(r => setTimeout(r, 4000));
+                }
 
                 const intro = commandIntros[commandName] || commandIntros['undefined'];
                 const finalResponse = `${intro}${response}`;
@@ -976,21 +1164,23 @@ async function connectToWhatsApp() {
 
         //Se é um quote para o bot e ele está online, responde
         //e reage com emoji de olho
-        if (quotedMessage && isReplyToBot && chatbot.isOnline) {
+        if (isInteractWithBot && chatbot.isOnline) {
             const sender = getSenderJid(msg);
 
-            console.log("✅ REPLY DETECTADO! Respondendo...");
+            console.log("✅ INTERAÇÃO DETECTADA! Respondendo...");
 
             await sendSticker(sock, db, from, msg, [sender], texto)
             
             if (texto.startsWith('!')) return;
 
-            await sock.sendMessage(from, { react: { text: "👀", key: msg.key } }); 
+            await sock.sendMessage(from, { react: { text: "👀", key: msg.key } });
 
-            const quotedMessageText = quotedMessage.conversation || 
-                                quotedMessage.extendedTextMessage?.text || 
-                                quotedMessage.imageMessage?.caption || 
-                                "[Midia/Sticker sem texto]";
+            const quotedMessageText = quotedMessage ? (
+                quotedMessage.conversation || 
+                quotedMessage.extendedTextMessage?.text || 
+                quotedMessage.imageMessage?.caption || 
+                "[Midia/Sticker sem texto]"
+            ) : "";
 
             let response
             const replyToUser = async (text) => {
@@ -1013,7 +1203,7 @@ async function connectToWhatsApp() {
         }
 
         //Se for um quote para o bot e ele não estiver online, manda o desonline
-        if (quotedMessage && isReplyToBot && !chatbot.isOnline){
+        if (isInteractWithBot && !chatbot.isOnline){
             const sender = getSenderJid(msg);
             await sendSticker(sock, db, from, msg, [sender], texto)
             return

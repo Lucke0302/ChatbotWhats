@@ -3964,7 +3964,21 @@ class PokemonHandler {
 
         // VITÓRIA FINAL
         await this.clearEncounter(userId);
-        this.modifyFriendship(p, 1);
+
+        for (const pId of uniqueParticipants) {
+            const p = await this.db.get(`
+                SELECT up.*, dex.base_hp 
+                FROM user_pokemons up 
+                JOIN pokedex dex ON up.pokedex_id = dex.id 
+                WHERE up.id = ?`, [pId]);
+            
+            if (p) {
+                const xpMsg = await this.gainExperience(p, encounter.pokemon, encounter.level, splitFactor, xpMultiplier, userId);
+                await this.gainEVs(p, encounter.pokemon);
+                logMsg += `\n🔹 *${p.nickname}*: ${xpMsg.replace('✨ Ganhou', 'Ganhou')}`; 
+                this.modifyFriendship(p, 1);
+            }
+        }
 
         if (encounter.battle_type === 'GYM_TRAINER') {
             await this.db.run("UPDATE usuarios SET gym_progress = gym_progress - 1 WHERE id_usuario = ?", [userId]);

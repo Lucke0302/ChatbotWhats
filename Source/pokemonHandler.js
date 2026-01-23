@@ -1517,6 +1517,11 @@ class PokemonHandler {
         
         let damage = totalDamage;
 
+        
+        if (move.name.includes('dragon-rage')){
+            damage = 40
+        }
+
         // ATUALIZAÇÃO NO BANCO DE DADOS
         defender.current_hp -= damage;
         if (defender.current_hp < 0) defender.current_hp = 0;

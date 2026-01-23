@@ -3973,9 +3973,6 @@ class PokemonHandler {
                 WHERE up.id = ?`, [pId]);
             
             if (p) {
-                const xpMsg = await this.gainExperience(p, encounter.pokemon, encounter.level, splitFactor, xpMultiplier, userId);
-                await this.gainEVs(p, encounter.pokemon);
-                logMsg += `\n🔹 *${p.nickname}*: ${xpMsg.replace('✨ Ganhou', 'Ganhou')}`; 
                 this.modifyFriendship(p, 1);
             }
         }

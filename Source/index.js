@@ -1,4 +1,14 @@
 require('dotenv').config();
+
+process.on('uncaughtException', (err) => {
+    console.error('🚨 [CRASH EVITADO] Exceção não tratada:', err);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('🚨 [CRASH EVITADO] Promise Rejeitada não tratada:', reason);
+});
+
+const schedule = require('node-schedule');
 const schedule = require('node-schedule');
 const weatherCommandHandler = require('./weatherCommand');
 
@@ -566,7 +576,7 @@ async function connectToWhatsApp() {
 
     const sock = makeWASocket({
         auth: state,
-        logger: pino({ level: 'warn' }), 
+        logger: pino({ level: 'debug' }), 
     });
     
     sock.pollCache = pollCache;

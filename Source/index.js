@@ -574,34 +574,41 @@ async function connectToWhatsApp() {
     const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
 
     const usePairingCode = true;
-    const phoneNumber = process.env.BOT_NUMBER;
+    const rawNumber = process.env.BOT_NUMBER || "";
 
     const sock = makeWASocket({
         auth: state,
-        logger: pino({ level: 'warn' }),
-        printQRInTerminal: !usePairingCode,
-        browser: ["Ubuntu", "Chrome", "20.0.04"],
+        logger: pino({ level: 'warn' }), 
+        printQRInTerminal: !usePairingCode, 
+        browser: Baileys.Browsers.ubuntu('Chrome'), 
     });
     
     sock.pollCache = pollCache;
 
     if (usePairingCode && !sock.authState.creds.registered) {
-        if (!phoneNumber) {
+        if (!rawNumber) {
             console.error("❌ ERRO: Número do bot (BOT_NUMBER) não definido no .env!");
             process.exit(1);
         }
 
+        const phoneNumber = rawNumber.replace(/[^0-9]/g, '');
+
         setTimeout(async () => {
             try {
-                const code = await sock.requestPairingCode(phoneNumber);
+                console.log(`⏳ Solicitando código de pareamento para o número: ${phoneNumber}...`);
+                let code = await sock.requestPairingCode(phoneNumber);
+                
+                code = code?.match(/.{1,4}/g)?.join("-") || code;
+                
                 console.log(`\n======================================================`);
                 console.log(`📱 SEU CÓDIGO DE PAREAMENTO: ${code}`);
                 console.log(`======================================================\n`);
             } catch (error) {
-                console.error('❌ Falha ao gerar código de pareamento:', error);
+                console.error('❌ Falha ao gerar código de pareamento:', error.message);
+                console.log('⚠️ DICA: O WhatsApp pode ter bloqueado temporariamente por muitas tentativas. Tente novamente daqui a 10 minutos.');
             }
-        }, 3000); 
-    };
+        }, 6000); 
+    }
 
     //Instancia o chatbot
     const chatbot = new ChatModel(db, genAI)

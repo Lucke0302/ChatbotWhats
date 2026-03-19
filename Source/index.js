@@ -581,6 +581,8 @@ async function connectToWhatsApp() {
         logger: pino({ level: 'warn' }), 
         printQRInTerminal: !usePairingCode, 
         browser: Baileys.Browsers.ubuntu('Chrome'), 
+        connectTimeoutMs: 60000,
+        keepAliveIntervalMs: 10000,
     });
     
     sock.pollCache = pollCache;
@@ -607,7 +609,7 @@ async function connectToWhatsApp() {
                 console.error('❌ Falha ao gerar código de pareamento:', error.message);
                 console.log('⚠️ DICA: O WhatsApp pode ter bloqueado temporariamente por muitas tentativas. Tente novamente daqui a 10 minutos.');
             }
-        }, 30000); 
+        }, 6000); 
     }
 
     //Instancia o chatbot

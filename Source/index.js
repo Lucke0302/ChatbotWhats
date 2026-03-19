@@ -575,7 +575,7 @@ async function connectToWhatsApp() {
 
     const sock = makeWASocket({
         auth: state,
-        logger: pino({ level: 'debug' }), 
+        logger: pino({ level: 'warn' }), 
     });
     
     sock.pollCache = pollCache;
@@ -611,10 +611,19 @@ async function connectToWhatsApp() {
         const { connection, lastDisconnect, qr } = update;
         if (qr) qrcode.generate(qr, { small: true });
         
-        if (connection === 'close') {
-            const shouldReconnect = (lastDisconnect.error)?.output?.statusCode !== DisconnectReason.loggedOut;
-            if (shouldReconnect) connectToWhatsApp();
-        } else if (connection === 'open') {
+    if (connection === 'close') {
+        const statusCode = (lastDisconnect.error)?.output?.statusCode;
+        const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+        
+        if (shouldReconnect) {
+            console.log('🔄 Conexão caiu. Tentando reconectar em 5 segundos...');
+            setTimeout(() => {
+                connectToWhatsApp();
+            }, 5000);
+        } else {
+            console.log('❌ Você foi desconectado do WhatsApp (Logged Out). Apague a pasta auth_info_baileys e escaneie o QR Code novamente.');
+        }
+    } else if (connection === 'open') {
             console.log('✅ Bot conectado e pronto!');
             
             if (dailyJob) {

@@ -9,7 +9,6 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 const schedule = require('node-schedule');
-const schedule = require('node-schedule');
 const weatherCommandHandler = require('./weatherCommand');
 
 const Baileys = require('@whiskeysockets/baileys');

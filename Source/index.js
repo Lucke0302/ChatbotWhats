@@ -607,7 +607,7 @@ async function connectToWhatsApp() {
                 console.error('❌ Falha ao gerar código de pareamento:', error.message);
                 console.log('⚠️ DICA: O WhatsApp pode ter bloqueado temporariamente por muitas tentativas. Tente novamente daqui a 10 minutos.');
             }
-        }, 6000); 
+        }, 30000); 
     }
 
     //Instancia o chatbot

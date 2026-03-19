@@ -573,12 +573,35 @@ async function connectToWhatsApp() {
 
     const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
 
+    const usePairingCode = true;
+    const phoneNumber = process.env.BOT_NUMBER;
+
     const sock = makeWASocket({
         auth: state,
-        logger: pino({ level: 'warn' }), 
+        logger: pino({ level: 'warn' }),
+        printQRInTerminal: !usePairingCode,
+        browser: ["Ubuntu", "Chrome", "20.0.04"],
     });
     
     sock.pollCache = pollCache;
+
+    if (usePairingCode && !sock.authState.creds.registered) {
+        if (!phoneNumber) {
+            console.error("❌ ERRO: Número do bot (BOT_NUMBER) não definido no .env!");
+            process.exit(1);
+        }
+
+        setTimeout(async () => {
+            try {
+                const code = await sock.requestPairingCode(phoneNumber);
+                console.log(`\n======================================================`);
+                console.log(`📱 SEU CÓDIGO DE PAREAMENTO: ${code}`);
+                console.log(`======================================================\n`);
+            } catch (error) {
+                console.error('❌ Falha ao gerar código de pareamento:', error);
+            }
+        }, 3000); 
+    };
 
     //Instancia o chatbot
     const chatbot = new ChatModel(db, genAI)

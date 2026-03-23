@@ -1,9 +1,18 @@
 require('dotenv').config();
+
+process.on('uncaughtException', (err) => {
+    console.error('🚨 [CRASH EVITADO] Exceção não tratada:', err);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('🚨 [CRASH EVITADO] Promise Rejeitada não tratada:', reason);
+});
+
 const schedule = require('node-schedule');
 const weatherCommandHandler = require('./weatherCommand');
 
 const Baileys = require('@whiskeysockets/baileys');
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, downloadMediaMessage, jidNormalizedUser } = Baileys;
+const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, downloadMediaMessage, jidNormalizedUser, fetchLatestBaileysVersion } = Baileys;
 
 const getAggregateVotesInPollMessage = Baileys.getAggregateVotesInPollMessage || Baileys.default?.getAggregateVotesInPollMessage;
 
@@ -17,7 +26,7 @@ const ChatModel = require('./chatModel');
 const { handleBotError } = require('./errorHandler');
 const fs = require('fs');
 const { Sticker, StickerTypes } = require('wa-sticker-formatter');
-const sharp = require('sharp');
+//const sharp = require('sharp');
 const crypto = require('crypto');
 
 const DriveBackup = require('./handleDriveBackup');
@@ -548,7 +557,10 @@ const botCommands = {
     },
     '!poke': {
         emoji: '🎮'
-    }
+    },
+    '!resenha': {
+        emoji: '🧐'
+    },
 };
 
 //Inicia a conexão com mo Whatsapp para fazer todas as operações
@@ -564,12 +576,47 @@ async function connectToWhatsApp() {
 
     const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
 
+    const usePairingCode = true;
+    const rawNumber = process.env.BOT_NUMBER || "";
+
+    const { version } = await fetchLatestBaileysVersion();
+
     const sock = makeWASocket({
+        version,
         auth: state,
         logger: pino({ level: 'warn' }), 
+        printQRInTerminal: !usePairingCode, 
+        browser: ["Windows", "Chrome", "120.0.0.0"],
+        connectTimeoutMs: 60000,
+        keepAliveIntervalMs: 10000,
     });
     
     sock.pollCache = pollCache;
+
+    if (usePairingCode && !sock.authState.creds.registered) {
+        if (!rawNumber) {
+            console.error("❌ ERRO: Número do bot (BOT_NUMBER) não definido no .env!");
+            process.exit(1);
+        }
+
+        const phoneNumber = rawNumber.replace(/[^0-9]/g, '');
+
+        setTimeout(async () => {
+            try {
+                console.log(`⏳ Solicitando código de pareamento para o número: ${phoneNumber}...`);
+                let code = await sock.requestPairingCode(phoneNumber);
+                
+                code = code?.match(/.{1,4}/g)?.join("-") || code;
+                
+                console.log(`\n======================================================`);
+                console.log(`📱 SEU CÓDIGO DE PAREAMENTO: ${code}`);
+                console.log(`======================================================\n`);
+            } catch (error) {
+                console.error('❌ Falha ao gerar código de pareamento:', error.message);
+                console.log('⚠️ DICA: O WhatsApp pode ter bloqueado temporariamente por muitas tentativas. Tente novamente daqui a 10 minutos.');
+            }
+        }, 6000); 
+    }
 
     //Instancia o chatbot
     const chatbot = new ChatModel(db, genAI)
@@ -602,10 +649,19 @@ async function connectToWhatsApp() {
         const { connection, lastDisconnect, qr } = update;
         if (qr) qrcode.generate(qr, { small: true });
         
-        if (connection === 'close') {
-            const shouldReconnect = (lastDisconnect.error)?.output?.statusCode !== DisconnectReason.loggedOut;
-            if (shouldReconnect) connectToWhatsApp();
-        } else if (connection === 'open') {
+    if (connection === 'close') {
+        const statusCode = (lastDisconnect.error)?.output?.statusCode;
+        const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+        
+        if (shouldReconnect) {
+            console.log('🔄 Conexão caiu. Tentando reconectar em 5 segundos...');
+            setTimeout(() => {
+                connectToWhatsApp();
+            }, 5000);
+        } else {
+            console.log('❌ Você foi desconectado do WhatsApp (Logged Out). Apague a pasta auth_info_baileys e escaneie o QR Code novamente.');
+        }
+    } else if (connection === 'open') {
             console.log('✅ Bot conectado e pronto!');
             
             if (dailyJob) {
@@ -1156,6 +1212,9 @@ async function connectToWhatsApp() {
                     const sender = getSenderJid(msg);
                     await sendSticker(sock, db, from, msg, [sender], texto)
                     return
+                }
+                if (isGroup && chatbot.isOnline && command.includes('aura')) {
+                    await sendSticker(sock, db, from, msg, [sender], texto);
                 }
             }catch (error) {
                 await handleBotError(error, replyToUser, contextObj);

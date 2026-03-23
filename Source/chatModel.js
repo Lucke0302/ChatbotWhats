@@ -9,6 +9,7 @@ const lolCommandHandler = require('./lolCommand');
 const ttsCommandHandler = require('./ttsCommand');
 const PokemonHandler = require('./pokemonHandler');
 const migrationCommandHandler = require('./migrarCommand');
+const resenhaCommand = require('./resenhaCommand');
 const RIOT_API_KEY = process.env.RIOT_API_KEY;
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
@@ -38,6 +39,7 @@ class ChatModel {
         this.pokemonHandler = new PokemonHandler(db);
         this.pokemonHandler.init();
         this.initializeCommandHandlers();
+        this.resenhaHandler = new resenhaCommand(db, genAI);
     }
 
     async init() {
@@ -85,7 +87,8 @@ class ChatModel {
                 return await migrationCommandHandler.handleMigrationCommand(ctx.sock, ctx.from, ctx.command, ctx.sender);
             },
             '!help': async (ctx) => this.handleHelp(ctx),
-            '!ajuda': async (ctx) => this.handleHelp(ctx)
+            '!ajuda': async (ctx) => this.handleHelp(ctx),
+            '!resenha': async (ctx) => this.resenhaHandler.execute(ctx),
         };
 
         const aiHandler = async (ctx) => {
@@ -303,6 +306,7 @@ class ChatModel {
     async getSticker(command) {
         let stickerPath = "Assets/";
         const cmd = command.split(' ')[0].toLowerCase();
+        const textoCompleto = command.toLowerCase();
 
         const commandActions = {
             '!gpt': async () => {
@@ -326,7 +330,6 @@ class ChatModel {
         if (!this.isOnline) {
             stickerPath += "desonline.webp"
         }
-
         else if (commandActions[cmd]) {
             const result = await commandActions[cmd]();
             if (result) {
@@ -335,11 +338,14 @@ class ChatModel {
                 return null; 
             }
         }
-        
+        else if (textoCompleto.includes('aura')) {
+            const dado = await this.rollDice(6);
+            stickerPath += `aura${dado}.webp`; 
+        }
         else return null
 
         return stickerPath;
-    }      
+    }
 
     //Essa função verifica a quantidade de letras maiúsculas na mensagem pra responder
     //com a figurinha do "não grita"

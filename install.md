@@ -155,6 +155,7 @@ npm-debug.log
 #### usage_stats.json: Controle simples de cotas da IA para rotação de modelos.
 
 ## ⚠️ Solução de Problemas Comuns
+
 ### Erro: "Module not found"
 
 * Verifique se você rodou npm install.
@@ -173,8 +174,9 @@ npm-debug.log
 
 * Verifique se a pasta Assets contém o arquivo desonline.webp. O caminho no código é relativo à raiz de execução (fs.readFileSync("Assets/desonline.webp")).
 
-* Memória RAM Alta
-O bot armazena histórico em memória para o baileys e processa dados com o sharp. Em VMs com 1GB de RAM (como a free tier do Google Cloud), recomenda-se adicionar Swap file.
+O bot armazena o histórico do WhatsApp em memória para o Baileys e usa a biblioteca `sharp` para compilar e destruir imagens. Em VMs gratuitas com 1GB de RAM (como a tier Always Free da Oracle Cloud — descanse em paz, free tier do Google), o servidor pode engasgar.
+
+* **Solução:** É ALTAMENTE recomendado adicionar um arquivo de paginação (Swap file) de pelo menos 1GB a 2GB no seu servidor Ubuntu para evitar que o Node.js seja morto pelo sistema (OOM Killer) ao processar figurinhas.
 
 ### "SQL_ERROR" ou "Database locked"
 
@@ -187,4 +189,11 @@ O bot armazena histórico em memória para o baileys e processa dados com o shar
 * Sua chave da Riot expirou (elas duram 24h se for chave de desenvolvimento) ou não foi configurada.
 
 * Solução: Gere uma nova chave no site da Riot e atualize o .env. É necessário reiniciar o bot (pm2 restart bostossauro) para pegar a nova chave.
+
+### 🔄 Rodando em Segundo Plano (Recomendado para Oracle Cloud)
+Não deixe o bot rodando direto no terminal SSH, senão ele desliga quando você fechar o console. Use o PM2:
+
+1. `npm install -g pm2`
+2. `pm2 start index.js --name "bostossauro"`
+3. `pm2 logs bostossauro` (Para ver o tribunal da resenha trabalhando ao vivo)
  

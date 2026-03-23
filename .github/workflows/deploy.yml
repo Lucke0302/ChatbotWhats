@@ -26,7 +26,7 @@ jobs:
       - name: Deploy via SSH (RSYNC)
         uses: Burnett01/rsync-deployments@6.0.0
         with:
-          switches: -avzr --delete
+          switches: -avzr --delete --exclude='.env' --exclude='auth_info_baileys/' --exclude='chat_history.db'
           path: .
           remote_path: /home/ubuntu/ChatbotWhats/
           remote_host: ${{ secrets.REMOTE_HOST }}
@@ -37,9 +37,7 @@ jobs:
             .github/
             node_modules/
             auth_info_baileys/
-            auth_info_baileys.zip
             chat_history.db
-            *.db-journal
             .env
 
       - name: Install Dependencies & Reload

@@ -12,7 +12,7 @@ const schedule = require('node-schedule');
 const weatherCommandHandler = require('./weatherCommand');
 
 const Baileys = require('@whiskeysockets/baileys');
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, downloadMediaMessage, jidNormalizedUser } = Baileys;
+const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, downloadMediaMessage, jidNormalizedUser, fetchLatestBaileysVersion } = Baileys;
 
 const getAggregateVotesInPollMessage = Baileys.getAggregateVotesInPollMessage || Baileys.default?.getAggregateVotesInPollMessage;
 
@@ -26,7 +26,7 @@ const ChatModel = require('./chatModel');
 const { handleBotError } = require('./errorHandler');
 const fs = require('fs');
 const { Sticker, StickerTypes } = require('wa-sticker-formatter');
-const sharp = require('sharp');
+//const sharp = require('sharp');
 const crypto = require('crypto');
 
 const DriveBackup = require('./handleDriveBackup');
@@ -576,11 +576,14 @@ async function connectToWhatsApp() {
     const usePairingCode = true;
     const rawNumber = process.env.BOT_NUMBER || "";
 
+    const { version } = await fetchLatestBaileysVersion();
+
     const sock = makeWASocket({
+        version,
         auth: state,
         logger: pino({ level: 'warn' }), 
         printQRInTerminal: !usePairingCode, 
-        browser: Baileys.Browsers.ubuntu('Chrome'), 
+        browser: ["Windows", "Chrome", "120.0.0.0"],
         connectTimeoutMs: 60000,
         keepAliveIntervalMs: 10000,
     });

@@ -63,6 +63,7 @@ Responda ÚNICA E EXCLUSIVAMENTE com a palavra "true" se a resenha for CONFIRMAD
             throw new Error("AI_ERROR");
         });
 
+        const rawResponse = result.text.trim().toLowerCase();
         const isResenha = result.text.toLowerCase().includes('true'); 
 
         console.log(`[RESPOSTA DA IA]: "${rawResponse}"`);

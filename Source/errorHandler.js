@@ -25,7 +25,8 @@ const ERROR_DICTIONARY = {
     "NOT_A_NUMBER": "🔢 O parâmetro precisa ser um número",
     "NON-EXISTENT_CURRENCY": "💵 A moeda digitada não está disponível para cotação.",
     "SAME_CURRENCY": "🤡 Trocar seis por meia dúzia dá no mesmo, né, gênio.",
-    "NO_USER_TO_TIMEOUT": "❌ Usuário inválido"
+    "NO_USER_TO_TIMEOUT": "❌ Usuário inválido",
+    "SEND_MESSAGE_ERROR": "❌ Deu algum ruim na hora de enviar a figurinha ou a mensagem. O WhatsApp me sabotou."
 };
 
 // Mensagem padrão para erros não mapeados (bugs reais)

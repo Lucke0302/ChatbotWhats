@@ -33,6 +33,11 @@ class ResenhaCommand {
 
         const chatLog = history.reverse().map(row => `${row.nome_remetente}: ${row.conteudo}`).join('\n');
 
+        console.log("--------------------------------------------------");
+        console.log("[CONTEÚDO ENVIADO AO GEMMA]:");
+        console.log(chatLog);
+        console.log("--------------------------------------------------");
+
         const prompt = `
 Você é o Juiz do "Tribunal da Resenha" em um grupo de WhatsApp.
 Sua missão é ler as últimas mensagens do grupo e decidir se houve uma "Resenha Confirmada" ou "Resenha Cancelada".
@@ -59,6 +64,10 @@ Responda ÚNICA E EXCLUSIVAMENTE com a palavra "true" se a resenha for CONFIRMAD
         });
 
         const isResenha = result.text.toLowerCase().includes('true'); 
+
+        console.log(`[RESPOSTA DA IA]: "${rawResponse}"`);
+        console.log(`[VEREDITO FINAL]: ${isResenha ? 'CONFIRMADA ✅' : 'CANCELADA ❌'}`);
+        console.log("--------------------------------------------------\n");
 
         if (isResenha) {
             if (fs.existsSync('./Assets/confirmada.webp')) {

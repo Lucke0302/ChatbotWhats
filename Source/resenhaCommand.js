@@ -51,7 +51,7 @@ Histórico do Chat:
 ${chatLog}
 """
 
-Responda ÚNICA E EXCLUSIVAMENTE com a palavra "true" se a resenha for CONFIRMADA, ou "false" se a resenha for CANCELADA. Não escreva justificativas nem nenhuma outra palavra.
+Responda com a palavra "true" se a resenha for CONFIRMADA, ou "false" se a resenha for CANCELADA. Após isso, utilize o delimitador [JUSTIFICATIVA] para justificar os motivos que o levaram a essa decisão.
         `.trim();
 
         const result = await this.genAI.models.generateContent({

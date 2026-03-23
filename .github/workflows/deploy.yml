@@ -13,6 +13,17 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v3
 
+      - name: Ensure rsync is installed on remote
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.REMOTE_HOST }}
+          username: ${{ secrets.REMOTE_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: 
+            if ! command -v rsync > /dev/null; then
+              sudo apt-get update && sudo apt-get install -y rsync
+            fi
+
       - name: Deploy via SSH (RSYNC)
         uses: Burnett01/rsync-deployments@6.0.0
         with:

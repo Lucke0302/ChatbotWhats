@@ -306,6 +306,7 @@ class ChatModel {
     async getSticker(command) {
         let stickerPath = "Assets/";
         const cmd = command.split(' ')[0].toLowerCase();
+        const textoCompleto = command.toLowerCase();
 
         const commandActions = {
             '!gpt': async () => {
@@ -329,7 +330,6 @@ class ChatModel {
         if (!this.isOnline) {
             stickerPath += "desonline.webp"
         }
-
         else if (commandActions[cmd]) {
             const result = await commandActions[cmd]();
             if (result) {
@@ -338,11 +338,14 @@ class ChatModel {
                 return null; 
             }
         }
-        
+        else if (textoCompleto.includes('aura')) {
+            const dado = await this.rollDice(6);
+            stickerPath += `aura${dado}.webp`; 
+        }
         else return null
 
         return stickerPath;
-    }      
+    }
 
     //Essa função verifica a quantidade de letras maiúsculas na mensagem pra responder
     //com a figurinha do "não grita"

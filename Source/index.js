@@ -1213,6 +1213,9 @@ async function connectToWhatsApp() {
                     await sendSticker(sock, db, from, msg, [sender], texto)
                     return
                 }
+                if (isGroup && chatbot.isOnline && command.includes('aura')) {
+                    await sendSticker(sock, db, from, msg, [sender], texto);
+                }
             }catch (error) {
                 await handleBotError(error, replyToUser, contextObj);
             }

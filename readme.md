@@ -16,6 +16,8 @@ O Bostossauro não é apenas um bot, é um estilo de vida. Aqui estão as skills
 
 * **🎮 !lol [Nick #Tag]:** Integração direta com a API da Riot Games pra humilhar o seu elo publicamente. Mostra ranking (Solo/Flex), winrate e suas maestrias. Ex: `!lol Faker #T1`.
 
+* **🧐 !resenha:** O Tribunal oficial da zueira. A IA julga o contexto da conversa e decide se rolou uma "Resenha Confirmada", "Moderada" ou se foi "Cancelada".
+
 * **📝 !resumo [curto/médio/completo]:** Perdeu 200 mensagens no grupo? O bot lê o histórico, fofoca sobre quem falou mais besteira e resume tudo pra você.
 
 * **🖼️ !s (ou !sticker):** Faz figurinhas estáticas. Tem suporte a parâmetros de "qualidade" para os amantes de shitpost:
@@ -60,17 +62,15 @@ Resumo rápido:
 ## 🤝 Contribua (Por favor, sério)
 Você entende de arquitetura de software? Sabe como evitar que o Node.js consuma 800MB de RAM para somar 2+2? Precisamos de você!
 
-Finalizamos uma parte do processo de "componentização" (tirar tudo do index.js e jogar pro ChatModel.js), mas ainda tem alguma lógica desnecessária no index.
+A Google passou a faca na nossa VM e provou ser mercenária, então agora o Bostossauro vive de favor nas instâncias da Oracle Cloud. Nossa arquitetura melhorou muito com a separação dos comandos (obrigado, `chatModel.js`), mas toda ajuda é bem-vinda.
 
 **Ideias para Pull Requests:**
 
-* Melhorar a eficiência de memória (nossa VM agradece).
+* Melhorar a eficiência de memória (nossa VM da Oracle agradece).
 
-* Criar novos comandos inúteis mas divertidos.
+* Criar novos comandos inúteis, mas divertidos.
 
-* Melhorar os prompts da IA para ele ficar ainda mais engraçado.
-
-* Refatorar o código para parecer que foi feito por um sênior.
+* Refinar os prompts da IA para o tribunal da resenha ficar ainda mais assertivo.
 
 Sinta-se à vontade para abrir uma Issue ou mandar um PR. Aceitamos qualquer ajuda, *inclusive doações de memória RAM*.
 

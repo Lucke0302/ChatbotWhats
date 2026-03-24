@@ -22,7 +22,8 @@ Pra saber os detalhes de um comando, digita:
 • *!falador* ➝ Ranking de quem não cala a boca hoje.
 
 🎲 *JOGATINA*
-• *!d* ➝ Dado. Pra ver se você tem sorte no jogo (já que no amor tá difícil).
+• *!cassino* ➝ Aposte seus Bostocoins e vá à falência.
+• *!d* ➝ Dado. Pra ver se você tem sorte no jogo.
 
 📙 *ÚTIL*
 • *!pdf* ➝ Converto suas imagens e documentos em pdf.
@@ -147,6 +148,18 @@ Preguiça de ler 500 mensagens de "bom dia"? Eu leio e te conto o que presta.
 • _!resumo_ (Padrão, leio as últimas 50 e resumo)
 • _!resumo curto_ (Curto e grosso)
 • _!resumo completo 100_ (Leio 100 msgs. Haja paciência...)`,
+
+    'cassino': `🎰 *COMANDO: !cassino*
+\nBem-vindo ao antro da perdição! Aqui você aposta seus suados Bostocoins.
+\n\n*Jogos Disponíveis:*
+\n\n1️⃣ *Caça-Níqueis (Slots)*
+\n• *Como jogar:* \`!cassino [aposta]\` (Ex: !cassino 50)
+\n• *Prêmios:* 3 iguais = Jackpot (até 20x) | 2 iguais = Consolação (1.5x).
+\n\n2️⃣ *Cara ou Coroa*\n• *Como jogar:* \`!cassino [cara/coroa] [aposta]\` (Ex: !cassino cara 100)
+\n• *Prêmios:* Acertou, dobrou (2x).\n\n3️⃣ *Roleta de Cores*
+\n• *Como jogar:* \`!cassino roleta [vermelho/preto/verde] [aposta]\` (Ex: !cassino roleta vermelho 50)
+\n• *Prêmios:* Vermelho/Preto pagam 2x. Verde paga absurdos 14x.\n\n🏦 *Outros:*
+\n• \`!cassino saldo\` ➝ Mostra o quanto você tem na carteira.`,
     
     'd': `🎲 *COMANDO: !d*
 Rola dados de RPG. Se cair 1, a culpa é sua.

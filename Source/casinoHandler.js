@@ -95,7 +95,12 @@ class CasinoHandler {
 
     async showBalance(userId, userTag) {
         const balance = await this.getBalance(userId);
-        return `${userTag}🏦 **BANCO DO BOSTOSSAURO**\n\nSeu saldo atual é de 🪙 **${balance} Bostocoins**`;
+        return `${userTag}🏦 **BANCO DO BOSTOSSAURO**
+        \n\nSeu saldo atual é de 🪙 **${balance} Bostocoins**.
+        \n\n🎰 *Jogos Rápidos:*\n• *Slots:* !cassino [valor]
+        \n• *Moeda:* !cassino [cara/coroa] [valor]
+        \n• *Roleta:* !cassino roleta [cor] [valor]
+        \n\n_Para ver as regras detalhadas e prêmios, digite: *!ajuda cassino*_`;
     }
 }
 

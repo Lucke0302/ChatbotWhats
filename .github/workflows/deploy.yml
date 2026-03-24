@@ -1,0 +1,66 @@
+name: Deploy Bostossauro to Oracle Cloud
+
+on:
+  push:
+    branches:
+      - lucas/developing
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Ensure rsync is installed on remote
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.REMOTE_HOST }}
+          username: ${{ secrets.REMOTE_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            sudo apt-get update -qq
+            sudo apt-get install -y rsync
+
+      - name: Deploy via SSH (RSYNC)
+        uses: Burnett01/rsync-deployments@6.0.0
+        with:
+          switches: -avzr --delete --exclude='.env' --exclude='auth_info_baileys/' --exclude='chat_history.db' --exclude='node_modules/' --exclude='.git/' --exclude='.github/' --exclude='.package.json.backup'
+          path: .
+          remote_path: /home/ubuntu/ChatbotWhats/
+          remote_host: ${{ secrets.REMOTE_HOST }}
+          remote_user: ${{ secrets.REMOTE_USER }}
+          remote_key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Install Dependencies & Reload
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.REMOTE_HOST }}
+          username: ${{ secrets.REMOTE_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            export NVM_DIR="$HOME/.nvm"
+            [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+            
+            cd /home/ubuntu/ChatbotWhats/
+            
+            if cmp -s package.json .package.json.backup; then
+              echo "✅ Nenhuma mudança no package.json. Pulando npm install..."
+            else
+              echo "⚠️ Novas dependências detectadas! Instalando..."
+              npm install --production
+              
+              echo "🔍 Testando a saúde do SQLite3..."
+              if node -e "require('sqlite3')" 2>/dev/null; then
+                echo "✅ SQLite3 está saudável! Pulando o rebuild."
+              else
+                echo "🛠️ SQLite3 quebrado. Iniciando rebuild de emergência (vai demorar um pouco)..."
+                npm rebuild sqlite3 --build-from-source
+              fi
+              
+              cp package.json .package.json.backup
+            fi
+            
+            pm2 start ecosystem.config.js || pm2 reload bostossauro
+            pm2 save

@@ -10,6 +10,7 @@ const ttsCommandHandler = require('./ttsCommand');
 const PokemonHandler = require('./pokemonHandler');
 const migrationCommandHandler = require('./migrarCommand');
 const resenhaCommand = require('./resenhaCommand');
+const CasinoHandler = require('./casinoHandler');
 const RIOT_API_KEY = process.env.RIOT_API_KEY;
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
@@ -40,6 +41,7 @@ class ChatModel {
         this.pokemonHandler.init();
         this.initializeCommandHandlers();
         this.resenhaHandler = new resenhaCommand(db, genAI);
+        this.casinoHandler = new CasinoHandler(db);
     }
 
     async init() {
@@ -89,6 +91,30 @@ class ChatModel {
             '!help': async (ctx) => this.handleHelp(ctx),
             '!ajuda': async (ctx) => this.handleHelp(ctx),
             '!resenha': async (ctx) => this.resenhaHandler.execute(ctx),
+            '!cassino': async (ctx) => {
+                const tag = await this.pokemonHandler.getUserTag(ctx.sender);
+                const args = ctx.command.trim().split(/\s+/);
+                const subCommand = args[1]?.toLowerCase();
+
+                if (!subCommand || subCommand === 'saldo' || subCommand === 'ajuda') {
+                    return await this.casinoHandler.showBalance(ctx.sender, tag);
+                }
+                if (!isNaN(subCommand)) {
+                    const bet = parseInt(subCommand);
+                    return await this.casinoHandler.playSlots(ctx.sender, tag, bet);
+                }
+                if (subCommand === 'cara' || subCommand === 'coroa') {
+                    const bet = parseInt(args[2]);
+                    return await this.casinoHandler.playCoinflip(ctx.sender, tag, subCommand, bet);
+                }
+                if (subCommand === 'roleta') {
+                    const color = args[2]?.toLowerCase();
+                    const bet = parseInt(args[3]);
+                    return await this.casinoHandler.playRoulette(ctx.sender, tag, color, bet);
+                }
+
+                return `${tag}🎰 **CASSINO DO BOSTOSSAURO**\n\nOpções:\n🎰 *!cassino [valor]* (Slots)\n🪙 *!cassino [cara/coroa] [valor]*\n🎡 *!cassino roleta [vermelho/preto/verde] [valor]*\n🏦 *!cassino saldo*`;
+            },
         };
 
         const aiHandler = async (ctx) => {

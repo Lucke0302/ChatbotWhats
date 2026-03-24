@@ -51,7 +51,15 @@ jobs:
             [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
             
             cd /home/ubuntu/ChatbotWhats/
-            npm install --production
+            
+            if cmp -s package.json .package.json.backup; then
+              echo "✅ Nenhuma mudança no package.json. Pulando npm install..."
+            else
+              echo "⚠️ Novas dependências detectadas! Instalando e recompilando..."
+              npm install --production
+              npm rebuild sqlite3 --build-from-source
+              cp package.json .package.json.backup
+            fi
             
             pm2 start ecosystem.config.js || pm2 reload bostossauro
             pm2 save

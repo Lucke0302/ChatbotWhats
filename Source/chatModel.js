@@ -113,6 +113,18 @@ class ChatModel {
                     return await this.casinoHandler.playRoulette(ctx.sender, tag, color, bet);
                 }
 
+                if (subCommand === 'mega') {
+                    const number = parseInt(args[2]);
+                    const bet = parseInt(args[3]);
+                    return await this.casinoHandler.playMega(ctx.sender, tag, number, bet);
+                }
+
+                if (subCommand === 'bolao') {
+                    const number = parseInt(args[2]);
+                    const bet = parseInt(args[3]);
+                    return await this.casinoHandler.playBolao(ctx.sender, tag, number, bet);
+                }
+
                 return `${tag}🎰 **CASSINO DO BOSTOSSAURO**\n\nOpções:\n🎰 *!cassino [valor]* (Slots)\n🪙 *!cassino [cara/coroa] [valor]*\n🎡 *!cassino roleta [vermelho/preto/verde] [valor]*\n🏦 *!cassino saldo*`;
             },
         };
@@ -202,12 +214,15 @@ class ChatModel {
     }
 
     checkSpam(sender, command = "") {
+        if (sender === "5513991008854@s.whatsapp.net") {
+            return; 
+        }
         const now = Date.now();
         const lastTime = this.spamCooldowns.get(sender) || 0;
         const diffSeconds = (now - lastTime) / 1000;
 
         let limit = this.SPAM_DELAY_SECONDS;
-        if (command.toLowerCase().startsWith("!poke")) {
+        if (command.toLowerCase().startsWith("!poke") || command.toLowerCase().startsWith("!cassino")) {
             limit = 1; 
         }
 

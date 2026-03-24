@@ -93,6 +93,48 @@ class CasinoHandler {
         }
     }
 
+    // BOSTOSENA
+    async playMega(userId, userTag, number, bet) {
+        const balance = await this.getBalance(userId);
+        if (isNaN(number) || number < 1 || number > 100) return `${userTag}⚠️ Escolha um número de 1 a 100. Ex: *!cassino mega 42 100*`;
+        if (isNaN(bet) || bet <= 0) return `${userTag}⚠️ Valor inválido. Ex: *!cassino mega 42 100*`;
+        if (balance < bet) return `${userTag}❌ Saldo insuficiente! Você tem 🪙 ${balance} Bostocoins.`;
+
+        const estado = await this.db.get("SELECT mega_multiplicador FROM cassino_estado WHERE id = 1");
+        const multiplicador_atual = estado.mega_multiplicador * 100;
+
+        await this.updateBalance(userId, -bet);
+        await this.db.run("INSERT INTO loteria (id_usuario, numero, valor) VALUES (?, ?, ?)", [userId, number, bet]);
+
+        return `${userTag}🎟️ **BILHETE DA BostoSena COMPRADO!**\nApostou 🪙 ${bet} no número **${number}**.\nSe ganhar, leva 🪙 **${bet * multiplicador_atual}** na segunda-feira!`;
+    }
+
+    // BOLAO
+    async playBolao(userId, userTag, number, bet) {
+        const balance = await this.getBalance(userId);
+        if (isNaN(number) || number < 1 || number > 20) return `${userTag}⚠️ Escolha um número de 1 a 20. Ex: *!cassino bolao 15 500*`;
+        if (isNaN(bet) || bet <= 0) return `${userTag}⚠️ Valor inválido.`;
+        if (balance < bet) return `${userTag}❌ Saldo insuficiente! Você tem 🪙 ${balance} Bostocoins.`;
+
+        const ticket = await this.db.get("SELECT * FROM bolao WHERE id_usuario = ?", [userId]);
+        if (ticket) return `${userTag}🎟️ Você já tá no bolão dessa semana com o número **${ticket.numero}**! Só pode um por pessoa.`;
+
+        await this.updateBalance(userId, -bet);
+        await this.db.run("INSERT INTO bolao (id_usuario, numero, valor) VALUES (?, ?, ?)", [userId, number, bet]);
+
+        return `${userTag}🤝 **NO BOLÃO!**\nVocê jogou 🪙 ${bet} no número **${number}**. O pote do grupo só cresce! Resultado na segunda-feira.`;
+    }
+
+    // Atualiza o Show Balance para mostrar os acumulados
+    async showBalance(userId, userTag) {
+        const balance = await this.getBalance(userId);
+        const estado = await this.db.get("SELECT * FROM cassino_estado WHERE id = 1");
+        const pote_bolao = await this.db.get("SELECT SUM(valor) as total FROM bolao");
+        const total_bolao = (pote_bolao.total || 0) + estado.bolao_acumulado;
+        
+        return `${userTag}🏦 **BANCO DO BOSTOSSAURO**\n\nSeu saldo: 🪙 **${balance} Bostocoins**\n\n🤑 **ACUMULADOS DA SEMANA:**\n🎟️ *Mega:* Pagando **${estado.mega_multiplicador * 100}x** a aposta! (!cassino mega [1-100] [valor])\n🤝 *Bolão:* Pote atual de 🪙 **${total_bolao}**! (!cassino bolao [1-20] [valor])\n\n_Outros jogos: !cassino [aposta], cara/coroa, roleta_`;
+    }
+
     async showBalance(userId, userTag) {
         const balance = await this.getBalance(userId);
         return `${userTag}🏦 **BANCO DO BOSTOSSAURO**

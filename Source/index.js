@@ -491,6 +491,13 @@ async function initDatabase() {
         console.log("✅ Migração de veteranos para o novo sistema concluída.");
     } catch (e) {}
 
+    try {
+        await db.exec(`ALTER TABLE usuarios ADD COLUMN bostocoins INTEGER DEFAULT 500;`);
+        console.log("✅ Coluna 'bostocoins' (Cassino) adicionada com sucesso!");
+    } catch (error) {
+        if (!error.message.includes("duplicate column name")) console.error(error.message);
+    }
+
     console.log('✅ Banco de dados SQLite inicializado e tabelas verificadas.');
 }
 
@@ -561,6 +568,9 @@ const botCommands = {
     '!resenha': {
         emoji: '🧐'
     },
+    '!cassino': { 
+        emoji: '🎰' 
+    }
 };
 
 //Inicia a conexão com mo Whatsapp para fazer todas as operações

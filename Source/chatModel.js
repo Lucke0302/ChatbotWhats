@@ -163,6 +163,21 @@ class ChatModel {
                 const tag = await this.pokemonHandler.getUserTag(ctx.sender);
                 return await this.pescariaHandler.pescar(ctx.sender, tag);
             },
+            '!pescaria': async (ctx) => {
+                const tag = await this.pokemonHandler.getUserTag(ctx.sender);
+                const args = ctx.command.trim().split(/\s+/);
+                const subCommand = args[1]?.toLowerCase();
+
+                if (subCommand === 'ranking') {
+                    return await this.pescariaHandler.getRanking(tag);
+                }
+                
+                if (subCommand === 'perfil' || subCommand === 'inventario') {
+                    return await this.pescariaHandler.getPerfil(ctx.sender, tag);
+                }
+
+                return `${tag}🎣 **SISTEMA DE PESCA**\n\nOpções:\n🎣 *!pescar* (Joga a isca na água!)\n🎒 *!pescaria perfil* (Vê suas iscas, buffs e maiores peixes)\n🏆 *!pescaria ranking* (Top pescadores do grupo)`;
+            },
         };
 
         const aiHandler = async (ctx) => {

@@ -191,10 +191,21 @@ class ChatModel {
             '!pesca': async (ctx) => {
                 const tag = await this.pokemonHandler.getUserTag(ctx.sender);
                 return await this.pescariaHandler.pescar(ctx.sender, tag, ctx.from);
-            },'!pescaria': async (ctx) => {
+            },
+            '!vip': async (ctx) => {
+                return await this.handleVipStore(ctx);
+            },
+            '!pescaria': async (ctx) => {
                 const tag = await this.pokemonHandler.getUserTag(ctx.sender);
                 const args = ctx.command.trim().split(/\s+/);
                 const subCommand = args[1]?.toLowerCase();
+
+                if (subCommand === 'acelerar') {
+                    if (ctx.sender !== "5513991008854@s.whatsapp.net") {
+                        return "🚫 Apenas o Deus do Tempo pode usar isso.";
+                    }
+                    return await this.pescariaHandler.acelerarIscasGlobais(tag);
+                }
 
                 if (subCommand === 'loja') {
                     return await this.pescariaHandler.getLoja(ctx.sender, tag);
@@ -870,6 +881,45 @@ class ChatModel {
             msg += `*[ ${index + 1} ]* ${icon} ${model}: ${used}/${limit}\n`;
         });
 
+        return msg;
+    }
+
+    // LOJA VIP (MERCADO NEGRO DE IA)
+    async handleVipStore(ctx) {
+        const tag = await this.pokemonHandler.getUserTag(ctx.sender);
+        const args = ctx.command.trim().split(/\s+/);
+        const subCommand = args[1]?.toLowerCase();
+
+        const VIP_ITEMS = {
+            '1': { name: 'Bypass Jurássico', desc: 'Reduz seu uso diário de IA em -1.', price: 1000, effect: 1 },
+            '2': { name: 'Overclock Cerebral', desc: 'Reduz seu uso diário de IA em -5.', price: 4000, effect: 5 }
+        };
+
+        const userDb = await this.db.get("SELECT bostocoins, uso_ia_diario FROM usuarios WHERE id_usuario = ?", [ctx.sender]);
+        const saldo = userDb ? userDb.bostocoins : 0;
+        let usoAtual = userDb ? userDb.uso_ia_diario : 0;
+
+        if (subCommand === 'comprar') {
+            const itemId = args[2];
+            if (!VIP_ITEMS[itemId]) return `${tag}❌ Código inválido. Use *!vip* para ver a loja.`;
+            
+            const item = VIP_ITEMS[itemId];
+            
+            if (saldo < item.price) return `${tag}💸 Vai achando que IA cresce em árvore! Você precisa de 🪙 ${item.price} Bostocoins.`;
+            if (usoAtual <= 0) return `${tag}🧠 Seu cérebro já está 100% livre! Você não tem cota de IA para reduzir hoje. Vá gastar com isca!`;
+
+            const reduceAmount = Math.min(usoAtual, item.effect);
+            
+            await this.db.run("UPDATE usuarios SET bostocoins = bostocoins - ?, uso_ia_diario = uso_ia_diario - ? WHERE id_usuario = ?", [item.price, reduceAmount, ctx.sender]);
+            
+            return `${tag}💎 **COMPRA VIP REALIZADA!**\nVocê comprou o *${item.name}*!\nSua cota de IA caiu de ${usoAtual} para **${usoAtual - reduceAmount}**.\nPode voltar a perturbar o GPT!`;
+        }
+
+        let msg = `${tag}💎 **LOJA VIP (Mercado Negro de IA)** 💎\n_Seu saldo: 🪙 ${saldo} | Uso de IA hoje: 🧠 ${usoAtual}/${this.DAILY_AI_LIMIT}_\n\n`;
+        for (const [id, item] of Object.entries(VIP_ITEMS)) {
+            msg += `*[ ${id} ]* **${item.name}** ➝ 🪙 ${item.price}\n_${item.desc}_\n\n`;
+        }
+        msg += `🛒 Para comprar: *!vip comprar [numero]*`;
         return msg;
     }
 

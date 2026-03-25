@@ -85,6 +85,10 @@ const RARITY_MULTIPLIER = {
     'mitico': 1.5
 };
 
+const MAX_BAITS = 6;
+const BAIT_REGEN_HOURS = 4;
+const BAIT_REGEN_SECONDS = BAIT_REGEN_HOURS * 3600;
+
 class PescariaHandler {
     constructor(db) {
         this.db = db;
@@ -109,19 +113,17 @@ class PescariaHandler {
             records: data.records || {},
             inventory: data.inventory || { vara: 'bambu' },
             active_items: data.active_items || {},
-            fishBaits: data.fishBaits !== undefined ? data.fishBaits : 4,
+            fishBaits: data.fishBaits !== undefined ? data.fishBaits : MAX_BAITS,
             last_bait_regen: data.last_bait_regen || now
         };
 
-        const REGEN_TIME = 6 * 60 * 60;
-
-        if (player.fishBaits < 4) {
+        if (player.fishBaits < MAX_BAITS) {
             const timePassed = now - player.last_bait_regen;
-            const generatedBaits = Math.floor(timePassed / REGEN_TIME);
+            const generatedBaits = Math.floor(timePassed / BAIT_REGEN_SECONDS);
             
             if (generatedBaits > 0) {
-                player.fishBaits = Math.min(4, player.fishBaits + generatedBaits);
-                player.last_bait_regen += generatedBaits * REGEN_TIME;
+                player.fishBaits = Math.min(MAX_BAITS, player.fishBaits + generatedBaits);
+                player.last_bait_regen += generatedBaits * BAIT_REGEN_SECONDS;
             }
         } else {
             player.last_bait_regen = now;
@@ -140,16 +142,15 @@ class PescariaHandler {
         const now = Math.floor(Date.now() / 1000);
 
         if (player.fishBaits < 1) {
-            const REGEN_TIME = 6 * 60 * 60;
-            const nextBaitIn = REGEN_TIME - (now - player.last_bait_regen);
+            const nextBaitIn = BAIT_REGEN_SECONDS - (now - player.last_bait_regen);
             const hours = Math.floor(nextBaitIn / 3600);
             const mins = Math.floor((nextBaitIn % 3600) / 60);
-            return `${userTag}🪹 Seu balde de iscas está vazio!\nVocê recebe uma isca nova em **${hours}h e ${mins}m**.\n_(Máximo acumulado: 4)_`;
+            return `${userTag}🪹 Seu balde de iscas está vazio!\nVocê recebe uma isca nova em **${hours}h e ${mins}m**.\n_(Máximo acumulado: ${MAX_BAITS})_`;
         }
 
         player.fishBaits -= 1;
         
-        if (player.fishBaits === 3 && now - player.last_bait_regen < 10) {
+        if (player.fishBaits === (MAX_BAITS - 1) && now - player.last_bait_regen < 10) {
             player.last_bait_regen = now;
         }
 
@@ -301,10 +302,9 @@ class PescariaHandler {
         msg += `⚖️ *Peso Total Pescado:* ${player.total_weight.toFixed(2)}kg\n`;
 
         // Status das Iscas
-        msg += `🪣 *Iscas no Balde:* ${player.fishBaits}/4\n`;
-        if (player.fishBaits < 4) {
-            const REGEN_TIME = 6 * 60 * 60;
-            const nextBaitIn = REGEN_TIME - (now - player.last_bait_regen);
+        msg += `🪣 *Iscas no Balde:* ${player.fishBaits}/${MAX_BAITS}\n`;
+        if (player.fishBaits < MAX_BAITS) {
+            const nextBaitIn = BAIT_REGEN_SECONDS - (now - player.last_bait_regen);
             const hours = Math.floor(nextBaitIn / 3600);
             const mins = Math.floor((nextBaitIn % 3600) / 60);
             msg += `⏳ _Próxima isca em: ${hours}h e ${mins}m_\n`;
@@ -682,6 +682,30 @@ class PescariaHandler {
         }
 
         return `${userTag} 🛠️ **MIGRAÇÃO DO IBAMA CONCLUÍDA!**\nForam regularizados os registros de **${countUsuariosAlterados} pescadores**. Todos os peixes antigos agora pertencem ao grupo principal e vão aparecer no Mural de Troféus!`;
+    }
+
+    // ACELERA A GERAÇÃO DE ISCAS EM 2 HORAS
+    async acelerarIscasGlobais(userTag) {
+        const SECONDS_TO_SUBTRACT = 2 * 3600;
+        
+        const users = await this.db.all("SELECT id_usuario, pescaria_data FROM usuarios WHERE pescaria_data IS NOT NULL AND pescaria_data != '{}'");
+        let count = 0;
+
+        for (const u of users) {
+            try {
+                let data = JSON.parse(u.pescaria_data);
+                
+                if (data.fishBaits !== undefined && data.fishBaits < MAX_BAITS) {
+                    data.last_bait_regen -= SECONDS_TO_SUBTRACT;
+                    await this.savePlayerData(u.id_usuario, data);
+                    count++;
+                }
+            } catch (e) {
+                console.error("Erro ao acelerar o tempo:", e);
+            }
+        }
+        
+        return `⏳ O Ibama foi bonzinho e adiantou o relógio em 2 horas para **${count} pescadores**!\nSe alguém tava quase ganhando isca, o balde acabou de encher. Vão pescar!`;
     }
 }
 

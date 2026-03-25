@@ -15,6 +15,7 @@ Pra saber os detalhes de um comando, digita:
 • *!pix* ➝ Transfira dinheiro pra quem tá devendo.
 • *!trabalhar* ➝ Assine a CLT e ganhe o pão de cada dia.
 • *!minhabosta* ➝ Auxílio emergencial pra quem faliu de vez.
+• *!vip* ➝ Loja de cotas de IA (Mercado Negro).
 
 🎣 *PESCARIA (NOVO!)*
 • *!pescar/pesca* ➝ Pra pescar um peixe (se tiver isca). 
@@ -44,6 +45,13 @@ Pra saber os detalhes de um comando, digita:
 👮 *AREA RESTRITA*
 • *!timeout* ➝ O cantinho do pensamento pros chatos.
 • *!cota* ➝ Painel de disjuntores da IA (Admin).`,
+
+    'vip': `💎 *COMANDO: !vip*
+O mercado negro do Bostossauro. Se você estourou sua cota diária de respostas inteligentes (!gpt e !resumo), aqui você pode comprar perdão.
+
+*Como usar:*
+• *!vip* ➝ Abre o catálogo do mercado negro e vê sua cota atual.
+• *!vip comprar [numero]* ➝ Compra um item (Ex: Overclock Cerebral) para diminuir seu uso de IA do dia. Custam uma fortuna, mas o conhecimento não tem preço.`,
 
     'poke': `🎮 *COMANDO: !poke*
 O sistema completo de batalha, captura e ginásios!
@@ -228,7 +236,11 @@ Você regenera 1 isca a cada 6 horas (Máximo 4).
 🏆 *!pescaria ranking* ➝ O Top 10 de quem mais pescou (em Kg) na vida.
 🦈 *!pescaria trofeus* ➝ O Mural do Grupo: Os 10 peixes mais pesados pescados NESTE chat.
 🏅 *!pescaria toppessoal* ➝ Seus 3 peixes mais "perfeitos" por raridade.
-🌍 *!pescaria topgrupo* ➝ A elite do grupo: Peixes mais perfeitos por raridade.`,
+🌍 *!pescaria topgrupo* ➝ A elite do grupo: Peixes mais perfeitos por raridade.
+
+*Poderes Divinos (Admin):*
+⏳ *!pescaria acelerar* ➝ Adianta o relógio de iscas de todo mundo em 2 horas.`,
+
 
     'cota': `🔌 *COMANDO: !cota* (Apenas Admin)
 O painel de energia do Bostossauro.

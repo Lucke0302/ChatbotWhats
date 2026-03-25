@@ -29,6 +29,7 @@ O Bostossauro não é apenas um bot, é um estilo de vida. Aqui estão as skills
     * `!pix @amigo [valor]`: Transferência instantânea entre membros do grupo.
     * `!trabalhar`: Sistema de CLT virtual com trabalhos gerados procedimentalmente (e cooldown de 12 horas) para ganhar salários aleatórios.
     * `!minhabosta`: O programa social "Minha Bosta, Minha Vida". Se você quebrou (saldo < 50), o governo te dá um auxílio de emergência a cada 48 horas.
+    * `Mercado Negro de IA (!vip)`: Um sumidouro de dinheiro para os magnatas do grupo. Os usuários podem gastar grandes quantias de Bostocoins para reduzir o seu contador diário de mensagens de IA (Bypass Jurássico e Overclock Cerebral), garantindo acesso ao `!gpt` mesmo após esgotarem a cota gratuita.
 
 * **🎰 Cassino do Bostossauro:** Pra onde vai todo o dinheiro do grupo.
     * **Jogos Rápidos:** Slots (`!cassino [valor]`), Cara ou Coroa (`!cassino cara/coroa [valor]`) e Roleta (`!cassino roleta vermelho [valor]`).

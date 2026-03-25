@@ -606,6 +606,12 @@ const botCommands = {
     },
     '!cassino': { 
         emoji: '🎰' 
+    },
+    '!pix': { 
+        emoji: '💸' 
+    },
+    '!minhabosta': { 
+        emoji: '🪙' 
     }
 };
 

@@ -144,6 +144,7 @@ class CasinoHandler {
 
     // MINHA BOSTA MINHA VIDA
     async handleMinhaBosta(userId, userTag) {
+        const balance = await this.getBalance(userId);
         const now = Math.floor(Date.now() / 1000);
         const cooldown = 48 * 60 * 60;
 
@@ -152,11 +153,13 @@ class CasinoHandler {
         if (user && user.last_minhabosta) {
             const timePassed = now - user.last_minhabosta;
             if (timePassed < cooldown) {
-                const Math = require('mathjs');
                 const timeLeft = cooldown - timePassed;
                 const hoursLeft = Math.floor(timeLeft / 3600);
                 const minutesLeft = Math.floor((timeLeft % 3600) / 60);
                 return `${userTag}🛑 Calma lá, parasita! O governo só libera o benefício a cada 48 horas.\nVolte em **${hoursLeft}h e ${minutesLeft}m**.`;
+            }
+            if (balance > 50){
+                return `${userTag} Você não tá pobre o suficiente, volta quando tiver menos de 50 BostoCoins!`
             }
         }
 

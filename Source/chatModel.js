@@ -11,6 +11,7 @@ const PokemonHandler = require('./pokemonHandler');
 const migrationCommandHandler = require('./migrarCommand');
 const resenhaCommand = require('./resenhaCommand');
 const CasinoHandler = require('./casinoHandler');
+const PescariaHandler = require('./pescariaHandler');
 const RIOT_API_KEY = process.env.RIOT_API_KEY;
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
@@ -42,6 +43,7 @@ class ChatModel {
         this.initializeCommandHandlers();
         this.resenhaHandler = new resenhaCommand(db, genAI);
         this.casinoHandler = new CasinoHandler(db);
+        this.pescariaHandler = new PescariaHandler(db);
     }
 
     async init() {
@@ -152,6 +154,14 @@ class ChatModel {
             '!trabalhar': async (ctx) => {
                 const tag = await this.pokemonHandler.getUserTag(ctx.sender);
                 return await this.casinoHandler.handleTrabalhar(ctx.sender, tag);
+            },
+            '!pescar': async (ctx) => {
+                const tag = await this.pokemonHandler.getUserTag(ctx.sender);
+                return await this.pescariaHandler.pescar(ctx.sender, tag);
+            },
+            '!pesca': async (ctx) => {
+                const tag = await this.pokemonHandler.getUserTag(ctx.sender);
+                return await this.pescariaHandler.pescar(ctx.sender, tag);
             },
         };
 

@@ -1,7 +1,5 @@
 class CasinoHandler {
 
-
-
     constructor(db) {
         this.db = db;
         this.trabalhos = [
@@ -24,7 +22,7 @@ class CasinoHandler {
         "centralizou uma div no CSS depois de chorar em posição fetal",
         "montou um servidor caseiro num Celeron velho que passa mais tempo desligado que rodando",
         "trabalhou como comercial de vendas",
-        
+
     ];
     }
 
@@ -118,7 +116,7 @@ class CasinoHandler {
         }
     }
 
-    // BOSTOSENA
+    // MEGABOSTA
     async playMega(userId, userTag, number, bet) {
         const balance = await this.getBalance(userId);
         if (isNaN(number) || number < 1 || number > 100) return `${userTag}⚠️ Escolha um número de 1 a 100. Ex: *!cassino mega 42 100*`;
@@ -131,7 +129,7 @@ class CasinoHandler {
         await this.updateBalance(userId, -bet);
         await this.db.run("INSERT INTO loteria (id_usuario, numero, valor) VALUES (?, ?, ?)", [userId, number, bet]);
 
-        return `${userTag}🎟️ **BILHETE DA BostoSena COMPRADO!**\nApostou 🪙 ${bet} no número **${number}**.\nSe ganhar, leva 🪙 **${bet * multiplicador_atual}** na segunda-feira!`;
+        return `${userTag}🎟️ **BILHETE DA MEGABOSTA COMPRADO!**\nApostou 🪙 ${bet} no número **${number}**.\nSe ganhar, leva 🪙 **${bet * multiplicador_atual}** na segunda-feira!`;
     }
 
     // BOLAO

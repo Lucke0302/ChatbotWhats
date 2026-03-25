@@ -114,12 +114,20 @@ class ChatModel {
                 }
 
                 if (subCommand === 'mega') {
+                    if (args[2]?.toLowerCase() === 'apostadores') {
+                        return await this.casinoHandler.getMegaBettors(tag);    
+                    }
+                    
                     const number = parseInt(args[2]);
                     const bet = parseInt(args[3]);
                     return await this.casinoHandler.playMega(ctx.sender, tag, number, bet);
                 }
 
                 if (subCommand === 'bolao') {
+                    if (args[2]?.toLowerCase() === 'apostadores') {
+                        return await this.casinoHandler.getBolaoBettors(tag);
+                    }
+
                     const number = parseInt(args[2]);
                     const bet = parseInt(args[3]);
                     return await this.casinoHandler.playBolao(ctx.sender, tag, number, bet);

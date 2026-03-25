@@ -169,6 +169,55 @@ class CasinoHandler {
         return `${userTag}📝 **MINHA BOSTA MINHA VIDA APROVADO**\n\nO Bostossauro depositou a esmola de 🪙 **100 Bostocoins** na sua conta.\nTente não perder tudo no caça-níqueis em 5 minutos!`;
     }
 
+    // RELATÓRIO: APOSTADORES DA MEGA
+    async getMegaBettors(userTag) {
+        const apostas = await this.db.all(`
+            SELECT l.numero, l.valor, u.nome
+            FROM loteria l
+            JOIN usuarios u ON l.id_usuario = u.id_usuario
+            ORDER BY l.numero ASC
+        `);
+
+        if (!apostas || apostas.length === 0) {
+            return `${userTag}🎟️ Ninguém comprou bilhete pra Mega ainda! O prêmio tá lá, moscando.`;
+        }
+
+        const estado = await this.db.get("SELECT mega_multiplicador FROM cassino_estado WHERE id = 1");
+        const multiplicador_atual = estado.mega_multiplicador * 100;
+
+        let msg = `${userTag}🎟️ **APOSTADORES DA MEGA** 🎟️\n💸 _Pagando ${multiplicador_atual}x a aposta_\n\n`;
+        apostas.forEach(a => {
+            msg += `👤 *${a.nome || 'Anônimo'}* apostou 🪙 ${a.valor} no nº **${a.numero}**\n`;
+        });
+
+        return msg;
+    }
+
+    // RELATÓRIO: APOSTADORES DO BOLÃO
+    async getBolaoBettors(userTag) {
+        const apostas = await this.db.all(`
+            SELECT b.numero, b.valor, u.nome
+            FROM bolao b
+            JOIN usuarios u ON b.id_usuario = u.id_usuario
+            ORDER BY b.numero ASC
+        `);
+
+        const estado = await this.db.get("SELECT bolao_acumulado FROM cassino_estado WHERE id = 1");
+        const somaApostas = apostas.reduce((acc, curr) => acc + curr.valor, 0);
+        const poteTotal = somaApostas + (estado ? estado.bolao_acumulado : 0);
+
+        if (!apostas || apostas.length === 0) {
+            return `${userTag}🤝 Ninguém entrou no Bolão ainda!\n💰 Pote acumulado: 🪙 **${poteTotal}**`;
+        }
+
+        let msg = `${userTag}🤝 **APOSTADORES DO BOLÃO** 🤝\n💰 *Pote atual:* 🪙 **${poteTotal}**\n\n`;
+        apostas.forEach(a => {
+            msg += `👤 *${a.nome || 'Anônimo'}* jogou no nº **${a.numero}**\n`;
+        });
+
+        return msg;
+    }
+
     // Atualiza o Show Balance para mostrar os acumulados
     async showBalance(userId, userTag) {
         const balance = await this.getBalance(userId);

@@ -148,7 +148,11 @@ class ChatModel {
             '!minhabosta': async (ctx) => {
                 const tag = await this.pokemonHandler.getUserTag(ctx.sender);
                 return await this.casinoHandler.handleMinhaBosta(ctx.sender, tag);
-            }
+            },
+            '!trabalhar': async (ctx) => {
+                const tag = await this.pokemonHandler.getUserTag(ctx.sender);
+                return await this.casinoHandler.handleTrabalhar(ctx.sender, tag);
+            },
         };
 
         const aiHandler = async (ctx) => {
@@ -931,7 +935,7 @@ class ChatModel {
     }
 
     async trabalharCommand(text, sender){
-        
+
     }
 
     // Faz o controle de todos os comandos

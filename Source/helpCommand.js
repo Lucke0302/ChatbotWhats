@@ -7,10 +7,16 @@ Eu tô aqui processando bit igual um condenado e você pedindo ajuda... Tá, tom
 Pra saber os detalhes de um comando, digita:
 👉 *!ajuda (ou !help) [nome_do_comando]* (Ex: _!ajuda sticker_)
 
-🔴 *POKÉMON (NOVO!)*
+🔴 *POKÉMON*
 • *!poke* ➝ O comando principal para ser um mestre Pokémon.
 • *!poke comecar* ➝ Inicia sua jornada.
 • *!poke explorar* ➝ Procura bichos no mato.
+
+💸 *ECONOMIA & CASSINO (NOVO!)*
+• *!cassino* ➝ Aposte seus Bostocoins, jogue na Mega e no Bolão.
+• *!pix* ➝ Transfira dinheiro pra quem tá devendo.
+• *!trabalhar* ➝ Assine a CLT e ganhe o pão de cada dia.
+• *!minhabosta* ➝ Auxílio emergencial pra quem faliu de vez.
 
 🎨 *MÍDIA & UTILITÁRIOS*
 • *!sticker (!s)* ➝ Faço figurinha. Se sua foto for feia, a culpa não é minha.
@@ -22,7 +28,8 @@ Pra saber os detalhes de um comando, digita:
 • *!falador* ➝ Ranking de quem não cala a boca hoje.
 
 🎲 *JOGATINA*
-• *!d* ➝ Dado. Pra ver se você tem sorte no jogo (já que no amor tá difícil).
+• *!cassino* ➝ Aposte seus Bostocoins e vá à falência.
+• *!d* ➝ Dado. Pra ver se você tem sorte no jogo.
 
 📙 *ÚTIL*
 • *!pdf* ➝ Converto suas imagens e documentos em pdf.
@@ -147,6 +154,42 @@ Preguiça de ler 500 mensagens de "bom dia"? Eu leio e te conto o que presta.
 • _!resumo_ (Padrão, leio as últimas 50 e resumo)
 • _!resumo curto_ (Curto e grosso)
 • _!resumo completo 100_ (Leio 100 msgs. Haja paciência...)`,
+
+    'cassino': `🎰 *COMANDO: !cassino*
+Bem-vindo ao antro da perdição! Aqui você aposta seus suados Bostocoins.
+
+*Jogos Rápidos:*
+1️⃣ *Caça-Níqueis* ➝ \`!cassino [aposta]\` (Prêmios: 1.5x a 20x)
+2️⃣ *Cara/Coroa* ➝ \`!cassino [cara/coroa] [aposta]\` (Prêmio: 2x)
+3️⃣ *Roleta* ➝ \`!cassino roleta [vermelho/preto/verde] [aposta]\` (Verde paga 14x!)
+
+🎟️ *Loterias (Sorteio toda Segunda-feira às 10h):*
+4️⃣ *BostoSena (Mega)* ➝ \`!cassino mega [1-100] [aposta]\` 
+(Multiplica 100x o prêmio. Acumula toda semana que ninguém ganha!)
+5️⃣ *Bolão da Rapaziada* ➝ \`!cassino bolao [1-20] [aposta]\` 
+(Todos apostam, 1 ganha o pote inteiro. Acumula se ninguém acertar!)
+
+📊 *Fofoca Financeira:*
+• \`!cassino mega apostadores\` ➝ Lista quem jogou na Mega.
+• \`!cassino bolao apostadores\` ➝ Lista quem tá no Bolão e o valor do pote.
+• \`!cassino saldo\` ➝ Mostra o que sobrou na sua carteira.`,
+
+    'pix': `💸 *COMANDO: !pix*
+O Banco Central do Bostossauro permite agiotagem e doações.
+
+*Como usar:* !pix @usuario [valor]
+*Exemplo:* _!pix @João 50_`,
+
+    'trabalhar': `💼 *COMANDO: !trabalhar*
+Vai assinar a CLT virtual pra farmar Bostocoins. O salário é aleatório e você só pode trabalhar a cada 12 horas.
+
+*Como usar:* !trabalhar`,
+
+    'minhabosta': `🪙 *COMANDO: !minhabosta*
+O famoso "Minha Bosta Minha Vida". Auxílio emergencial do governo jurássico para quem perdeu tudo na roleta.
+
+*Regras:* Seu saldo precisa ser menor que 50 Bostocoins. Só pode pedir a cada 48 horas.
+*Como usar:* !minhabosta`,
     
     'd': `🎲 *COMANDO: !d*
 Rola dados de RPG. Se cair 1, a culpa é sua.

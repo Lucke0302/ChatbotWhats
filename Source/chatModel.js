@@ -113,7 +113,45 @@ class ChatModel {
                     return await this.casinoHandler.playRoulette(ctx.sender, tag, color, bet);
                 }
 
+                if (subCommand === 'mega') {
+                    if (args[2]?.toLowerCase() === 'apostadores') {
+                        return await this.casinoHandler.getMegaBettors(tag);    
+                    }
+                    
+                    const number = parseInt(args[2]);
+                    const bet = parseInt(args[3]);
+                    return await this.casinoHandler.playMega(ctx.sender, tag, number, bet);
+                }
+
+                if (subCommand === 'bolao') {
+                    if (args[2]?.toLowerCase() === 'apostadores') {
+                        return await this.casinoHandler.getBolaoBettors(tag);
+                    }
+
+                    const number = parseInt(args[2]);
+                    const bet = parseInt(args[3]);
+                    return await this.casinoHandler.playBolao(ctx.sender, tag, number, bet);
+                }
+
                 return `${tag}🎰 **CASSINO DO BOSTOSSAURO**\n\nOpções:\n🎰 *!cassino [valor]* (Slots)\n🪙 *!cassino [cara/coroa] [valor]*\n🎡 *!cassino roleta [vermelho/preto/verde] [valor]*\n🏦 *!cassino saldo*`;
+            },
+            '!pix': async (ctx) => {
+                const tag = await this.pokemonHandler.getUserTag(ctx.sender);
+                const args = ctx.command.trim().split(/\s+/);
+                
+                const amountStr = args.find(arg => !arg.includes('@') && !isNaN(arg) && arg !== '!pix');
+                const amount = parseInt(amountStr);
+                
+                const receiver = ctx.mentions[0];
+                return await this.casinoHandler.handlePix(ctx.sender, tag, receiver, amount);
+            },
+            '!minhabosta': async (ctx) => {
+                const tag = await this.pokemonHandler.getUserTag(ctx.sender);
+                return await this.casinoHandler.handleMinhaBosta(ctx.sender, tag);
+            },
+            '!trabalhar': async (ctx) => {
+                const tag = await this.pokemonHandler.getUserTag(ctx.sender);
+                return await this.casinoHandler.handleTrabalhar(ctx.sender, tag);
             },
         };
 
@@ -202,12 +240,15 @@ class ChatModel {
     }
 
     checkSpam(sender, command = "") {
+        if (sender === "5513991008854@s.whatsapp.net") {
+            return; 
+        }
         const now = Date.now();
         const lastTime = this.spamCooldowns.get(sender) || 0;
         const diffSeconds = (now - lastTime) / 1000;
 
         let limit = this.SPAM_DELAY_SECONDS;
-        if (command.toLowerCase().startsWith("!poke")) {
+        if (command.toLowerCase().startsWith("!poke") || command.toLowerCase().startsWith("!cassino")) {
             limit = 1; 
         }
 
@@ -891,6 +932,10 @@ class ChatModel {
         const max = parseInt(num);
         const val = Math.floor(Math.random() * max) + 1
         return val
+    }
+
+    async trabalharCommand(text, sender){
+
     }
 
     // Faz o controle de todos os comandos

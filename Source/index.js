@@ -498,6 +498,49 @@ async function initDatabase() {
         if (!error.message.includes("duplicate column name")) console.error(error.message);
     }
 
+    await db.exec(`
+        CREATE TABLE IF NOT EXISTS loteria (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id_usuario TEXT,
+            numero INTEGER,
+            valor INTEGER
+        );
+    `);
+
+    await db.exec(`
+        CREATE TABLE IF NOT EXISTS bolao (
+            id_usuario TEXT PRIMARY KEY,
+            numero INTEGER,
+            valor INTEGER
+        );
+    `);
+
+    await db.exec(`
+        CREATE TABLE IF NOT EXISTS cassino_estado (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            mega_multiplicador INTEGER DEFAULT 1,
+            bolao_acumulado INTEGER DEFAULT 0
+        );
+    `);
+    
+    await db.run(`INSERT OR IGNORE INTO cassino_estado (id, mega_multiplicador, bolao_acumulado) VALUES (1, 1, 0)`);
+    
+    console.log("✅ Tabelas 'loteria', 'bolao' e 'cassino_estado' inicializadas.");
+
+    try {
+        await db.exec(`ALTER TABLE usuarios ADD COLUMN last_minhabosta INTEGER DEFAULT 0;`);
+        console.log("✅ Coluna 'last_minhabosta' adicionada com sucesso!");
+    } catch (error) {
+        if (!error.message.includes("duplicate column name")) console.error(error.message);
+    }
+
+    try {
+        await db.exec(`ALTER TABLE usuarios ADD COLUMN last_trabalho INTEGER DEFAULT 0;`);
+        console.log("✅ Coluna 'last_trabalho' adicionada com sucesso!");
+    } catch (error) {
+        if (!error.message.includes("duplicate column name")) console.error(error.message);
+    }
+
     console.log('✅ Banco de dados SQLite inicializado e tabelas verificadas.');
 }
 
@@ -570,7 +613,16 @@ const botCommands = {
     },
     '!cassino': { 
         emoji: '🎰' 
-    }
+    },
+    '!pix': { 
+        emoji: '💸' 
+    },
+    '!minhabosta': { 
+        emoji: '🪙' 
+    },
+    '!trabalhar': { 
+        emoji: '💼' 
+    },
 };
 
 //Inicia a conexão com mo Whatsapp para fazer todas as operações
@@ -696,15 +748,116 @@ async function connectToWhatsApp() {
                     const groupIds = Object.keys(groups);
 
                     console.log(`📊 Enviando bom dia para ${groupIds.length} grupos.`);
-                    let toxicReport = ""
+                    
+                    const hoje = new Date();
+                    let loteriaReport = "";
+
+                    if (hoje.getDay() === 1) {
+                        console.log("🎰 Realizando sorteios da semana...");
+                        const estado = await db.get("SELECT * FROM cassino_estado WHERE id = 1");
+                        
+                        const numBolao = await chatbot.rollDice(20);
+                        const apostasBolao = await db.all("SELECT b.*, u.nome FROM bolao b JOIN usuarios u ON b.id_usuario = u.id_usuario");
+                        const vencedoresBolao = apostasBolao.filter(b => b.numero === numBolao);
+                        
+                        const somaApostas = apostasBolao.reduce((acc, curr) => acc + curr.valor, 0);
+                        const poteTotal = somaApostas + estado.bolao_acumulado;
+
+                        loteriaReport += `\n\n🤝 **RESULTADO DO BOLÃO** 🤝\nNúmero sorteado: 🎲 **${numBolao}**\nPote total: 🪙 **${poteTotal}**\n`;
+
+                        if (vencedoresBolao.length > 0) {
+                            const premioPorPessoa = Math.floor(poteTotal / vencedoresBolao.length);
+                            for (const w of vencedoresBolao) {
+                                await db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [premioPorPessoa, w.id_usuario]);
+                                loteriaReport += `🎉 *${w.nome}* levou 🪙 **${premioPorPessoa}**!\n`;
+                            }
+                            await db.run("UPDATE cassino_estado SET bolao_acumulado = 0 WHERE id = 1");
+                        } else {
+                            loteriaReport += `💀 Ninguém acertou! O pote acumulou para a próxima semana.\n`;
+                            await db.run("UPDATE cassino_estado SET bolao_acumulado = ? WHERE id = 1", [poteTotal]);
+                        }
+                        await db.run("DELETE FROM bolao"); 
+
+                        const numMega = await chatbot.rollDice(100);
+                        const apostasMega = await db.all("SELECT l.*, u.nome FROM loteria l JOIN usuarios u ON l.id_usuario = u.id_usuario");
+                        const vencedoresMega = apostasMega.filter(l => l.numero === numMega);
+                        const multiMega = estado.mega_multiplicador * 100;
+
+                        loteriaReport += `\n🎟️ **RESULTADO DA MEGA** 🎟️\nNúmero sorteado: 🎲 **${numMega}**\n`;
+
+                        if (vencedoresMega.length > 0) {
+                            loteriaReport += `🤑 **TEMOS BILIONÁRIOS!**\n`;
+                            for (const w of vencedoresMega) {
+                                const premioMega = w.valor * multiMega;
+                                await db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [premioMega, w.id_usuario]);
+                                loteriaReport += `💰 *${w.nome}* apostou 🪙 ${w.valor} e levou incríveis 🪙 **${premioMega}**!\n`;
+                            }
+                            await db.run("UPDATE cassino_estado SET mega_multiplicador = 1 WHERE id = 1");
+                        } else {
+                            const semanas = estado.mega_multiplicador;
+                            loteriaReport += `💀 Ninguém acertou de novo... A Mega acumulou para **${(semanas + 1) * 100}x** a aposta na semana que vem!`;
+                            await db.run("UPDATE cassino_estado SET mega_multiplicador = mega_multiplicador + 1 WHERE id = 1");
+                        }
+                        await db.run("DELETE FROM loteria");
+                    }
 
                     for (const groupId of groupIds) {
-                        if(groupId == "120363422139578370@g.us"){
-                            baseMessage += "\n\n------------------------------\n";                            
+                        let toxicReport = "";
+                        let divisor = "";
+
+                    if(groupId == "120363422139578370@g.us"){
+                            divisor = "\n\n------------------------------\n";                            
+                            
+                            const topToxicos = await db.all(`
+                                SELECT r.id_usuario, r.quantidade, u.nome
+                                FROM ranking_ofensas r
+                                JOIN usuarios u ON r.id_usuario = u.id_usuario
+                                WHERE r.id_conversa = ? AND r.quantidade > 0
+                                ORDER BY r.quantidade DESC
+                                LIMIT 3
+                            `, [groupId]);
+
+                            let toxicRewardReport = "";
+                            if (topToxicos.length > 0) {
+                                toxicRewardReport += "🤬 **PATROCÍNIO DO ÓDIO (PRÊMIO BOCA SUJA)** 🤬\nO Bostossauro valoriza a falta de educação. Os mais tóxicos ganharam:\n\n";
+                                
+                                const medalhas = ["🥇", "🥈", "🥉"];
+                                
+                                for (let i = 0; i < topToxicos.length; i++) {
+                                    const t = topToxicos[i];
+                                    const recompensa = t.quantidade * 10;
+                                    
+                                    await db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [recompensa, t.id_usuario]);
+                                    
+                                    toxicRewardReport += `${medalhas[i]} *${t.nome}*: ${t.quantidade} ofensas ➡️ **+🪙 ${recompensa}**\n`;
+                                }
+                                toxicRewardReport += "\n";
+                            }
+
+                            const topFalador = await db.get(`
+                                SELECT r.id_usuario, r.total_mensagens, u.nome
+                                FROM ranking_ofensas r
+                                JOIN usuarios u ON r.id_usuario = u.id_usuario
+                                WHERE r.id_conversa = ? AND r.total_mensagens > 0
+                                ORDER BY r.total_mensagens DESC
+                                LIMIT 1
+                            `, [groupId]);
+
+                            let faladorRewardReport = "";
+                            if (topFalador) {
+                                const recompensaFalador = topFalador.total_mensagens * 2; 
+                                
+                                await db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [recompensaFalador, topFalador.id_usuario]);
+                                
+                                faladorRewardReport += `🗣️ **SALÁRIO DO FALADOR** 🗣️\nO Bostossauro paga quem movimenta o grupo. O maior tagarela de ontem foi:\n\n🥇 *${topFalador.nome}* com ${topFalador.total_mensagens} mensagens!\n💰 Levou **🪙 ${recompensaFalador} Bostocoins** (2x o n° de msgs).\n\n`;
+                            }
+                            
                             toxicReport = await chatbot.getAndResetToxicPodium(groupId);
+                            
+                            toxicReport = toxicRewardReport + toxicReport;
                         }
                         
-                        const finalMessage = baseMessage + toxicReport;
+                        const finalMessage = baseMessage + loteriaReport + divisor + toxicReport;
 
                         await sock.sendMessage(groupId, { text: finalMessage });
                         

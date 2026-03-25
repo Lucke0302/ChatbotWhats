@@ -10,12 +10,20 @@ const FISH_CATALOG = [
     { id: 'tilapia', name: 'Tilápia', emoji: '🐡', avgWeight: 1.5, rarity: 'comum' },
     { id: 'bagre', name: 'Bagre', emoji: '🐟', avgWeight: 2.5, rarity: 'comum' },
     { id: 'piranha', name: 'Piranha', emoji: '🐟', avgWeight: 0.8, rarity: 'comum' },
+    { id: 'traira', name: 'Traíra', emoji: '🐟', avgWeight: 1.2, rarity: 'comum' },
+    { id: 'sardinha_lata', name: 'Sardinha em Lata', emoji: '🥫', avgWeight: 0.3, rarity: 'comum' },
+    { id: 'carpa', name: 'Carpa de Shopping', emoji: '🎏', avgWeight: 3.5, rarity: 'comum' },
+    { id: 'peixe_pedra', name: 'Peixe-Pedra (Literalmente uma pedra)', emoji: '🪨', avgWeight: 4.0, rarity: 'comum' },
 
     // INCOMUM
     { id: 'tambaqui', name: 'Tambaqui', emoji: '🐟', avgWeight: 15.0, rarity: 'incomum' },
     { id: 'tucunare', name: 'Tucunaré', emoji: '🐠', avgWeight: 5.0, rarity: 'incomum' },
     { id: 'feebas', name: 'Feebas', emoji: '🐟', avgWeight: 7.4, rarity: 'incomum' },
     { id: 'peixe_fabric', name: 'Peixe Bugado do Fabric', emoji: '👾', avgWeight: 3.14, rarity: 'incomum' },
+    { id: 'pacu', name: 'Pacu', emoji: '🐡', avgWeight: 8.0, rarity: 'incomum' },
+    { id: 'peixe_palhaco', name: 'Peixe-Palhaço Procurado', emoji: '🐠', avgWeight: 0.5, rarity: 'incomum' },
+    { id: 'sapo_cururu', name: 'Sapo Cururu', emoji: '🐸', avgWeight: 2.5, rarity: 'incomum' },
+    { id: 'pintado', name: 'Pintado', emoji: '🐟', avgWeight: 12.0, rarity: 'incomum' },
 
     // RARO
     { id: 'pirarucu', name: 'Pirarucu', emoji: '🐉', avgWeight: 100.0, rarity: 'raro' },
@@ -26,7 +34,7 @@ const FISH_CATALOG = [
     // MUITO RARO
     { id: 'gyarados', name: 'Gyarados', emoji: '🐉', avgWeight: 125.0, rarity: 'muito_raro' },
     { id: 'marlin', name: 'Marlin Azul', emoji: '🦈', avgWeight: 300.0, rarity: 'muito_raro' },
-    { id: 'tubarao_martelo', name: 'Tubarão Martelo', emoji: '🦕', avgWeight: 250.0, rarity: 'muito_raro' },
+    { id: 'tubarao_martelo', name: 'Tubarão Martelo', emoji: '🦈', avgWeight: 250.0, rarity: 'muito_raro' },
     { id: 'capivara', name: 'Capivara do Taquaral', emoji: '🐹', avgWeight: 60.0, rarity: 'muito_raro' },
 
     // LENDÁRIO
@@ -186,9 +194,15 @@ class PescariaHandler {
                 msg += `${caughtFish.emoji} Fisgou: **${caughtFish.name}** de **${formattedWeight}kg**!\n`;
                 player.total_weight += actualWeight;
                 
-                const currentRecord = player.records[caughtFish.id] || 0;
-                if (actualWeight > currentRecord) {
-                    player.records[caughtFish.id] = actualWeight;
+                const currentRecordObj = player.records[caughtFish.id];
+                const currentRecordWeight = typeof currentRecordObj === 'object' ? currentRecordObj.weight : (currentRecordObj || 0);
+
+                if (actualWeight > currentRecordWeight) {
+                    player.records[caughtFish.id] = {
+                        weight: actualWeight,
+                        group_id: groupId,
+                        date: now
+                    };
                     msg += `   🌟 _NOVO RECORDE PESSOAL DA ESPÉCIE!_ 🌟\n`;
                 }
 
@@ -296,10 +310,14 @@ class PescariaHandler {
         if (recordKeys.length > 0) {
             msg += `\n🌟 *Seus Maiores Troféus:*\n`;
             
-            const sortedRecords = recordKeys
-                .map(id => ({ id, weight: records[id] }))
+        const sortedRecords = recordKeys
+                .map(id => {
+                    const rec = records[id];
+                    const weight = typeof rec === 'object' ? rec.weight : rec;
+                    return { id, weight };
+                })
                 .sort((a, b) => b.weight - a.weight)
-                .slice(0, 5); 
+                .slice(0, 5);
 
             for (const r of sortedRecords) {
                 const fishInfo = FISH_CATALOG.find(f => f.id === r.id);
@@ -312,6 +330,213 @@ class PescariaHandler {
         }
 
         return msg;
+    }
+
+    // MURAL DE TROFÉUS DO GRUPO
+    async getTrofeusGrupo(groupId, userTag) {
+        const users = await this.db.all("SELECT nome, pescaria_data FROM usuarios WHERE pescaria_data IS NOT NULL AND pescaria_data != '{}'");
+        
+        let allCatches = [];
+        
+        for (const u of users) {
+            try {
+                const data = JSON.parse(u.pescaria_data);
+                if (data.records) {
+                    for (const [fishId, recordData] of Object.entries(data.records)) {
+                        if (typeof recordData === 'object' && recordData.group_id === groupId) {
+                            const fishInfo = FISH_CATALOG.find(f => f.id === fishId);
+                            if (fishInfo) {
+                                allCatches.push({
+                                    nome: u.nome || 'Anônimo',
+                                    fishName: fishInfo.name,
+                                    emoji: fishInfo.emoji,
+                                    weight: recordData.weight,
+                                    date: recordData.date
+                                });
+                            }
+                        }
+                    }
+                }
+            } catch (e) {
+            }
+        }
+        
+        allCatches.sort((a, b) => b.weight - a.weight);
+        const top10 = allCatches.slice(0, 10);
+        
+        if (top10.length === 0) return `${userTag}🎣 Nenhum monstro foi registrado nestas águas ainda!\n_(Nota: Peixes fisgados antes da atualização não contam pro mural do grupo)._`;
+        
+        let msg = `🦈 **MURAL DE TROFÉUS DO GRUPO** 🦈\n_Os 10 peixes mais pesados pescados aqui:_\n\n`;
+        const medalhas = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"];
+        
+        top10.forEach((c, i) => {
+            msg += `${medalhas[i]} *${c.nome}* fisgou um ${c.emoji} **${c.fishName}** de **${c.weight.toFixed(2)}kg**!\n`;
+        });
+        
+        return msg;
+    }
+
+    // TOP 3 PESSOAL POR RARIDADE
+    async getTopPessoal(userId, userTag) {
+        const player = await this.getPlayerData(userId);
+        
+        if (!player.records || Object.keys(player.records).length === 0) {
+            return `${userTag} Você ainda não tem nenhum recorde. Jogue a isca na água primeiro!`;
+        }
+
+        const categorized = {};
+
+        for (const [fishId, recordData] of Object.entries(player.records)) {
+            const fishInfo = FISH_CATALOG.find(f => f.id === fishId);
+            if (!fishInfo) continue;
+
+            const weight = typeof recordData === 'object' ? recordData.weight : recordData;
+            const maxWeight = fishInfo.avgWeight * 1.5;
+            const score = (weight / maxWeight) * 100;
+
+            if (!categorized[fishInfo.rarity]) categorized[fishInfo.rarity] = [];
+            
+            categorized[fishInfo.rarity].push({
+                name: fishInfo.name,
+                emoji: fishInfo.emoji,
+                weight: weight,
+                score: score
+            });
+        }
+
+        let msg = `${userTag}🎣 **SEUS MELHORES PEIXES (Por Raridade)** 🎣\n_Nota: Proximidade do peso máximo padrão_\n\n`;
+        
+        const rarityOrder = ['comum', 'incomum', 'raro', 'muito_raro', 'lendario', 'mitico', 'lixo'];
+        const rarityLabels = {
+            'comum': '⚪ COMUM', 'incomum': '🟢 INCOMUM', 'raro': '🔵 RARO', 
+            'muito_raro': '🟣 MUITO RARO', 'lendario': '🟡 LENDÁRIO', 'mitico': '🔴 MÍTICO', 'lixo': '🟤 LIXO'
+        };
+        const medalhas = ["🥇", "🥈", "🥉"];
+
+        for (const rarity of rarityOrder) {
+            if (categorized[rarity] && categorized[rarity].length > 0) {
+                msg += `*${rarityLabels[rarity]}*\n`;
+                
+                const top3 = categorized[rarity].sort((a, b) => b.score - a.score).slice(0, 3);
+                
+                top3.forEach((f, i) => {
+                    msg += `${medalhas[i]} ${f.emoji} ${f.name} ➝ **${f.score.toFixed(1)}/100** _(${f.weight.toFixed(2)}kg)_\n`;
+                });
+                msg += `\n`;
+            }
+        }
+
+        return msg;
+    }
+
+    // TOP 3 DO GRUPO POR RARIDADE
+    async getTopGrupoPorRaridade(groupId, userTag) {
+        const users = await this.db.all("SELECT nome, pescaria_data FROM usuarios WHERE pescaria_data IS NOT NULL AND pescaria_data != '{}'");
+        const categorized = {};
+
+        for (const u of users) {
+            try {
+                const data = JSON.parse(u.pescaria_data);
+                if (!data.records) continue;
+
+                for (const [fishId, recordData] of Object.entries(data.records)) {
+                    if (typeof recordData === 'object' && recordData.group_id === groupId) {
+                        const fishInfo = FISH_CATALOG.find(f => f.id === fishId);
+                        if (!fishInfo) continue;
+
+                        const weight = recordData.weight;
+                        const maxWeight = fishInfo.avgWeight * 1.5;
+                        const score = (weight / maxWeight) * 100;
+
+                        if (!categorized[fishInfo.rarity]) categorized[fishInfo.rarity] = [];
+                        
+                        categorized[fishInfo.rarity].push({
+                            userName: u.nome || 'Anônimo',
+                            name: fishInfo.name,
+                            emoji: fishInfo.emoji,
+                            weight: weight,
+                            score: score
+                        });
+                    }
+                }
+            } catch (e) {}
+        }
+
+        let msg = `🏆 **A ELITE DA PESCARIA DO GRUPO** 🏆\n_Os peixes mais perfeitos por categoria:_\n\n`;
+        
+        const rarityOrder = ['comum', 'incomum', 'raro', 'muito_raro', 'lendario', 'mitico', 'lixo'];
+        const rarityLabels = {
+            'comum': '⚪ COMUM', 'incomum': '🟢 INCOMUM', 'raro': '🔵 RARO', 
+            'muito_raro': '🟣 MUITO RARO', 'lendario': '🟡 LENDÁRIO', 'mitico': '🔴 MÍTICO', 'lixo': '🟤 LIXO'
+        };
+        const medalhas = ["🥇", "🥈", "🥉"];
+
+        let encontrouAlgo = false;
+
+        for (const rarity of rarityOrder) {
+            if (categorized[rarity] && categorized[rarity].length > 0) {
+                encontrouAlgo = true;
+                msg += `*${rarityLabels[rarity]}*\n`;
+                
+                const top3 = categorized[rarity].sort((a, b) => b.score - a.score).slice(0, 3);
+                
+                top3.forEach((f, i) => {
+                    msg += `${medalhas[i]} *${f.userName}* ➝ ${f.emoji} ${f.name} (**${f.score.toFixed(1)}/100**) _-${f.weight.toFixed(2)}kg_\n`;
+                });
+                msg += `\n`;
+            }
+        }
+
+        if (!encontrouAlgo) {
+            return `${userTag} Nenhuma escama foi vista neste grupo ainda!`;
+        }
+
+        return msg;
+    }
+
+    // FUNÇÃO DE MIGRAÇÃO DE DADOS
+    async fixOldRecords(userTag) {
+        const TARGET_GROUP = "120363422139578370@g.us";
+        const now = Math.floor(Date.now() / 1000);
+
+        const users = await this.db.all("SELECT id_usuario, pescaria_data FROM usuarios WHERE pescaria_data IS NOT NULL AND pescaria_data != '{}'");
+        
+        let countUsuariosAlterados = 0;
+
+        for (const u of users) {
+            try {
+                let data = JSON.parse(u.pescaria_data);
+                let modified = false;
+
+                if (data.records) {
+                    for (const [fishId, recordData] of Object.entries(data.records)) {
+                        
+                        if (typeof recordData === 'number') {
+                            data.records[fishId] = {
+                                weight: recordData,
+                                group_id: TARGET_GROUP,
+                                date: now
+                            };
+                            modified = true;
+                        } 
+                        else if (typeof recordData === 'object' && !recordData.group_id) {
+                            data.records[fishId].group_id = TARGET_GROUP;
+                            data.records[fishId].date = data.records[fishId].date || now;
+                            modified = true;
+                        }
+                    }
+                }
+
+                if (modified) {
+                    await this.savePlayerData(u.id_usuario, data);
+                    countUsuariosAlterados++;
+                }
+            } catch (e) {
+                console.error(`Erro ao corrigir JSON do usuário ${u.id_usuario}:`, e);
+            }
+        }
+
+        return `${userTag} 🛠️ **MIGRAÇÃO DO IBAMA CONCLUÍDA!**\nForam regularizados os registros de **${countUsuariosAlterados} pescadores**. Todos os peixes antigos agora pertencem ao grupo principal e vão aparecer no Mural de Troféus!`;
     }
 }
 

@@ -157,16 +157,20 @@ class ChatModel {
             },
             '!pescar': async (ctx) => {
                 const tag = await this.pokemonHandler.getUserTag(ctx.sender);
-                return await this.pescariaHandler.pescar(ctx.sender, tag);
+                return await this.pescariaHandler.pescar(ctx.sender, tag, ctx.from);
             },
             '!pesca': async (ctx) => {
                 const tag = await this.pokemonHandler.getUserTag(ctx.sender);
-                return await this.pescariaHandler.pescar(ctx.sender, tag);
+                return await this.pescariaHandler.pescar(ctx.sender, tag, ctx.from);
             },
             '!pescaria': async (ctx) => {
                 const tag = await this.pokemonHandler.getUserTag(ctx.sender);
                 const args = ctx.command.trim().split(/\s+/);
                 const subCommand = args[1]?.toLowerCase();
+
+                if (subCommand === 'trofeus') {
+                    return await this.pescariaHandler.getTrofeusGrupo(ctx.from, tag);
+                }
 
                 if (subCommand === 'ranking') {
                     return await this.pescariaHandler.getRanking(tag);
@@ -176,7 +180,22 @@ class ChatModel {
                     return await this.pescariaHandler.getPerfil(ctx.sender, tag);
                 }
 
-                return `${tag}🎣 **SISTEMA DE PESCA**\n\nOpções:\n🎣 *!pescar* (Joga a isca na água!)\n🎒 *!pescaria perfil* (Vê suas iscas, buffs e maiores peixes)\n🏆 *!pescaria ranking* (Top pescadores do grupo)`;
+                if (subCommand === 'fix') {
+                    if (ctx.sender !== "5513991008854@s.whatsapp.net") {
+                        return "🚫 Tá achando que trabalha no Ibama? Só o chefe pode usar isso.";
+                    }
+                    return await this.pescariaHandler.fixOldRecords(tag);
+                }
+
+                if (subCommand === 'toppessoal') {
+                    return await this.pescariaHandler.getTopPessoal(ctx.sender, tag);
+                }
+
+                if (subCommand === 'topgrupo') {
+                    return await this.pescariaHandler.getTopGrupoPorRaridade(ctx.from, tag);
+                }
+
+                return `${tag}🎣 **SISTEMA DE PESCA**\n\nOpções:\n🎣 *!pescar* (Joga a isca na água!)\n🎒 *!pescaria perfil* (Vê iscas e recordes pessoais)\n🏆 *!pescaria ranking* (Top pescadores em peso total)\n🦈 *!pescaria trofeus* (Os 10 maiores monstros pescados neste grupo)\n🏅 *!pescaria toppessoal* (Top 3 seus por raridade)\n🌍 *!pescaria topgrupo* (Top 3 do grupo por raridade)`;
             },
         };
 

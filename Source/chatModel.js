@@ -52,6 +52,32 @@ class ChatModel {
         }
     }
 
+    getTodayDateString() {
+        return new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+    }
+
+    async getModelUsage() {
+        const today = this.getTodayDateString();
+        const rows = await this.db.all(`SELECT model_name, quantidade FROM system_usage WHERE data_uso = ?`, [today]);
+        const usage = {};
+        if (rows) {
+            rows.forEach(r => {
+                usage[r.model_name] = r.quantidade;
+            });
+        }
+        return usage;
+    }
+
+    async incrementModelUsage(modelName) {
+        const today = this.getTodayDateString();
+        await this.db.run(`
+            INSERT INTO system_usage (data_uso, model_name, quantidade)
+            VALUES (?, ?, 1)
+            ON CONFLICT(data_uso, model_name)
+            DO UPDATE SET quantidade = quantidade + 1
+        `, [today, modelName]);
+    }
+
     initializeCommandHandlers() {
         this.commandHandlers = {
             '!timeout': async (ctx) => {
@@ -93,6 +119,9 @@ class ChatModel {
             '!help': async (ctx) => this.handleHelp(ctx),
             '!ajuda': async (ctx) => this.handleHelp(ctx),
             '!resenha': async (ctx) => this.resenhaHandler.execute(ctx),
+            '!cota': async (ctx) => {
+                return await this.handleCotaCommand(ctx);
+            },
             '!cassino': async (ctx) => {
                 const tag = await this.pokemonHandler.getUserTag(ctx.sender);
                 const args = ctx.command.trim().split(/\s+/);
@@ -300,7 +329,7 @@ class ChatModel {
         const diffSeconds = (now - lastTime) / 1000;
 
         let limit = this.SPAM_DELAY_SECONDS;
-        if (command.toLowerCase().startsWith("!poke") || command.toLowerCase().startsWith("!cassino")) {
+        if (command.toLowerCase().startsWith("!poke") || command.toLowerCase().startsWith("!cassino") || command.toLowerCase().startsWith("!pesca")) {
             limit = 1; 
         }
 
@@ -393,23 +422,28 @@ class ChatModel {
         return this.toxicHandler.getToxicPodium(groupId);
     }
 
-    updateOnlineStatus() {
-        this.isOnline = usage.hasAnyQuotaAvailable(this.modelLimits);
+    async updateOnlineStatus() {
+        const currentUsage = await this.getModelUsage();
+        this.isOnline = false;
+        for (const [model, limit] of Object.entries(this.modelLimits)) {
+            if ((currentUsage[model] || 0) < limit) {
+                this.isOnline = true;
+                break;
+            }
+        }
     }
 
-    //Função de monitoramento de recursos
+    // Função de monitoramento de recursos (!status)
     async getStatus() {
-        const stats = usage.getData(); // Pega os dados do usageControl.js
-        const date = stats.date;
-        const counts = stats.counts;
+        const today = this.getTodayDateString();
+        const currentUsage = await this.getModelUsage();
 
-        let report = `📊 *STATUS DO BOSTOSSAURO* - ${date}\n\n`;
+        let report = `📊 *STATUS DO BOSTOSSAURO* - ${today}\n\n`;
         report += `🌐 *Status:* ${this.isOnline ? '✅ ONLINE' : '❌ OFFLINE'}\n\n`;
-        
         report += `🛡️ *Uso de Modelos:* (Usado / Limite)\n`;
 
         for (const [model, limit] of Object.entries(this.modelLimits)) {
-            const used = counts[model] || 0;
+            const used = currentUsage[model] || 0;
             const remaining = limit - used;
             const icon = used >= limit ? '🔴' : (used > limit * 0.8 ? '🟡' : '🟢');
             
@@ -417,7 +451,6 @@ class ChatModel {
         }
 
         report += `\n⚠️ _Modelos com 🔴 serão ignorados no fallback._`;
-        
         return report;
     }
 
@@ -572,8 +605,8 @@ class ChatModel {
         return messagesDb.map(m => `${m.nome_remetente || 'Desconhecido'}: ${m.conteudo}`).join('\n');        
     }
 
-    // Define qual modelo usar baseado no comando, força e cota
-    selectBestModel(command, forceModel) {
+    // Define qual modelo usar baseado no banco de dados
+    async selectBestModel(command, forceModel) {
         let candidates = [];
 
         if (forceModel) {
@@ -581,46 +614,31 @@ class ChatModel {
             if (forceModel === "gemini-2.5-flash") candidates.push("gemini-3-flash-preview", "gemini-2.5-flash");
         } 
         else if (command.startsWith("!resumo")){            
-            candidates = ["gemini-2.5-flash", 
-                          "gemini-3-flash-preview", 
-                          "gemini-2.5-flash-lite", 
-                          "gemma-3-27b-it","gemma-3-12b-it"]; 
+            candidates = ["gemini-2.5-flash", "gemini-3-flash-preview", "gemini-2.5-flash-lite", "gemma-3-27b-it","gemma-3-12b-it"]; 
         }
         else if (command.startsWith("!gpt")){            
-            candidates = ["gemini-2.5-flash", 
-                          "gemini-3-flash-preview", 
-                          "gemini-2.5-flash-lite",
-                          "gemma-3-27b-it",
-                          "gemma-3-12b-it", 
-                          "gemma-3-4b-it"]; 
+            candidates = ["gemini-2.5-flash", "gemini-3-flash-preview", "gemini-2.5-flash-lite", "gemma-3-27b-it", "gemma-3-12b-it", "gemma-3-4b-it"]; 
         }
         else if (command.startsWith("!lembrar")) {
-            candidates = ["gemma-3-27b-it", 
-                          "gemini-2.5-flash", 
-                          "gemini-3-flash-preview"]; 
+            candidates = ["gemma-3-27b-it", "gemini-2.5-flash", "gemini-3-flash-preview"]; 
         }
         else if (command.startsWith("!ouvir")){
-            candidates = ["gemini-2.5-flash-preview-tts"]
+            candidates = ["gemini-2.5-flash-preview-tts"];
         }
         else if (command.startsWith("!burro")){
-            candidates = [
-                "gemma-3-1b-it",
-                "gemma-3n-e2b-it"
-            ]
+            candidates = ["gemma-3-1b-it", "gemma-3n-e2b-it"];
         }
         else {
-            candidates = [
-                "gemini-2.5-flash",
-                "gemini-3-flash-preview",
-                "gemini-2.5-flash-lite",  
-                "gemma-3-12b-it",
-                "gemma-3-4b-it"
-            ];
+            candidates = ["gemini-2.5-flash", "gemini-3-flash-preview", "gemini-2.5-flash-lite", "gemma-3-12b-it", "gemma-3-4b-it"];
         }
 
+        const currentUsage = await this.getModelUsage();
+
         for (const model of candidates) {
-            const limit = this.modelLimits[model] || 20;            
-            if (usage.hasQuota(model, limit)) {
+            const limit = this.modelLimits[model] || 20;
+            const used = currentUsage[model] || 0;
+
+            if (used < limit) {
                 return model;
             }            
             console.log(`[QUOTA] Sem cota para ${model}, tentando próximo...`);
@@ -760,9 +778,9 @@ class ChatModel {
 
     //Recebe a resposta do Gemini utilizando o prompt recebido
     async getAiResponse(from, sender, name, isGroup, command, prompt, forceModel = null) {
-        this.updateOnlineStatus();
+        await this.updateOnlineStatus();
 
-        let modelName = this.selectBestModel(command, forceModel);
+        let modelName = await this.selectBestModel(command, forceModel);
 
         const separator = "||MEMORIA||";
 
@@ -773,7 +791,7 @@ class ChatModel {
                 config: {}
             });
             
-            usage.increment(modelName);
+            await this.incrementModelUsage(modelName);
 
             console.log(`Mensagem gerada usando o ${modelName}`);
 
@@ -802,7 +820,55 @@ class ChatModel {
         }
     }
 
-    // 5. Comando para aplicar Timeout (!timeout @pessoa tempo)
+    // PAINEL DE DISJUNTORES DE IA
+    async handleCotaCommand(ctx) {
+        if (ctx.sender !== "5513991008854@s.whatsapp.net") {
+            return "🚫 *Acesso Negado.* Só o administrador supremo pode brincar com os disjuntores da IA.";
+        }
+
+        const args = ctx.command.trim().split(/\s+/);
+        const subCommand = args[1]?.toLowerCase();
+        
+        const models = Object.keys(this.modelLimits);
+
+        if (subCommand === 'exaurir') {
+            const index = parseInt(args[2]) - 1;
+            
+            if (isNaN(index) || index < 0 || index >= models.length) {
+                return `⚠️ Índice inválido! Use um número de 1 a ${models.length}. Digite *!cota listar* para ver os números.`;
+            }
+
+            const selectedModel = models[index];
+            const limit = this.modelLimits[selectedModel];
+            const today = this.getTodayDateString();
+
+            await this.db.run(`
+                INSERT INTO system_usage (data_uso, model_name, quantidade)
+                VALUES (?, ?, ?)
+                ON CONFLICT(data_uso, model_name)
+                DO UPDATE SET quantidade = ?
+            `, [today, selectedModel, limit, limit]);
+
+            await this.updateOnlineStatus();
+
+            return `🔌 *DISJUNTOR DESLIGADO!*\nO modelo **${selectedModel}** foi exaurido artificialmente (${limit}/${limit}).\nO sistema de fallback pulará ele na próxima requisição.`;
+        }
+
+        const currentUsage = await this.getModelUsage();
+        let msg = `📊 *PAINEL DE DISJUNTORES (COTAS)* 📊\n_Use !cota exaurir [numero] para matar um modelo_\n\n`;
+
+        models.forEach((model, index) => {
+            const used = currentUsage[model] || 0;
+            const limit = this.modelLimits[model];
+            const icon = used >= limit ? '🔴' : '🟢';
+            
+            msg += `*[ ${index + 1} ]* ${icon} ${model}: ${used}/${limit}\n`;
+        });
+
+        return msg;
+    }
+
+    // Comando para aplicar Timeout (!timeout @pessoa tempo)
     // Ex: !timeout @551199999999 10 (bane por 10 minutos)
     async handleTimeoutCommand(name, command, sender, isGroup, mentions) {
         const ADMINS = [

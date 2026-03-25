@@ -117,7 +117,7 @@ class PescariaHandler {
         await this.db.run("UPDATE usuarios SET pescaria_data = ? WHERE id_usuario = ?", [jsonString, userId]);
     }
 
-    async pescar(userId, userTag) {
+    async pescar(userId, userTag, groupId) {
         let player = await this.getPlayerData(userId);
         const now = Math.floor(Date.now() / 1000);
 

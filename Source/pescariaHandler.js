@@ -69,10 +69,20 @@ const ITEM_CATALOG = [
 
 const STORE_CATALOG = {
     '1': { id: 'isca_simples', name: 'Isca de Pão', emoji: '🍞', type: 'instant', effect: 1, price: 100, desc: 'Dá +1 isca na hora. Baratinha pros falidos.' },
-    '2': { id: 'balde_iscas', name: 'Balde de Iscas', emoji: '🪣', type: 'instant', effect: 3, price: 250, desc: 'Dá +3 iscas na hora (Pequeno desconto).' },
+    '2': { id: 'balde_iscas', name: 'Balde de Iscas', emoji: '🪣', type: 'instant', effect: 4, price: 300, desc: 'Dá +3 iscas na hora (Pequeno desconto).' },
     '3': { id: 'repelente', name: 'Repelente de Bota', emoji: '🧴', type: 'buff', duration: 4, price: 200, desc: 'Zera a chance de pescar lixo por 4 rodadas.' },
-    '4': { id: 'anzol_chumbo', name: 'Anzol de Chumbo', emoji: '⚓', type: 'buff', duration: 5, price: 300, desc: 'Aumenta o peso dos peixes em 30% por 5 rodadas.' },
-    '5': { id: 'ima_coins', name: 'Ímã de Bostocoins', emoji: '🧲', type: 'buff', duration: 3, price: 400, desc: 'Garante achar Bostocoins no fundo do lago por 3 rodadas.' }
+    '4': { id: 'anzol_chumbo', name: 'Anzol de Chumbo', emoji: '⚓', type: 'buff', duration: 5, price: 200, desc: 'Aumenta o peso dos peixes em 30% por 5 rodadas.' },
+    '5': { id: 'ima_coins', name: 'Ímã de Bostocoins', emoji: '🧲', type: 'buff', duration: 3, price: 200, desc: 'Garante achar Bostocoins no fundo do lago por 3 rodadas.' }
+};
+
+const RARITY_MULTIPLIER = {
+    'lixo': 0.05,
+    'comum': 0.1,
+    'incomum': 0.3,
+    'raro': 0.5,
+    'muito_raro': 0.75,
+    'lendario': 1.0,
+    'mitico': 1.5
 };
 
 class PescariaHandler {
@@ -553,6 +563,80 @@ class PescariaHandler {
         }
 
         return msg;
+    }
+
+    // AUXILIAR: GERA A LISTA DE PEIXES QUE PODEM SER VENDIDOS
+    async getSellableList(userId) {
+        const player = await this.getPlayerData(userId);
+        if (!player.records || Object.keys(player.records).length === 0) return { sellableArray: [], player };
+
+        const categorized = {};
+
+        for (const [fishId, recordData] of Object.entries(player.records)) {
+            const fishInfo = FISH_CATALOG.find(f => f.id === fishId);
+            if (!fishInfo) continue;
+
+            const weight = typeof recordData === 'object' ? recordData.weight : recordData;
+            const value = Math.ceil(weight * RARITY_MULTIPLIER[fishInfo.rarity]);
+
+            if (!categorized[fishInfo.rarity]) categorized[fishInfo.rarity] = [];
+            
+            categorized[fishInfo.rarity].push({
+                id: fishId,
+                name: fishInfo.name,
+                emoji: fishInfo.emoji,
+                weight: weight,
+                value: value,
+                score: (weight / (fishInfo.avgWeight * 1.5)) * 100
+            });
+        }
+
+        const rarityOrder = ['comum', 'incomum', 'raro', 'muito_raro', 'lendario', 'mitico', 'lixo'];
+        let sellableArray = [];
+
+        for (const rarity of rarityOrder) {
+            if (categorized[rarity]) {
+                const top3 = categorized[rarity].sort((a, b) => b.score - a.score).slice(0, 3);
+                sellableArray.push(...top3);
+            }
+        }
+
+        return { sellableArray, player };
+    }
+
+    // MERCADO DE PEIXES
+    async handleVender(userId, userTag, itemIndexStr) {
+        const { sellableArray, player } = await this.getSellableList(userId);
+
+        if (sellableArray.length === 0) {
+            return `${userTag} Seu mural tá vazio! Você não tem nenhum peixe para vender. Vá pescar primeiro!`;
+        }
+
+        if (!itemIndexStr) {
+            let msg = `${userTag}🏪 **MERCADÃO DE PEIXES** 🏪\n_Os valores mudam de acordo com o peso e a raridade._\n\n`;
+            
+            sellableArray.forEach((f, i) => {
+                msg += `*[ ${i + 1} ]* ${f.emoji} ${f.name} (${f.weight.toFixed(2)}kg) ➝ 🪙 **${f.value}**\n`;
+            });
+
+            msg += `\n💰 Para vender digite: *!pescaria vender [numero]*`;
+            return msg;
+        }
+
+        const index = parseInt(itemIndexStr) - 1;
+        if (isNaN(index) || index < 0 || index >= sellableArray.length) {
+            return `${userTag}⚠️ Número inválido! Digite apenas *!pescaria vender* para ver a lista de peixes e seus números.`;
+        }
+
+        const fishToSell = sellableArray[index];
+
+        delete player.records[fishToSell.id];
+
+        await this.savePlayerData(userId, player);
+
+        await this.db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [fishToSell.value, userId]);
+
+        return `${userTag}🤝 **NEGÓCIO FECHADO!**\nVocê entregou seu amado ${fishToSell.emoji} *${fishToSell.name}* para o mercado municipal e faturou 🪙 **${fishToSell.value} Bostocoins**!\n_O registro deste peixe foi apagado do seu mural._`;
     }
 
     // FUNÇÃO DE MIGRAÇÃO DE DADOS

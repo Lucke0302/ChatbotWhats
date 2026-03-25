@@ -204,6 +204,11 @@ class ChatModel {
                     const itemCode = args[2];
                     return await this.pescariaHandler.comprarItem(ctx.sender, tag, itemCode);
                 }
+                
+                if (subCommand === 'vender') {
+                    const itemCode = args[2];
+                    return await this.pescariaHandler.handleVender(ctx.sender, tag, itemCode);
+                }
 
                 if (subCommand === 'trofeus') {
                     return await this.pescariaHandler.getTrofeusGrupo(ctx.from, tag);
@@ -232,7 +237,7 @@ class ChatModel {
                     return await this.pescariaHandler.getTopGrupoPorRaridade(ctx.from, tag);
                 }
 
-                return `${tag}🎣 **SISTEMA DE PESCA**\n\nOpções:\n🎣 *!pescar* (Joga a isca na água!)\n🏪 *!pescaria loja* (Compre iscas e buffs)\n🎒 *!pescaria perfil* (Vê iscas e recordes pessoais)\n🏆 *!pescaria ranking* (Top pescadores em peso total)\n🦈 *!pescaria trofeus* (Os 10 maiores monstros deste grupo)\n🏅 *!pescaria toppessoal* (Top 3 seus por raridade)\n🌍 *!pescaria topgrupo* (Top 3 do grupo por raridade)`;
+                return `${tag}🎣 **SISTEMA DE PESCA**\n\nOpções:\n🎣 *!pescar* (Joga a isca!)\n🏪 *!pescaria loja* (Compre itens)\n⚖️ *!pescaria vender* (Mercadão de peixes)\n🎒 *!pescaria perfil* (Iscas e recordes)\n🏆 *!pescaria ranking* (Top pescadores)\n🦈 *!pescaria trofeus* (10 maiores deste grupo)\n🏅 *!pescaria toppessoal*\n🌍 *!pescaria topgrupo*`;
             },
         };
 

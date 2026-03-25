@@ -541,6 +541,23 @@ async function initDatabase() {
         if (!error.message.includes("duplicate column name")) console.error(error.message);
     }
 
+    try {
+        await db.exec(`ALTER TABLE usuarios ADD COLUMN pescaria_data TEXT DEFAULT '{}';`);
+        console.log("✅ Coluna 'pescaria_data' (JSON) adicionada com sucesso!");
+    } catch (error) {
+        if (!error.message.includes("duplicate column name")) console.error(error.message);
+    }
+
+    await db.exec(`
+        CREATE TABLE IF NOT EXISTS system_usage (
+            data_uso TEXT NOT NULL,
+            model_name TEXT NOT NULL,
+            quantidade INTEGER DEFAULT 0,
+            PRIMARY KEY (data_uso, model_name)
+        );
+    `);
+    console.log("✅ Tabela 'system_usage' verificada.");
+
     console.log('✅ Banco de dados SQLite inicializado e tabelas verificadas.');
 }
 
@@ -623,6 +640,18 @@ const botCommands = {
     '!trabalhar': { 
         emoji: '💼' 
     },
+    '!pescar': { 
+        emoji: '🎣' 
+    },
+    '!pesca': { 
+        emoji: '🎣' 
+    },
+    '!pescaria': { 
+        emoji: '🎣' 
+    },
+    '!cota': { 
+        emoji: '🔌' 
+    },
 };
 
 //Inicia a conexão com mo Whatsapp para fazer todas as operações
@@ -682,6 +711,7 @@ async function connectToWhatsApp() {
 
     //Instancia o chatbot
     const chatbot = new ChatModel(db, genAI)
+    await chatbot.updateOnlineStatus();
     
     //Envia figurinha
     const sendSticker = async (sock, db, from, msg, mentions, command) => {

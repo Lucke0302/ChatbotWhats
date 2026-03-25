@@ -1,45 +1,34 @@
 const helpDictionary = {
-    'default': `🦖 *BOSTOSSAURO OS* v3.1 - O Retorno 🦖
+    'default': `🦖 *BOSTOSSAURO OS* v4.1 - Atualização do Ibama 🦖
 
 Ô humano, tá perdido ou só quer me alugar?
 Eu tô aqui processando bit igual um condenado e você pedindo ajuda... Tá, toma aí o que eu sei fazer (quando não tô fritando):
 
 Pra saber os detalhes de um comando, digita:
-👉 *!ajuda (ou !help) [nome_do_comando]* (Ex: _!ajuda sticker_)
+👉 *!ajuda (ou !help) [nome_do_comando]* (Ex: _!ajuda pescaria_)
 
 🔴 *POKÉMON*
 • *!poke* ➝ O comando principal para ser um mestre Pokémon.
-• *!poke comecar* ➝ Inicia sua jornada.
-• *!poke explorar* ➝ Procura bichos no mato.
 
-💸 *ECONOMIA & CASSINO (NOVO!)*
+💸 *ECONOMIA & CASSINO*
 • *!cassino* ➝ Aposte seus Bostocoins, jogue na Mega e no Bolão.
 • *!pix* ➝ Transfira dinheiro pra quem tá devendo.
 • *!trabalhar* ➝ Assine a CLT e ganhe o pão de cada dia.
 • *!minhabosta* ➝ Auxílio emergencial pra quem faliu de vez.
 
+🎣 *PESCARIA (NOVO!)*
+• *!pescar/pesca* ➝ Pra pescar um peixe (se tiver isca). 
+• *!pescaria* ➝ Sistema completo de pesca, loja, mercado e rankings! 
+
 🎨 *MÍDIA & UTILITÁRIOS*
 • *!sticker (!s)* ➝ Faço figurinha. Se sua foto for feia, a culpa não é minha.
 • *!audio* ➝ Transformo texto em áudio (Google).
 • *!pdf* ➝ Converto imagens/docs em PDF.
-• *!tradutor* ➝ Traduzo gringo pra português (ou o contrário).
+• *!tradutor* ➝ Traduzo gringo pra português.
 
-📊 *ESTATÍSTICAS*
+📊 *ESTATÍSTICAS & UTILIDADE*
 • *!falador* ➝ Ranking de quem não cala a boca hoje.
-
-🎲 *JOGATINA*
-• *!cassino* ➝ Aposte seus Bostocoins e vá à falência.
-• *!d* ➝ Dado. Pra ver se você tem sorte no jogo.
-
-📙 *ÚTIL*
-• *!pdf* ➝ Converto suas imagens e documentos em pdf.
-• *!menu* ➝ Listo todos os meus comandos.
-• *!ajuda (ou !help)* ➝ Explico cada comando.
-
-💸 *CRISE FINANCEIRA*
 • *!cotacao* ➝ Pra você converter dinheiro e chorar no banho.
-
-🌪️ *PREVISÃO DO CAOS*
 • *!clima* ➝ Eu olho pra janela pra você não precisar levantar.
 
 🧠 *CÉREBRO JURÁSSICO*
@@ -48,11 +37,13 @@ Pra saber os detalhes de um comando, digita:
 • *!lembrar* ➝ Eu puxo a capivara do que falaram aqui.
 • *!notas* ➝ O que eu anotei sobre sua pessoa (medo).
 
-🎮 *GAMES*
-• *!lol* ➝ Exponho seu elo de papelão e seus mains horrríveis em praça pública.
+🎲 *GAMES & RPG*
+• *!lol* ➝ Exponho seu elo de papelão e seus mains horrríveis.
+• *!d* ➝ Rola dados de RPG.
 
 👮 *AREA RESTRITA*
-• *!timeout* ➝ O cantinho do pensamento pros chatos.`,
+• *!timeout* ➝ O cantinho do pensamento pros chatos.
+• *!cota* ➝ Painel de disjuntores da IA (Admin).`,
 
     'poke': `🎮 *COMANDO: !poke*
 O sistema completo de batalha, captura e ginásios!
@@ -217,6 +208,32 @@ Transforma a imagem/documento que você enviou pra mim em um pdf.
 *Como usar:* Envia a imagem/documento com !pdf na mensagem ou 
 responde ela com o !pdf.
 `,
+
+    'pescaria': `🎣 *COMANDO: !pescaria*
+Bem-vindo ao Lago do Bostossauro! Pegue sua vara e vá pro sol.
+Você regenera 1 isca a cada 6 horas (Máximo 4).
+
+*Ação:*
+🎣 *!pescar* (ou !pesca) ➝ Joga a isca na água e tenta a sorte.
+
+*Mercado & Loja:*
+🏪 *!pescaria loja* ➝ Gaste seus Bostocoins em iscas e buffs (ex: Anzol de Chumbo, Ímã).
+🛍️ *!pescaria comprar [número]* ➝ Compra o item da loja.
+⚖️ *!pescaria vender* ➝ Veja o preço dos seus troféus e venda peixes por Bostocoins (Valores de mercado brutais).
+
+*Inventário:*
+🎒 *!pescaria perfil* ➝ Veja suas iscas, efeitos ativos e seus top 5 peixes.
+
+*Competição e Rankings:*
+🏆 *!pescaria ranking* ➝ O Top 10 de quem mais pescou (em Kg) na vida.
+🦈 *!pescaria trofeus* ➝ O Mural do Grupo: Os 10 peixes mais pesados pescados NESTE chat.
+🏅 *!pescaria toppessoal* ➝ Seus 3 peixes mais "perfeitos" por raridade.
+🌍 *!pescaria topgrupo* ➝ A elite do grupo: Peixes mais perfeitos por raridade.`,
+
+    'cota': `🔌 *COMANDO: !cota* (Apenas Admin)
+O painel de energia do Bostossauro.
+• *!cota listar* ➝ Vê o uso de cada modelo no SQLite.
+• *!cota exaurir [N]* ➝ Frita o fusível de um modelo pra forçar o fallback de IA.`,
 
     'timeout': `🚫 *COMANDO: !timeout* (Só Admin)
 Manda o engraçadinho ficar pianinho por um tempo.

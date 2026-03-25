@@ -25,6 +25,26 @@ O Bostossauro não é apenas um bot, é um estilo de vida. Aqui estão as skills
     * `!s baixa`: Qualidade duvidosa.
     * `!s podi`: Modo *deep fried*, destrói a imagem até virar arte abstrata.
 
+* **💸 Sistema Econômico Completo (Capitalismo Selvagem):** Uma economia viva rodando no banco de dados com a moeda oficial *Bostocoins*.
+    * `!pix @amigo [valor]`: Transferência instantânea entre membros do grupo.
+    * `!trabalhar`: Sistema de CLT virtual com trabalhos gerados procedimentalmente (e cooldown de 12 horas) para ganhar salários aleatórios.
+    * `!minhabosta`: O programa social "Minha Bosta, Minha Vida". Se você quebrou (saldo < 50), o governo te dá um auxílio de emergência a cada 48 horas.
+
+* **🎰 Cassino do Bostossauro:** Pra onde vai todo o dinheiro do grupo.
+    * **Jogos Rápidos:** Slots (`!cassino [valor]`), Cara ou Coroa (`!cassino cara/coroa [valor]`) e Roleta (`!cassino roleta vermelho [valor]`).
+    * **🎟️ Loterias Semanais (Toda Segunda às 10h):**
+        * **MegaBosta:** Adivinhe de 1 a 100. Paga 100x a aposta e acumula o multiplicador a cada semana sem vencedores.
+        * **Bolão da Rapaziada:** Jogo colaborativo de 1 a 20. O vencedor leva o pote total com todas as apostas somadas. 
+    * **Eventos Agendados:** O bot recompensa automaticamente o "Top 1 Falador" (total de msgs x 2) e o "Patrocínio do Ódio" (xingamentos x 10) na rotina matinal.
+
+* **🎣 Pescaria Jurássica:** Um sistema completo de pesca e gerenciamento de stamina (iscas geradas a cada 6h).
+    * `!pescar`: Tente a sorte no lago. O peso e a raridade (de Lixo até Mítico) variam por RNG. Há chances de fisgar debuffs (Linha Podre) ou buffs.
+    * `!pescaria loja`: Um ralo de Bostocoins onde você pode comprar Anzóis de Chumbo, Repelentes ou Ímãs de dinheiro.
+    * `!pescaria vender`: Capitalismo brutal aplicado. Venda seus troféus para gerar Bostocoins com uma taxa de conversão humilhante (Peixe Raro de 100kg não paga nem uma isca de pão).
+    * **Rankings Dinâmicos:** Conta com murais de troféus segmentados por grupo (`!pescaria trofeus`) e calculadoras de "perfeição" de peixe baseada no peso máximo absoluto (`!pescaria topgrupo`).
+
+* **🔌 Sistema de Cotas Persistente (SQLite):** Implementamos um controle de uso diário por modelo de IA (Gemini Flash, Flash-Lite, Gemma). Diferente de outras arquiteturas falhas, o Bostossauro salva os hits da API direto no SQLite, então mesmo que o PM2 reinicie ou falhe, ele nunca esquece que a cota do dia já foi pro espaço. Conta com o comando de disjuntor `!cota exaurir` para forçar testes de fallback.
+
 * **😴 Modo Desonline:** Se o bot estiver em manutenção, ele manda uma figurinha do macaco desmaiado pra você não ficar no vácuo.
 
 * **🐘 Memória de Longo Prazo:** Agora o bot "anota" fatos sobre você (nome, gostos, profissão) no banco de dados para personalizar as respostas futuras. Cuidado com o que fala.

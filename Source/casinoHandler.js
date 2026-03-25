@@ -125,6 +125,47 @@ class CasinoHandler {
         return `${userTag}🤝 **NO BOLÃO!**\nVocê jogou 🪙 ${bet} no número **${number}**. O pote do grupo só cresce! Resultado na segunda-feira.`;
     }
 
+    // SISTEMA DE PIX
+    async handlePix(senderId, senderTag, receiverId, amount) {
+        if (!receiverId) return `${senderTag}⚠️ Marca alguém pra mandar o Pix! Ex: *!pix @amigo 50*`;
+        if (isNaN(amount) || amount <= 0) return `${senderTag}⚠️ Valor inválido, seu caloteiro.`;
+        if (senderId === receiverId) return `${senderTag}⚠️ Tá tentando lavar dinheiro mandando Pix pra você mesmo?`;
+
+        const senderBalance = await this.getBalance(senderId);
+        if (senderBalance < amount) return `${senderTag}❌ Saldo insuficiente! Você só tem 🪙 ${senderBalance} Bostocoins.`;
+
+        await this.db.run(`INSERT OR IGNORE INTO usuarios (id_usuario, nome, banido_ate, uso_ia_diario, data_ultimo_uso, anotacoes) VALUES (?, 'Anônimo', 0, 0, '', '')`, [receiverId]);
+
+        await this.updateBalance(senderId, -amount);
+        await this.updateBalance(receiverId, amount);
+
+        return `💸 **PIX TRANSFERIDO!**\n\n${senderTag} enviou 🪙 **${amount} Bostocoins** com sucesso!\nO Banco Central do Bostossauro já aprovou a transação.`;
+    }
+
+    // MINHA BOSTA MINHA VIDA
+    async handleMinhaBosta(userId, userTag) {
+        const now = Math.floor(Date.now() / 1000);
+        const cooldown = 48 * 60 * 60;
+
+        const user = await this.db.get("SELECT last_minhabosta FROM usuarios WHERE id_usuario = ?", [userId]);
+        
+        if (user && user.last_minhabosta) {
+            const timePassed = now - user.last_minhabosta;
+            if (timePassed < cooldown) {
+                const Math = require('mathjs');
+                const timeLeft = cooldown - timePassed;
+                const hoursLeft = Math.floor(timeLeft / 3600);
+                const minutesLeft = Math.floor((timeLeft % 3600) / 60);
+                return `${userTag}🛑 Calma lá, parasita! O governo só libera o benefício a cada 48 horas.\nVolte em **${hoursLeft}h e ${minutesLeft}m**.`;
+            }
+        }
+
+        await this.updateBalance(userId, 100);
+        await this.db.run("UPDATE usuarios SET last_minhabosta = ? WHERE id_usuario = ?", [now, userId]);
+
+        return `${userTag}📝 **MINHA BOSTA MINHA VIDA APROVADO**\n\nO Bostossauro depositou a esmola de 🪙 **100 Bostocoins** na sua conta.\nTente não perder tudo no caça-níqueis em 5 minutos!`;
+    }
+
     // Atualiza o Show Balance para mostrar os acumulados
     async showBalance(userId, userTag) {
         const balance = await this.getBalance(userId);
@@ -133,16 +174,6 @@ class CasinoHandler {
         const total_bolao = (pote_bolao.total || 0) + estado.bolao_acumulado;
         
         return `${userTag}🏦 **BANCO DO BOSTOSSAURO**\n\nSeu saldo: 🪙 **${balance} Bostocoins**\n\n🤑 **ACUMULADOS DA SEMANA:**\n🎟️ *Mega:* Pagando **${estado.mega_multiplicador * 100}x** a aposta! (!cassino mega [1-100] [valor])\n🤝 *Bolão:* Pote atual de 🪙 **${total_bolao}**! (!cassino bolao [1-20] [valor])\n\n_Outros jogos: !cassino [aposta], cara/coroa, roleta_`;
-    }
-
-    async showBalance(userId, userTag) {
-        const balance = await this.getBalance(userId);
-        return `${userTag}🏦 **BANCO DO BOSTOSSAURO**
-        \n\nSeu saldo atual é de 🪙 **${balance} Bostocoins**.
-        \n\n🎰 *Jogos Rápidos:*\n• *Slots:* !cassino [valor]
-        \n• *Moeda:* !cassino [cara/coroa] [valor]
-        \n• *Roleta:* !cassino roleta [cor] [valor]
-        \n\n_Para ver as regras detalhadas e prêmios, digite: *!ajuda cassino*_`;
     }
 }
 

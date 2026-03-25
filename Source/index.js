@@ -527,6 +527,13 @@ async function initDatabase() {
     
     console.log("✅ Tabelas 'loteria', 'bolao' e 'cassino_estado' inicializadas.");
 
+    try {
+        await db.exec(`ALTER TABLE usuarios ADD COLUMN last_minhabosta INTEGER DEFAULT 0;`);
+        console.log("✅ Coluna 'last_minhabosta' adicionada com sucesso!");
+    } catch (error) {
+        if (!error.message.includes("duplicate column name")) console.error(error.message);
+    }
+
     console.log('✅ Banco de dados SQLite inicializado e tabelas verificadas.');
 }
 

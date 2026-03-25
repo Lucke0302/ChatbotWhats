@@ -127,6 +127,20 @@ class ChatModel {
 
                 return `${tag}🎰 **CASSINO DO BOSTOSSAURO**\n\nOpções:\n🎰 *!cassino [valor]* (Slots)\n🪙 *!cassino [cara/coroa] [valor]*\n🎡 *!cassino roleta [vermelho/preto/verde] [valor]*\n🏦 *!cassino saldo*`;
             },
+            '!pix': async (ctx) => {
+                const tag = await this.pokemonHandler.getUserTag(ctx.sender);
+                const args = ctx.command.trim().split(/\s+/);
+                
+                const amountStr = args.find(arg => !arg.includes('@') && !isNaN(arg) && arg !== '!pix');
+                const amount = parseInt(amountStr);
+                
+                const receiver = ctx.mentions[0];
+                return await this.casinoHandler.handlePix(ctx.sender, tag, receiver, amount);
+            },
+            '!minhabosta': async (ctx) => {
+                const tag = await this.pokemonHandler.getUserTag(ctx.sender);
+                return await this.casinoHandler.handleMinhaBosta(ctx.sender, tag);
+            }
         };
 
         const aiHandler = async (ctx) => {

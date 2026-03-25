@@ -67,6 +67,14 @@ const ITEM_CATALOG = [
     { id: 'maldicao_baiacu', name: 'Maldição do Baiacu', emoji: '🐡', type: 'debuff', duration: 4, desc: 'Aumenta muito a chance de vir Lixo.' }
 ];
 
+const STORE_CATALOG = {
+    '1': { id: 'isca_simples', name: 'Isca de Pão', emoji: '🍞', type: 'instant', effect: 1, price: 100, desc: 'Dá +1 isca na hora. Baratinha pros falidos.' },
+    '2': { id: 'balde_iscas', name: 'Balde de Iscas', emoji: '🪣', type: 'instant', effect: 3, price: 250, desc: 'Dá +3 iscas na hora (Pequeno desconto).' },
+    '3': { id: 'repelente', name: 'Repelente de Bota', emoji: '🧴', type: 'buff', duration: 4, price: 200, desc: 'Zera a chance de pescar lixo por 4 rodadas.' },
+    '4': { id: 'anzol_chumbo', name: 'Anzol de Chumbo', emoji: '⚓', type: 'buff', duration: 5, price: 300, desc: 'Aumenta o peso dos peixes em 30% por 5 rodadas.' },
+    '5': { id: 'ima_coins', name: 'Ímã de Bostocoins', emoji: '🧲', type: 'buff', duration: 3, price: 400, desc: 'Garante achar Bostocoins no fundo do lago por 3 rodadas.' }
+};
+
 class PescariaHandler {
     constructor(db) {
         this.db = db;
@@ -489,6 +497,59 @@ class PescariaHandler {
 
         if (!encontrouAlgo) {
             return `${userTag} Nenhuma escama foi vista neste grupo ainda!`;
+        }
+
+        return msg;
+    }
+
+    // EXIBE A LOJA
+    async getLoja(userId, userTag) {
+        const user = await this.db.get("SELECT bostocoins FROM usuarios WHERE id_usuario = ?", [userId]);
+        const balance = user ? user.bostocoins : 0;
+
+        let msg = `${userTag}🏪 **LOJA DO PESCADOR** 🏪\n_Seu saldo: 🪙 ${balance} Bostocoins_\n\n`;
+        
+        for (const [code, item] of Object.entries(STORE_CATALOG)) {
+            msg += `*[ ${code} ]* ${item.emoji} **${item.name}** ➝ 🪙 ${item.price}\n_${item.desc}_\n\n`;
+        }
+        
+        msg += `🛒 Para comprar digite: *!pescaria comprar [número]*\n_Ex: !pescaria comprar 2_`;
+        return msg;
+    }
+
+    // PROCESSA A COMPRA
+    async comprarItem(userId, userTag, itemCode) {
+        if (!itemCode || !STORE_CATALOG[itemCode]) {
+            return `${userTag}❌ Código de item inválido! Digite *!pescaria loja* para ver o catálogo.`;
+        }
+
+        const item = STORE_CATALOG[itemCode];
+        
+        const user = await this.db.get("SELECT bostocoins FROM usuarios WHERE id_usuario = ?", [userId]);
+        const balance = user ? user.bostocoins : 0;
+
+        if (balance < item.price) {
+            return `${userTag}💸 Saldo insuficiente, seu pobre! Você precisa de 🪙 **${item.price} Bostocoins** para comprar ${item.emoji} *${item.name}*, mas só tem 🪙 ${balance}.\nVai capinar um lote (!trabalhar)!`;
+        }
+
+        await this.db.run("UPDATE usuarios SET bostocoins = bostocoins - ? WHERE id_usuario = ?", [item.price, userId]);
+
+        let player = await this.getPlayerData(userId);
+        
+        if (item.type === 'instant') {
+            player.fishBaits += item.effect;
+        } else if (item.type === 'buff') {
+            player.active_items[item.id] = item.duration;
+        }
+
+        await this.savePlayerData(userId, player);
+
+        let msg = `${userTag}🛍️ **COMPRA REALIZADA COM SUCESSO!**\nVocê comprou ${item.emoji} *${item.name}* por 🪙 ${item.price} Bostocoins.\n`;
+        
+        if (item.type === 'buff') {
+            msg += `✨ O efeito já está ativo na sua próxima jogada! Confira em *!pescaria perfil*.`;
+        } else {
+            msg += `🪣 Você agora tem **${player.fishBaits} iscas** no balde!`;
         }
 
         return msg;

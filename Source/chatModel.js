@@ -162,11 +162,19 @@ class ChatModel {
             '!pesca': async (ctx) => {
                 const tag = await this.pokemonHandler.getUserTag(ctx.sender);
                 return await this.pescariaHandler.pescar(ctx.sender, tag, ctx.from);
-            },
-            '!pescaria': async (ctx) => {
+            },'!pescaria': async (ctx) => {
                 const tag = await this.pokemonHandler.getUserTag(ctx.sender);
                 const args = ctx.command.trim().split(/\s+/);
                 const subCommand = args[1]?.toLowerCase();
+
+                if (subCommand === 'loja') {
+                    return await this.pescariaHandler.getLoja(ctx.sender, tag);
+                }
+
+                if (subCommand === 'comprar') {
+                    const itemCode = args[2];
+                    return await this.pescariaHandler.comprarItem(ctx.sender, tag, itemCode);
+                }
 
                 if (subCommand === 'trofeus') {
                     return await this.pescariaHandler.getTrofeusGrupo(ctx.from, tag);
@@ -195,7 +203,7 @@ class ChatModel {
                     return await this.pescariaHandler.getTopGrupoPorRaridade(ctx.from, tag);
                 }
 
-                return `${tag}🎣 **SISTEMA DE PESCA**\n\nOpções:\n🎣 *!pescar* (Joga a isca na água!)\n🎒 *!pescaria perfil* (Vê iscas e recordes pessoais)\n🏆 *!pescaria ranking* (Top pescadores em peso total)\n🦈 *!pescaria trofeus* (Os 10 maiores monstros pescados neste grupo)\n🏅 *!pescaria toppessoal* (Top 3 seus por raridade)\n🌍 *!pescaria topgrupo* (Top 3 do grupo por raridade)`;
+                return `${tag}🎣 **SISTEMA DE PESCA**\n\nOpções:\n🎣 *!pescar* (Joga a isca na água!)\n🏪 *!pescaria loja* (Compre iscas e buffs)\n🎒 *!pescaria perfil* (Vê iscas e recordes pessoais)\n🏆 *!pescaria ranking* (Top pescadores em peso total)\n🦈 *!pescaria trofeus* (Os 10 maiores monstros deste grupo)\n🏅 *!pescaria toppessoal* (Top 3 seus por raridade)\n🌍 *!pescaria topgrupo* (Top 3 do grupo por raridade)`;
             },
         };
 

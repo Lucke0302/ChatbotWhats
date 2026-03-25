@@ -805,9 +805,56 @@ async function connectToWhatsApp() {
                         let toxicReport = "";
                         let divisor = "";
 
-                        if(groupId == "120363422139578370@g.us"){
+                    if(groupId == "120363422139578370@g.us"){
                             divisor = "\n\n------------------------------\n";                            
+                            
+                            const topToxicos = await db.all(`
+                                SELECT r.id_usuario, r.quantidade, u.nome
+                                FROM ranking_ofensas r
+                                JOIN usuarios u ON r.id_usuario = u.id_usuario
+                                WHERE r.id_conversa = ? AND r.quantidade > 0
+                                ORDER BY r.quantidade DESC
+                                LIMIT 3
+                            `, [groupId]);
+
+                            let toxicRewardReport = "";
+                            if (topToxicos.length > 0) {
+                                toxicRewardReport += "🤬 **PATROCÍNIO DO ÓDIO (PRÊMIO BOCA SUJA)** 🤬\nO Bostossauro valoriza a falta de educação. Os mais tóxicos ganharam:\n\n";
+                                
+                                const medalhas = ["🥇", "🥈", "🥉"];
+                                
+                                for (let i = 0; i < topToxicos.length; i++) {
+                                    const t = topToxicos[i];
+                                    const recompensa = t.quantidade * 10;
+                                    
+                                    await db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [recompensa, t.id_usuario]);
+                                    
+                                    toxicRewardReport += `${medalhas[i]} *${t.nome}*: ${t.quantidade} ofensas ➡️ **+🪙 ${recompensa}**\n`;
+                                }
+                                toxicRewardReport += "\n";
+                            }
+
+                            const topFalador = await db.get(`
+                                SELECT r.id_usuario, r.total_mensagens, u.nome
+                                FROM ranking_ofensas r
+                                JOIN usuarios u ON r.id_usuario = u.id_usuario
+                                WHERE r.id_conversa = ? AND r.total_mensagens > 0
+                                ORDER BY r.total_mensagens DESC
+                                LIMIT 1
+                            `, [groupId]);
+
+                            let faladorRewardReport = "";
+                            if (topFalador) {
+                                const recompensaFalador = topFalador.total_mensagens * 2; 
+                                
+                                await db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [recompensaFalador, topFalador.id_usuario]);
+                                
+                                faladorRewardReport += `🗣️ **SALÁRIO DO FALADOR** 🗣️\nO Bostossauro paga quem movimenta o grupo. O maior tagarela de ontem foi:\n\n🥇 *${topFalador.nome}* com ${topFalador.total_mensagens} mensagens!\n💰 Levou **🪙 ${recompensaFalador} Bostocoins** (2x o n° de msgs).\n\n`;
+                            }
+                            
                             toxicReport = await chatbot.getAndResetToxicPodium(groupId);
+                            
+                            toxicReport = toxicRewardReport + toxicReport;
                         }
                         
                         const finalMessage = baseMessage + loteriaReport + divisor + toxicReport;

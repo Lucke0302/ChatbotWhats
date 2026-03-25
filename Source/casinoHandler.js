@@ -22,7 +22,9 @@ class CasinoHandler {
         "cobrou cinquentão pra mestrar uma sessão de RPG onde os jogadores ignoraram a história principal inteira",
         "tentou arrumar a impressora da tia e acabou sendo nomeado o 'menino da TI' do bairro",
         "centralizou uma div no CSS depois de chorar em posição fetal",
-        "montou um servidor caseiro num Celeron velho que passa mais tempo desligado que rodando"
+        "montou um servidor caseiro num Celeron velho que passa mais tempo desligado que rodando",
+        "trabalhou como comercial de vendas",
+        
     ];
     }
 

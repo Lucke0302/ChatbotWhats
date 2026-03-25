@@ -630,6 +630,15 @@ const botCommands = {
     '!trabalhar': { 
         emoji: '💼' 
     },
+    '!pescar': { 
+        emoji: '🎣' 
+    },
+    '!pesca': { 
+        emoji: '🎣' 
+    },
+    '!pescaria': { 
+        emoji: '🎣' 
+    }
 };
 
 //Inicia a conexão com mo Whatsapp para fazer todas as operações

@@ -534,6 +534,13 @@ async function initDatabase() {
         if (!error.message.includes("duplicate column name")) console.error(error.message);
     }
 
+    try {
+        await db.exec(`ALTER TABLE usuarios ADD COLUMN last_trabalho INTEGER DEFAULT 0;`);
+        console.log("✅ Coluna 'last_trabalho' adicionada com sucesso!");
+    } catch (error) {
+        if (!error.message.includes("duplicate column name")) console.error(error.message);
+    }
+
     console.log('✅ Banco de dados SQLite inicializado e tabelas verificadas.');
 }
 
@@ -612,7 +619,10 @@ const botCommands = {
     },
     '!minhabosta': { 
         emoji: '🪙' 
-    }
+    },
+    '!trabalhar': { 
+        emoji: '💼' 
+    },
 };
 
 //Inicia a conexão com mo Whatsapp para fazer todas as operações

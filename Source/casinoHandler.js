@@ -1,6 +1,29 @@
 class CasinoHandler {
+
+
+
     constructor(db) {
         this.db = db;
+        this.trabalhos = [
+        "vendeu bolo de pote no farol debaixo de um sol de rachar",
+        "ajudou a consertar um ar-condicionado que tava cuspindo gelo",
+        "fez bico de garçom no bar do Sujinho e teve que aturar bêbado chorando",
+        "formatou o PC de um cliente, tirou 30 vírus Baidu e instalou o Windows pirata",
+        "passou a tarde inteira colhendo abóbora na fazenda do Minecraft",
+        "resolveu um bug bizarro num backend em Spring Boot que ia derrubar o TCC",
+        "fez elojob carregando uns bronze afundado de Yasuo no LoL",
+        "escreveu a redação do vestibular da Univesp pra um amigo folgado",
+        "vendeu pack do pé no onlyfans",
+        "vendeu água no balde na praia do gonzaga",
+        "ajudou uma velhinha a carregar as compras do supermercado",
+        "desentortou 15 pinos de um processador AMD usando uma lapiseira e muita fé",
+        "passou 5 horas debugando um código só pra descobrir que faltava um ponto e vírgula",
+        "revendeu uma RX 580 do Aliexpress jurando que 'foi usada só pra jogar paciência'",
+        "cobrou cinquentão pra mestrar uma sessão de RPG onde os jogadores ignoraram a história principal inteira",
+        "tentou arrumar a impressora da tia e acabou sendo nomeado o 'menino da TI' do bairro",
+        "centralizou uma div no CSS depois de chorar em posição fetal",
+        "montou um servidor caseiro num Celeron velho que passa mais tempo desligado que rodando"
+    ];
     }
 
     async getBalance(userId) {
@@ -216,6 +239,34 @@ class CasinoHandler {
         });
 
         return msg;
+    }
+
+    // TRABALHO HONESTO
+    async handleTrabalhar(userId, userTag) {
+        const now = Math.floor(Date.now() / 1000);
+        const cooldown = 12 * 60 * 60;
+
+        const user = await this.db.get("SELECT last_trabalho FROM usuarios WHERE id_usuario = ?", [userId]);
+        
+        if (user && user.last_trabalho) {
+            const timePassed = now - user.last_trabalho;
+            if (timePassed < cooldown) {
+                const timeLeft = cooldown - timePassed;
+                const hoursLeft = Math.floor(timeLeft / 3600);
+                const minutesLeft = Math.floor((timeLeft % 3600) / 60);
+                return `${userTag}🛑 O mercado de trabalho tá saturado! A CLT só permite assinar a carteira de novo em **${hoursLeft}h e ${minutesLeft}m**.`;
+            }
+        }
+
+        const multiplicador = Math.floor(Math.random() * 4) + 1;
+        const salario = 50 * multiplicador;
+        
+        const bicoSorteado = this.trabalhos[Math.floor(Math.random() * this.trabalhos.length)];
+
+        await this.updateBalance(userId, salario);
+        await this.db.run("UPDATE usuarios SET last_trabalho = ? WHERE id_usuario = ?", [now, userId]);
+
+        return `${userTag}💼 **TRABALHADOR BRASILEIRO**\n\nVocê ${bicoSorteado} e recebeu 🪙 **${salario} Bostocoins** pelo serviço!\nVai torrar tudo na Roleta ou vai guardar?`;
     }
 
     // Atualiza o Show Balance para mostrar os acumulados

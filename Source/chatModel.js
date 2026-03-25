@@ -930,6 +930,10 @@ class ChatModel {
         return val
     }
 
+    async trabalharCommand(text, sender){
+        
+    }
+
     // Faz o controle de todos os comandos
     async handleCommand(msg, sender, from, isGroup, command, quotedMessage, sock, mentions = []) {
         let name = msg.pushName || ''

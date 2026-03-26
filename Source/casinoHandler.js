@@ -482,7 +482,7 @@ class CasinoHandler {
         }
     }
 
-    // INJEÇÃO NA ECONOMIA
+// INJEÇÃO NA ECONOMIA
     async handleGiveCoins(senderId, senderTag, targetId, amountStr, groupId, sock, exceptions = []) {
         if (senderId !== "5513991008854@s.whatsapp.net") {
             return `${senderTag}🚫 Negativo! Só o Presidente do Banco Central tem a chave da impressora de dinheiro.`;
@@ -504,9 +504,15 @@ class CasinoHandler {
                 let ignorados = 0;
 
                 for (const p of participants) {
-                    let pPhone = p.phoneNumber ? p.phoneNumber + '@s.whatsapp.net' : p.id;
+                    let pPhone = p.phoneNumber ? p.phoneNumber : p.id;
                     
-                    if (pPhone.includes(':')) pPhone = pPhone.split(':')[0] + '@s.whatsapp.net';
+                    if (!pPhone.includes('@')) {
+                        pPhone += '@s.whatsapp.net';
+                    } else if (pPhone.includes(':')) {
+                        pPhone = pPhone.split(':')[0] + '@s.whatsapp.net';
+                    }
+                    
+                    pPhone = pPhone.replace(/(@s\.whatsapp\.net)+/g, '@s.whatsapp.net');
 
                     const isException = exceptions.includes(pPhone) || exceptions.includes(p.id);
 
@@ -516,6 +522,8 @@ class CasinoHandler {
                     }
 
                     const finalId = pPhone.includes('@s.whatsapp.net') ? pPhone : p.id;
+
+                    if (finalId.includes("5513991526878")) continue;
 
                     await this.db.run(`INSERT OR IGNORE INTO usuarios (id_usuario, nome, banido_ate, uso_ia_diario, data_ultimo_uso, anotacoes) VALUES (?, 'Anônimo', 0, 0, '', '')`, [finalId]);
                     await this.db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [amount, finalId]);

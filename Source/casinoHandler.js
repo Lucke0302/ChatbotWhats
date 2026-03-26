@@ -503,12 +503,14 @@ class CasinoHandler {
                 const participants = groupMetadata.participants;
                 
                 let count = 0;
-                let ignorados = 0; // Contador de pessoas que sofreram sanções
+                let ignorados = 0;
 
                 for (const p of participants) {
-                    const pId = p.id;
+                    let pId = p.id;
+                    if (pId.includes(':')) {
+                        pId = pId.split(':')[0] + '@s.whatsapp.net';
+                    }
                     
-                    // A MÁGICA: Se o cara tá marcado na lista negra, ele é pulado!
                     if (exceptions.includes(pId)) {
                         ignorados++;
                         continue;
@@ -521,7 +523,6 @@ class CasinoHandler {
 
                 let msg = `${senderTag}🚁 **MAMATA ESTATAL (SILVIO SANTOS JURÁSSICO)** 🚁\nO Banco Central imprimiu e distribuiu 🪙 **${amount} Bostocoins** para ${count} membros do grupo!`;
                 
-                // Humilhação pública para quem ficou de fora
                 if (ignorados > 0) {
                     msg += `\n\n🚫 _Atenção: ${ignorados} pessoa(s) sofreram sanções do governo e ficaram de fora do auxílio!_`;
                 }

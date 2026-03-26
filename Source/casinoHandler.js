@@ -482,6 +482,66 @@ class CasinoHandler {
         }
     }
 
+    // INJEÇÃO NA ECONOMIA
+    async handleGiveCoins(senderId, senderTag, targetId, amountStr, groupId, sock, exceptions = []) {
+        if (senderId !== "5513991008854@s.whatsapp.net") {
+            return `${senderTag}🚫 Negativo! Só o Presidente do Banco Central tem a chave da impressora de dinheiro.`;
+        }
+
+        const amount = parseInt(amountStr);
+        if (isNaN(amount) || amount <= 0) {
+            return `${senderTag}⚠️ Tá imprimindo vento? Digite um valor válido para injetar na economia. Ex: *!givecoins all 500*`;
+        }
+
+        if (targetId === 'all') {
+            if (!groupId.endsWith('@g.us')) {
+                return `${senderTag}⚠️ O alvo 'all' só funciona dentro de grupos.`;
+            }
+            
+            try {
+                const groupMetadata = await sock.groupMetadata(groupId);
+                const participants = groupMetadata.participants;
+                
+                let count = 0;
+                let ignorados = 0; // Contador de pessoas que sofreram sanções
+
+                for (const p of participants) {
+                    const pId = p.id;
+                    
+                    // A MÁGICA: Se o cara tá marcado na lista negra, ele é pulado!
+                    if (exceptions.includes(pId)) {
+                        ignorados++;
+                        continue;
+                    }
+
+                    await this.db.run(`INSERT OR IGNORE INTO usuarios (id_usuario, nome, banido_ate, uso_ia_diario, data_ultimo_uso, anotacoes) VALUES (?, 'Anônimo', 0, 0, '', '')`, [pId]);
+                    await this.db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [amount, pId]);
+                    count++;
+                }
+
+                let msg = `${senderTag}🚁 **MAMATA ESTATAL (SILVIO SANTOS JURÁSSICO)** 🚁\nO Banco Central imprimiu e distribuiu 🪙 **${amount} Bostocoins** para ${count} membros do grupo!`;
+                
+                // Humilhação pública para quem ficou de fora
+                if (ignorados > 0) {
+                    msg += `\n\n🚫 _Atenção: ${ignorados} pessoa(s) sofreram sanções do governo e ficaram de fora do auxílio!_`;
+                }
+
+                return msg;
+
+            } catch (e) {
+                console.error("Erro ao dar moedas para todos:", e);
+                return `${senderTag}❌ Deu ruim ao tentar ler os participantes do grupo. O sistema de injeção falhou.`;
+            }
+        } 
+        else {
+            await this.db.run(`INSERT OR IGNORE INTO usuarios (id_usuario, nome, banido_ate, uso_ia_diario, data_ultimo_uso, anotacoes) VALUES (?, 'Anônimo', 0, 0, '', '')`, [targetId]);
+            await this.db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [amount, targetId]);
+            
+            const cleanNum = targetId.split('@')[0];
+            return `${senderTag}💰 **INJEÇÃO DE CAPITAL** 💰\nO Banco Central transferiu 🪙 **${amount} Bostocoins** diretamente para a conta de @${cleanNum}.`;
+        }
+    }
+
     // Atualiza o Show Balance para mostrar os acumulados
     async showBalance(userId, userTag) {
         const balance = await this.getBalance(userId);

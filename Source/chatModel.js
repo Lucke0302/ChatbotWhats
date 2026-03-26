@@ -170,6 +170,43 @@ class ChatModel {
                        `*Faria Lima:*\n📈 *!investir* (Bolsa de Valores Jurássica)\n🏦 *!emprestimo* (Agiotagem)\n👑 *!titulo* (Cartório de Ostentação)\n\n` +
                        `*Consultas:* \n💰 *!cassino saldo*`;
             },
+            '!givecoins': async (ctx) => {
+                const tag = await this.pokemonHandler.getUserTag(ctx.sender);
+                const args = ctx.command.trim().split(/\s+/);
+                
+                let targetId = null;
+                let amountStr = null;
+                let excecoes = [];
+
+                for (let i = 1; i < args.length; i++) {
+                    if (args[i].toLowerCase() === 'all' || args[i].toLowerCase() === 'todos') {
+                        targetId = 'all';
+                    } else if (!isNaN(args[i])) {
+                        amountStr = args[i];
+                    }
+                }
+
+                if (targetId === 'all') {
+                    if (ctx.mentions && ctx.mentions.length > 0) {
+                        excecoes = ctx.mentions;
+                    }
+                } else {
+                    if (ctx.mentions && ctx.mentions.length > 0) {
+                        targetId = ctx.mentions[0];
+                    } else {
+                        const mentionArg = args.find(a => a.includes('@'));
+                        if (mentionArg) {
+                            targetId = mentionArg.replace(/[^0-9]/g, '') + "@s.whatsapp.net";
+                        }
+                    }
+                }
+
+                if (!targetId || !amountStr) {
+                    return `${tag}⚠️ Formato incorreto!\nUse: *!givecoins [all ou @usuario] [valor]*\nEx: _!givecoins all 500 @Excluido_ ou _!givecoins @Fulano 1000_`;
+                }
+
+                return await this.casinoHandler.handleGiveCoins(ctx.sender, tag, targetId, amountStr, ctx.from, ctx.sock, excecoes);
+            },
             '!titulo': async (ctx) => {
                 const tag = await this.pokemonHandler.getUserTag(ctx.sender);
                 const param = ctx.command.replace('!titulo', '').trim();

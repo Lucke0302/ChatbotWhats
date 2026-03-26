@@ -4846,6 +4846,76 @@ class PokemonHandler {
         return await this.db.all(`SELECT m.* FROM pokemon_moves pm JOIN moves m ON pm.move_id = m.id WHERE pm.pokemon_id = ? AND pm.level_learned <= ? ORDER BY pm.level_learned DESC LIMIT 4`, [pid, lvl]);
     }
 
+    // Ensina o golpe que está na fila de espera do JSON
+    async learnPendingMove(userId, param) {
+        if (!param || param.trim() === '') {
+            return await this.checkPendingMoves(userId, "🎮 ");
+        }
+
+        const args = param.trim().split(' ');
+        const pokeSlot = parseInt(args[0]);
+        const moveSlotToForget = parseInt(args[1]);
+
+        if (isNaN(pokeSlot) || isNaN(moveSlotToForget)) {
+            let msg = "⚠️ Formato inválido!\nUse: *!poke ensinar [slot_pokemon] [1-4 para substituir, ou 0 para descartar]*\n\n";
+            msg += await this.checkPendingMoves(userId, "");
+            return msg;
+        }
+
+        const userPoke = await this.db.get("SELECT * FROM user_pokemons WHERE user_id = ? AND team_slot = ?", [userId, pokeSlot]);
+
+        if (!userPoke) return `🚫 Você não tem um Pokémon no slot ${pokeSlot} do time.`;
+        if (!userPoke.pending_move || userPoke.pending_move === '[]') return `✅ O ${userPoke.nickname} não tem nenhum golpe na fila de espera.`;
+
+        let pendingArray = [];
+        try {
+            pendingArray = JSON.parse(userPoke.pending_move);
+            if (!Array.isArray(pendingArray)) pendingArray = [userPoke.pending_move];
+        } catch(e) {
+            pendingArray = [userPoke.pending_move];
+        }
+
+        if (pendingArray.length === 0) return `✅ O ${userPoke.nickname} não tem nenhum golpe na fila de espera.`;
+
+        const moveIdToLearn = pendingArray[0]; 
+        const move = await this.db.get("SELECT name, pp FROM moves WHERE id = ?", [moveIdToLearn]);
+        
+        if (!move) {
+            pendingArray.shift();
+            await this.db.run("UPDATE user_pokemons SET pending_move = ? WHERE id = ?", [JSON.stringify(pendingArray), userPoke.id]);
+            return "❌ Esse golpe não existe mais! Ele foi removido da sua fila.";
+        }
+
+        if (moveSlotToForget === 0) {
+            pendingArray.shift();
+            
+            const newPendingState = pendingArray.length > 0 ? JSON.stringify(pendingArray) : null;
+            await this.db.run("UPDATE user_pokemons SET pending_move = ? WHERE id = ?", [newPendingState, userPoke.id]);
+            
+            return `⏭️ **${userPoke.nickname}** descartou o golpe *${move.name}*.\n_(Restam ${pendingArray.length} golpes na fila deste Pokémon)_`;
+        }
+
+        if (moveSlotToForget < 1 || moveSlotToForget > 4) {
+            return "⚠️ Escolha um slot de ataque válido de 1 a 4 para esquecer (ou 0 para descartar o golpe novo).";
+        }
+
+        const currentMoveId = userPoke[`move${moveSlotToForget}`];
+        const oldMoveName = currentMoveId ? (await this.db.get("SELECT name FROM moves WHERE id = ?", [currentMoveId]))?.name : 'Espaço Vazio';
+
+        await this.db.run(
+            `UPDATE user_pokemons SET move${moveSlotToForget} = ?, move${moveSlotToForget}_pp = ? WHERE id = ?`, 
+            [moveIdToLearn, move.pp, userPoke.id]
+        );
+
+        pendingArray.shift(); 
+        
+        const newPendingState = pendingArray.length > 0 ? JSON.stringify(pendingArray) : null;
+        await this.db.run("UPDATE user_pokemons SET pending_move = ? WHERE id = ?", [newPendingState, userPoke.id]);
+
+        return `✨ **1, 2 e... PUF!**\n**${userPoke.nickname}** esqueceu como usar *${oldMoveName}* e aprendeu **${move.name}**!\n_(Restam ${pendingArray.length} golpes na fila deste Pokémon)_`;
+    }
+
+
     // Tenta ensinar um golpe
     async attemptLearnMove(userPoke, moveId) {
         const currentMoves = [userPoke.move1, userPoke.move2, userPoke.move3, userPoke.move4];
@@ -5174,34 +5244,6 @@ class PokemonHandler {
         }
 
         return null;
-    }
-
-    async learnPendingMove(userId, choice) {
-        const userPoke = await this.db.get("SELECT * FROM user_pokemons WHERE user_id = ? AND pending_move IS NOT NULL", [userId]);
-        
-        if (!userPoke) return "🤷 Não tem nenhum Pokémon querendo aprender golpe agora.";
-
-        const newMove = await this.db.get("SELECT name FROM moves WHERE id = ?", [userPoke.pending_move]);
-
-        if (choice === 'ignorar' || choice === 'cancelar') {
-            await this.db.run("UPDATE user_pokemons SET pending_move = NULL WHERE id = ?", [userPoke.id]);
-            return `💨 ${userPoke.nickname} desistiu de aprender *${newMove.name}*.`;
-        }
-
-        const slot = parseInt(choice);
-        if (isNaN(slot) || slot < 1 || slot > 4) {
-            return "🚫 Escolha um slot de 1 a 4. Ex: *!poke trocar 1*";
-        }
-
-        const oldMoveId = userPoke[`move${slot}`];
-        const oldMoveName = await this.getMoveName(oldMoveId);
-
-        await this.db.run(
-            `UPDATE user_pokemons SET move${slot} = ?, pending_move = NULL WHERE id = ?`, 
-            [userPoke.pending_move, userPoke.id]
-        );
-
-        return `✅ ${userPoke.nickname} esqueceu *${oldMoveName}* e aprendeu *${newMove.name}*!`;
     }
 
     async getMoveName(moveId) {

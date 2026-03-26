@@ -226,17 +226,17 @@ class PescariaHandler {
                 msg += `${caughtFish.emoji} Fisgou: **${caughtFish.name}** de **${formattedWeight}kg**!\n`;
                 player.total_weight += actualWeight;
                 
-                const currentRecordObj = player.records[caughtFish.id];
-                const currentRecordWeight = typeof currentRecordObj === 'object' ? currentRecordObj.weight : (currentRecordObj || 0);
-
-                if (actualWeight > currentRecordWeight) {
-                    player.records[caughtFish.id] = {
-                        weight: actualWeight,
-                        group_id: groupId,
-                        date: now
-                    };
-                    msg += `   🌟 _NOVO RECORDE PESSOAL DA ESPÉCIE!_ 🌟\n`;
+                if (!Array.isArray(player.records)) {
+                    player.records = []; 
                 }
+
+                player.records.push({
+                    id: caughtFish.id,
+                    weight: actualWeight,
+                    group_id: groupId,
+                    date: now,
+                    instanceId: crypto.randomUUID()
+                });
 
                 if (player.active_items['ima_coins']) {
                     const moedasAchadas = Math.floor(Math.random() * 41) + 10;
@@ -638,43 +638,39 @@ class PescariaHandler {
     // AUXILIAR: GERA A LISTA COMPLETA DE PEIXES PARA O MERCADÃO
     async getSellableList(userId) {
         const player = await this.getPlayerData(userId);
-        if (!player.records || Object.keys(player.records).length === 0) return { sellableArray: [], player };
+        if (!player.records || !Array.isArray(player.records)) return { sellableArray: [], player };
 
         const categorized = {};
 
-        for (const [fishId, recordData] of Object.entries(player.records)) {
-            const fishInfo = FISH_CATALOG.find(f => f.id === fishId);
-            if (!fishInfo) continue;
+        player.records.forEach((record) => {
+            const fishInfo = FISH_CATALOG.find(f => f.id === record.id);
+            if (!fishInfo) return;
 
-            const weight = typeof recordData === 'object' ? recordData.weight : recordData;
             const maxWeight = fishInfo.avgWeight * 1.5;
-            const perfeicao = weight / maxWeight; 
-            
-            const rarityBaseValue = RARITY_MULTIPLIER[fishInfo.rarity] || 10;
-            const finalValue = Math.ceil(rarityBaseValue * perfeicao);
+            const perfeicao = record.weight / maxWeight; 
+            const finalValue = Math.ceil((RARITY_MULTIPLIER[fishInfo.rarity] || 10) * perfeicao);
 
             if (!categorized[fishInfo.rarity]) categorized[fishInfo.rarity] = [];
             
             categorized[fishInfo.rarity].push({
-                id: fishId,
+                ...record,
                 name: fishInfo.name,
                 emoji: fishInfo.emoji,
-                weight: weight,
                 value: finalValue,
                 score: perfeicao * 100,
                 rarity: fishInfo.rarity
             });
-        }
+        });
 
         const rarityOrder = ['comum', 'incomum', 'raro', 'muito_raro', 'lendario', 'mitico', 'lixo'];
         let sellableArray = [];
 
-        for (const rarity of rarityOrder) {
+        rarityOrder.forEach(rarity => {
             if (categorized[rarity]) {
-                const sorted = categorized[rarity].sort((a, b) => b.score - a.score);
+                const sorted = categorized[rarity].sort((a, b) => b.weight - a.weight);
                 sellableArray.push(...sorted);
             }
-        }
+        });
 
         return { sellableArray, player };
     }
@@ -716,20 +712,25 @@ class PescariaHandler {
 
         const fishToSell = sellableArray[index];
 
-        delete player.records[fishToSell.id];
-        await this.savePlayerData(userId, player);
+        const originalIndex = player.records.findIndex(r => 
+            r.id === fishToSell.id && r.weight === fishToSell.weight && r.date === fishToSell.date
+        );
 
-        const profitResult = await this.casinoHandler.verifyProfit(userId, fishToSell.value);
-        await this.db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [profitResult.finalProfit, userId]);
+        if (originalIndex > -1) {
+            player.records.splice(originalIndex, 1);
+            await this.savePlayerData(userId, player);
+            
+            const profitResult = await this.casinoHandler.verifyProfit(userId, fishToSell.value);
+            await this.db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [profitResult.finalProfit, userId]);
 
-        return `${userTag}🤝 **NEGÓCIO FECHADO!**\nVocê vendeu seu ${fishToSell.emoji} *${fishToSell.name}* (${fishToSell.score.toFixed(1)}% perfeito) por 🪙 **${fishToSell.value} Bostocoins**!${profitResult.msg}\n_Saldo atualizado!_`;
+            return `${userTag}🤝 **VENDA CONCLUÍDA!**\nVocê vendeu 1x ${fishToSell.emoji} *${fishToSell.name}* por 🪙 **${fishToSell.value}**!${profitResult.msg}`;
+        }
     }
 
     // FUNÇÃO DE MIGRAÇÃO DE DADOS
     async fixOldRecords(userTag) {
-        const TARGET_GROUP = "120363422139578370@g.us";
         const now = Math.floor(Date.now() / 1000);
-
+        
         const users = await this.db.all("SELECT id_usuario, pescaria_data FROM usuarios WHERE pescaria_data IS NOT NULL AND pescaria_data != '{}'");
         
         let countUsuariosAlterados = 0;
@@ -739,23 +740,25 @@ class PescariaHandler {
                 let data = JSON.parse(u.pescaria_data);
                 let modified = false;
 
-                if (data.records) {
-                    for (const [fishId, recordData] of Object.entries(data.records)) {
-                        
-                        if (typeof recordData === 'number') {
-                            data.records[fishId] = {
-                                weight: recordData,
-                                group_id: TARGET_GROUP,
-                                date: now
-                            };
-                            modified = true;
-                        } 
-                        else if (typeof recordData === 'object' && !recordData.group_id) {
-                            data.records[fishId].group_id = TARGET_GROUP;
-                            data.records[fishId].date = data.records[fishId].date || now;
-                            modified = true;
-                        }
+                if (data.records && !Array.isArray(data.records)) {
+                    const newRecords = [];
+
+                    for (const [id, val] of Object.entries(data.records)) {
+                        const currentGroupId = (typeof val === 'object' && val.group_id) 
+                            ? val.group_id 
+                            : "120363422139578370@g.us";
+
+                        newRecords.push({
+                            id: id,
+                            weight: typeof val === 'object' ? val.weight : val,
+                            group_id: currentGroupId,
+                            date: (typeof val === 'object' && val.date) ? val.date : now,
+                            instanceId: crypto.randomUUID()
+                        });
                     }
+                    
+                    data.records = newRecords;
+                    modified = true;
                 }
 
                 if (modified) {
@@ -763,11 +766,11 @@ class PescariaHandler {
                     countUsuariosAlterados++;
                 }
             } catch (e) {
-                console.error(`Erro ao corrigir JSON do usuário ${u.id_usuario}:`, e);
+                console.error(`❌ Erro na migração do usuário ${u.id_usuario}:`, e);
             }
         }
 
-        return `${userTag} 🛠️ **MIGRAÇÃO DO IBAMA CONCLUÍDA!**\nForam regularizados os registros de **${countUsuariosAlterados} pescadores**. Todos os peixes antigos agora pertencem ao grupo principal e vão aparecer no Mural de Troféus!`;
+        return `${userTag} 🛠️ **MIGRAÇÃO DE INVENTÁRIO CONCLUÍDA!**\nForam convertidos os registros de **${countUsuariosAlterados} pescadores** para o novo sistema de peixes repetidos.`;
     }
 
     // ACELERA A GERAÇÃO DE ISCAS EM 2 HORAS

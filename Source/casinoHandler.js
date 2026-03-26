@@ -18,7 +18,7 @@ class CasinoHandler {
         "passou 5 horas debugando um código só pra descobrir que faltava um ponto e vírgula",
         "revendeu uma RX 580 do Aliexpress jurando que 'foi usada só pra jogar paciência'",
         "cobrou cinquentão pra mestrar uma sessão de RPG onde os jogadores ignoraram a história principal inteira",
-        "tentou arrumar a impressora da tia e acabou sendo nomeado o 'menino da TI' do bairro",
+        "tentou arrumar a impressora da tia e acabou sendo nomeado o(a) 'menino(a) da TI' do bairro",
         "centralizou uma div no CSS depois de chorar em posição fetal",
         "montou um servidor caseiro num Celeron velho que passa mais tempo desligado que rodando",
 `trabalha com o guê?

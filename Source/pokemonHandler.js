@@ -2103,10 +2103,18 @@ class PokemonHandler {
         };
         const statusDisplay = poke.status ? `\n🤕 *Status:* ${statusEmojis[poke.status] || poke.status}` : "";
 
+        // --- ITEM SEGURADO ---
+        let heldItemText = "Nenhum";
+        
+        if (poke.held_item) {
+            const itemDb = await this.db.get("SELECT name FROM items WHERE id = ?", [poke.held_item]);
+            heldItemText = itemDb ? itemDb.name : (poke.held_item || "Nenhum");
+        }
+
         const caption = `${tag}📊 *FICHA TÉCNICA* 📊\n\n` +
                         `${shinyStar} *${poke.nickname.toUpperCase()}* ${typeEmojis}\n` +
                         `🆙 Nível: ${poke.level} | XP: ${poke.exp}\n` +
-                        `🌱 Nature: ${natureText}\n\n` +
+                        `🌱 Nature: ${natureText} | Item: ${heldItemText}\n\n` +
                         `❤️ HP: ${displayHp}/${poke.max_hp} (IV: ${poke.iv_hp})${statusDisplay}\n` + 
                         `⚔️ Atk: ${atk} (IV: ${poke.iv_atk})\n` +
                         `🛡️ Def: ${def} (IV: ${poke.iv_def})\n` +

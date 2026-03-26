@@ -27,8 +27,11 @@ O Bostossauro não é apenas um bot, é um estilo de vida. Aqui estão as skills
 
 * **💸 Sistema Econômico Completo (Capitalismo Selvagem):** Uma economia viva rodando no banco de dados com a moeda oficial *Bostocoins*.
     * `!pix @amigo [valor]`: Transferência instantânea entre membros do grupo.
-    * `!trabalhar`: Sistema de CLT virtual com trabalhos gerados procedimentalmente (e cooldown de 12 horas) para ganhar salários aleatórios.
-    * `!minhabosta`: O programa social "Minha Bosta, Minha Vida". Se você quebrou (saldo < 50), o governo te dá um auxílio de emergência a cada 48 horas.
+    * `!trabalhar`: Sistema de CLT virtual com trabalhos gerados procedimentalmente (e cooldown de 12 horas).
+    * `!minhabosta`: O programa social "Minha Bosta, Minha Vida". Se você quebrou (saldo < 50), o governo te dá um auxílio.
+    * `!investir (Bolsa Jurássica)`: Aplique fundos em empresas como "McBostossauro" e "OnlySaurs". Conta com sistema de juros compostos e tributação em faixas para quem tem muito dinheiro.
+    * `!emprestimo (Agiota)`: Pegue empréstimos predatórios. O bot retém 30% de todo lucro futuro (pesca, trabalho) direto na fonte até abater a dívida.
+    * `!titulo`: Cartório de ostentação para comprar a tag de "Faria Limer" ou "Agiota" ao lado do seu nome.
 
 * **🎰 Cassino do Bostossauro:** Pra onde vai todo o dinheiro do grupo.
     * **Jogos Rápidos:** Slots (`!cassino [valor]`), Cara ou Coroa (`!cassino cara/coroa [valor]`) e Roleta (`!cassino roleta vermelho [valor]`).
@@ -37,11 +40,14 @@ O Bostossauro não é apenas um bot, é um estilo de vida. Aqui estão as skills
         * **Bolão da Rapaziada:** Jogo colaborativo de 1 a 20. O vencedor leva o pote total com todas as apostas somadas. 
     * **Eventos Agendados:** O bot recompensa automaticamente o "Top 1 Falador" (total de msgs x 2) e o "Patrocínio do Ódio" (xingamentos x 10) na rotina matinal.
 
-* **🎣 Pescaria Jurássica:** Um sistema completo de pesca e gerenciamento de stamina (iscas geradas a cada 6h).
-    * `!pescar`: Tente a sorte no lago. O peso e a raridade (de Lixo até Mítico) variam por RNG. Há chances de fisgar debuffs (Linha Podre) ou buffs.
-    * `!pescaria loja`: Um ralo de Bostocoins onde você pode comprar Anzóis de Chumbo, Repelentes ou Ímãs de dinheiro.
-    * `!pescaria vender`: Capitalismo brutal aplicado. Venda seus troféus para gerar Bostocoins com uma taxa de conversão humilhante (Peixe Raro de 100kg não paga nem uma isca de pão).
-    * **Rankings Dinâmicos:** Conta com murais de troféus segmentados por grupo (`!pescaria trofeus`) e calculadoras de "perfeição" de peixe baseada no peso máximo absoluto (`!pescaria topgrupo`).
+* **🎣 Pescaria Jurássica:** Um sistema completo de pesca e gerenciamento de stamina.
+    * `!pescar`: Tente a sorte no lago. O peso e a raridade variam por RNG. 
+    * `!pescaria loja`: Compre consumíveis (Ímãs, Repelentes) ou invista para FORJAR VARAS MELHORES (Fibra, Carbono, Adamantium) que multiplicam o peso dos peixes permanentemente.
+    * `!pescaria vender`: Capitalismo brutal aplicado. Venda seus troféus para gerar Bostocoins com o multiplicador do Agiota comendo parte da grana.
+
+* **🔴 Sistema Pokémon Integrado:** Batalha RPG em turnos via chat com captura e ginásios.
+    * Possui sistema de fila de golpes (JSON) para gerenciar ataques aprendidos em level up múltiplo (`!poke pendentes` e `!poke ensinar`).
+    * Gerenciamento de Daycare passivo, Box de PC, inventário de TMs/Itens e Natures.
 
 * **🔌 Sistema de Cotas Persistente (SQLite):** Implementamos um controle de uso diário por modelo de IA (Gemini Flash, Flash-Lite, Gemma). Diferente de outras arquiteturas falhas, o Bostossauro salva os hits da API direto no SQLite, então mesmo que o PM2 reinicie ou falhe, ele nunca esquece que a cota do dia já foi pro espaço. Conta com o comando de disjuntor `!cota exaurir` para forçar testes de fallback.
 

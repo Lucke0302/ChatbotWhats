@@ -269,134 +269,45 @@ Use *!poke ajuda [comando]* para saber mais detalhes.
 🏥 *GERENCIAMENTO*
 • *perfil* ➝ Ver dinheiro, insígnias e itens.
 • *time* (ou team) ➝ Ver seus 6 Pokémon atuais.
-• *mostrar* (ou info) ➝ Ver ficha técnica (IVs, Status, Golpes).
+• *mostrar* (ou info) ➝ Ver ficha técnica (IVs, Status, Golpes, Itens).
 • *curar* (ou heal) ➝ Restaurar HP e PP (Grátis).
 • *pc* ➝ Guardar/Pegar Pokémon da caixa.
 • *trocar* (ou switch) ➝ Mudar ordem do time ou Pokémon ativo.
 
 💪 *EVOLUÇÃO E TREINO*
 • *evoluir* (ou evolve) ➝ Transformar seu Pokémon.
-• *esquecer* ➝ Trocar golpes aprendidos.
+• *pendentes* ➝ Ver a fila de golpes novos aguardando para serem aprendidos.
+• *ensinar* ➝ Substituir um golpe antigo por um novo da fila.
+• *daycare* ➝ Deixar um Pokémon na creche ganhando XP passivo.
+
+🎒 *ITENS E MOCHILA*
+• *mochila* (ou bag) ➝ Ver seus itens (TMs, Poções, Itens de Segurar).
+• *usar* (ou use) ➝ Usar um item em um Pokémon.
+• *tm* ➝ Ensinar um TM para o seu Pokémon.
 
 🏛️ *PROGRESSO*
 • *ginasio* (ou gym) ➝ Desafiar líderes e ganhar insígnias.
 • *loja* (ou shop) ➝ Comprar itens.`,
 
-    'comecar': `🌱 *COMANDO: comecar*
-Inicia sua jornada no mundo Pokémon.
-Você poderá escolher entre os iniciais de Kanto (Gen 1), Johto (Gen 2) e Hoenn (Gen 3).
-
-*Uso:* !poke comecar
-🔹 *Aliases:* start, escolher, choose`,
-
-    'explorar': `🌿 *COMANDO: explorar*
-Procura um Pokémon selvagem ou um treinador para batalhar.
-A raridade e o nível dos inimigos aumentam conforme suas insígnias.
-
-*Uso:* !poke explorar
-🔹 *Aliases:* hunt`,
-
-    'atacar': `⚔️ *COMANDO: atacar*
-Usa um dos seus golpes durante a batalha.
-
-*Uso:*
-• *!poke atacar* (Mostra a lista de golpes)
-• *!poke atacar 1* (Usa o primeiro golpe)
-• *!poke atacar 2* (Usa o segundo golpe)
-🔹 *Aliases:* attacks, moves, golpes`,
-
-    'capturar': `🔴 *COMANDO: capturar*
-Joga uma Pokébola no Pokémon selvagem atual.
-A chance aumenta se o HP dele estiver baixo.
-*Custo:* 1 Pokébola (Compre na loja).
-
-*Uso:* !poke capturar
-🔹 *Aliases:* catch, ball`,
-
-    'curar': `🏥 *COMANDO: curar*
-Leva seus Pokémon para a Enfermeira Joy.
-Recupera 100% do HP e restaura todos os PPs. É de graça!
-
-*Uso:* !poke curar
-🔹 *Aliases:* heal, nurse`,
-
-    'perfil': `👤 *COMANDO: perfil*
-Mostra seu cartão de treinador com:
-• Dinheiro (Pokécoins)
-• Itens (Bolas, Poções)
-• Insígnias conquistadas
-• Resumo rápido do time
-
-*Uso:* !poke perfil
-🔹 *Aliases:* profile, box`,
-
-    'time': `🧢 *COMANDO: time*
-Mostra a lista detalhada dos seus 6 Pokémon atuais.
-Mostra HP atual, Nível e Tipos.
-
-*Uso:*
-• *!poke time* (Lista simples)
-• *!poke time detalhes* (Mostra Naturezas)
-🔹 *Aliases:* team`,
-
-    'mostrar': `📊 *COMANDO: mostrar*
-Exibe a ficha completa de um Pokémon específico.
-Inclui: Foto, Status (Atk, Def, etc), IVs, Golpes e XP.
-
-*Uso:* !poke mostrar [número_do_slot]
-*Exemplo:* _!poke mostrar 1_
-🔹 *Aliases:* show, info, stats, analisar`,
-
-    'pc': `💻 *COMANDO: pc*
-Gerencia seus Pokémon guardados (Box).
-Você só pode carregar 6 no time. Os capturados extras vão pro PC.
-
-*Uso:*
-• *!poke pc lista* (Vê quem está guardado)
-• *!poke pc [slot_time] [box_pc]* (Troca um do time por um do PC)
-*Exemplo:* _!poke pc 2 1_ (Manda o slot 2 pro PC e pega o 1 do PC)
-🔹 *Aliases:* storage`,
-
-    'trocar': `🔄 *COMANDO: trocar*
-*Em Batalha:* Troca o Pokémon que está lutando.
-*Fora de Batalha:* Muda a ordem do time.
-
-*Uso:*
-• *!poke trocar 2* (Em batalha: Envia o Pokémon 2)
-• *!poke trocar 1 3* (No menu: O 1º vira o 3º e vice-versa)
-🔹 *Aliases:* switch`,
-
-    'evoluir': `✨ *COMANDO: evoluir*
-Evolui um Pokémon que já atingiu o nível necessário.
-O bot avisa quando ele pode evoluir.
-
-*Uso:* !poke evoluir [slot]
-*Exemplo:* _!poke evoluir 1_ (Evolui o líder do time)
-🔹 *Aliases:* evolve`,
-
-    'esquecer': `💡 *COMANDO: esquecer*
-Quando seu Pokémon aprende um golpe novo e já tem 4, você precisa escolher qual esquecer.
-
-*Uso:*
-• *!poke esquecer 1* (Substitui o golpe 1 pelo novo)
-• *!poke ignorar* (Desiste de aprender o novo golpe)
-🔹 *Aliases:* swap`,
-
-    'ginasio': `🏛️ *COMANDO: ginasio*
-Avança na história enfrentando treinadores e Líderes de Ginásio.
-Vencer líderes dá Insígnias (que liberam novos Pokémon selvagens) e muito dinheiro.
-
-*Uso:* !poke ginasio
-🔹 *Aliases:* gym, historia`,
-
-    'loja': `🏪 *COMANDO: loja*
-Compra itens essenciais.
-
-*Uso:*
-• *!poke loja* (Vê os itens)
-• *!poke comprar [id_item] [quantidade]*
-*Exemplo:* _!poke comprar 1 10_ (Compra 10 Pokébolas)
-🔹 *Aliases:* shop, mart, buy, comprar`
+    'comecar': `🌱 *COMANDO: comecar*\nInicia sua jornada no mundo Pokémon.\nVocê poderá escolher entre os iniciais de Kanto (Gen 1), Johto (Gen 2) e Hoenn (Gen 3).\n\n*Uso:* !poke comecar`,
+    'explorar': `🌿 *COMANDO: explorar*\nProcura um Pokémon selvagem ou um treinador para batalhar.\nA raridade e o nível dos inimigos aumentam conforme suas insígnias.\n\n*Uso:* !poke explorar`,
+    'atacar': `⚔️ *COMANDO: atacar*\nUsa um dos seus golpes durante a batalha.\n\n*Uso:*\n• *!poke atacar* (Mostra a lista de golpes)\n• *!poke atacar 1* (Usa o primeiro golpe)\n• *!poke atacar 2* (Usa o segundo golpe)`,
+    'capturar': `🔴 *COMANDO: capturar*\nJoga uma Pokébola no Pokémon selvagem atual.\nA chance aumenta se o HP dele estiver baixo.\n*Custo:* 1 Pokébola (Compre na loja).\n\n*Uso:* !poke capturar`,
+    'curar': `🏥 *COMANDO: curar*\nLeva seus Pokémon para a Enfermeira Joy.\nRecupera 100% do HP e restaura todos os PPs. É de graça!\n\n*Uso:* !poke curar`,
+    'perfil': `👤 *COMANDO: perfil*\nMostra seu cartão de treinador com:\n• Dinheiro (Pokécoins)\n• Insígnias conquistadas\n• Resumo rápido do time\n\n*Uso:* !poke perfil`,
+    'time': `🧢 *COMANDO: time*\nMostra a lista detalhada dos seus 6 Pokémon atuais.\nMostra HP atual, Nível e Tipos.\n\n*Uso:*\n• *!poke time* (Lista simples)\n• *!poke time detalhes* (Mostra Naturezas)`,
+    'mostrar': `📊 *COMANDO: mostrar*\nExibe a ficha completa de um Pokémon específico.\nInclui: Foto, Status (Atk, Def, etc), IVs, Golpes, XP e Item Segurado.\n\n*Uso:* !poke mostrar [número_do_slot]\n*Exemplo:* _!poke mostrar 1_`,
+    'pc': `💻 *COMANDO: pc*\nGerencia seus Pokémon guardados (Box).\nVocê só pode carregar 6 no time. Os capturados extras vão pro PC.\n\n*Uso:*\n• *!poke pc lista* (Vê quem está guardado)\n• *!poke pc [slot_time] [box_pc]* (Troca um do time por um do PC)\n*Exemplo:* _!poke pc 2 1_ (Manda o slot 2 pro PC e pega o 1 do PC)`,
+    'trocar': `🔄 *COMANDO: trocar*\n*Em Batalha:* Troca o Pokémon que está lutando.\n*Fora de Batalha:* Muda a ordem do time.\n\n*Uso:*\n• *!poke trocar 2* (Em batalha: Envia o Pokémon 2)\n• *!poke trocar 1 3* (No menu: O 1º vira o 3º e vice-versa)`,
+    'evoluir': `✨ *COMANDO: evoluir*\nEvolui um Pokémon que já atingiu o nível necessário.\nO bot avisa quando ele pode evoluir.\n\n*Uso:* !poke evoluir [slot]\n*Exemplo:* _!poke evoluir 1_ (Evolui o líder do time)`,
+    'pendentes': `🚨 *COMANDO: pendentes*\nMostra a fila de ataques que seus Pokémon aprenderam ao subir de nível, mas que estão aguardando espaço para serem ensinados.\n\n*Uso:* !poke pendentes`,
+    'ensinar': `💡 *COMANDO: ensinar*\nSubstitui um golpe antigo por um novo que está na fila de espera (ou descarta o novo).\n\n*Uso:*\n!poke ensinar [slot_do_pokemon] [1 a 4 para substituir, ou 0 para descartar]\n*Exemplo:* _!poke ensinar 1 4_ (O Pokémon do slot 1 vai esquecer o golpe 4 e aprender o da fila).`,
+    'daycare': `🏡 *COMANDO: daycare*\nDeixe um Pokémon na creche para ganhar XP passivo enquanto você batalha com outros!\n*Custo:* 200 moedas por nível subido na hora de retirar.\n\n*Uso:*\n• *!poke daycare [slot_do_time]* (Deposita o Pokémon)\n• *!poke daycare ver* (Olha a ficha de quem tá lá)\n• *!poke daycare tirar* (Paga a conta e pega de volta)`,
+    'mochila': `🎒 *COMANDO: mochila*\nAbre o seu inventário para ver poções, TMs e itens de segurar.\n\n*Uso:* !poke mochila`,
+    'usar': `💊 *COMANDO: usar*\nUsa um item do seu inventário em um Pokémon do time.\n\n*Uso:* !poke usar [id_do_item] [slot_do_pokemon]\n*Exemplo:* _!poke usar potion 1_`,
+    'tm': `💿 *COMANDO: tm*\nEnsina um golpe de um TM (Technical Machine) para o seu Pokémon (se ele for compatível, claro).\n\n*Uso:* !poke tm [numero_do_tm] [slot_do_pokemon]\n*Exemplo:* _!poke tm 28 1_ (Ensina o TM28 - Dig para o 1º Pokémon)`,
+    'ginasio': `🏛️ *COMANDO: ginasio*\nAvança na história enfrentando treinadores e Líderes de Ginásio.\nVencer líderes dá Insígnias (que liberam novos Pokémon selvagens) e TMs exclusivos.\n\n*Uso:* !poke ginasio`,
+    'loja': `🏪 *COMANDO: loja*\nCompra itens essenciais.\n\n*Uso:*\n• *!poke loja* (Vê os itens)\n• *!poke comprar [id_item] [quantidade]*`
 };
 
 class PokemonHandler {
@@ -1180,6 +1091,26 @@ class PokemonHandler {
         console.log("✅ Seed Completo (Gen 1, 2 e 3)!");
     }
 
+    async getDaycarePokemon(userId, groupId, sock) {
+        try {
+            const pokeExists = await this.db.get("SELECT id FROM user_pokemons WHERE user_id = ? AND team_slot = 0", [userId]);
+            
+            if (!pokeExists) {
+                throw new Error("EMPTY_DAYCARE");
+            }
+            
+            return await this.showPokemon(groupId, userId, "0", sock);
+            
+        } catch (error) {
+            if (error.message === "EMPTY_DAYCARE") {
+                throw error; 
+            }
+            
+            console.error("[Daycare] Erro ao buscar Pokémon na creche:", error);
+            throw new Error("DAYCARE_DB_ERROR");
+        }
+    }
+
     async checkStatusBeforeMove(battleState, isPlayer, pokeObj, sock, groupId) {
         const targetKey = isPlayer ? 'user' : 'enemy';
         const status = battleState[targetKey + 'Status']; 
@@ -1783,6 +1714,56 @@ class PokemonHandler {
         return `✅ ${count} Pokémon antigos receberam uma natureza aleatória.`;
     }
 
+    //MIGRAR PENDING_MOVES PARA ARRAY JSON
+    async fixPendingMoves(sender) {
+        if (sender !== "5513991008854@s.whatsapp.net") {
+            return "🚫 Acesso negado. Só o Professor Carvalho pode rodar migrações de banco.";
+        }
+
+        const pokemons = await this.db.all("SELECT id, pending_move, nickname FROM user_pokemons WHERE pending_move IS NOT NULL");
+        
+        let countFixed = 0;
+        let countAlreadyOk = 0;
+
+        for (const poke of pokemons) {
+            let pendingValue = poke.pending_move;
+            let needsFix = false;
+            let newArray = [];
+
+            if (typeof pendingValue === 'number') {
+                newArray = [pendingValue];
+                needsFix = true;
+            } else if (typeof pendingValue === 'string') {
+                try {
+                    const parsed = JSON.parse(pendingValue);
+                    
+                    if (!Array.isArray(parsed)) {
+                        newArray = [parsed];
+                        needsFix = true;
+                    } else {
+                        countAlreadyOk++;
+                    }
+                } catch (e) {
+                    const parsedInt = parseInt(pendingValue);
+                    if (!isNaN(parsedInt)) {
+                        newArray = [parsedInt];
+                        needsFix = true;
+                    } else {
+                        newArray = []; 
+                        needsFix = true;
+                    }
+                }
+            }
+
+            if (needsFix) {
+                await this.db.run("UPDATE user_pokemons SET pending_move = ? WHERE id = ?", [JSON.stringify(newArray), poke.id]);
+                countFixed++;
+            }
+        }
+
+        return `🛠️ **MIGRAÇÃO DE GOLPES CONCLUÍDA!**\n\n✅ **${countFixed}** Pokémon tiveram seus golpes convertidos para Array (JSON).\n👍 **${countAlreadyOk}** já estavam no formato correto.\n\nAgora a fila de golpes não vai mais craschar o bot!`;
+    }
+
     getBattleState(encounter, userPoke) {
         let data = encounter.extra_data ? JSON.parse(encounter.extra_data) : {};
         
@@ -1841,10 +1822,19 @@ class PokemonHandler {
     }
 
     async getUserTag(userId) {
-        const user = await this.db.get("SELECT nome, color FROM usuarios WHERE id_usuario = ?", [userId]);
+        const user = await this.db.get("SELECT nome, color, financas FROM usuarios WHERE id_usuario = ?", [userId]);
+        let tituloStr = "Camponês";
+
+        if (user && user.financas) {
+            try {
+                const financas = JSON.parse(user.financas);
+                if (financas.titulo) tituloStr = financas.titulo;
+            } catch(e) {}
+        }
+
         const name = user?.nome || "Treinador";
         const color = user?.color || "👤";
-        return `${color} *${name}*\n\n`;
+        return `${color} *${name}* (_${tituloStr}_)\n\n`;
     }
 
     async changeColor(userId, param) {
@@ -2025,7 +2015,7 @@ class PokemonHandler {
         const tag = await this.getUserTag(userId);
         const slot = parseInt(param);
 
-        if (isNaN(slot) || slot < 1 || slot > 6) {
+        if (isNaN(slot) || slot < 0 || slot > 6) {
             return `${tag}❌ Uso correto: *!poke mostrar [slot]*\nEx: _!poke mostrar 1_ (para ver o primeiro do time)`;
         }
 
@@ -2083,10 +2073,18 @@ class PokemonHandler {
         };
         const statusDisplay = poke.status ? `\n🤕 *Status:* ${statusEmojis[poke.status] || poke.status}` : "";
 
+        // --- ITEM SEGURADO ---
+        let heldItemText = "Nenhum";
+        
+        if (poke.held_item) {
+            const itemDb = await this.db.get("SELECT name FROM items WHERE id = ?", [poke.held_item]);
+            heldItemText = itemDb ? itemDb.name : (poke.held_item || "Nenhum");
+        }
+
         const caption = `${tag}📊 *FICHA TÉCNICA* 📊\n\n` +
                         `${shinyStar} *${poke.nickname.toUpperCase()}* ${typeEmojis}\n` +
                         `🆙 Nível: ${poke.level} | XP: ${poke.exp}\n` +
-                        `🌱 Nature: ${natureText}\n\n` +
+                        `🌱 Nature: ${natureText} | Item: ${heldItemText}\n\n` +
                         `❤️ HP: ${displayHp}/${poke.max_hp} (IV: ${poke.iv_hp})${statusDisplay}\n` + 
                         `⚔️ Atk: ${atk} (IV: ${poke.iv_atk})\n` +
                         `🛡️ Def: ${def} (IV: ${poke.iv_def})\n` +
@@ -2547,7 +2545,7 @@ class PokemonHandler {
         return msg;
     }
 
-    async handleDayCare(userId, param) {
+    async handleDayCare(userId, param, groupId, sock) {
         const tag = await this.getUserTag(userId);
         
         const dayCarePoke = await this.db.get(`
@@ -2570,6 +2568,10 @@ class PokemonHandler {
         }
 
         const action = param.toLowerCase().trim();
+
+        if (action === 'ver'){
+            return await this.getDaycarePokemon(userId, groupId, sock);
+        }
 
         if (action === 'tirar' || action === 'retirar') {
             if (!dayCarePoke) return `${tag}🚫 O Day Care está vazio.`;
@@ -2831,6 +2833,9 @@ class PokemonHandler {
                 if (sender !== ADMIN_ID) return "🔒 Sem permissão.";
                 return await this.giveRetroactiveGymTMs();
 
+            case 'fixpendingmoves': 
+                return await this.fixPendingMoves(sender);
+
             case 'presente':
             case 'gift':
             case 'resgatar':
@@ -2838,7 +2843,7 @@ class PokemonHandler {
                 return await this.claimSpecialGift(sender, args[2], args[3]);
 
             case 'daycare':
-                return await this.handleDayCare(sender, param)
+                return await this.handleDayCare(sender, param, from, sock)
 
             case 'item':
                 return await this.handleItem(sender, param)
@@ -2904,8 +2909,7 @@ class PokemonHandler {
                 await this.db.run("DELETE FROM active_encounters WHERE user_id = ?", [sender]);
                 return "✅ Batalha bugada removida à força.";
 
-            case 'swap':
-            case 'esquecer':
+            case 'ensinar':
                 return await this.learnPendingMove(sender, param);
 
             case 'time':
@@ -4762,6 +4766,76 @@ class PokemonHandler {
         return await this.db.all(`SELECT m.* FROM pokemon_moves pm JOIN moves m ON pm.move_id = m.id WHERE pm.pokemon_id = ? AND pm.level_learned <= ? ORDER BY pm.level_learned DESC LIMIT 4`, [pid, lvl]);
     }
 
+    // Ensina o golpe que está na fila de espera do JSON
+    async learnPendingMove(userId, param) {
+        if (!param || param.trim() === '') {
+            return await this.checkPendingMoves(userId, "🎮 ");
+        }
+
+        const args = param.trim().split(' ');
+        const pokeSlot = parseInt(args[0]);
+        const moveSlotToForget = parseInt(args[1]);
+
+        if (isNaN(pokeSlot) || isNaN(moveSlotToForget)) {
+            let msg = "⚠️ Formato inválido!\nUse: *!poke ensinar [slot_pokemon] [1-4 para substituir, ou 0 para descartar]*\n\n";
+            msg += await this.checkPendingMoves(userId, "");
+            return msg;
+        }
+
+        const userPoke = await this.db.get("SELECT * FROM user_pokemons WHERE user_id = ? AND team_slot = ?", [userId, pokeSlot]);
+
+        if (!userPoke) return `🚫 Você não tem um Pokémon no slot ${pokeSlot} do time.`;
+        if (!userPoke.pending_move || userPoke.pending_move === '[]') return `✅ O ${userPoke.nickname} não tem nenhum golpe na fila de espera.`;
+
+        let pendingArray = [];
+        try {
+            pendingArray = JSON.parse(userPoke.pending_move);
+            if (!Array.isArray(pendingArray)) pendingArray = [userPoke.pending_move];
+        } catch(e) {
+            pendingArray = [userPoke.pending_move];
+        }
+
+        if (pendingArray.length === 0) return `✅ O ${userPoke.nickname} não tem nenhum golpe na fila de espera.`;
+
+        const moveIdToLearn = pendingArray[0]; 
+        const move = await this.db.get("SELECT name, pp FROM moves WHERE id = ?", [moveIdToLearn]);
+        
+        if (!move) {
+            pendingArray.shift();
+            await this.db.run("UPDATE user_pokemons SET pending_move = ? WHERE id = ?", [JSON.stringify(pendingArray), userPoke.id]);
+            return "❌ Esse golpe não existe mais! Ele foi removido da sua fila.";
+        }
+
+        if (moveSlotToForget === 0) {
+            pendingArray.shift();
+            
+            const newPendingState = pendingArray.length > 0 ? JSON.stringify(pendingArray) : null;
+            await this.db.run("UPDATE user_pokemons SET pending_move = ? WHERE id = ?", [newPendingState, userPoke.id]);
+            
+            return `⏭️ **${userPoke.nickname}** descartou o golpe *${move.name}*.\n_(Restam ${pendingArray.length} golpes na fila deste Pokémon)_`;
+        }
+
+        if (moveSlotToForget < 1 || moveSlotToForget > 4) {
+            return "⚠️ Escolha um slot de ataque válido de 1 a 4 para esquecer (ou 0 para descartar o golpe novo).";
+        }
+
+        const currentMoveId = userPoke[`move${moveSlotToForget}`];
+        const oldMoveName = currentMoveId ? (await this.db.get("SELECT name FROM moves WHERE id = ?", [currentMoveId]))?.name : 'Espaço Vazio';
+
+        await this.db.run(
+            `UPDATE user_pokemons SET move${moveSlotToForget} = ?, move${moveSlotToForget}_pp = ? WHERE id = ?`, 
+            [moveIdToLearn, move.pp, userPoke.id]
+        );
+
+        pendingArray.shift(); 
+        
+        const newPendingState = pendingArray.length > 0 ? JSON.stringify(pendingArray) : null;
+        await this.db.run("UPDATE user_pokemons SET pending_move = ? WHERE id = ?", [newPendingState, userPoke.id]);
+
+        return `✨ **1, 2 e... PUF!**\n**${userPoke.nickname}** esqueceu como usar *${oldMoveName}* e aprendeu **${move.name}**!\n_(Restam ${pendingArray.length} golpes na fila deste Pokémon)_`;
+    }
+
+
     // Tenta ensinar um golpe
     async attemptLearnMove(userPoke, moveId) {
         const currentMoves = [userPoke.move1, userPoke.move2, userPoke.move3, userPoke.move4];
@@ -4776,30 +4850,84 @@ class PokemonHandler {
 
         if (emptyIndex !== -1) {
             await this.db.run(`UPDATE user_pokemons SET move${emptyIndex + 1} = ? WHERE id = ?`, [moveId, userPoke.id]);
-            
             userPoke[`move${emptyIndex + 1}`] = moveId; 
             
-            return { success: true, learned: true, moveName: move.name, msg: `aprendeu *${move.name}*!` };
+            return { success: true, learned: true, moveName: move.name, msg: `**${userPoke.nickname}** aprendeu *${move.name}*!` };
         } else {
-            // Vai para pending_move
-            await this.db.run(`UPDATE user_pokemons SET pending_move = ? WHERE id = ?`, [moveId, userPoke.id]);
+            let pendingArray = [];
+            if (userPoke.pending_move) {
+                try {
+                    pendingArray = typeof userPoke.pending_move === 'string' ? JSON.parse(userPoke.pending_move) : [userPoke.pending_move];
+                    if (!Array.isArray(pendingArray)) pendingArray = [userPoke.pending_move];
+                } catch (e) {
+                    pendingArray = [userPoke.pending_move];
+                }
+            }
             
-            userPoke.pending_move = moveId;
+            if (!pendingArray.includes(moveId)) {
+                pendingArray.push(moveId);
+            }
+
+            const pendingStr = JSON.stringify(pendingArray);
+            await this.db.run(`UPDATE user_pokemons SET pending_move = ? WHERE id = ?`, [pendingStr, userPoke.id]);
+            userPoke.pending_move = pendingStr;
 
             return { 
                 success: true, 
                 learned: false, 
                 pending: true, 
                 moveName: move.name, 
-                msg: `quer aprender *${move.name}*, mas já tem 4 golpes. Use *!poke esquecer [1-4]*!` 
+                msg: `**${userPoke.nickname}** quer aprender *${move.name}*, mas já tem 4 golpes!` 
             };
         }
     }
 
+    // Painel de Controle de Golpes Pendentes
+    async checkPendingMoves(userId, userTag) {
+        const pokes = await this.db.all(`SELECT id, nickname, team_slot, pending_move FROM user_pokemons WHERE user_id = ? AND pending_move IS NOT NULL AND pending_move != '[]'`, [userId]);
+        
+        if (!pokes || pokes.length === 0) {
+            return `${userTag}✅ Nenhum Pokémon seu está tentando aprender golpes no momento.`;
+        }
+
+        let msg = `${userTag}🚨 **POKÉMONS AGUARDANDO NOVOS GOLPES:** 🚨\n\n`;
+
+        for (const p of pokes) {
+            let pendingArray = [];
+            try {
+                pendingArray = JSON.parse(p.pending_move);
+                if (!Array.isArray(pendingArray)) pendingArray = [p.pending_move];
+            } catch(e) {
+                pendingArray = [p.pending_move];
+            }
+
+            const slotDisplay = p.team_slot > 0 && p.team_slot <= 6 ? `Time Principal (Slot ${p.team_slot})` : `No PC`;
+            msg += `🔹 **${p.nickname}** _[${slotDisplay}]_\n`;
+            
+
+            for (let i = 0; i < pendingArray.length; i++) {
+                const moveDb = await this.db.get("SELECT name FROM moves WHERE id = ?", [pendingArray[i]]);
+                msg += `   Fila [${i+1}]: Quer aprender *${moveDb ? moveDb.name : '???'}*\n`;
+            }
+            
+            msg += `   _Comando:_ *!poke ensinar ${p.team_slot} [1-4 para substituir ou 0 para ignorar]*\n\n`;
+        }
+
+        return msg;
+    }
+
     async gainExperience(userPoke, enemy, enemyLevel, splitFactor = 1, multiplier, userId) {
+        let pendingArray = [];
         if (userPoke.pending_move) {
-            const moveName = (await this.db.get("SELECT name FROM moves WHERE id = ?", [userPoke.pending_move]))?.name;
-            return `⚠️ ${userPoke.nickname} ainda está tentando aprender *${moveName}*!\nUse *!poke esquecer [1-4]* ou *!poke ignorar*.`;
+            try {
+                pendingArray = typeof userPoke.pending_move === 'string' ? JSON.parse(userPoke.pending_move) : [userPoke.pending_move];
+                if (!Array.isArray(pendingArray)) pendingArray = [userPoke.pending_move];
+            } catch (e) { pendingArray = [userPoke.pending_move]; }
+        }
+
+        if (pendingArray.length > 0) {
+            const moveName = (await this.db.get("SELECT name FROM moves WHERE id = ?", [pendingArray[0]]))?.name;
+            return `⚠️ **${userPoke.nickname}** ainda está tentando aprender *${moveName}*!\nUse *!poke pendentes* para ver e resolver.`;
         }
 
         let lvl = userPoke.level;
@@ -5036,34 +5164,6 @@ class PokemonHandler {
         }
 
         return null;
-    }
-
-    async learnPendingMove(userId, choice) {
-        const userPoke = await this.db.get("SELECT * FROM user_pokemons WHERE user_id = ? AND pending_move IS NOT NULL", [userId]);
-        
-        if (!userPoke) return "🤷 Não tem nenhum Pokémon querendo aprender golpe agora.";
-
-        const newMove = await this.db.get("SELECT name FROM moves WHERE id = ?", [userPoke.pending_move]);
-
-        if (choice === 'ignorar' || choice === 'cancelar') {
-            await this.db.run("UPDATE user_pokemons SET pending_move = NULL WHERE id = ?", [userPoke.id]);
-            return `💨 ${userPoke.nickname} desistiu de aprender *${newMove.name}*.`;
-        }
-
-        const slot = parseInt(choice);
-        if (isNaN(slot) || slot < 1 || slot > 4) {
-            return "🚫 Escolha um slot de 1 a 4. Ex: *!poke trocar 1*";
-        }
-
-        const oldMoveId = userPoke[`move${slot}`];
-        const oldMoveName = await this.getMoveName(oldMoveId);
-
-        await this.db.run(
-            `UPDATE user_pokemons SET move${slot} = ?, pending_move = NULL WHERE id = ?`, 
-            [userPoke.pending_move, userPoke.id]
-        );
-
-        return `✅ ${userPoke.nickname} esqueceu *${oldMoveName}* e aprendeu *${newMove.name}*!`;
     }
 
     async getMoveName(moveId) {

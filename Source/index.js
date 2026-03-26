@@ -987,57 +987,52 @@ async function connectToWhatsApp() {
             }
         };
 
-        // Função de normalização de menções
         const getNormalizedMentions = async (sock, from, msg) => {
             const normalized = [];
-            
             const messageContent = msg.message?.extendedTextMessage || 
-                                msg.message?.imageMessage || 
-                                msg.message?.videoMessage ||
-                                msg.message?.conversation;
-                                
+                                 msg.message?.imageMessage || 
+                                 msg.message?.videoMessage ||
+                                 msg.message?.conversation;
             const contextInfo = messageContent?.contextInfo;
 
             if (contextInfo?.participant) {
-                const quotedJid = jidNormalizedUser(contextInfo.participant);
-                if (quotedJid.includes('@s.whatsapp.net')) {
-                    normalized.push(quotedJid);
-                }
+                let pJid = jidNormalizedUser(contextInfo.participant);
+                if (pJid.includes(':')) pJid = pJid.split(':')[0] + '@s.whatsapp.net';
+                normalized.push(pJid);
             }
 
             const rawMentions = contextInfo?.mentionedJid || [];
             
-            const phones = rawMentions.filter(jid => jid.includes('@s.whatsapp.net'));
-            const lids = rawMentions.filter(jid => jid.includes('@lid'));
-            
-            normalized.push(...phones);
-
-            if (lids.length > 0 && from.endsWith('@g.us')) {
+            if (from.endsWith('@g.us')) {
                 try {
                     const groupMetadata = await sock.groupMetadata(from);
                     const participants = groupMetadata.participants || [];
 
-                    lids.forEach(targetLid => {
-                        const found = participants.find(p => 
-                            p.id === targetLid || 
-                            (p.id && targetLid.includes(p.id)) ||
-                            (p.lid && p.lid === targetLid)
-                        );
+                    for (const mJid of rawMentions) {
+                        let cleanM = jidNormalizedUser(mJid);
+                        
+                        if (cleanM.includes('@lid')) {
+                            const found = participants.find(p => p.id === cleanM || p.lid === cleanM);
+                            if (found) {
+                                let realNumber = found.id.includes('@s.whatsapp.net') ? found.id : null;
+                                
+                                if (!realNumber && found.id.includes(':')) {
+                                    realNumber = found.id.split(':')[0] + '@s.whatsapp.net';
+                                }
 
-                        if (found) {
-                            const realNumber = found.phoneNumber || found.id;
-                            
-                            if (realNumber && realNumber.includes('@s.whatsapp.net')) {
-                                normalized.push(realNumber);
+                                if (realNumber) normalized.push(realNumber);
                             }
+                        } else {
+                            if (cleanM.includes(':')) cleanM = cleanM.split(':')[0] + '@s.whatsapp.net';
+                            normalized.push(cleanM);
                         }
-                    });
+                    }
                 } catch (error) {
-                    console.error("❌ Erro ao buscar metadados:", error);
+                    console.error("❌ Erro ao normalizar menções:", error);
                 }
             }
 
-            return [...new Set(normalized)];
+            return [...new Set(normalized)].filter(j => j.includes('@s.whatsapp.net'));
         };
 
         /*try {

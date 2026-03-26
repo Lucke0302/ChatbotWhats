@@ -507,11 +507,14 @@ class CasinoHandler {
 
                 for (const p of participants) {
                     let pId = p.id;
+                    
                     if (pId.includes(':')) {
                         pId = pId.split(':')[0] + '@s.whatsapp.net';
                     }
-                    
-                    if (exceptions.includes(pId)) {
+
+                    const isException = exceptions.includes(pId) || (p.lid && exceptions.includes(p.lid));
+
+                    if (isException) {
                         ignorados++;
                         continue;
                     }
@@ -519,15 +522,15 @@ class CasinoHandler {
                     await this.db.run(`INSERT OR IGNORE INTO usuarios (id_usuario, nome, banido_ate, uso_ia_diario, data_ultimo_uso, anotacoes) VALUES (?, 'Anônimo', 0, 0, '', '')`, [pId]);
                     await this.db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [amount, pId]);
                     count++;
-                }
+            }
 
-                let msg = `${senderTag}🚁 **MAMATA ESTATAL (SILVIO SANTOS JURÁSSICO)** 🚁\nO Banco Central imprimiu e distribuiu 🪙 **${amount} Bostocoins** para ${count} membros do grupo!`;
-                
-                if (ignorados > 0) {
-                    msg += `\n\n🚫 _Atenção: ${ignorados} pessoa(s) sofreram sanções do governo e ficaram de fora do auxílio!_`;
-                }
+            let msg = `${senderTag}🚁 **MAMATA ESTATAL (SILVIO SANTOS JURÁSSICO)** 🚁\nO Banco Central imprimiu e distribuiu 🪙 **${amount} Bostocoins** para ${count} membros do grupo!`;
+            
+            if (ignorados > 0) {
+                msg += `\n\n🚫 _Atenção: ${ignorados} pessoa(s) sofreram sanções do governo e ficaram de fora do auxílio!_`;
+            }
 
-                return msg;
+            return msg;
 
             } catch (e) {
                 console.error("Erro ao dar moedas para todos:", e);

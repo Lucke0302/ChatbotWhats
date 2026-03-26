@@ -302,7 +302,7 @@ class CasinoHandler {
 
         if (daysPassed > 0 && financas.investimento.montante > 0) {
             for(let i = 0; i < daysPassed; i++) {
-                financas.investimento.montante = Math.floor(financas.investimento.montante * 1.20);
+                financas.investimento.montante = Math.floor(financas.investimento.montante * 1.10);
             }
             financas.investimento.ultimo_rendimento += (daysPassed * 86400);
             await this.db.run("UPDATE usuarios SET financas = ? WHERE id_usuario = ?", [JSON.stringify(financas), userId]);
@@ -347,7 +347,7 @@ class CasinoHandler {
         const balance = await this.getBalance(userId);
 
         if (!action || action === 'ver') {
-            return `${userTag}📈 **FUNDO IMOBILIÁRIO DO BOSTOSSAURO** 📈\n_Rendimento: 20% ao dia (Juros Compostos)_\n\n💰 **Investido:** 🪙 ${financas.investimento.montante}\n🏦 **Saldo na carteira:** 🪙 ${balance}\n\n_Use !investir depositar [valor] ou !investir sacar [valor]_`;
+            return `${userTag}📈 **FUNDO IMOBILIÁRIO DO BOSTOSSAURO** 📈\n_Rendimento: 10% ao dia (Juros Compostos)_\n\n💰 **Investido:** 🪙 ${financas.investimento.montante}\n🏦 **Saldo na carteira:** 🪙 ${balance}\n\n_Use !investir depositar [valor] ou !investir sacar [valor]_`;
         }
 
         const amount = parseInt(amountStr);

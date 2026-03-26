@@ -608,6 +608,12 @@ const botCommands = {
     '!cotacao': {
         emoji: '💵'
     },
+    '!emprestimo': {
+        emoji: '📉'
+    },
+    '!investir': {
+        emoji: '📈'
+    },
     '!ajuda': { 
         emoji: '🆘' 
     },

@@ -92,8 +92,8 @@ const RARITY_MULTIPLIER = {
     'mitico': 1000
 };
 
-const MAX_BAITS = 6;
-const BAIT_REGEN_HOURS = 4;
+const MAX_BAITS = 10;
+const BAIT_REGEN_HOURS = 2;
 const BAIT_REGEN_SECONDS = BAIT_REGEN_HOURS * 3600;
 
 class PescariaHandler {

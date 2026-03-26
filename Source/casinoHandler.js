@@ -424,20 +424,24 @@ class CasinoHandler {
 
     async handleTitulos(userId, userTag, param, groupId) {
         const TITULOS = {
-            '1': { name: 'Faria Limer 🛴', price: 10000 },
-            '2': { name: 'Herdeiro(a) 💶', price: 15000 },
-            '3': { name: 'Chefe do Camarote 🍾', price: 20000 },
-            '4': { name: 'Primo(a) Rico(a) 🍎', price: 25000 },
-            '5': { name: 'Agiota Jurássico(a) 🦖', price: 50000 },
-            '6': { name: 'Membro do PCC (Primeiro Comando do Cassino) 🎲', price: 100000 }
+            '1': { name: 'Dev Pleno(a) 🪙', price: 2000 },
+            '2': { name: 'Dev Sênior 💵', price: 5000 },
+            '3': { name: 'Faria Limer 🛴', price: 10000 },
+            '4': { name: 'Herdeiro(a) 💶', price: 15000 },
+            '5': { name: 'Chefe do Camarote 🍾', price: 20000 },
+            '6': { name: 'Primo(a) Rico(a) 🍎', price: 25000 },
+            '7': { name: 'Agiota Jurássico(a) 🦖', price: 50000 },
+            '8': { name: 'Membro do PCC (Primeiro Comando do Cassino) 🎲', price: 75000 }
         };
 
         if (groupId === '120363422139578370@g.us') { 
-            TITULOS['7'] = { name: 'Matador de Fabio Brito 🔪', price: 100000 };
-            TITULOS['8'] = { name: 'Monarca da Cúpula 👑', price: 100000 };
+            const total = Object.keys(TITULOS).length;
+            TITULOS[String(total+1)] = { name: 'Matador de Fabio Brito 🔪', price: 100000 };
+            TITULOS[String(total+2)] = { name: 'Monarca da Cúpula 👑', price: 125000 };
         } 
         else if (groupId === '120363106038442674@g.us') {
-            TITULOS['7'] = { name: 'Discípulo Mestre 🧙‍♂️', price: 100000 };
+            const total = Object.keys(TITULOS).length;
+            TITULOS[String(total+1)] = { name: 'Discípulo Mestre 🧙‍♂️', price: 100000 };
         }
 
         const args = param ? param.trim().split(' ') : [];

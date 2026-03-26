@@ -60,7 +60,7 @@ class CasinoHandler {
             await this.updateBalance(userId, win - bet);
             return msg + `🏆 **JACKPOT!** Você tirou 3 iguais e ganhou 🪙 ${win} Bostocoins!`;
         } else if (r1 === r2 || r2 === r3 || r1 === r3) {
-            const win = Math.floor(bet * 1.5);
+            const win = Math.floor(bet * 1.4);
             await this.updateBalance(userId, win - bet);
             return msg + `✨ **QUASE!** Deu parzinho. Você ganhou 🪙 ${win} Bostocoins.`;
         } else {
@@ -84,7 +84,7 @@ class CasinoHandler {
 
         if (won) {
             await this.updateBalance(userId, bet);
-            return msg + `🎉 Você acertou e ganhou 🪙 ${bet * 2} Bostocoins!`;
+            return msg + `🎉 Você acertou e ganhou 🪙 ${bet * 1.8} Bostocoins!`;
         } else {
             await this.updateBalance(userId, -bet);
             return msg + `💸 Você errou e perdeu 🪙 ${bet} Bostocoins.`;
@@ -96,7 +96,7 @@ class CasinoHandler {
         const balance = await this.getBalance(userId);
         if (isNaN(bet) || bet <= 0) return `${userTag}⚠️ Valor inválido. Ex: *!cassino roleta vermelho 100* \nVocê tem ${balance} Bostocoins!`;
         const choices = ['vermelho', 'preto', 'verde'];
-        if (!choices.includes(colorChoice)) return `${userTag}⚠️ Escolha uma cor: vermelho (2x), preto (2x) ou verde (14x).`;
+        if (!choices.includes(colorChoice)) return `${userTag}⚠️ Escolha uma cor: vermelho (2x), preto (2x) ou verde (12x).`;
 
         if (balance < bet) return `${userTag}❌ Sem saldo! Você tem 🪙 ${balance} Bostocoins.`;
 
@@ -111,7 +111,7 @@ class CasinoHandler {
         let msg = `${userTag}🎡 A roleta girou e parou no ${emoji} **${resultColor.toUpperCase()}**!\n\n`;
 
         if (colorChoice === resultColor) {
-            const multiplier = resultColor === 'verde' ? 14 : 2;
+            const multiplier = resultColor === 'verde' ? 12 : 2;
             const win = bet * multiplier;
             await this.updateBalance(userId, win - bet);
             return msg + `💰 **VITÓRIA!** Você multiplicou sua aposta por ${multiplier}x e ganhou 🪙 ${win} Bostocoins!`;
@@ -302,11 +302,20 @@ class CasinoHandler {
 
         if (daysPassed > 0 && financas.investimento.montante > 0) {
             for(let i = 0; i < daysPassed; i++) {
-                financas.investimento.montante = Math.floor(financas.investimento.montante * 1.10);
+                let m = financas.investimento.montante;
+                let yieldAmount = 0;
+
+                if (m > 5000) {
+                    yieldAmount += (m - 5000) * 0.02;
+                } else if (m > 3000) {
+                    yieldAmount += (m - 3000) * 0.05;
+                } else {
+                    yieldAmount += m * 0.10;
+                }
+
+                financas.investimento.montante += Math.floor(yieldAmount);
             }
-            financas.investimento.ultimo_rendimento += (daysPassed * 86400);
-            await this.db.run("UPDATE usuarios SET financas = ? WHERE id_usuario = ?", [JSON.stringify(financas), userId]);
-        } else if (daysPassed > 0) {
+
             financas.investimento.ultimo_rendimento += (daysPassed * 86400);
             await this.db.run("UPDATE usuarios SET financas = ? WHERE id_usuario = ?", [JSON.stringify(financas), userId]);
         }
@@ -346,27 +355,42 @@ class CasinoHandler {
         let financas = await this.processFinancas(userId);
         const balance = await this.getBalance(userId);
 
+        // Dicionário de Empresas da Bolsa de Valores do Bostossauro 
+        const portfolio = [
+            "ações da **McBostossauro** 🍔",
+            "títulos da **Bostobrás** 🛢️",
+            "franquias do **BostoKing** 👑",
+            "cotas da **Bostway** (Esquema de Pirâmide) 🔺",
+            "criptomoedas da **BostoCrypto** 🪙",
+            "ações da **Dinoflix** 🎬",
+            "fundos do **JurassiCred** 🏦",
+            "assinaturas do **OnlySaurs** 🦖💅",
+            "cotas do **Açougue do T-Rex** 🥩",
+            "ações da **Viação Pterodáctilo** ✈️"
+        ];
+        const ativoSorteado = portfolio[Math.floor(Math.random() * portfolio.length)];
+
         if (!action || action === 'ver') {
-            return `${userTag}📈 **FUNDO IMOBILIÁRIO DO BOSTOSSAURO** 📈\n_Rendimento: 10% ao dia (Juros Compostos)_\n\n💰 **Investido:** 🪙 ${financas.investimento.montante}\n🏦 **Saldo na carteira:** 🪙 ${balance}\n\n_Use !investir depositar [valor] ou !investir sacar [valor]_`;
+            return `${userTag}📈 **BOLSA DE VALORES JURÁSSICA** 📈\n_Rendimento: 10% ao dia (Juros Compostos)_\n\n💰 **Investido:** 🪙 ${financas.investimento.montante}\n📊 **Portfólio atual:** ${ativoSorteado}\n🏦 **Saldo na carteira:** 🪙 ${balance}\n\n_Use !investir depositar [valor] ou !investir sacar [valor]_`;
         }
 
         const amount = parseInt(amountStr);
-        if (isNaN(amount) || amount <= 0) return `${userTag}⚠️ Digite um valor válido.`;
+        if (isNaN(amount) || amount <= 0) return `${userTag}⚠️ Digite um valor válido. O Lobo de Wall Street chora com você.`;
 
         if (action === 'depositar') {
             if (balance < amount) return `${userTag}❌ Você não tem tudo isso! Saldo: 🪙 ${balance}`;
             await this.updateBalance(userId, -amount);
             financas.investimento.montante += amount;
             await this.db.run("UPDATE usuarios SET financas = ? WHERE id_usuario = ?", [JSON.stringify(financas), userId]);
-            return `${userTag}📈 **INVESTIMENTO REALIZADO!**\nVocê aplicou 🪙 ${amount}.\nSeu montante agora é 🪙 ${financas.investimento.montante} e já está rendendo 10% ao dia!`;
+            return `${userTag}📈 **COMPRA EXECUTADA!**\nVocê aplicou 🪙 ${amount} em ${ativoSorteado}.\nSeu montante agora é 🪙 ${financas.investimento.montante} e já está rendendo 10% ao dia!`;
         }
 
         if (action === 'sacar') {
-            if (financas.investimento.montante < amount) return `${userTag}❌ Você só tem 🪙 ${financas.investimento.montante} investidos!`;
+            if (financas.investimento.montante < amount) return `${userTag}❌ Você só tem 🪙 ${financas.investimento.montante} investidos! O mercado não imprime dinheiro (ainda).`;
             financas.investimento.montante -= amount;
             await this.updateBalance(userId, amount);
             await this.db.run("UPDATE usuarios SET financas = ? WHERE id_usuario = ?", [JSON.stringify(financas), userId]);
-            return `${userTag}💵 **SAQUE REALIZADO!**\nVocê sacou 🪙 ${amount}. O dinheiro já está na sua carteira.`;
+            return `${userTag}💵 **LUCRO REALIZADO!**\nVocê vendeu ${ativoSorteado} e sacou 🪙 ${amount}. O dinheiro já está na sua carteira.`;
         }
 
         return `${userTag}⚠️ Ação inválida. Use depositar ou sacar.`;
@@ -396,6 +420,62 @@ class CasinoHandler {
         await this.db.run("UPDATE usuarios SET financas = ? WHERE id_usuario = ?", [JSON.stringify(financas), userId]);
 
         return `${userTag}🤝 **PACTO SELADO!**\nO Bostossauro depositou 🪙 ${amount} na sua carteira.\n📝 **Sua dívida agora é de 🪙 ${debt}** (Taxa de 20%).\n_Lembre-se: 30% de todo seu suor agora é meu!_`;
+    }
+
+    async handleTitulos(userId, userTag, param, groupId) {
+        const TITULOS = {
+            '1': { name: 'Faria Limer 🛴', price: 10000 },
+            '2': { name: 'Herdeiro(a) 💶', price: 15000 },
+            '3': { name: 'Chefe do Camarote 🍾', price: 20000 },
+            '4': { name: 'Primo(a) Rico(a) 🍎', price: 25000 },
+            '5': { name: 'Agiota Jurássico(a) 🦖', price: 50000 },
+            '6': { name: 'Membro do PCC (Primeiro Comando do Cassino) 🎲', price: 100000 }
+        };
+
+        if (groupId === '120363422139578370@g.us') { 
+            TITULOS['7'] = { name: 'Matador de Fabio Brito 🔪', price: 100000 };
+            TITULOS['8'] = { name: 'Monarca da Cúpula 👑', price: 100000 };
+        } 
+        else if (groupId === '120363106038442674@g.us') {
+            TITULOS['7'] = { name: 'Discípulo Mestre 🧙‍♂️', price: 100000 };
+        }
+
+        const args = param ? param.trim().split(' ') : [];
+        const action = args[0] ? args[0].toLowerCase() : 'loja';
+
+        let financas = await this.processFinancas(userId);
+        const balance = await this.getBalance(userId);
+
+        if (action === 'loja') {
+            let msg = `${userTag}👑 **CARTÓRIO DE TÍTULOS DE NOBREZA** 👑\n_Gaste seu dinheiro com ego! Não dá vantagem nenhuma, mas fica bonito no nome._\n\n`;
+            for (const [id, t] of Object.entries(TITULOS)) {
+                msg += `*[ ${id} ]* **${t.name}** ➝ 🪙 ${t.price}\n`;
+            }
+            msg += `\n🛒 Para comprar: *!titulo comprar [numero]*`;
+            return msg;
+        }
+
+        if (action === 'comprar') {
+            const id = args[1];
+            if (!TITULOS[id]) return `${userTag}❌ Título não encontrado. Use *!titulo loja*.`;
+            
+            const tituloObj = TITULOS[id];
+            
+            if (balance < tituloObj.price) return `${userTag}💸 Vai parcelar o ego no carnê? Você precisa de 🪙 ${tituloObj.price} Bostocoins.`;
+
+            await this.updateBalance(userId, -tituloObj.price);
+            
+            financas.titulo = tituloObj.name;
+            await this.db.run("UPDATE usuarios SET financas = ? WHERE id_usuario = ?", [JSON.stringify(financas), userId]);
+
+            return `${userTag}🥂 **PARABÉNS, VOCÊ É UM(A) NOBRE AGORA!**\nSua nova alcunha é: **${tituloObj.name}**\nO Bostossauro agradece a sua doação voluntária para a redução da inflação.`;
+        }
+        
+        if (action === 'remover') {
+            financas.titulo = null;
+            await this.db.run("UPDATE usuarios SET financas = ? WHERE id_usuario = ?", [JSON.stringify(financas), userId]);
+            return `${userTag}🧹 Título removido. Você voltou a ser um camponês comum.`;
+        }
     }
 
     // Atualiza o Show Balance para mostrar os acumulados

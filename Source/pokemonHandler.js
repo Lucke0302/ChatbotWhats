@@ -269,134 +269,45 @@ Use *!poke ajuda [comando]* para saber mais detalhes.
 🏥 *GERENCIAMENTO*
 • *perfil* ➝ Ver dinheiro, insígnias e itens.
 • *time* (ou team) ➝ Ver seus 6 Pokémon atuais.
-• *mostrar* (ou info) ➝ Ver ficha técnica (IVs, Status, Golpes).
+• *mostrar* (ou info) ➝ Ver ficha técnica (IVs, Status, Golpes, Itens).
 • *curar* (ou heal) ➝ Restaurar HP e PP (Grátis).
 • *pc* ➝ Guardar/Pegar Pokémon da caixa.
 • *trocar* (ou switch) ➝ Mudar ordem do time ou Pokémon ativo.
 
 💪 *EVOLUÇÃO E TREINO*
 • *evoluir* (ou evolve) ➝ Transformar seu Pokémon.
-• *esquecer* ➝ Trocar golpes aprendidos.
+• *pendentes* ➝ Ver a fila de golpes novos aguardando para serem aprendidos.
+• *ensinar* ➝ Substituir um golpe antigo por um novo da fila.
+• *daycare* ➝ Deixar um Pokémon na creche ganhando XP passivo.
+
+🎒 *ITENS E MOCHILA*
+• *mochila* (ou bag) ➝ Ver seus itens (TMs, Poções, Itens de Segurar).
+• *usar* (ou use) ➝ Usar um item em um Pokémon.
+• *tm* ➝ Ensinar um TM para o seu Pokémon.
 
 🏛️ *PROGRESSO*
 • *ginasio* (ou gym) ➝ Desafiar líderes e ganhar insígnias.
 • *loja* (ou shop) ➝ Comprar itens.`,
 
-    'comecar': `🌱 *COMANDO: comecar*
-Inicia sua jornada no mundo Pokémon.
-Você poderá escolher entre os iniciais de Kanto (Gen 1), Johto (Gen 2) e Hoenn (Gen 3).
-
-*Uso:* !poke comecar
-🔹 *Aliases:* start, escolher, choose`,
-
-    'explorar': `🌿 *COMANDO: explorar*
-Procura um Pokémon selvagem ou um treinador para batalhar.
-A raridade e o nível dos inimigos aumentam conforme suas insígnias.
-
-*Uso:* !poke explorar
-🔹 *Aliases:* hunt`,
-
-    'atacar': `⚔️ *COMANDO: atacar*
-Usa um dos seus golpes durante a batalha.
-
-*Uso:*
-• *!poke atacar* (Mostra a lista de golpes)
-• *!poke atacar 1* (Usa o primeiro golpe)
-• *!poke atacar 2* (Usa o segundo golpe)
-🔹 *Aliases:* attacks, moves, golpes`,
-
-    'capturar': `🔴 *COMANDO: capturar*
-Joga uma Pokébola no Pokémon selvagem atual.
-A chance aumenta se o HP dele estiver baixo.
-*Custo:* 1 Pokébola (Compre na loja).
-
-*Uso:* !poke capturar
-🔹 *Aliases:* catch, ball`,
-
-    'curar': `🏥 *COMANDO: curar*
-Leva seus Pokémon para a Enfermeira Joy.
-Recupera 100% do HP e restaura todos os PPs. É de graça!
-
-*Uso:* !poke curar
-🔹 *Aliases:* heal, nurse`,
-
-    'perfil': `👤 *COMANDO: perfil*
-Mostra seu cartão de treinador com:
-• Dinheiro (Pokécoins)
-• Itens (Bolas, Poções)
-• Insígnias conquistadas
-• Resumo rápido do time
-
-*Uso:* !poke perfil
-🔹 *Aliases:* profile, box`,
-
-    'time': `🧢 *COMANDO: time*
-Mostra a lista detalhada dos seus 6 Pokémon atuais.
-Mostra HP atual, Nível e Tipos.
-
-*Uso:*
-• *!poke time* (Lista simples)
-• *!poke time detalhes* (Mostra Naturezas)
-🔹 *Aliases:* team`,
-
-    'mostrar': `📊 *COMANDO: mostrar*
-Exibe a ficha completa de um Pokémon específico.
-Inclui: Foto, Status (Atk, Def, etc), IVs, Golpes e XP.
-
-*Uso:* !poke mostrar [número_do_slot]
-*Exemplo:* _!poke mostrar 1_
-🔹 *Aliases:* show, info, stats, analisar`,
-
-    'pc': `💻 *COMANDO: pc*
-Gerencia seus Pokémon guardados (Box).
-Você só pode carregar 6 no time. Os capturados extras vão pro PC.
-
-*Uso:*
-• *!poke pc lista* (Vê quem está guardado)
-• *!poke pc [slot_time] [box_pc]* (Troca um do time por um do PC)
-*Exemplo:* _!poke pc 2 1_ (Manda o slot 2 pro PC e pega o 1 do PC)
-🔹 *Aliases:* storage`,
-
-    'trocar': `🔄 *COMANDO: trocar*
-*Em Batalha:* Troca o Pokémon que está lutando.
-*Fora de Batalha:* Muda a ordem do time.
-
-*Uso:*
-• *!poke trocar 2* (Em batalha: Envia o Pokémon 2)
-• *!poke trocar 1 3* (No menu: O 1º vira o 3º e vice-versa)
-🔹 *Aliases:* switch`,
-
-    'evoluir': `✨ *COMANDO: evoluir*
-Evolui um Pokémon que já atingiu o nível necessário.
-O bot avisa quando ele pode evoluir.
-
-*Uso:* !poke evoluir [slot]
-*Exemplo:* _!poke evoluir 1_ (Evolui o líder do time)
-🔹 *Aliases:* evolve`,
-
-    'esquecer': `💡 *COMANDO: esquecer*
-Quando seu Pokémon aprende um golpe novo e já tem 4, você precisa escolher qual esquecer.
-
-*Uso:*
-• *!poke esquecer 1* (Substitui o golpe 1 pelo novo)
-• *!poke ignorar* (Desiste de aprender o novo golpe)
-🔹 *Aliases:* swap`,
-
-    'ginasio': `🏛️ *COMANDO: ginasio*
-Avança na história enfrentando treinadores e Líderes de Ginásio.
-Vencer líderes dá Insígnias (que liberam novos Pokémon selvagens) e muito dinheiro.
-
-*Uso:* !poke ginasio
-🔹 *Aliases:* gym, historia`,
-
-    'loja': `🏪 *COMANDO: loja*
-Compra itens essenciais.
-
-*Uso:*
-• *!poke loja* (Vê os itens)
-• *!poke comprar [id_item] [quantidade]*
-*Exemplo:* _!poke comprar 1 10_ (Compra 10 Pokébolas)
-🔹 *Aliases:* shop, mart, buy, comprar`
+    'comecar': `🌱 *COMANDO: comecar*\nInicia sua jornada no mundo Pokémon.\nVocê poderá escolher entre os iniciais de Kanto (Gen 1), Johto (Gen 2) e Hoenn (Gen 3).\n\n*Uso:* !poke comecar`,
+    'explorar': `🌿 *COMANDO: explorar*\nProcura um Pokémon selvagem ou um treinador para batalhar.\nA raridade e o nível dos inimigos aumentam conforme suas insígnias.\n\n*Uso:* !poke explorar`,
+    'atacar': `⚔️ *COMANDO: atacar*\nUsa um dos seus golpes durante a batalha.\n\n*Uso:*\n• *!poke atacar* (Mostra a lista de golpes)\n• *!poke atacar 1* (Usa o primeiro golpe)\n• *!poke atacar 2* (Usa o segundo golpe)`,
+    'capturar': `🔴 *COMANDO: capturar*\nJoga uma Pokébola no Pokémon selvagem atual.\nA chance aumenta se o HP dele estiver baixo.\n*Custo:* 1 Pokébola (Compre na loja).\n\n*Uso:* !poke capturar`,
+    'curar': `🏥 *COMANDO: curar*\nLeva seus Pokémon para a Enfermeira Joy.\nRecupera 100% do HP e restaura todos os PPs. É de graça!\n\n*Uso:* !poke curar`,
+    'perfil': `👤 *COMANDO: perfil*\nMostra seu cartão de treinador com:\n• Dinheiro (Pokécoins)\n• Insígnias conquistadas\n• Resumo rápido do time\n\n*Uso:* !poke perfil`,
+    'time': `🧢 *COMANDO: time*\nMostra a lista detalhada dos seus 6 Pokémon atuais.\nMostra HP atual, Nível e Tipos.\n\n*Uso:*\n• *!poke time* (Lista simples)\n• *!poke time detalhes* (Mostra Naturezas)`,
+    'mostrar': `📊 *COMANDO: mostrar*\nExibe a ficha completa de um Pokémon específico.\nInclui: Foto, Status (Atk, Def, etc), IVs, Golpes, XP e Item Segurado.\n\n*Uso:* !poke mostrar [número_do_slot]\n*Exemplo:* _!poke mostrar 1_`,
+    'pc': `💻 *COMANDO: pc*\nGerencia seus Pokémon guardados (Box).\nVocê só pode carregar 6 no time. Os capturados extras vão pro PC.\n\n*Uso:*\n• *!poke pc lista* (Vê quem está guardado)\n• *!poke pc [slot_time] [box_pc]* (Troca um do time por um do PC)\n*Exemplo:* _!poke pc 2 1_ (Manda o slot 2 pro PC e pega o 1 do PC)`,
+    'trocar': `🔄 *COMANDO: trocar*\n*Em Batalha:* Troca o Pokémon que está lutando.\n*Fora de Batalha:* Muda a ordem do time.\n\n*Uso:*\n• *!poke trocar 2* (Em batalha: Envia o Pokémon 2)\n• *!poke trocar 1 3* (No menu: O 1º vira o 3º e vice-versa)`,
+    'evoluir': `✨ *COMANDO: evoluir*\nEvolui um Pokémon que já atingiu o nível necessário.\nO bot avisa quando ele pode evoluir.\n\n*Uso:* !poke evoluir [slot]\n*Exemplo:* _!poke evoluir 1_ (Evolui o líder do time)`,
+    'pendentes': `🚨 *COMANDO: pendentes*\nMostra a fila de ataques que seus Pokémon aprenderam ao subir de nível, mas que estão aguardando espaço para serem ensinados.\n\n*Uso:* !poke pendentes`,
+    'ensinar': `💡 *COMANDO: ensinar*\nSubstitui um golpe antigo por um novo que está na fila de espera (ou descarta o novo).\n\n*Uso:*\n!poke ensinar [slot_do_pokemon] [1 a 4 para substituir, ou 0 para descartar]\n*Exemplo:* _!poke ensinar 1 4_ (O Pokémon do slot 1 vai esquecer o golpe 4 e aprender o da fila).`,
+    'daycare': `🏡 *COMANDO: daycare*\nDeixe um Pokémon na creche para ganhar XP passivo enquanto você batalha com outros!\n*Custo:* 200 moedas por nível subido na hora de retirar.\n\n*Uso:*\n• *!poke daycare [slot_do_time]* (Deposita o Pokémon)\n• *!poke daycare ver* (Olha a ficha de quem tá lá)\n• *!poke daycare tirar* (Paga a conta e pega de volta)`,
+    'mochila': `🎒 *COMANDO: mochila*\nAbre o seu inventário para ver poções, TMs e itens de segurar.\n\n*Uso:* !poke mochila`,
+    'usar': `💊 *COMANDO: usar*\nUsa um item do seu inventário em um Pokémon do time.\n\n*Uso:* !poke usar [id_do_item] [slot_do_pokemon]\n*Exemplo:* _!poke usar potion 1_`,
+    'tm': `💿 *COMANDO: tm*\nEnsina um golpe de um TM (Technical Machine) para o seu Pokémon (se ele for compatível, claro).\n\n*Uso:* !poke tm [numero_do_tm] [slot_do_pokemon]\n*Exemplo:* _!poke tm 28 1_ (Ensina o TM28 - Dig para o 1º Pokémon)`,
+    'ginasio': `🏛️ *COMANDO: ginasio*\nAvança na história enfrentando treinadores e Líderes de Ginásio.\nVencer líderes dá Insígnias (que liberam novos Pokémon selvagens) e TMs exclusivos.\n\n*Uso:* !poke ginasio`,
+    'loja': `🏪 *COMANDO: loja*\nCompra itens essenciais.\n\n*Uso:*\n• *!poke loja* (Vê os itens)\n• *!poke comprar [id_item] [quantidade]*`
 };
 
 class PokemonHandler {
@@ -1911,10 +1822,19 @@ class PokemonHandler {
     }
 
     async getUserTag(userId) {
-        const user = await this.db.get("SELECT nome, color FROM usuarios WHERE id_usuario = ?", [userId]);
+        const user = await this.db.get("SELECT nome, color, financas FROM usuarios WHERE id_usuario = ?", [userId]);
+        let tituloStr = "Camponês";
+
+        if (user && user.financas) {
+            try {
+                const financas = JSON.parse(user.financas);
+                if (financas.titulo) tituloStr = financas.titulo;
+            } catch(e) {}
+        }
+
         const name = user?.nome || "Treinador";
         const color = user?.color || "👤";
-        return `${color} *${name}*\n\n`;
+        return `${color} *${name}* (_${tituloStr}_)\n\n`;
     }
 
     async changeColor(userId, param) {

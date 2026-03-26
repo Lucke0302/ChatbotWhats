@@ -892,12 +892,43 @@ async function connectToWhatsApp() {
                                 
                                 await db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [recompensaFalador, topFalador.id_usuario]);
                                 
-                                faladorRewardReport += `🗣️ **SALÁRIO DO FALADOR** 🗣️\nO Bostossauro paga quem movimenta o grupo. O maior tagarela de ontem foi:\n\n🥇 *${topFalador.nome}* com ${topFalador.total_mensagens} mensagens!\n💰 Levou **🪙 ${recompensaFalador} Bostocoins** (2x o n° de msgs).\n\n`;
                             }
                             
                             toxicReport = await chatbot.getAndResetToxicPodium(groupId);
                             
                             toxicReport = toxicRewardReport + toxicReport;
+                        }
+
+                        const todosFaladores = await db.all(`
+                            SELECT r.id_usuario, r.total_mensagens, u.nome
+                            FROM ranking_ofensas r
+                            JOIN usuarios u ON r.id_usuario = u.id_usuario
+                            WHERE r.id_conversa = ? AND r.total_mensagens > 0
+                            ORDER BY r.total_mensagens DESC
+                        `, [groupId]);
+
+                        let faladorRewardReport = "";
+                        if (todosFaladores.length > 0) {
+                            let outrosPagos = 0;
+                            
+                            for (let i = 0; i < todosFaladores.length; i++) {
+                                const f = todosFaladores[i];
+                                const recompensaFalador = f.total_mensagens;
+                                
+                                await db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [recompensaFalador, f.id_usuario]);
+                                
+                                if (i < 3) {
+                                    faladorRewardReport += "";
+                                } else {
+                                    outrosPagos++;
+                                }
+                            }
+                            
+                            if (outrosPagos > 0) {
+                                faladorRewardReport += "";
+                            }
+                            
+                            await db.run("UPDATE ranking_ofensas SET total_mensagens = 0 WHERE id_conversa = ?", [groupId]);
                         }
                         
                         const finalMessage = baseMessage + loteriaReport + divisor + toxicReport;
@@ -1076,7 +1107,9 @@ async function connectToWhatsApp() {
 
         const sender = getSenderJid(msg);
 
-        chatbot.countMessage(name, sender, from)
+        if (!command.startsWith("!poke")) {
+            chatbot.countMessage(name, sender, from);
+        }
 
         //Verifica se por algum motivo a mensagem não chegou vazia
         if (texto) {

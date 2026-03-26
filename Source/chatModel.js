@@ -164,7 +164,16 @@ class ChatModel {
                     return await this.casinoHandler.playBolao(ctx.sender, tag, number, bet);
                 }
 
-                return `${tag}🎰 **CASSINO DO BOSTOSSAURO**\n\nOpções:\n🎰 *!cassino [valor]* (Slots)\n🪙 *!cassino [cara/coroa] [valor]*\n🎡 *!cassino roleta [vermelho/preto/verde] [valor]*\n🏦 *!cassino saldo*`;
+                return `${tag}🎰 **CASSINO E ECONOMIA DO BOSTOSSAURO** 🎰\n\n` +
+                       `*Apostas:* \n🎰 *!cassino [valor]* (Slots)\n🪙 *!cassino [cara/coroa] [valor]*\n🎡 *!cassino roleta [vermelho/preto/verde] [valor]*\n\n` +
+                       `*Loterias:*\n🎟️ *!cassino mega [1-100] [valor]*\n🤝 *!cassino bolao [1-20] [valor]*\n\n` +
+                       `*Faria Lima:*\n📈 *!investir* (Bolsa de Valores Jurássica)\n🏦 *!emprestimo* (Agiotagem)\n👑 *!titulo* (Cartório de Ostentação)\n\n` +
+                       `*Consultas:* \n💰 *!cassino saldo*`;
+            },
+            '!titulo': async (ctx) => {
+                const tag = await this.pokemonHandler.getUserTag(ctx.sender);
+                const param = ctx.command.replace('!titulo', '').trim();
+                return await this.casinoHandler.handleTitulos(ctx.sender, tag, param, ctx.from);
             },
             '!investir': async (ctx) => {
                 const tag = await this.pokemonHandler.getUserTag(ctx.sender);
@@ -258,7 +267,7 @@ class ChatModel {
                     return await this.pescariaHandler.getTopGrupoPorRaridade(ctx.from, tag);
                 }
 
-                return `${tag}🎣 **SISTEMA DE PESCA**\n\nOpções:\n🎣 *!pescar* (Joga a isca!)\n🏪 *!pescaria loja* (Compre itens)\n⚖️ *!pescaria vender* (Mercadão de peixes)\n🎒 *!pescaria perfil* (Iscas e recordes)\n🏆 *!pescaria ranking* (Top pescadores)\n🦈 *!pescaria trofeus* (10 maiores deste grupo)\n🏅 *!pescaria toppessoal*\n🌍 *!pescaria topgrupo*`;
+                return `${tag}🎣 **SISTEMA DE PESCA**\n\nOpções:\n🎣 *!pescar* (Joga a isca!)\n🏪 *!pescaria loja* (Compre Iscas, Buffs e Varas novas!)\n⚖️ *!pescaria vender* (Mercadão de peixes)\n🎒 *!pescaria perfil* (Iscas e Efeitos ativos)\n🏆 *!pescaria ranking* (Top pescadores)\n🦈 *!pescaria trofeus* (10 maiores deste grupo)\n🏅 *!pescaria toppessoal* (Seus troféus absolutos)\n🌍 *!pescaria topgrupo* (A Elite das Águas)`;
             },
         };
 

@@ -75,6 +75,13 @@ const STORE_CATALOG = {
     '5': { id: 'ima_coins', name: 'Ímã de Bostocoins', emoji: '🧲', type: 'buff', duration: 3, price: 200, desc: 'Garante achar Bostocoins no fundo do lago por 3 rodadas.' }
 };
 
+const ROD_CATALOG = {
+    'bambu': { id: 'bambu', name: 'Vara de Bambu', mult: 1.0, emoji: '🎋' },
+    'fibra': { id: 'fibra', name: 'Vara de Fibra de Vidro', mult: 1.20, emoji: '🎣', price: 800, next: 'carbono' },
+    'carbono': { id: 'carbono', name: 'Vara de Carbono', mult: 1.35, emoji: '💎', price: 1500, next: 'adamantium' },
+    'adamantium': { id: 'adamantium', name: 'Vara de Adamantium', mult: 1.50, emoji: '🌌', price: 3000, next: null }
+};
+
 const RARITY_MULTIPLIER = {
     'lixo': 0.05,
     'comum': 0.1,
@@ -165,6 +172,11 @@ class PescariaHandler {
         if (player.active_items['anzol_chumbo']) weightMultiplierBuff *= 1.30;
         if (player.active_items['isca_radioativa']) weightMultiplierBuff *= 1.50;
         if (player.active_items['repelente']) canCatchTrash = false;
+
+        const userRodId = player.inventory.vara || 'bambu';
+        const rodMultiplier = ROD_CATALOG[userRodId] ? ROD_CATALOG[userRodId].mult : 1.0;
+        
+        weightMultiplierBuff *= rodMultiplier;
 
         const activeItemNames = Object.keys(player.active_items).map(id => ITEM_CATALOG.find(i => i.id === id)?.name).filter(Boolean);
         if (activeItemNames.length > 0) {
@@ -528,38 +540,82 @@ class PescariaHandler {
 
     // EXIBE A LOJA
     async getLoja(userId, userTag) {
-        const user = await this.db.get("SELECT bostocoins FROM usuarios WHERE id_usuario = ?", [userId]);
-        const balance = user ? user.bostocoins : 0;
+        const userDb = await this.db.get("SELECT bostocoins FROM usuarios WHERE id_usuario = ?", [userId]);
+        const balance = userDb ? userDb.bostocoins : 0;
+        const player = await this.getPlayerData(userId);
 
         let msg = `${userTag}🏪 **LOJA DO PESCADOR** 🏪\n_Seu saldo: 🪙 ${balance} Bostocoins_\n\n`;
         
+        msg += `🎒 **ITENS CONSUMÍVEIS:**\n`;
         for (const [code, item] of Object.entries(STORE_CATALOG)) {
             msg += `*[ ${code} ]* ${item.emoji} **${item.name}** ➝ 🪙 ${item.price}\n_${item.desc}_\n\n`;
         }
         
-        msg += `🛒 Para comprar digite: *!pescaria comprar [número]*\n_Ex: !pescaria comprar 2_`;
+        msg += `🎣 **FORJA DE VARAS (_lá ele_)):**\n`;
+        const currentRodId = player.inventory.vara || 'bambu';
+        const currentRod = ROD_CATALOG[currentRodId];
+        
+        if (currentRod.next) {
+            const nextRod = ROD_CATALOG[currentRod.next];
+            const currentBonus = Math.round((currentRod.mult - 1) * 100);
+            const nextBonus = Math.round((nextRod.mult - 1) * 100);
+            
+            msg += `_Sua vara atual: ${currentRod.emoji} ${currentRod.name} (+${currentBonus}% peso)_\n\n`;
+            msg += `*[ vara ]* ${nextRod.emoji} **${nextRod.name}** ➝ 🪙 ${nextRod.price}\n_Melhora o ganho de peso dos peixes para +${nextBonus}%_\n\n`;
+        } else {
+            msg += `_Sua vara atual: ${currentRod.emoji} ${currentRod.name}_\n`;
+            msg += `✨ *Você já possui a melhor vara de pescar do universo!* O ferreiro chora de emoção ao vê-la.\n\n`;
+        }
+
+        msg += `🛒 Para comprar consumíveis: *!pescaria comprar [número]*\n`;
+        if (currentRod.next) msg += `🛠️ Para evoluir a vara: *!pescaria comprar vara*`;
+        
         return msg;
     }
 
     // PROCESSA A COMPRA
     async comprarItem(userId, userTag, itemCode) {
-        if (!itemCode || !STORE_CATALOG[itemCode]) {
+        if (!itemCode) return `${userTag}❌ Código inválido! Digite *!pescaria loja* para ver o catálogo.`;
+        
+        const userDb = await this.db.get("SELECT bostocoins FROM usuarios WHERE id_usuario = ?", [userId]);
+        const balance = userDb ? userDb.bostocoins : 0;
+        let player = await this.getPlayerData(userId);
+
+        if (itemCode.toLowerCase() === 'vara') {
+            const currentRodId = player.inventory.vara || 'bambu';
+            const currentRod = ROD_CATALOG[currentRodId];
+            
+            if (!currentRod.next) {
+                return `${userTag}🌟 Calma aí, lenda das águas! Você já forjou a *${currentRod.name}*, não existe vara melhor que essa no mercado.`;
+            }
+
+            const nextRod = ROD_CATALOG[currentRod.next];
+
+            if (balance < nextRod.price) {
+                return `${userTag}💸 Tá achando que ferro e carbono dão em árvore? Você precisa de 🪙 **${nextRod.price} Bostocoins** pra forjar a ${nextRod.emoji} *${nextRod.name}*.\nVocê só tem 🪙 ${balance}. Trabalhe mais!`;
+            }
+
+            await this.db.run("UPDATE usuarios SET bostocoins = bostocoins - ? WHERE id_usuario = ?", [nextRod.price, userId]);
+            
+            player.inventory.vara = nextRod.id;
+            await this.savePlayerData(userId, player);
+
+            const novoBonus = Math.round((nextRod.mult - 1) * 100);
+            return `${userTag}⚒️ **VARA FORJADA COM SUCESSO!**\nO ferreiro pegou seus 🪙 ${nextRod.price} Bostocoins e montou uma ${nextRod.emoji} **${nextRod.name}** novinha em folha pra você!\n\n🐟 Agora todos os seus peixes serão **+${novoBonus}%** mais pesados (E consequentemente, mais caros)!`;
+        }
+
+        if (!STORE_CATALOG[itemCode]) {
             return `${userTag}❌ Código de item inválido! Digite *!pescaria loja* para ver o catálogo.`;
         }
 
         const item = STORE_CATALOG[itemCode];
-        
-        const user = await this.db.get("SELECT bostocoins FROM usuarios WHERE id_usuario = ?", [userId]);
-        const balance = user ? user.bostocoins : 0;
 
         if (balance < item.price) {
-            return `${userTag}💸 Saldo insuficiente, seu pobre! Você precisa de 🪙 **${item.price} Bostocoins** para comprar ${item.emoji} *${item.name}*, mas só tem 🪙 ${balance}.\nVai capinar um lote (!trabalhar)!`;
+            return `${userTag}💸 Saldo insuficiente, camponês! Você precisa de 🪙 **${item.price} Bostocoins** para comprar ${item.emoji} *${item.name}*, mas só tem 🪙 ${balance}.\nVai capinar um lote (!trabalhar)!`;
         }
 
         await this.db.run("UPDATE usuarios SET bostocoins = bostocoins - ? WHERE id_usuario = ?", [item.price, userId]);
 
-        let player = await this.getPlayerData(userId);
-        
         if (item.type === 'instant') {
             player.fishBaits += item.effect;
         } else if (item.type === 'buff') {

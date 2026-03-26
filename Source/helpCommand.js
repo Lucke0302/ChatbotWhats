@@ -53,27 +53,29 @@ O mercado negro do Bostossauro. Se você estourou sua cota diária de respostas 
 • *!vip* ➝ Abre o catálogo do mercado negro e vê sua cota atual.
 • *!vip comprar [numero]* ➝ Compra um item (Ex: Overclock Cerebral) para diminuir seu uso de IA do dia. Custam uma fortuna, mas o conhecimento não tem preço.`,
 
-    'poke': `🎮 *COMANDO: !poke*
+'poke': `🎮 *COMANDO: !poke*
 O sistema completo de batalha, captura e ginásios!
 
 *Comandos Básicos:*
 • *!poke comecar (ou start)* ➝ Escolhe seu inicial.
-• *!poke explorar* ➝ Acha um Pokémon selvagem (ou treinador).
+• *!poke explorar* ➝ Acha um Pokémon selvagem.
 • *!poke atacar [1-4]* ➝ Usa um golpe em batalha.
 • *!poke capturar* ➝ Joga uma Pokébola.
-• *!poke curar (ou heal)* ➝ Cura seu time todo (Grátis).
-• *!poke fugir* ➝ Foge da batalha (covarde).
 
-*Gerenciamento:*
+*Gerenciamento e Time:*
 • *!poke perfil* ➝ Vê seus Pokémon, insígnias e dinheiro.
-• *!poke time* ➝ Lista seu time atual.
-• *!poke mostrar (ou show) [1-6]* ➝ Vê detalhes, IVs e golpes de um Pokémon.
-• *!poke trocar [slot]* ➝ Troca o Pokémon ativo na batalha ou fora.
-• *!poke pc* ➝ Acessa seus Pokémon guardados na Box (e troca com os do time principal).
-• *!poke evoluir [slot]* ➝ Evolui seu bicho se ele já estiver no nível.
+• *!poke mostrar (ou show) [1-6]* ➝ Vê ficha completa (HP, IVs, Nature, Item).
+• *!poke pc* ➝ Acessa seus Pokémon guardados na Box.
+• *!poke trocar [slot]* ➝ Muda a ordem do time.
+• *!poke daycare* ➝ Deixa o Pokémon treinando passivamente na creche.
+
+*Ataques e Itens:*
+• *!poke pendentes* ➝ Vê a fila de golpes novos aguardando aprendizado.
+• *!poke ensinar [slot] [1-4]* ➝ Substitui um golpe velho por um novo da fila.
+• *!poke usar [item] [slot]* ➝ Usa poções ou itens no Pokémon.
+• *!poke tm [numero] [slot]* ➝ Ensina um TM da sua mochila.
 
 *Progresso:*
-• *!poke loja* ➝ Compra itens (Pokébolas, Poções).
 • *!poke ginasio* ➝ Desafia os líderes para ganhar insígnias.`,
 
     'sticker': `🖼️ *COMANDO: !s (ou !sticker)*
@@ -154,23 +156,26 @@ Preguiça de ler 500 mensagens de "bom dia"? Eu leio e te conto o que presta.
 • _!resumo curto_ (Curto e grosso)
 • _!resumo completo 100_ (Leio 100 msgs. Haja paciência...)`,
 
-    'cassino': `🎰 *COMANDO: !cassino*
-Bem-vindo ao antro da perdição! Aqui você aposta seus suados Bostocoins.
+        'cassino': `🎰 *COMANDO: !cassino*
+Bem-vindo ao antro da perdição e do capitalismo selvagem!
 
 *Jogos Rápidos:*
 1️⃣ *Caça-Níqueis* ➝ \`!cassino [aposta]\` (Prêmios: 1.5x a 20x)
-2️⃣ *Cara/Coroa* ➝ \`!cassino [cara/coroa] [aposta]\` (Prêmio: 2x)
-3️⃣ *Roleta* ➝ \`!cassino roleta [vermelho/preto/verde] [aposta]\` (Verde paga 14x!)
+2️⃣ *Cara/Coroa* ➝ \`!cassino [cara/coroa] [aposta]\` (Prêmio: 1.8x)
+3️⃣ *Roleta* ➝ \`!cassino roleta [vermelho/preto/verde] [aposta]\` (Verde paga 12x!)
 
 🎟️ *Loterias (Sorteio toda Segunda-feira às 10h):*
 4️⃣ *BostoSena (Mega)* ➝ \`!cassino mega [1-100] [aposta]\` 
-(Multiplica 100x o prêmio. Acumula toda semana que ninguém ganha!)
 5️⃣ *Bolão da Rapaziada* ➝ \`!cassino bolao [1-20] [aposta]\` 
-(Todos apostam, 1 ganha o pote inteiro. Acumula se ninguém acertar!)
+
+📈 *Wall Street Jurássica:*
+• \`!investir\` ➝ Aplique seu dinheiro e ganhe rendimentos passivos diários.
+• \`!emprestimo\` ➝ Faliu? Pegue dinheiro com o Agiota do bot (ele cobra do seu lucro).
+• \`!titulo loja\` ➝ Compre títulos de nobreza para ostentar do lado do seu nome.
 
 📊 *Fofoca Financeira:*
 • \`!cassino mega apostadores\` ➝ Lista quem jogou na Mega.
-• \`!cassino bolao apostadores\` ➝ Lista quem tá no Bolão e o valor do pote.
+• \`!cassino bolao apostadores\` ➝ Lista quem tá no Bolão.
 • \`!cassino saldo\` ➝ Mostra o que sobrou na sua carteira.`,
 
     'pix': `💸 *COMANDO: !pix*
@@ -217,29 +222,25 @@ Transforma a imagem/documento que você enviou pra mim em um pdf.
 responde ela com o !pdf.
 `,
 
-    'pescaria': `🎣 *COMANDO: !pescaria*
+'pescaria': `🎣 *COMANDO: !pescaria*
 Bem-vindo ao Lago do Bostossauro! Pegue sua vara e vá pro sol.
-Você regenera 1 isca a cada 6 horas (Máximo 4).
+Você regenera 1 isca a cada 4 horas (Máximo 6).
 
 *Ação:*
 🎣 *!pescar* (ou !pesca) ➝ Joga a isca na água e tenta a sorte.
 
-*Mercado & Loja:*
-🏪 *!pescaria loja* ➝ Gaste seus Bostocoins em iscas e buffs (ex: Anzol de Chumbo, Ímã).
-🛍️ *!pescaria comprar [número]* ➝ Compra o item da loja.
-⚖️ *!pescaria vender* ➝ Veja o preço dos seus troféus e venda peixes por Bostocoins (Valores de mercado brutais).
+*Mercado, Loja & Forja:*
+🏪 *!pescaria loja* ➝ Gaste seus Bostocoins em iscas, buffs ou para forjar uma VARA MELHOR.
+🛍️ *!pescaria comprar [número_ou_vara]* ➝ Compra o item da loja.
+⚖️ *!pescaria vender* ➝ Veja o preço dos seus troféus e venda peixes ao mercado.
 
 *Inventário:*
 🎒 *!pescaria perfil* ➝ Veja suas iscas, efeitos ativos e seus top 5 peixes.
 
 *Competição e Rankings:*
 🏆 *!pescaria ranking* ➝ O Top 10 de quem mais pescou (em Kg) na vida.
-🦈 *!pescaria trofeus* ➝ O Mural do Grupo: Os 10 peixes mais pesados pescados NESTE chat.
-🏅 *!pescaria toppessoal* ➝ Seus 3 peixes mais "perfeitos" por raridade.
-🌍 *!pescaria topgrupo* ➝ A elite do grupo: Peixes mais perfeitos por raridade.
-
-*Poderes Divinos (Admin):*
-⏳ *!pescaria acelerar* ➝ Adianta o relógio de iscas de todo mundo em 2 horas.`,
+🦈 *!pescaria trofeus* ➝ O Mural do Grupo: Os 10 peixes mais pesados pescados nesse chat.
+🌍 *!pescaria topgrupo* ➝ A elite do grupo: Peixes mais perfeitos por raridade.`,
 
 
     'cota': `🔌 *COMANDO: !cota* (Apenas Admin)

@@ -1180,27 +1180,19 @@ class PokemonHandler {
         console.log("✅ Seed Completo (Gen 1, 2 e 3)!");
     }
 
-    async getDaycarePokemon(userId) {
-        const query = `
-            SELECT up.*, p.name as species_name 
-            FROM user_pokemons up
-            JOIN pokedex p ON up.pokedex_id = p.id
-            WHERE up.user_id = ? AND up.team_slot = 0
-            LIMIT 1
-        `;
-        
+    async getDaycarePokemon(userId, groupId, sock) {
         try {
-            const pokemon = await this.db.get(query, [userId]);
+            const pokeExists = await this.db.get("SELECT id FROM user_pokemons WHERE user_id = ? AND team_slot = 0", [userId]);
             
-            if (!pokemon) {
+            if (!pokeExists) {
                 throw new Error("EMPTY_DAYCARE");
             }
             
-            return pokemon;
+            return await this.showPokemon(groupId, userId, "0", sock);
             
         } catch (error) {
             if (error.message === "EMPTY_DAYCARE") {
-                throw error;
+                throw error; 
             }
             
             console.error("[Daycare] Erro ao buscar Pokémon na creche:", error);
@@ -2053,7 +2045,7 @@ class PokemonHandler {
         const tag = await this.getUserTag(userId);
         const slot = parseInt(param);
 
-        if (isNaN(slot) || slot < 1 || slot > 6) {
+        if (isNaN(slot) || slot < 0 || slot > 6) {
             return `${tag}❌ Uso correto: *!poke mostrar [slot]*\nEx: _!poke mostrar 1_ (para ver o primeiro do time)`;
         }
 
@@ -2575,7 +2567,7 @@ class PokemonHandler {
         return msg;
     }
 
-    async handleDayCare(userId, param) {
+    async handleDayCare(userId, param, groupId, sock) {
         const tag = await this.getUserTag(userId);
         
         const dayCarePoke = await this.db.get(`
@@ -2598,6 +2590,10 @@ class PokemonHandler {
         }
 
         const action = param.toLowerCase().trim();
+
+        if (action === 'ver'){
+            return await this.getDaycarePokemon(userId, groupId, sock);
+        }
 
         if (action === 'tirar' || action === 'retirar') {
             if (!dayCarePoke) return `${tag}🚫 O Day Care está vazio.`;
@@ -2866,7 +2862,7 @@ class PokemonHandler {
                 return await this.claimSpecialGift(sender, args[2], args[3]);
 
             case 'daycare':
-                return await this.handleDayCare(sender, param)
+                return await this.handleDayCare(sender, param, from, sock)
 
             case 'item':
                 return await this.handleItem(sender, param)

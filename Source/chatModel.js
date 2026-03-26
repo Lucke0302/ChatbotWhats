@@ -88,6 +88,11 @@ class ChatModel {
                 if (ctx.sender !== "5513991008854@s.whatsapp.net") return "🔒 Privilégio de Admin.";
                 return await this.casinoHandler.handleDebugGroup(tag, ctx.from, ctx.sock);
             },
+            '!exorcismo': async (ctx) => {
+                const tag = await this.pokemonHandler.getUserTag(ctx.sender);                
+                if (ctx.sender !== "5513991008854@s.whatsapp.net") return "🔒 Privilégio de Admin.";
+                return await this.casinoHandler.handleExorcismo(ctx.sender, tag);
+            },
             '!d': async (ctx) => await this.handleDiceCommand(ctx.command, ctx.sender),
             '!menu': async () => await this.handleMenuCommand(),
             '!tradutor': async (ctx) => {

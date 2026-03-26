@@ -490,13 +490,11 @@ class CasinoHandler {
 
         const amount = parseInt(amountStr);
         if (isNaN(amount) || amount <= 0) {
-            return `${senderTag}⚠️ Tá imprimindo vento? Digite um valor válido para injetar na economia. Ex: *!givecoins all 500*`;
+            return `${senderTag}⚠️ Digite um valor válido para injetar na economia.`;
         }
 
         if (targetId === 'all') {
-            if (!groupId.endsWith('@g.us')) {
-                return `${senderTag}⚠️ O alvo 'all' só funciona dentro de grupos.`;
-            }
+            if (!groupId.endsWith('@g.us')) return `${senderTag}⚠️ O alvo 'all' só funciona dentro de grupos.`;
             
             try {
                 const groupMetadata = await sock.groupMetadata(groupId);
@@ -506,35 +504,31 @@ class CasinoHandler {
                 let ignorados = 0;
 
                 for (const p of participants) {
-                    let pId = p.id;
+                    let pPhone = p.phoneNumber ? p.phoneNumber + '@s.whatsapp.net' : p.id;
                     
-                    if (pId.includes(':')) {
-                        pId = pId.split(':')[0] + '@s.whatsapp.net';
-                    }
+                    if (pPhone.includes(':')) pPhone = pPhone.split(':')[0] + '@s.whatsapp.net';
 
-                    const isException = exceptions.includes(pId) || (p.lid && exceptions.includes(p.lid));
+                    const isException = exceptions.includes(pPhone) || exceptions.includes(p.id);
 
                     if (isException) {
                         ignorados++;
                         continue;
                     }
 
-                    await this.db.run(`INSERT OR IGNORE INTO usuarios (id_usuario, nome, banido_ate, uso_ia_diario, data_ultimo_uso, anotacoes) VALUES (?, 'Anônimo', 0, 0, '', '')`, [pId]);
-                    await this.db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [amount, pId]);
+                    const finalId = pPhone.includes('@s.whatsapp.net') ? pPhone : p.id;
+
+                    await this.db.run(`INSERT OR IGNORE INTO usuarios (id_usuario, nome, banido_ate, uso_ia_diario, data_ultimo_uso, anotacoes) VALUES (?, 'Anônimo', 0, 0, '', '')`, [finalId]);
+                    await this.db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [amount, finalId]);
                     count++;
-            }
+                }
 
-            let msg = `${senderTag}🚁 **MAMATA ESTATAL (SILVIO SANTOS JURÁSSICO)** 🚁\nO Banco Central imprimiu e distribuiu 🪙 **${amount} Bostocoins** para ${count} membros do grupo!`;
-            
-            if (ignorados > 0) {
-                msg += `\n\n🚫 _Atenção: ${ignorados} pessoa(s) sofreram sanções do governo e ficaram de fora do auxílio!_`;
-            }
-
-            return msg;
+                let msg = `${senderTag}🚁 **MAMATA ESTATAL (SILVIO SANTOS JURÁSSICO)** 🚁\nO Banco Central imprimiu e distribuiu 🪙 **${amount} Bostocoins** para ${count} membros do grupo!`;
+                if (ignorados > 0) msg += `\n\n🚫 _Atenção: ${ignorados} pessoa(s) sofreram sanções do governo!_`;
+                return msg;
 
             } catch (e) {
                 console.error("Erro ao dar moedas para todos:", e);
-                return `${senderTag}❌ Deu ruim ao tentar ler os participantes do grupo. O sistema de injeção falhou.`;
+                return `${senderTag}❌ Erro ao ler participantes.`;
             }
         } 
         else {
@@ -542,7 +536,7 @@ class CasinoHandler {
             await this.db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [amount, targetId]);
             
             const cleanNum = targetId.split('@')[0];
-            return `${senderTag}💰 **INJEÇÃO DE CAPITAL** 💰\nO Banco Central transferiu 🪙 **${amount} Bostocoins** diretamente para a conta de @${cleanNum}.`;
+            return `${senderTag}💰 **INJEÇÃO DE CAPITAL** 💰\nO Banco Central transferiu 🪙 **${amount} Bostocoins** para @${cleanNum}.`;
         }
     }
 
@@ -553,20 +547,36 @@ class CasinoHandler {
             const groupMetadata = await sock.groupMetadata(groupId);
             const participants = groupMetadata.participants;
             
-            let msg = `🔍 **RAIO-X DE PARTICIPANTES (DEBUG)**\n`;
-            msg += `Grupo: ${groupMetadata.subject}\n`;
-            msg += `Total: ${participants.length}\n\n`;
+            let msg = `🔍 **RAIO-X DE PARTICIPANTES (ANTI-FANTASMA)**\n`;
+            msg += `Grupo: ${groupMetadata.subject}\n\n`;
 
             participants.forEach((p, i) => {
-                msg += `*[${i + 1}]* ID: \`${p.id}\`\n`;
+                // Tenta reconstruir o JID de telefone
+                let pPhone = p.phoneNumber ? p.phoneNumber + '@s.whatsapp.net' : "N/A";
+                let status = p.phoneNumber ? "✅ HUMANO" : "👻 FANTASMA";
+                
+                msg += `*[${i + 1}]* ${status}\n`;
+                msg += `     ID: \`${p.id}\`\n`;
+                msg += `     TEL: \`${pPhone}\`\n`;
                 if (p.lid) msg += `     LID: \`${p.lid}\`\n`;
+                msg += `\n`;
             });
 
             return msg;
         } catch (e) {
-            console.error(e);
             return "❌ Erro ao ler metadados do grupo.";
         }
+    }
+
+    async handleExorcismo(senderId, userTag) {
+        if (senderId !== "5513991008854@s.whatsapp.net") return "🚫 Só o admin pode banir fantasmas.";
+
+        const result = await this.db.run(`
+            DELETE FROM usuarios 
+            WHERE id_usuario LIKE '%@lid' 
+        `);
+
+        return `${userTag}🧹 **EXORCISMO CONCLUÍDO!**\nForam eliminados **${result.changes} fantasmas** do banco de dados.\nA economia agora está limpa!`;
     }
 
     // Atualiza o Show Balance para mostrar os acumulados

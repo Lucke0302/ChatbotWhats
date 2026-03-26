@@ -21,7 +21,7 @@ class CasinoHandler {
         "tentou arrumar a impressora da tia e acabou sendo nomeado o 'menino da TI' do bairro",
         "centralizou uma div no CSS depois de chorar em posição fetal",
         "montou um servidor caseiro num Celeron velho que passa mais tempo desligado que rodando",
-`- trabalhou com o guê?
+`trabalha com o guê?
 - Eu sou comercial.
 - Comercial di guê?
 - Comercial de vendas.

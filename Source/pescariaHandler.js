@@ -635,7 +635,7 @@ class PescariaHandler {
         return msg;
     }
 
-    // AUXILIAR: GERA A LISTA DE PEIXES QUE PODEM SER VENDIDOS
+    // AUXILIAR: GERA A LISTA COMPLETA DE PEIXES PARA O MERCADÃO
     async getSellableList(userId) {
         const player = await this.getPlayerData(userId);
         if (!player.records || Object.keys(player.records).length === 0) return { sellableArray: [], player };
@@ -647,7 +647,6 @@ class PescariaHandler {
             if (!fishInfo) continue;
 
             const weight = typeof recordData === 'object' ? recordData.weight : recordData;
-            
             const maxWeight = fishInfo.avgWeight * 1.5;
             const perfeicao = weight / maxWeight; 
             
@@ -662,7 +661,8 @@ class PescariaHandler {
                 emoji: fishInfo.emoji,
                 weight: weight,
                 value: finalValue,
-                score: perfeicao * 100
+                score: perfeicao * 100,
+                rarity: fishInfo.rarity
             });
         }
 
@@ -671,8 +671,8 @@ class PescariaHandler {
 
         for (const rarity of rarityOrder) {
             if (categorized[rarity]) {
-                const top3 = categorized[rarity].sort((a, b) => b.score - a.score).slice(0, 3);
-                sellableArray.push(...top3);
+                const sorted = categorized[rarity].sort((a, b) => b.score - a.score);
+                sellableArray.push(...sorted);
             }
         }
 

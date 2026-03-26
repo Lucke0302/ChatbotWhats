@@ -688,10 +688,21 @@ class PescariaHandler {
         }
 
         if (!itemIndexStr) {
-            let msg = `${userTag}🏪 **MERCADÃO DE PEIXES** 🏪\n_Os valores mudam de acordo com o peso e a raridade._\n\n`;
+            const rarityLabels = {
+                'comum': '⚪ COMUM', 'incomum': '🟢 INCOMUM', 'raro': '🔵 RARO', 
+                'muito_raro': '🟣 MUITO RARO', 'lendario': '🟡 LENDÁRIO', 'mitico': '🔴 MÍTICO', 'lixo': '🟤 LIXO'
+            };
+
+            let msg = `${userTag}🏪 **MERCADÃO DE PEIXES DE PERUÍBE** 🏪\n_Fórmula: Raridade x Perfeição_\n\n`;
             
+            let lastRarity = "";
             sellableArray.forEach((f, i) => {
-                msg += `*[ ${i + 1} ]* ${f.emoji} ${f.name} (${f.weight.toFixed(2)}kg) ➝ 🪙 **${f.value}**\n`;
+                if (f.rarity !== lastRarity) {
+                    msg += `\n*${rarityLabels[f.rarity]}*\n`;
+                    lastRarity = f.rarity;
+                }
+                
+                msg += `*[ ${i + 1} ]* ${f.emoji} ${f.name} (${f.weight.toFixed(2)}kg) - **${f.score.toFixed(1)}%** ➝ 🪙 **${f.value}**\n`;
             });
 
             msg += `\n💰 Para vender digite: *!pescaria vender [numero]*`;
@@ -700,19 +711,18 @@ class PescariaHandler {
 
         const index = parseInt(itemIndexStr) - 1;
         if (isNaN(index) || index < 0 || index >= sellableArray.length) {
-            return `${userTag}⚠️ Número inválido! Digite apenas *!pescaria vender* para ver a lista de peixes e seus números.`;
+            return `${userTag}⚠️ Número inválido! Digite apenas *!pescaria vender* para ver a lista.`;
         }
 
         const fishToSell = sellableArray[index];
 
         delete player.records[fishToSell.id];
-
         await this.savePlayerData(userId, player);
 
         const profitResult = await this.casinoHandler.verifyProfit(userId, fishToSell.value);
         await this.db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [profitResult.finalProfit, userId]);
 
-        return `${userTag}🤝 **NEGÓCIO FECHADO!**\nVocê entregou seu amado ${fishToSell.emoji} *${fishToSell.name}* para o mercado municipal por 🪙 **${fishToSell.value} Bostocoins**!${profitResult.msg}\n_Lucro final na carteira: 🪙 ${profitResult.finalProfit}_`;
+        return `${userTag}🤝 **NEGÓCIO FECHADO!**\nVocê vendeu seu ${fishToSell.emoji} *${fishToSell.name}* (${fishToSell.score.toFixed(1)}% perfeito) por 🪙 **${fishToSell.value} Bostocoins**!${profitResult.msg}\n_Saldo atualizado!_`;
     }
 
     // FUNÇÃO DE MIGRAÇÃO DE DADOS

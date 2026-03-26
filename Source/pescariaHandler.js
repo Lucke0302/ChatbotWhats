@@ -261,7 +261,7 @@ class PescariaHandler {
     }
 
     // RANKING DE PESCA
-    async getRanking(userTag) {
+    async getRanking(groupId, userTag) {
         const users = await this.db.all("SELECT nome, pescaria_data FROM usuarios WHERE pescaria_data IS NOT NULL AND pescaria_data != '{}'");
 
         if (!users || users.length === 0) return `${userTag} Ninguém pescou nada ainda. Bando de preguiçosos!`;
@@ -270,7 +270,18 @@ class PescariaHandler {
         for (const u of users) {
             try {
                 const data = JSON.parse(u.pescaria_data);
-                if (data.total_weight > 0) {
+                
+                let hasFishedInGroup = false;
+                if (data.records) {
+                    for (const recordData of Object.values(data.records)) {
+                        if (typeof recordData === 'object' && recordData.group_id === groupId) {
+                            hasFishedInGroup = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (hasFishedInGroup && data.total_weight > 0) {
                     ranking.push({ nome: u.nome || 'Anônimo', peso: data.total_weight });
                 }
             } catch (e) {
@@ -280,10 +291,10 @@ class PescariaHandler {
         ranking.sort((a, b) => b.peso - a.peso);
         const top10 = ranking.slice(0, 10);
 
-        if (top10.length === 0) return `${userTag}🎣 Ninguém tirou um peixe da água ainda!`;
+        if (top10.length === 0) return `${userTag}🎣 Nenhum pescador local puxou peixe destas águas ainda!`;
 
-        let msg = `🏆 **RANKING DE PESCADORES** 🏆\n_Quem tem a maior... quantidade de quilos fisgados_\n\n`;
-        const medalhas = ["🥇", "🥈", "🥉"];
+        let msg = `🏆 **RANKING DE PESCADORES LOCAIS** 🏆\n_Quem tem a maior... quantidade de quilos fisgados_\n\n`;
+        const medalhas = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"];
         
         top10.forEach((p, i) => {
             const medalha = medalhas[i] || "🏅";

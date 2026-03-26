@@ -1180,6 +1180,34 @@ class PokemonHandler {
         console.log("✅ Seed Completo (Gen 1, 2 e 3)!");
     }
 
+    async getDaycarePokemon(userId) {
+        const query = `
+            SELECT up.*, p.name as species_name 
+            FROM user_pokemons up
+            JOIN pokedex p ON up.pokedex_id = p.id
+            WHERE up.user_id = ? AND up.team_slot = 0
+            LIMIT 1
+        `;
+        
+        try {
+            const pokemon = await this.db.get(query, [userId]);
+            
+            if (!pokemon) {
+                throw new Error("EMPTY_DAYCARE");
+            }
+            
+            return pokemon;
+            
+        } catch (error) {
+            if (error.message === "EMPTY_DAYCARE") {
+                throw error;
+            }
+            
+            console.error("[Daycare] Erro ao buscar Pokémon na creche:", error);
+            throw new Error("DAYCARE_DB_ERROR");
+        }
+    }
+
     async checkStatusBeforeMove(battleState, isPlayer, pokeObj, sock, groupId) {
         const targetKey = isPlayer ? 'user' : 'enemy';
         const status = battleState[targetKey + 'Status']; 

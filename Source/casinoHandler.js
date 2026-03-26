@@ -21,7 +21,12 @@ class CasinoHandler {
         "tentou arrumar a impressora da tia e acabou sendo nomeado o 'menino da TI' do bairro",
         "centralizou uma div no CSS depois de chorar em posição fetal",
         "montou um servidor caseiro num Celeron velho que passa mais tempo desligado que rodando",
-        "trabalhou como comercial de vendas",
+`- trabalhou com o guê?
+- Eu sou comercial.
+- Comercial di guê?
+- Comercial de vendas.
+- Vendas di guê?
+- Vendas... de qualquer coisa. Vendo água, vendo... produto de limpeza...`,
 
     ];
     }
@@ -257,11 +262,15 @@ class CasinoHandler {
                 return `${userTag}🛑 O mercado de trabalho tá saturado! A CLT só permite assinar a carteira de novo em **${hoursLeft}h e ${minutesLeft}m**.`;
             }
         }
-
-        const multiplicador = Math.floor(Math.random() * 4) + 1;
-        const salario = 50 * multiplicador;
         
         const bicoSorteado = this.trabalhos[Math.floor(Math.random() * this.trabalhos.length)];
+
+        const multiplicador = Math.floor(Math.random() * 4) + 1;
+        var salario = 50 * multiplicador;
+        if (bicoSorteado == this.trabalhos[this.trabalhos.length - 1]){
+            salario = salario * 4;
+        }
+        
 
         await this.updateBalance(userId, salario);
         await this.db.run("UPDATE usuarios SET last_trabalho = ? WHERE id_usuario = ?", [now, userId]);

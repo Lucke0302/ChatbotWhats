@@ -226,7 +226,7 @@ class ChatModel {
                 }
 
                 if (subCommand === 'ranking') {
-                    return await this.pescariaHandler.getRanking(tag);
+                    return await this.pescariaHandler.getRanking(ctx.from, tag);
                 }
                 
                 if (subCommand === 'perfil' || subCommand === 'inventario') {

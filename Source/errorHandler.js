@@ -26,7 +26,9 @@ const ERROR_DICTIONARY = {
     "NON-EXISTENT_CURRENCY": "💵 A moeda digitada não está disponível para cotação.",
     "SAME_CURRENCY": "🤡 Trocar seis por meia dúzia dá no mesmo, né, gênio.",
     "NO_USER_TO_TIMEOUT": "❌ Usuário inválido",
-    "SEND_MESSAGE_ERROR": "❌ Deu algum ruim na hora de enviar a figurinha ou a mensagem. O WhatsApp me sabotou."
+    "SEND_MESSAGE_ERROR": "❌ Deu algum ruim na hora de enviar a figurinha ou a mensagem. O WhatsApp me sabotou.",
+    "EMPTY_DAYCARE": "🏡 **DAY CARE POKÉMON** 🏡\nO Day Care está vazio.\nUse: *!poke daycare [slot]* para deixar alguém treinando.\n\n💰 *Custo:* 200 coins por nível subido.",
+    "DAYCARE_DB_ERROR": "❌ Deu algum erro maluco na hora de abrir o Daycare. O Sr. Pokémon deve ter tropeçado nos cabos do servidor."
 };
 
 // Mensagem padrão para erros não mapeados (bugs reais)

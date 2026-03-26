@@ -271,11 +271,131 @@ class CasinoHandler {
             salario = salario * 4;
         }
         
-
-        await this.updateBalance(userId, salario);
+        const profitResult = await this.verifyProfit(userId, salario);
+        
+        await this.updateBalance(userId, profitResult.finalProfit);
         await this.db.run("UPDATE usuarios SET last_trabalho = ? WHERE id_usuario = ?", [now, userId]);
 
-        return `${userTag}💼 **TRABALHADOR BRASILEIRO**\n\nVocê ${bicoSorteado} e recebeu 🪙 **${salario} Bostocoins** pelo serviço!\nVai torrar tudo na Roleta ou vai guardar?`;
+        return `${userTag}💼 **TRABALHADOR BRASILEIRO**\n\nVocê ${bicoSorteado} e faturou 🪙 **${salario} Bostocoins** pelo serviço!${profitResult.msg}\n\n_Lucro final recebido: 🪙 ${profitResult.finalProfit}_`;
+
+    }
+
+    async processFinancas(userId) {
+        const user = await this.db.get("SELECT financas FROM usuarios WHERE id_usuario = ?", [userId]);
+        
+        const now = Math.floor(Date.now() / 1000);
+        let financas = { 
+            investimento: { montante: 0, ultimo_rendimento: now }, 
+            emprestimo: { devedor: 0 } 
+        };
+
+        if (user && user.financas && user.financas !== '{}') {
+            try { 
+                const parsed = JSON.parse(user.financas); 
+                financas.investimento = parsed.investimento || financas.investimento;
+                financas.emprestimo = parsed.emprestimo || financas.emprestimo;
+            } catch (e) { console.error("Erro no JSON de finanças", e); }
+        }
+
+        const timePassed = now - financas.investimento.ultimo_rendimento;
+        const daysPassed = Math.floor(timePassed / 86400);
+
+        if (daysPassed > 0 && financas.investimento.montante > 0) {
+            for(let i = 0; i < daysPassed; i++) {
+                financas.investimento.montante = Math.floor(financas.investimento.montante * 1.20);
+            }
+            financas.investimento.ultimo_rendimento += (daysPassed * 86400);
+            await this.db.run("UPDATE usuarios SET financas = ? WHERE id_usuario = ?", [JSON.stringify(financas), userId]);
+        } else if (daysPassed > 0) {
+            financas.investimento.ultimo_rendimento += (daysPassed * 86400);
+            await this.db.run("UPDATE usuarios SET financas = ? WHERE id_usuario = ?", [JSON.stringify(financas), userId]);
+        }
+
+        return financas;
+    }
+
+    //  Verifica se o cara tá devendo
+    async verifyProfit(userId, rawProfit) {
+        if (rawProfit <= 0) return { finalProfit: rawProfit, msg: "" };
+
+        let financas = await this.processFinancas(userId);
+        let cut = 0;
+        let notificacao = "";
+
+        if (financas.emprestimo.devedor > 0) {
+            cut = Math.floor(rawProfit * 0.30);
+            
+            if (cut > financas.emprestimo.devedor) {
+                cut = financas.emprestimo.devedor;
+            }
+
+            financas.emprestimo.devedor -= cut;
+            await this.db.run("UPDATE usuarios SET financas = ? WHERE id_usuario = ?", [JSON.stringify(financas), userId]);
+
+            if (financas.emprestimo.devedor <= 0) {
+                notificacao = `\n🏦 *O Bostossauro pegou 🪙 ${cut} do seu lucro e QUITOU sua dívida! Você está livre do SPC!*`;
+            } else {
+                notificacao = `\n🏦 *O Bostossauro confiscou 🪙 ${cut} (30%) para abater sua dívida. Restam: 🪙 ${financas.emprestimo.devedor}*`;
+            }
+        }
+
+        return { finalProfit: rawProfit - cut, msg: notificacao };
+    }
+
+    async handleInvestir(userId, userTag, action, amountStr) {
+        let financas = await this.processFinancas(userId);
+        const balance = await this.getBalance(userId);
+
+        if (!action || action === 'ver') {
+            return `${userTag}📈 **FUNDO IMOBILIÁRIO DO BOSTOSSAURO** 📈\n_Rendimento: 20% ao dia (Juros Compostos)_\n\n💰 **Investido:** 🪙 ${financas.investimento.montante}\n🏦 **Saldo na carteira:** 🪙 ${balance}\n\n_Use !investir depositar [valor] ou !investir sacar [valor]_`;
+        }
+
+        const amount = parseInt(amountStr);
+        if (isNaN(amount) || amount <= 0) return `${userTag}⚠️ Digite um valor válido.`;
+
+        if (action === 'depositar') {
+            if (balance < amount) return `${userTag}❌ Você não tem tudo isso! Saldo: 🪙 ${balance}`;
+            await this.updateBalance(userId, -amount);
+            financas.investimento.montante += amount;
+            await this.db.run("UPDATE usuarios SET financas = ? WHERE id_usuario = ?", [JSON.stringify(financas), userId]);
+            return `${userTag}📈 **INVESTIMENTO REALIZADO!**\nVocê aplicou 🪙 ${amount}.\nSeu montante agora é 🪙 ${financas.investimento.montante} e já está rendendo 20% ao dia!`;
+        }
+
+        if (action === 'sacar') {
+            if (financas.investimento.montante < amount) return `${userTag}❌ Você só tem 🪙 ${financas.investimento.montante} investidos!`;
+            financas.investimento.montante -= amount;
+            await this.updateBalance(userId, amount);
+            await this.db.run("UPDATE usuarios SET financas = ? WHERE id_usuario = ?", [JSON.stringify(financas), userId]);
+            return `${userTag}💵 **SAQUE REALIZADO!**\nVocê sacou 🪙 ${amount}. O dinheiro já está na sua carteira.`;
+        }
+
+        return `${userTag}⚠️ Ação inválida. Use depositar ou sacar.`;
+    }
+
+    // !emprestimo
+    async handleEmprestimo(userId, userTag, amountStr) {
+        let financas = await this.processFinancas(userId);
+
+        if (!amountStr) {
+            return `${userTag}🏦 **AGIOTAGEM DO BOSTOSSAURO** 🏦\n_Pega na hora, paga com a alma._\n\n💸 **Sua dívida atual:** 🪙 ${financas.emprestimo.devedor}\n\n*Regras:*\n- Taxa de 20% aplicada na hora do empréstimo.\n- Cobramos 30% de TUDO que você lucrar automaticamente até quitar.\n\n_Para pedir, use: *!emprestimo [valor]*_`;
+        }
+
+        const amount = parseInt(amountStr);
+        if (isNaN(amount) || amount <= 0) return `${userTag}⚠️ Digite um valor válido.`;
+
+        if (financas.emprestimo.devedor > 0) {
+            return `${userTag}🛑 Calma lá, caloteiro! Você já deve 🪙 ${financas.emprestimo.devedor}. Pague sua dívida antes de pedir mais.`;
+        }
+
+        if (amount > 10000) return `${userTag}🛑 O Banco Central barrou. Empréstimo máximo é de 🪙 10000 por vez.`;
+
+        const debt = Math.floor(amount * 1.20);
+        financas.emprestimo.devedor = debt;
+
+        await this.updateBalance(userId, amount);
+        await this.db.run("UPDATE usuarios SET financas = ? WHERE id_usuario = ?", [JSON.stringify(financas), userId]);
+
+        return `${userTag}🤝 **PACTO SELADO!**\nO Bostossauro depositou 🪙 ${amount} na sua carteira.\n📝 **Sua dívida agora é de 🪙 ${debt}** (Taxa de 20%).\n_Lembre-se: 30% de todo seu suor agora é meu!_`;
     }
 
     // Atualiza o Show Balance para mostrar os acumulados

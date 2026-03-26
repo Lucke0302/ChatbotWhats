@@ -90,8 +90,9 @@ const BAIT_REGEN_HOURS = 4;
 const BAIT_REGEN_SECONDS = BAIT_REGEN_HOURS * 3600;
 
 class PescariaHandler {
-    constructor(db) {
+    constructor(db, casinoHandler) {
         this.db = db;
+        this.casinoHandler = casinoHandler;
     }
 
     async getPlayerData(userId) {
@@ -227,8 +228,10 @@ class PescariaHandler {
 
                 if (player.active_items['ima_coins']) {
                     const moedasAchadas = Math.floor(Math.random() * 41) + 10;
-                    await this.db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [moedasAchadas, userId]);
-                    msg += `   🧲 Puxou junto 🪙 **${moedasAchadas} Bostocoins**!\n`;
+                    const profitResult = await this.casinoHandler.verifyProfit(userId, moedasAchadas);
+                    
+                    await this.db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [profitResult.finalProfit, userId]);
+                    msg += `   🧲 Puxou junto 🪙 **${moedasAchadas} Bostocoins**!${profitResult.msg}\n`;
                 }
             }
         }
@@ -645,9 +648,10 @@ class PescariaHandler {
 
         await this.savePlayerData(userId, player);
 
-        await this.db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [fishToSell.value, userId]);
+        const profitResult = await this.casinoHandler.verifyProfit(userId, fishToSell.value);
+        await this.db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [profitResult.finalProfit, userId]);
 
-        return `${userTag}🤝 **NEGÓCIO FECHADO!**\nVocê entregou seu amado ${fishToSell.emoji} *${fishToSell.name}* para o mercado municipal e faturou 🪙 **${fishToSell.value} Bostocoins**!\n_O registro deste peixe foi apagado do seu mural._`;
+        return `${userTag}🤝 **NEGÓCIO FECHADO!**\nVocê entregou seu amado ${fishToSell.emoji} *${fishToSell.name}* para o mercado municipal por 🪙 **${fishToSell.value} Bostocoins**!${profitResult.msg}\n_Lucro final na carteira: 🪙 ${profitResult.finalProfit}_`;
     }
 
     // FUNÇÃO DE MIGRAÇÃO DE DADOS

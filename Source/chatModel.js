@@ -43,7 +43,7 @@ class ChatModel {
         this.initializeCommandHandlers();
         this.resenhaHandler = new resenhaCommand(db, genAI);
         this.casinoHandler = new CasinoHandler(db);
-        this.pescariaHandler = new PescariaHandler(db);
+        this.pescariaHandler = new PescariaHandler(db, this.casinoHandler);
     }
 
     async init() {
@@ -165,6 +165,16 @@ class ChatModel {
                 }
 
                 return `${tag}🎰 **CASSINO DO BOSTOSSAURO**\n\nOpções:\n🎰 *!cassino [valor]* (Slots)\n🪙 *!cassino [cara/coroa] [valor]*\n🎡 *!cassino roleta [vermelho/preto/verde] [valor]*\n🏦 *!cassino saldo*`;
+            },
+            '!investir': async (ctx) => {
+                const tag = await this.pokemonHandler.getUserTag(ctx.sender);
+                const args = ctx.command.trim().split(/\s+/);
+                return await this.casinoHandler.handleInvestir(ctx.sender, tag, args[1], args[2]);
+            },
+            '!emprestimo': async (ctx) => {
+                const tag = await this.pokemonHandler.getUserTag(ctx.sender);
+                const args = ctx.command.trim().split(/\s+/);
+                return await this.casinoHandler.handleEmprestimo(ctx.sender, tag, args[1]);
             },
             '!pix': async (ctx) => {
                 const tag = await this.pokemonHandler.getUserTag(ctx.sender);

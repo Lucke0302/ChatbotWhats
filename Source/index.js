@@ -558,6 +558,13 @@ async function initDatabase() {
     `);
     console.log("✅ Tabela 'system_usage' verificada.");
 
+    try {
+        await db.exec(`ALTER TABLE usuarios ADD COLUMN financas TEXT DEFAULT '{}';`);
+        console.log("✅ Coluna 'financas' adicionada com sucesso!");
+    } catch (error) {
+        if (!error.message.includes("duplicate column name")) console.error(error.message);
+    }
+
     console.log('✅ Banco de dados SQLite inicializado e tabelas verificadas.');
 }
 

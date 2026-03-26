@@ -358,7 +358,7 @@ class CasinoHandler {
             await this.updateBalance(userId, -amount);
             financas.investimento.montante += amount;
             await this.db.run("UPDATE usuarios SET financas = ? WHERE id_usuario = ?", [JSON.stringify(financas), userId]);
-            return `${userTag}📈 **INVESTIMENTO REALIZADO!**\nVocê aplicou 🪙 ${amount}.\nSeu montante agora é 🪙 ${financas.investimento.montante} e já está rendendo 20% ao dia!`;
+            return `${userTag}📈 **INVESTIMENTO REALIZADO!**\nVocê aplicou 🪙 ${amount}.\nSeu montante agora é 🪙 ${financas.investimento.montante} e já está rendendo 10% ao dia!`;
         }
 
         if (action === 'sacar') {

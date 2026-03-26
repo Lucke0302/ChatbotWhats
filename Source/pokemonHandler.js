@@ -1803,6 +1803,56 @@ class PokemonHandler {
         return `✅ ${count} Pokémon antigos receberam uma natureza aleatória.`;
     }
 
+    //MIGRAR PENDING_MOVES PARA ARRAY JSON
+    async fixPendingMoves(sender) {
+        if (sender !== "5513991008854@s.whatsapp.net") {
+            return "🚫 Acesso negado. Só o Professor Carvalho pode rodar migrações de banco.";
+        }
+
+        const pokemons = await this.db.all("SELECT id, pending_move, nickname FROM user_pokemons WHERE pending_move IS NOT NULL");
+        
+        let countFixed = 0;
+        let countAlreadyOk = 0;
+
+        for (const poke of pokemons) {
+            let pendingValue = poke.pending_move;
+            let needsFix = false;
+            let newArray = [];
+
+            if (typeof pendingValue === 'number') {
+                newArray = [pendingValue];
+                needsFix = true;
+            } else if (typeof pendingValue === 'string') {
+                try {
+                    const parsed = JSON.parse(pendingValue);
+                    
+                    if (!Array.isArray(parsed)) {
+                        newArray = [parsed];
+                        needsFix = true;
+                    } else {
+                        countAlreadyOk++;
+                    }
+                } catch (e) {
+                    const parsedInt = parseInt(pendingValue);
+                    if (!isNaN(parsedInt)) {
+                        newArray = [parsedInt];
+                        needsFix = true;
+                    } else {
+                        newArray = []; 
+                        needsFix = true;
+                    }
+                }
+            }
+
+            if (needsFix) {
+                await this.db.run("UPDATE user_pokemons SET pending_move = ? WHERE id = ?", [JSON.stringify(newArray), poke.id]);
+                countFixed++;
+            }
+        }
+
+        return `🛠️ **MIGRAÇÃO DE GOLPES CONCLUÍDA!**\n\n✅ **${countFixed}** Pokémon tiveram seus golpes convertidos para Array (JSON).\n👍 **${countAlreadyOk}** já estavam no formato correto.\n\nAgora a fila de golpes não vai mais craschar o bot!`;
+    }
+
     getBattleState(encounter, userPoke) {
         let data = encounter.extra_data ? JSON.parse(encounter.extra_data) : {};
         
@@ -2863,6 +2913,9 @@ class PokemonHandler {
                 if (sender !== ADMIN_ID) return "🔒 Sem permissão.";
                 return await this.giveRetroactiveGymTMs();
 
+            case 'fixpendingmoves': 
+                return await this.fixPendingMoves(sender);
+
             case 'presente':
             case 'gift':
             case 'resgatar':
@@ -2936,8 +2989,7 @@ class PokemonHandler {
                 await this.db.run("DELETE FROM active_encounters WHERE user_id = ?", [sender]);
                 return "✅ Batalha bugada removida à força.";
 
-            case 'swap':
-            case 'esquecer':
+            case 'ensinar':
                 return await this.learnPendingMove(sender, param);
 
             case 'time':
@@ -4808,30 +4860,84 @@ class PokemonHandler {
 
         if (emptyIndex !== -1) {
             await this.db.run(`UPDATE user_pokemons SET move${emptyIndex + 1} = ? WHERE id = ?`, [moveId, userPoke.id]);
-            
             userPoke[`move${emptyIndex + 1}`] = moveId; 
             
-            return { success: true, learned: true, moveName: move.name, msg: `aprendeu *${move.name}*!` };
+            return { success: true, learned: true, moveName: move.name, msg: `**${userPoke.nickname}** aprendeu *${move.name}*!` };
         } else {
-            // Vai para pending_move
-            await this.db.run(`UPDATE user_pokemons SET pending_move = ? WHERE id = ?`, [moveId, userPoke.id]);
+            let pendingArray = [];
+            if (userPoke.pending_move) {
+                try {
+                    pendingArray = typeof userPoke.pending_move === 'string' ? JSON.parse(userPoke.pending_move) : [userPoke.pending_move];
+                    if (!Array.isArray(pendingArray)) pendingArray = [userPoke.pending_move];
+                } catch (e) {
+                    pendingArray = [userPoke.pending_move];
+                }
+            }
             
-            userPoke.pending_move = moveId;
+            if (!pendingArray.includes(moveId)) {
+                pendingArray.push(moveId);
+            }
+
+            const pendingStr = JSON.stringify(pendingArray);
+            await this.db.run(`UPDATE user_pokemons SET pending_move = ? WHERE id = ?`, [pendingStr, userPoke.id]);
+            userPoke.pending_move = pendingStr;
 
             return { 
                 success: true, 
                 learned: false, 
                 pending: true, 
                 moveName: move.name, 
-                msg: `quer aprender *${move.name}*, mas já tem 4 golpes. Use *!poke esquecer [1-4]*!` 
+                msg: `**${userPoke.nickname}** quer aprender *${move.name}*, mas já tem 4 golpes!` 
             };
         }
     }
 
+    // Painel de Controle de Golpes Pendentes
+    async checkPendingMoves(userId, userTag) {
+        const pokes = await this.db.all(`SELECT id, nickname, team_slot, pending_move FROM user_pokemons WHERE user_id = ? AND pending_move IS NOT NULL AND pending_move != '[]'`, [userId]);
+        
+        if (!pokes || pokes.length === 0) {
+            return `${userTag}✅ Nenhum Pokémon seu está tentando aprender golpes no momento.`;
+        }
+
+        let msg = `${userTag}🚨 **POKÉMONS AGUARDANDO NOVOS GOLPES:** 🚨\n\n`;
+
+        for (const p of pokes) {
+            let pendingArray = [];
+            try {
+                pendingArray = JSON.parse(p.pending_move);
+                if (!Array.isArray(pendingArray)) pendingArray = [p.pending_move];
+            } catch(e) {
+                pendingArray = [p.pending_move];
+            }
+
+            const slotDisplay = p.team_slot > 0 && p.team_slot <= 6 ? `Time Principal (Slot ${p.team_slot})` : `No PC`;
+            msg += `🔹 **${p.nickname}** _[${slotDisplay}]_\n`;
+            
+
+            for (let i = 0; i < pendingArray.length; i++) {
+                const moveDb = await this.db.get("SELECT name FROM moves WHERE id = ?", [pendingArray[i]]);
+                msg += `   Fila [${i+1}]: Quer aprender *${moveDb ? moveDb.name : '???'}*\n`;
+            }
+            
+            msg += `   _Comando:_ *!poke ensinar ${p.team_slot} [1-4 para substituir ou 0 para ignorar]*\n\n`;
+        }
+
+        return msg;
+    }
+
     async gainExperience(userPoke, enemy, enemyLevel, splitFactor = 1, multiplier, userId) {
+        let pendingArray = [];
         if (userPoke.pending_move) {
-            const moveName = (await this.db.get("SELECT name FROM moves WHERE id = ?", [userPoke.pending_move]))?.name;
-            return `⚠️ ${userPoke.nickname} ainda está tentando aprender *${moveName}*!\nUse *!poke esquecer [1-4]* ou *!poke ignorar*.`;
+            try {
+                pendingArray = typeof userPoke.pending_move === 'string' ? JSON.parse(userPoke.pending_move) : [userPoke.pending_move];
+                if (!Array.isArray(pendingArray)) pendingArray = [userPoke.pending_move];
+            } catch (e) { pendingArray = [userPoke.pending_move]; }
+        }
+
+        if (pendingArray.length > 0) {
+            const moveName = (await this.db.get("SELECT name FROM moves WHERE id = ?", [pendingArray[0]]))?.name;
+            return `⚠️ **${userPoke.nickname}** ainda está tentando aprender *${moveName}*!\nUse *!poke pendentes* para ver e resolver.`;
         }
 
         let lvl = userPoke.level;

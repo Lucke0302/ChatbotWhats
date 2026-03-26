@@ -69,27 +69,27 @@ const ITEM_CATALOG = [
 
 const STORE_CATALOG = {
     '1': { id: 'isca_simples', name: 'Isca de Pão', emoji: '🍞', type: 'instant', effect: 1, price: 100, desc: 'Dá +1 isca na hora. Baratinha pros falidos.' },
-    '2': { id: 'balde_iscas', name: 'Balde de Iscas', emoji: '🪣', type: 'instant', effect: 4, price: 300, desc: 'Dá +3 iscas na hora (Pequeno desconto).' },
+    '2': { id: 'balde_iscas', name: 'Balde de Iscas', emoji: '🪣', type: 'instant', effect: 4, price: 300, desc: 'Dá +4 iscas na hora (Pequeno desconto).' },
     '3': { id: 'repelente', name: 'Repelente de Bota', emoji: '🧴', type: 'buff', duration: 4, price: 200, desc: 'Zera a chance de pescar lixo por 4 rodadas.' },
     '4': { id: 'anzol_chumbo', name: 'Anzol de Chumbo', emoji: '⚓', type: 'buff', duration: 5, price: 200, desc: 'Aumenta o peso dos peixes em 30% por 5 rodadas.' },
     '5': { id: 'ima_coins', name: 'Ímã de Bostocoins', emoji: '🧲', type: 'buff', duration: 3, price: 200, desc: 'Garante achar Bostocoins no fundo do lago por 3 rodadas.' }
 };
 
 const ROD_CATALOG = {
-    'bambu': { id: 'bambu', name: 'Vara de Bambu', mult: 1.0, emoji: '🎋' },
+    'bambu': { id: 'bambu', name: 'Vara de Bambu', mult: 1.0, emoji: '🎋', price: 0, next: 'fibra' },
     'fibra': { id: 'fibra', name: 'Vara de Fibra de Vidro', mult: 1.20, emoji: '🎣', price: 800, next: 'carbono' },
     'carbono': { id: 'carbono', name: 'Vara de Carbono', mult: 1.35, emoji: '💎', price: 1500, next: 'adamantium' },
     'adamantium': { id: 'adamantium', name: 'Vara de Adamantium', mult: 1.50, emoji: '🌌', price: 3000, next: null }
 };
 
 const RARITY_MULTIPLIER = {
-    'lixo': 0.05,
-    'comum': 0.1,
-    'incomum': 0.3,
-    'raro': 0.5,
-    'muito_raro': 0.75,
-    'lendario': 1.0,
-    'mitico': 1.5
+    'lixo': 1,
+    'comum': 5,
+    'incomum': 10,
+    'raro': 50,
+    'muito_raro': 200,
+    'lendario': 500,
+    'mitico': 1000
 };
 
 const MAX_BAITS = 6;
@@ -647,7 +647,12 @@ class PescariaHandler {
             if (!fishInfo) continue;
 
             const weight = typeof recordData === 'object' ? recordData.weight : recordData;
-            const value = Math.ceil(weight * RARITY_MULTIPLIER[fishInfo.rarity]);
+            
+            const maxWeight = fishInfo.avgWeight * 1.5;
+            const perfeicao = weight / maxWeight; 
+            
+            const rarityBaseValue = RARITY_MULTIPLIER[fishInfo.rarity] || 10;
+            const finalValue = Math.ceil(rarityBaseValue * perfeicao);
 
             if (!categorized[fishInfo.rarity]) categorized[fishInfo.rarity] = [];
             
@@ -656,8 +661,8 @@ class PescariaHandler {
                 name: fishInfo.name,
                 emoji: fishInfo.emoji,
                 weight: weight,
-                value: value,
-                score: (weight / (fishInfo.avgWeight * 1.5)) * 100
+                value: finalValue,
+                score: perfeicao * 100
             });
         }
 

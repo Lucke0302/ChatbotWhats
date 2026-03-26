@@ -543,6 +543,29 @@ class CasinoHandler {
         }
     }
 
+    async handleDebugGroup(userTag, groupId, sock) {
+        if (!groupId.endsWith('@g.us')) return "⚠️ Esse comando só funciona em grupos.";
+
+        try {
+            const groupMetadata = await sock.groupMetadata(groupId);
+            const participants = groupMetadata.participants;
+            
+            let msg = `🔍 **RAIO-X DE PARTICIPANTES (DEBUG)**\n`;
+            msg += `Grupo: ${groupMetadata.subject}\n`;
+            msg += `Total: ${participants.length}\n\n`;
+
+            participants.forEach((p, i) => {
+                msg += `*[${i + 1}]* ID: \`${p.id}\`\n`;
+                if (p.lid) msg += `     LID: \`${p.lid}\`\n`;
+            });
+
+            return msg;
+        } catch (e) {
+            console.error(e);
+            return "❌ Erro ao ler metadados do grupo.";
+        }
+    }
+
     // Atualiza o Show Balance para mostrar os acumulados
     async showBalance(userId, userTag) {
         const balance = await this.getBalance(userId);

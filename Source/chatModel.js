@@ -83,6 +83,11 @@ class ChatModel {
             '!timeout': async (ctx) => {
                 return await this.handleTimeoutCommand(ctx.name, ctx.command, ctx.sender, ctx.isGroup, ctx.mentions);
             },
+            '!debug_grupo': async (ctx) => {
+                const tag = await this.pokemonHandler.getUserTag(ctx.sender);
+                if (ctx.sender !== "5513991008854@s.whatsapp.net") return "🔒 Privilégio de Admin.";
+                return await this.casinoHandler.handleDebugGroup(tag, ctx.from, ctx.sock);
+            },
             '!d': async (ctx) => await this.handleDiceCommand(ctx.command, ctx.sender),
             '!menu': async () => await this.handleMenuCommand(),
             '!tradutor': async (ctx) => {

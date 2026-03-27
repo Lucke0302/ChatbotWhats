@@ -129,8 +129,8 @@ const ROD_CATALOG = {
     'grafite': { id: 'grafite', name: 'Vara de Grafite Pro', mult: 1.20, emoji: '✒️', price: 1250, next: 'carbono' },
     'carbono': { id: 'carbono', name: 'Vara de Carbono', mult: 1.30, emoji: '💎', price: 2000, next: 'aco' },    
     'aco': { id: 'aco', name: 'Vara de Aço Temperado', mult: 1.40, emoji: '🔩', price: 3000, next: 'titanio' },
-    'grafeno': { id: 'titanio', name: 'Vara de Grafeno', mult: 1.50, emoji: '💎', price: 5000, next: 'adamantium' },
-    'adamantium': { id: 'adamantium', name: 'Vara de Adamantium', mult: 1.60, emoji: '🌌', price: 8, next: null }
+    'grafeno': { id: 'grafeno', name: 'Vara de Grafeno', mult: 1.50, emoji: '💎', price: 5000, next: 'adamantium' },
+    'adamantium': { id: 'adamantium', name: 'Vara de Adamantium', mult: 1.60, emoji: '🌌', price: 8000, next: null }
 };
 
 const RARITY_MULTIPLIER = {

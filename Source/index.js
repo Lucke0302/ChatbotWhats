@@ -670,6 +670,9 @@ const botCommands = {
     },
     '!givecoins': {
         emoji: '🪙'
+    },
+    '!bico': {
+        emoji: '🪙'
     }
 };
 

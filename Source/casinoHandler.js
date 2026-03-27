@@ -26,12 +26,36 @@ constructor(db) {
             `trabalha com o guê?\n- Eu sou comercial.\n- Comercial di guê?\n- Comercial de vendas.\n- Vendas di guê?\n- Vendas... de qualquer coisa. Vendo água, vendo... produto de limpeza...`
         ];
 
-        this.carreiras = {
-            1: { titulo: "Entregador de Panfleto", salario: 50 },
-            2: { titulo: "Atendente de Telemarketing", salario: 75 },
-            3: { titulo: "Suporte Nível 1 (Saco de Pancadas)", salario: 100 },
-            4: { titulo: "Desenvolvedor Júnior", salario: 150 },
-            5: { titulo: "Faria Limer (Herdeiro)", salario: 200 }
+        this.CARREIRAS_CATALOGO = {
+            1: [
+                "Vendedor(a) de Chup Chup", "Entregador(a) de Panfleto", "Flanelinha de Shopping",
+                "Apanhador(a) de Reciclagem", "Guardador(a) de Lugar na Fila"
+            ],
+            2: [
+                "Atendente de Telemarketing", "Caixa de Lotação", "Mascote de Loja de Celular", 
+                "Vendedor(a) de Bolo de Pote", "Fiscal de Catraca"
+            ],
+            3: [
+                "Suporte Nível 1 (Saco de Pancadas)", "Técnico(a) de Informática de Bairro",
+                "Coach Quântico", "Corretor(a) de Jogo do Bicho", "Pescador(a) Profissional"
+            ],
+            4: [
+                "Desenvolvedor(a) em Spring Boot", "Trader de Criptomoeda",
+                "Dono(a) de Pirâmide Financeira", "Agiota de Bairro", "Sommelier de Água"
+            ],
+            5: [
+                "Herdeiro(a)", "CEO de MEI", "Dono(a) do Cassino",
+                "Faria Limer", "Prefeito(a) de Peruíbe"
+            ]
+        };
+
+        this.SALARIOS_BASE = { 1: 50, 2: 75, 3: 100, 4: 150, 5: 200 };
+
+        this.SUBNIVEIS = {
+            1: { nome: "Auxiliar", mult: 1.00 },
+            2: { nome: "Júnior", mult: 1.10 },
+            3: { nome: "Pleno", mult: 1.20 },
+            4: { nome: "Sênior", mult: 1.30 }
         };
 
         this.HOURS_TO_WORK = 8;
@@ -272,20 +296,33 @@ constructor(db) {
         }
         
         let financas = await this.processFinancas(userId);
-        const nivelAtual = financas.carreira.nivel || 1;
-        const profissao = this.carreiras[nivelAtual];
+        let nivel = financas.carreira.nivel || 1;
+        let subnivel = financas.carreira.subnivel || 1;
         
-        const multiplicador = Math.floor(Math.random() * this.WORK_MULTIPLIER) + 1;
-        const salario = profissao.salario * multiplicador;
+        if (financas.carreira.id_job === undefined || financas.carreira.id_job === null) {
+            const maxJobs = this.CARREIRAS_CATALOGO[nivel].length;
+            financas.carreira.id_job = Math.floor(Math.random() * maxJobs);
+        }
+
+        const cargoBase = this.CARREIRAS_CATALOGO[nivel][financas.carreira.id_job];
+        const nomeSubnivel = this.SUBNIVEIS[subnivel].nome;
+        const cargoCompleto = `${cargoBase} ${nomeSubnivel}`;
         
-        const profitResult = await this.verifyProfit(userId, salario);
+        const salarioBase = this.SALARIOS_BASE[nivel];
+        const multiplicadorRNG = Math.floor(Math.random() * this.WORK_MULTIPLIER) + 1;
+        const bonusCargo = this.SUBNIVEIS[subnivel].mult;
+        
+        const salarioFinal = Math.floor(salarioBase * multiplicadorRNG * bonusCargo);
+        
+        const profitResult = await this.verifyProfit(userId, salarioFinal);
         
         await this.updateBalance(userId, profitResult.finalProfit);
         await this.db.run("UPDATE usuarios SET last_trabalho = ? WHERE id_usuario = ?", [now, userId]);
+        await this.db.run("UPDATE usuarios SET financas = ? WHERE id_usuario = ?", [JSON.stringify(financas), userId]);
 
-        let msg = `${userTag}💼 **EXPEDIENTE CONCLUÍDO**\n\nVocê bateu o ponto como **${profissao.titulo}** (Nível ${nivelAtual}) e recebeu seu salário (baseado em metas) de 🪙 **${salario} Bostocoins**!${profitResult.msg}\n\n_Lucro na carteira: 🪙 ${profitResult.finalProfit}_`;
+        let msg = `${userTag}💼 **EXPEDIENTE CONCLUÍDO**\n\nVocê bateu o ponto como **${cargoCompleto}** e recebeu seu salário de 🪙 **${salarioFinal} Bostocoins**!${profitResult.msg}\n\n_Lucro na carteira: 🪙 ${profitResult.finalProfit}_`;
 
-        if (nivelAtual < Object.keys(this.carreiras).length) {
+        if (nivel < 5 || subnivel < 4) {
             msg += `\n\n📚 _Dica: Em breve você poderá usar !estudar para subir de cargo e ganhar mais!_`;
         } else {
             msg += `\n\n👑 _Você atingiu o topo da cadeia alimentar corporativa!_`;
@@ -301,10 +338,9 @@ constructor(db) {
         let financas = { 
             investimento: { montante: 0, ultimo_rendimento: now }, 
             emprestimo: { devedor: 0 },
-            carreira: { nivel: 1 },
+            carreira: { nivel: 1, subnivel: 1, id_job: null },
             last_bico: 0
         };
-
         if (user && user.financas && user.financas !== '{}') {
             try { 
                 const parsed = JSON.parse(user.financas); 

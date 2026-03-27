@@ -252,10 +252,13 @@ class ChatModel {
                 const subCommand = args[1]?.toLowerCase();
 
                 if (subCommand === 'acelerar') {
-                    if (ctx.sender !== "5513991008854@s.whatsapp.net") {
-                        return "🚫 Apenas o Ministro da Economia pode usar isso.";
-                    }
+                    if (ctx.sender !== "5513991008854@s.whatsapp.net") return "🚫 Apenas o Ministro da Economia pode usar isso.";
                     return await this.casinoHandler.acelerarTrabalhoGlobal(tag);
+                }
+
+                if (subCommand === 'rh' || subCommand === 'embaralhar') {
+                    if (ctx.sender !== "5513991008854@s.whatsapp.net") return "🚫 Apenas a diretoria de RH pode fazer isso.";
+                    return await this.casinoHandler.shuffleJobsGlobal(tag);
                 }
 
                 return await this.casinoHandler.handleTrabalhar(ctx.sender, tag);

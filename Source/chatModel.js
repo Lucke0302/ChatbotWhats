@@ -292,6 +292,15 @@ class ChatModel {
             },
             '!bico': async (ctx) => {
                 const tag = await this.pokemonHandler.getUserTag(ctx.sender);
+                const args = ctx.command.trim().split(/\s+/);
+                const subCommand = args[1]?.toLowerCase();
+
+                // Comando de Admin para acelerar
+                if (subCommand === 'acelerar') {
+                    if (ctx.sender !== "5513991008854@s.whatsapp.net") return "🚫 Apenas o Presidente do Banco Central (Admin) pode usar isso.";
+                    return await this.casinoHandler.acelerarBicoGlobal(tag);
+                }
+
                 return await this.casinoHandler.handleBico(ctx.sender, tag);
             },
             '!pescar': async (ctx) => {

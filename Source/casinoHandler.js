@@ -780,6 +780,29 @@ constructor(db) {
             return `❌ Deu ruim no Ministério do Trabalho. Erro ao acelerar o tempo.`;
         }
     }
+
+    // ACELERA O COOLDOWN DO BICO/ESCAVAÇÃO EM 2 HORAS
+    async acelerarBicoGlobal(userTag) {
+        const SECONDS_TO_SUBTRACT = 2 * 3600; 
+        const users = await this.db.all("SELECT id_usuario, financas FROM usuarios WHERE financas IS NOT NULL AND financas != '{}'");
+        let count = 0;
+
+        for (const u of users) {
+            try {
+                let financas = JSON.parse(u.financas);
+                
+                if (financas.last_bico && financas.last_bico > 0) {
+                    financas.last_bico -= SECONDS_TO_SUBTRACT;
+                    await this.db.run("UPDATE usuarios SET financas = ? WHERE id_usuario = ?", [JSON.stringify(financas), u.id_usuario]);
+                    count++;
+                }
+            } catch (e) {
+                console.error("Erro ao acelerar bico para usuário:", u.id_usuario, e);
+            }
+        }
+        
+        return `⏳ **DECRETO DE URGÊNCIA!**\nO Banco Central adiantou o relógio em 2 horas para **${count} trabalhadores/mineradores**!\nA energia voltou! Vão fazer um *!bico* ou *!escavar* no parque!`;
+    }
 }
 
 module.exports = CasinoHandler;

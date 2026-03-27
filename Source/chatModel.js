@@ -267,6 +267,27 @@ class ChatModel {
 
                 return await this.casinoHandler.handleTrabalhar(ctx.sender, tag);
             },
+            '!trabalho': async (ctx) => {
+                const tag = await this.pokemonHandler.getUserTag(ctx.sender);
+                const args = ctx.command.trim().split(/\s+/);
+                const subCommand = args[1]?.toLowerCase();
+
+                if (subCommand === 'acelerar') {
+                    if (ctx.sender !== "5513991008854@s.whatsapp.net") return "🚫 Apenas o Ministro da Economia (Admin) pode usar isso.";
+                    return await this.casinoHandler.acelerarTrabalhoGlobal(tag);
+                }
+
+                if (subCommand === 'rh' || subCommand === 'embaralhar') {
+                    if (ctx.sender !== "5513991008854@s.whatsapp.net") return "🚫 Apenas a diretoria de RH pode fazer isso.";
+                    return await this.casinoHandler.shuffleJobsGlobal(tag);
+                }
+
+                if (subCommand === 'carreira' || subCommand === 'perfil') {
+                    return await this.casinoHandler.handleCarreira(ctx.sender, tag);
+                }
+
+                return await this.casinoHandler.handleTrabalhar(ctx.sender, tag);
+            },
             '!bico': async (ctx) => {
                 const tag = await this.pokemonHandler.getUserTag(ctx.sender);
                 return await this.casinoHandler.handleBico(ctx.sender, tag);

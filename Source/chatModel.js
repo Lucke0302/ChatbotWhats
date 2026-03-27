@@ -325,8 +325,8 @@ class ChatModel {
                 }
                 
                 if (subCommand === 'vender') {
-                    const itemCode = args[2];
-                    return await this.pescariaHandler.handleVender(ctx.sender, tag, itemCode);
+                    const itemCodes = args.slice(2).join(' ');
+                    return await this.pescariaHandler.handleVender(ctx.sender, tag, itemCodes);
                 }
 
                 if (subCommand === 'trofeus') {

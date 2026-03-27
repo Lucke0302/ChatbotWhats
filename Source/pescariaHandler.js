@@ -684,14 +684,14 @@ class PescariaHandler {
     }
 
     // MERCADO DE PEIXES
-    async handleVender(userId, userTag, itemIndexStr) {
+    async handleVender(userId, userTag, itemIndicesStr) {
         const { sellableArray, player } = await this.getSellableList(userId);
 
         if (sellableArray.length === 0) {
             return `${userTag} Seu mural tá vazio! Você não tem nenhum peixe para vender. Vá pescar primeiro!`;
         }
 
-        if (!itemIndexStr) {
+        if (!itemIndicesStr || itemIndicesStr.trim() === '') {
             const rarityLabels = {
                 'comum': '⚪ COMUM', 'incomum': '🟢 INCOMUM', 'raro': '🔵 RARO', 
                 'muito_raro': '🟣 MUITO RARO', 'lendario': '🟡 LENDÁRIO', 'mitico': '🔴 MÍTICO', 'lixo': '🟤 LIXO'
@@ -705,34 +705,61 @@ class PescariaHandler {
                     msg += `\n*${rarityLabels[f.rarity]}*\n`;
                     lastRarity = f.rarity;
                 }
-                
                 msg += `*[ ${i + 1} ]* ${f.emoji} ${f.name} (${f.weight.toFixed(2)}kg) - **${f.score.toFixed(1)}%** ➝ 🪙 **${f.value}**\n`;
             });
 
-            msg += `\n💰 Para vender digite: *!pescaria vender [numero]*`;
+            msg += `\n💰 Para vender digite: *!pescaria vender [numero]* ou *!pescaria vender 1 2 3* para vários.`;
             return msg;
         }
 
-        const index = parseInt(itemIndexStr) - 1;
-        if (isNaN(index) || index < 0 || index >= sellableArray.length) {
-            return `${userTag}⚠️ Número inválido! Digite apenas *!pescaria vender* para ver a lista.`;
+        const rawIndices = itemIndicesStr.split(/\s+|,/).filter(s => s.trim() !== '');
+        let indices = rawIndices.map(s => parseInt(s) - 1);
+
+        indices = indices.filter(i => !isNaN(i) && i >= 0 && i < sellableArray.length);
+
+        indices = [...new Set(indices)];
+
+        if (indices.length === 0) {
+            return `${userTag}⚠️ Nenhum número válido! Digite apenas *!pescaria vender* para ver a lista.`;
         }
 
-        const fishToSell = sellableArray[index];
+        indices.sort((a, b) => b - a);
 
-        const originalIndex = player.records.findIndex(r => 
-            r.id === fishToSell.id && r.weight === fishToSell.weight && r.date === fishToSell.date
-        );
+        let totalValue = 0;
+        let soldFishes = [];
 
-        if (originalIndex > -1) {
-            player.records.splice(originalIndex, 1);
-            await this.savePlayerData(userId, player);
-            
-            const profitResult = await this.casinoHandler.verifyProfit(userId, fishToSell.value);
-            await this.db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [profitResult.finalProfit, userId]);
+        for (const index of indices) {
+            const fishToSell = sellableArray[index];
 
-            return `${userTag}🤝 **VENDA CONCLUÍDA!**\nVocê vendeu 1x ${fishToSell.emoji} *${fishToSell.name}* por 🪙 **${fishToSell.value}**!${profitResult.msg}`;
+            const originalIndex = player.records.findIndex(r => 
+                r.id === fishToSell.id && r.weight === fishToSell.weight && r.date === fishToSell.date
+            );
+
+            if (originalIndex > -1) {
+                player.records.splice(originalIndex, 1);
+                totalValue += fishToSell.value;
+                soldFishes.push(fishToSell);
+            }
         }
+
+        if (soldFishes.length === 0) {
+            return `${userTag}⚠️ Os peixes escaparam da sacola! Nenhum peixe pôde ser vendido.`;
+        }
+
+        await this.savePlayerData(userId, player);
+
+        const profitResult = await this.casinoHandler.verifyProfit(userId, totalValue);
+        await this.db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [profitResult.finalProfit, userId]);
+
+        let msg = `${userTag}🤝 **VENDA EM LOTE CONCLUÍDA!**\n\nVocê vendeu:\n`;
+        
+        soldFishes.reverse().forEach(f => {
+            msg += `- ${f.emoji} *${f.name}* (${f.score.toFixed(1)}%) ➝ 🪙 ${f.value}\n`;
+        });
+        
+        msg += `\n💰 **Valor Bruto Total:** 🪙 **${totalValue}**${profitResult.msg}`;
+
+        return msg;
     }
 
     // FUNÇÃO DE MIGRAÇÃO DE DADOS

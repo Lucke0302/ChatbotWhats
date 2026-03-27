@@ -869,11 +869,11 @@ class PescariaHandler {
         let msg = `${userTag}📊 **AVALIAÇÃO DE PATRIMÔNIO (ISOPOR)** 📊\n\n`;
         msg += `🐟 **Total de Peixes (e outras pescas):** ${sellableArray.length}\n`;
         msg += `💰 **Valor Estimado:** 🪙 **${totalValue} Bostocoins**\n\n`;
-        if(totalValue < 500)msg += `_Que pobreza! Bora pescar mais ai..._`;
+        if(totalValue < 500) msg += `_Que pobreza! Bora pescar mais ai..._`;
         else if (totalValue < 2000) msg += `_Tá com um dinheirinho, hein? Usa *!pescaria vender* para negociar ou *!pescar* pra aumentar o patrimônio._`;      
-        else if (totalValue <5000) msg += `_Tá rico, hein? Use *!pescaria vender* para negociar essas belezinhas no mercadão._`;
-        else msg `_É o mestre da pesca! (Absolute cinema)_`
-
+        else if (totalValue <5000) msg += `_Tá rico, hein? Use *!pescaria vender* para negociar essas belezinhas ou use *!parque alimentar* para dar pros Dinos!_`;
+        else msg += `_É o mestre da pesca! (Absolute cinema). Já pensou em jogar uns peixes na jaula (!parque)?_`;
+        
         return msg;
     }
 

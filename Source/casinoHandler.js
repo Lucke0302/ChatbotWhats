@@ -485,7 +485,7 @@ constructor(db) {
         await this.db.run("UPDATE usuarios SET financas = ? WHERE id_usuario = ?", [JSON.stringify(financas), userId]);
         await this.updateBalance(userId, profitResult.finalProfit);
 
-        return `${userTag}🛠️ **BICO REALIZADO**\n\nVocê ${bicoSorteado} e levantou 🪙 **${pagamento} Bostocoins** pelo serviço!${profitResult.msg}\n\n_Lucro na carteira: 🪙 ${profitResult.finalProfit}_`;
+        return `${userTag}🛠️ **BICO REALIZADO**\n\nVocê ${bicoSorteado} e levantou 🪙 **${pagamento} Bostocoins** pelo serviço!${profitResult.msg}\n\n_Lucro na carteira: 🪙 ${profitResult.finalProfit}_\n\n💡 _Dica: O bico cansa. Você acabou de gastar a energia que poderia ser usada no *!escavar*!_`;
     }
 
     //  Verifica se o cara tá devendo

@@ -565,6 +565,48 @@ async function initDatabase() {
         if (!error.message.includes("duplicate column name")) console.error(error.message);
     }
 
+    try {
+        await db.exec(`ALTER TABLE usuarios ADD COLUMN parque_data TEXT DEFAULT '{}';`);
+        console.log("✅ Coluna 'parque_data' adicionada com sucesso!");
+    } catch (error) {
+        if (!error.message.includes("duplicate column name")) console.error(error.message);
+    }
+
+    await db.exec(`
+        CREATE TABLE IF NOT EXISTS parque_dinossauros (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            group_id TEXT NOT NULL,
+            especie_id TEXT NOT NULL,
+            descobridor_nome TEXT NOT NULL,
+            nivel INTEGER DEFAULT 1,
+            xp_atual INTEGER DEFAULT 0,
+            data_descoberta INTEGER
+        );
+    `);
+    console.log("✅ Tabela 'parque_dinossauros' verificada.");
+
+    try {
+        await db.exec(`ALTER TABLE parque_dinossauros ADD COLUMN reserva_comida REAL DEFAULT 0;`);
+        console.log("✅ Coluna 'parque_data' adicionada com sucesso!");
+    } catch (error) {
+        if (!error.message.includes("duplicate column name")) console.error(error.message);
+    }
+
+    try {
+        await db.exec(`ALTER TABLE parque_dinossauros ADD COLUMN ultimo_level_up INTEGER DEFAULT 0;`);
+        console.log("✅ Coluna 'parque_data' adicionada com sucesso!");
+    } catch (error) {
+        if (!error.message.includes("duplicate column name")) console.error(error.message);
+    }
+
+        try {
+        await db.exec(`ALTER TABLE parque_dinossauros ADD COLUMN reserva_comida REAL DEFAULT 0;`);
+        console.log("✅ Coluna 'parque_data' adicionada com sucesso!");
+    } catch (error) {
+        if (!error.message.includes("duplicate column name")) console.error(error.message);
+    }
+    
+
     console.log('✅ Banco de dados SQLite inicializado e tabelas verificadas.');
 }
 
@@ -673,7 +715,13 @@ const botCommands = {
     },
     '!bico': {
         emoji: '🪙'
-    }
+    },
+    '!parque': {
+        emoji: '🦖'
+    },
+    '!escavar': {
+        emoji: '⛏️'
+    },
 };
 
 //Inicia a conexão com mo Whatsapp para fazer todas as operações
@@ -857,7 +905,9 @@ async function connectToWhatsApp() {
                         let toxicReport = "";
                         let divisor = "";
 
-                    if(groupId == "120363422139578370@g.us"){
+                        const parqueReport = await chatbot.parqueHandler.processarBilheteria(groupId);
+
+                        if(groupId == "120363422139578370@g.us"){
                             divisor = "\n\n------------------------------\n";                            
                             
                             const topToxicos = await db.all(`
@@ -940,11 +990,10 @@ async function connectToWhatsApp() {
                             await db.run("UPDATE ranking_ofensas SET total_mensagens = 0 WHERE id_conversa = ?", [groupId]);
                         }
                         
-                        const finalMessage = baseMessage + loteriaReport + divisor + toxicReport;
+                        const finalMessage = baseMessage + loteriaReport + parqueReport + divisor + toxicReport;
 
                         await sock.sendMessage(groupId, { text: finalMessage });
-                        
-                        await new Promise(resolve => setTimeout(resolve, 2000)); 
+                        await new Promise(resolve => setTimeout(resolve, 2000));
                     }
 
                     console.log("✅ Transmissão de Bom Dia finalizada!");

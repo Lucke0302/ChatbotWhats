@@ -12,6 +12,7 @@ const migrationCommandHandler = require('./migrarCommand');
 const resenhaCommand = require('./resenhaCommand');
 const CasinoHandler = require('./casinoHandler');
 const PescariaHandler = require('./pescariaHandler');
+const ParqueHandler = require('./parqueHandler');
 const RIOT_API_KEY = process.env.RIOT_API_KEY;
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
@@ -44,6 +45,7 @@ class ChatModel {
         this.resenhaHandler = new resenhaCommand(db, genAI);
         this.casinoHandler = new CasinoHandler(db);
         this.pescariaHandler = new PescariaHandler(db, this.casinoHandler);
+        this.parqueHandler = new ParqueHandler(db, this.casinoHandler, this.pescariaHandler);
     }
 
     async init() {
@@ -370,7 +372,51 @@ class ChatModel {
                     return await this.pescariaHandler.handleTitulosPesca(ctx.sender, tag, action, param);
                 }
 
-                return `${tag}🎣 **SISTEMA DE PESCA**\n\nOpções:\n🎣 *!pescar* (Joga a isca!)\n🏪 *!pescaria loja* (Compre Iscas, Buffs e Varas novas!)\n⚖️ *!pescaria vender* (Mercadão de peixes)\n🎒 *!pescaria perfil* (Iscas e Efeitos ativos)\n🏆 *!pescaria ranking* (Top pescadores)\n🦈 *!pescaria trofeus* (10 maiores deste grupo)\n🏅 *!pescaria toppessoal* (Seus troféus absolutos)\n🌍 *!pescaria topgrupo* (A Elite das Águas)\n📊 *!pescaria avaliar* (Calcula a fortuna no seu isopor)\n👑 *!pescaria titulo* (Ostente seu império de peixes)\n`;
+                return `${tag}🎣 **SISTEMA DE PESCA**\n\nOpções:\n🎣 *!pescar* (Joga a isca!)\n🏪 *!pescaria loja* (Compre Iscas, Buffs e Varas novas!)\n⚖️ *!pescaria vender* (Mercadão de peixes)\n♻️ *!pescaria vender lixo* (Recicla as sucatas)\n🎒 *!pescaria perfil* (Iscas e Efeitos ativos)\n🏆 *!pescaria ranking* (Top pescadores)\n🦈 *!pescaria trofeus* (10 maiores deste grupo)\n🏅 *!pescaria toppessoal* (Seus troféus absolutos)\n🌍 *!pescaria topgrupo* (A Elite das Águas)\n📊 *!pescaria avaliar* (Calcula a fortuna no seu isopor)\n👑 *!pescaria titulo* (Ostente seu império de peixes)\n`;
+            },
+            '!parque': async (ctx) => {
+                const tag = await this.pokemonHandler.getUserTag(ctx.sender);
+                const args = ctx.command.trim().split(/\s+/);
+                const subCommand = args[1]?.toLowerCase();
+
+                if (subCommand === 'despensa' || subCommand === 'comida') {
+                    return await this.parqueHandler.listarComida(ctx.sender, tag);
+                }
+
+                if (subCommand === 'alimentar') {
+                    return await this.parqueHandler.alimentarDino(ctx.sender, tag, ctx.from, args[2], args[3]);
+                }
+
+                if (subCommand === 'mural' || subCommand === 'lista') {
+                    return await this.parqueHandler.verParqueGlobal(ctx.from, tag);
+                }
+
+                if (subCommand === 'perfil') {
+                    return await this.parqueHandler.verPerfilParque(ctx.sender, tag);
+                }
+
+                if (subCommand === 'mochila') {
+                    return await this.parqueHandler.verMochila(ctx.sender, tag);
+                }
+
+                if (subCommand === 'vender') {
+                    const param = args[2]?.toLowerCase();
+                    return await this.parqueHandler.venderMinerais(ctx.sender, tag, param);
+                }
+
+                return `${tag}🦖 **JURASSIC BOSTOPARK** 🦖\n\n` +
+                       `⛏️ *!escavar* (Use sua picareta para achar minérios ou Âmbar!)\n` +
+                       `🎒 *!parque mochila* (Veja suas pedras)\n` +
+                       `🤝 *!parque vender [numero/tudo]* (Venda os minérios)\n` +
+                       `🥩 *!parque despensa* (Veja os peixes para dar de comida)\n` +
+                       `🍗 *!parque alimentar [ID] [Nº_Comida]* (Alimente um dino)\n` +
+                       `🖼️ *!parque mural* (Veja os dinossauros do grupo)\n` +
+                       `🧬 *!parque perfil* (Sua coleção de genéticas)\n`;
+
+            },
+            '!escavar': async (ctx) => {
+                const tag = await this.pokemonHandler.getUserTag(ctx.sender);
+                return await this.parqueHandler.handleEscavar(ctx.sender, tag, ctx.name, ctx.from);
             },
         };
 
@@ -1147,7 +1193,7 @@ class ChatModel {
     }
 
     async handleMenuCommand(){
-        return `📍 *MENU RÁPIDO (v4.0 - Pokémon)* \n\n
+        return `📍 *MENU RÁPIDO (v4.3 - O Sindicato dos Pescadores)* \n\n
         🆘 !ajuda (ou !help)\n
         🗣️ !audio\n
         🌡️ !clima\n
@@ -1160,6 +1206,7 @@ class ChatModel {
         📄 !menu\n
         ✏️ !notas\n
         📙 !pdf\n
+        🎣 !pescaria (SISTEMA DE PESCA)\n
         🎮 !poke (JOGO COMPLETO)\n
         🖼️ !s (ou !sticker)\n
         🛎️ !resumo\n        

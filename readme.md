@@ -25,7 +25,7 @@ O Bostossauro não é apenas um bot, é um estilo de vida. Aqui estão as skills
     * `!s baixa`: Qualidade duvidosa.
     * `!s podi`: Modo *deep fried*, destrói a imagem até virar arte abstrata.
 
-* **🦖 Jurassic BostoPark (v4.4 - A Ameaça Mesozóica):** Um ecossistema massivo de "Tamagotchi Comunitário" e escavação que interliga todas as economias do bot.
+* **🦖 Jurassic BostoPark (v5- A Ameaça Mesozóica):** Um ecossistema massivo de "Tamagotchi Comunitário" e escavação que interliga todas as economias do bot.
     * `!escavar`: Divide a estamina com o `!bico`. O jogador minera pedras preciosas (para vender) e tem chance de achar um Âmbar contendo DNA de dinossauros.
 * **Sistema de Gacha e Cores:** Os dinossauros variam de Comuns a Míticos, possuindo geradores genéticos que criam combinações de 1 a 3 cores aleatórias (com multiplicadores de lucro).
     * `!parque alimentar`: Interliga a Pescaria ao Parque. Os jogadores precisam esvaziar seus isopores (`!parque despensa`) para jogar peixes na jaula. O dinossauro possui nível, fase de crescimento (Filhote a Ancião), barra de XP quadrática e trava diária de digestão.

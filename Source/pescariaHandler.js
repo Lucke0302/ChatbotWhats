@@ -248,6 +248,8 @@ class PescariaHandler {
             }
         }
 
+        let itensAchadosAgora = [];
+
         if (Math.random() < 0.20) {
             const droppedItem = ITEM_CATALOG[Math.floor(Math.random() * ITEM_CATALOG.length)];
             msg += `\n🎁 **ACHADO NO LAGO!** Você fisgou: ${droppedItem.emoji} *${droppedItem.name}*\n`;
@@ -261,13 +263,16 @@ class PescariaHandler {
             } else {
                 player.active_items[droppedItem.id] = droppedItem.duration;
                 msg += `_Ativo por ${droppedItem.duration} rodadas! (${droppedItem.desc})_\n`;
+                itensAchadosAgora.push(droppedItem.id);
             }
         }
 
         for (const itemId in player.active_items) {
-            player.active_items[itemId] -= 1;
-            if (player.active_items[itemId] <= 0) {
-                delete player.active_items[itemId]; 
+            if (!itensAchadosAgora.includes(itemId)) {
+                player.active_items[itemId] -= 1;
+                if (player.active_items[itemId] <= 0) {
+                    delete player.active_items[itemId]; 
+                }
             }
         }
 
@@ -287,9 +292,9 @@ class PescariaHandler {
                 const data = JSON.parse(u.pescaria_data);
                 
                 let hasFishedInGroup = false;
-                if (data.records) {
-                    for (const recordData of Object.values(data.records)) {
-                        if (typeof recordData === 'object' && recordData.group_id === groupId) {
+                if (Array.isArray(data.records)) {
+                    for (const record of data.records) {
+                        if (record.group_id === groupId) {
                             hasFishedInGroup = true;
                             break;
                         }
@@ -349,17 +354,11 @@ class PescariaHandler {
         }
 
         const records = player.records;
-        const recordKeys = Object.keys(records);
         
-        if (recordKeys.length > 0) {
+        if (Array.isArray(records) && records.length > 0) {
             msg += `\n🌟 *Seus Maiores Troféus:*\n`;
             
-        const sortedRecords = recordKeys
-                .map(id => {
-                    const rec = records[id];
-                    const weight = typeof rec === 'object' ? rec.weight : rec;
-                    return { id, weight };
-                })
+            const sortedRecords = [...records]
                 .sort((a, b) => b.weight - a.weight)
                 .slice(0, 5);
 
@@ -376,47 +375,56 @@ class PescariaHandler {
         return msg;
     }
 
-    // MURAL DE TROFÉUS DO GRUPO
-    async getTrofeusGrupo(groupId, userTag) {
-        const users = await this.db.all("SELECT nome, pescaria_data FROM usuarios WHERE pescaria_data IS NOT NULL AND pescaria_data != '{}'");
+    // TOP 3 PESSOAL POR RARIDADE
+    async getTopPessoal(userId, userTag) {
+        const player = await this.getPlayerData(userId);
         
-        let allCatches = [];
+        if (!Array.isArray(player.records) || player.records.length === 0) {
+            return `${userTag} Você ainda não tem nenhum recorde. Jogue a isca na água primeiro!`;
+        }
+
+        const categorized = {};
+
+        for (const record of player.records) {
+            const fishInfo = FISH_CATALOG.find(f => f.id === record.id);
+            if (!fishInfo) continue;
+
+            const weight = record.weight;
+            const maxWeight = fishInfo.avgWeight * 1.5;
+            const score = (weight / maxWeight) * 100;
+
+            if (!categorized[fishInfo.rarity]) categorized[fishInfo.rarity] = [];
+            
+            categorized[fishInfo.rarity].push({
+                name: fishInfo.name,
+                emoji: fishInfo.emoji,
+                weight: weight,
+                score: score
+            });
+        }
+
+        let msg = `${userTag}🎣 **SEUS MELHORES PEIXES (Por Raridade)** 🎣\n_Nota: Proximidade do peso máximo padrão_\n\n`;
         
-        for (const u of users) {
-            try {
-                const data = JSON.parse(u.pescaria_data);
-                if (data.records) {
-                    for (const [fishId, recordData] of Object.entries(data.records)) {
-                        if (typeof recordData === 'object' && recordData.group_id === groupId) {
-                            const fishInfo = FISH_CATALOG.find(f => f.id === fishId);
-                            if (fishInfo) {
-                                allCatches.push({
-                                    nome: u.nome || 'Anônimo',
-                                    fishName: fishInfo.name,
-                                    emoji: fishInfo.emoji,
-                                    weight: recordData.weight,
-                                    date: recordData.date
-                                });
-                            }
-                        }
-                    }
-                }
-            } catch (e) {
+        const rarityOrder = ['comum', 'incomum', 'raro', 'muito_raro', 'lendario', 'mitico', 'lixo'];
+        const rarityLabels = {
+            'comum': '⚪ COMUM', 'incomum': '🟢 INCOMUM', 'raro': '🔵 RARO', 
+            'muito_raro': '🟣 MUITO RARO', 'lendario': '🟡 LENDÁRIO', 'mitico': '🔴 MÍTICO', 'lixo': '🟤 LIXO'
+        };
+        const medalhas = ["🥇", "🥈", "🥉"];
+
+        for (const rarity of rarityOrder) {
+            if (categorized[rarity] && categorized[rarity].length > 0) {
+                msg += `*${rarityLabels[rarity]}*\n`;
+                
+                const top3 = categorized[rarity].sort((a, b) => b.score - a.score).slice(0, 3);
+                
+                top3.forEach((f, i) => {
+                    msg += `${medalhas[i]} ${f.emoji} ${f.name} ➝ **${f.score.toFixed(1)}/100** _(${f.weight.toFixed(2)}kg)_\n`;
+                });
+                msg += `\n`;
             }
         }
-        
-        allCatches.sort((a, b) => b.weight - a.weight);
-        const top10 = allCatches.slice(0, 10);
-        
-        if (top10.length === 0) return `${userTag}🎣 Nenhum monstro foi registrado nestas águas ainda!\n_(Nota: Peixes fisgados antes da atualização não contam pro mural do grupo)._`;
-        
-        let msg = `🦈 **MURAL DE TROFÉUS DO GRUPO** 🦈\n_Os 10 peixes mais pesados pescados aqui:_\n\n`;
-        const medalhas = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"];
-        
-        top10.forEach((c, i) => {
-            msg += `${medalhas[i]} *${c.nome}* fisgou um ${c.emoji} **${c.fishName}** de **${c.weight.toFixed(2)}kg**!\n`;
-        });
-        
+
         return msg;
     }
 
@@ -481,14 +489,14 @@ class PescariaHandler {
         for (const u of users) {
             try {
                 const data = JSON.parse(u.pescaria_data);
-                if (!data.records) continue;
+                if (!Array.isArray(data.records)) continue;
 
-                for (const [fishId, recordData] of Object.entries(data.records)) {
-                    if (typeof recordData === 'object' && recordData.group_id === groupId) {
-                        const fishInfo = FISH_CATALOG.find(f => f.id === fishId);
+                for (const record of data.records) {
+                    if (record.group_id === groupId) {
+                        const fishInfo = FISH_CATALOG.find(f => f.id === record.id);
                         if (!fishInfo) continue;
 
-                        const weight = recordData.weight;
+                        const weight = record.weight;
                         const maxWeight = fishInfo.avgWeight * 1.5;
                         const score = (weight / maxWeight) * 100;
 

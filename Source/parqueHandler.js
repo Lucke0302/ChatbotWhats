@@ -231,7 +231,7 @@ class ParqueHandler {
             if (!dinoInfo) continue;
 
             if (d.reserva_comida > 0) {
-                const xpNecessarioProLevel = 2 * d.nivel, 2 * dinoInfo.base_xp_req;
+                const xpNecessarioProLevel = 2 * d.nivel * dinoInfo.base_xp_req;
                 const faltaProLevel = xpNecessarioProLevel - d.xp_atual;
                 
                 if (d.reserva_comida >= faltaProLevel) {

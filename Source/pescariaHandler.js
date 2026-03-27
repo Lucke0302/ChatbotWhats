@@ -844,6 +844,30 @@ class PescariaHandler {
         return `${userTag}♻️ **COLETA SELETIVA CONCLUÍDA!**\n\nVocê reciclou **${trashCount} itens de lixo** (Botas, pneus, calotas...) e ganhou 🪙 **${totalValue} Bostocoins** pelo serviço ambiental!${profitResult.msg}`;
     }
 
+    // AVALIA O VALOR TOTAL DO INVENTÁRIO
+    async avaliarEstoque(userId, userTag) {
+        const { sellableArray } = await this.getSellableList(userId);
+
+        if (sellableArray.length === 0) {
+            return `${userTag} 🪹 Seu isopor está vazio! Você não tem nenhum peixe para avaliar.`;
+        }
+
+        let totalValue = 0;
+        
+        sellableArray.forEach(fish => {
+            totalValue += fish.value;
+        });
+
+        let msg = `${userTag}📊 **AVALIAÇÃO DE PATRIMÔNIO (ISOPOR)** 📊\n\n`;
+        msg += `🐟 **Total de Peixes (e outras pescas):** ${sellableArray.length}\n`;
+        msg += `💰 **Valor Estimado:** 🪙 **${totalValue} Bostocoins**\n\n`;
+        if(totalValue < 500)msg += `_Que pobreza! Bora pescar mais ai..._`;
+        else if (totalValue < 2000) msg += `_Tá com um dinheirinho, hein? Usa *!pescaria vender* para negociar ou *!pescar* pra aumentar o patrimônio._`;      
+        else msg += `_Tá rico, hein? Use *!pescaria vender* para negociar essas belezinhas no mercadão._`;
+
+        return msg;
+    }
+
     // FUNÇÃO DE MIGRAÇÃO DE DADOS
     async fixOldRecords(userTag) {
         const now = Math.floor(Date.now() / 1000);

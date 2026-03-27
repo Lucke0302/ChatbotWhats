@@ -113,7 +113,7 @@ const DINO_CATALOG = {
 };
 
 class ParqueHandler {
-    constructor(db, casinoHandler) {
+    constructor(db, casinoHandler, pescariaHandler) {
         this.db = db;
         this.casinoHandler = casinoHandler;
 

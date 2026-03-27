@@ -1,4 +1,4 @@
-# 🦖 Bostossauro Bot 
+# 🦖 Bostossauro Bot v5
 > *"Eu sabo... mas às vezes a RAM acaba."*
 
 Bem-vindo ao repositório oficial do **Bostossauro**, o bot de WhatsApp mais sarcástico, sincero e levemente instável do hemisfério sul. Este projeto nasceu da vontade de automatizar respostas, jogar RPG de mesa via texto e, principalmente, julgar as conversas dos seus grupos com o poder da Inteligência Artificial.
@@ -25,9 +25,16 @@ O Bostossauro não é apenas um bot, é um estilo de vida. Aqui estão as skills
     * `!s baixa`: Qualidade duvidosa.
     * `!s podi`: Modo *deep fried*, destrói a imagem até virar arte abstrata.
 
+* **🦖 Jurassic BostoPark (v5- A Ameaça Mesozóica):** Um ecossistema massivo de "Tamagotchi Comunitário" e escavação que interliga todas as economias do bot.
+    * `!escavar`: Divide a estamina com o `!bico`. O jogador minera pedras preciosas (para vender) e tem chance de achar um Âmbar contendo DNA de dinossauros.
+* **Sistema de Gacha e Cores:** Os dinossauros variam de Comuns a Míticos, possuindo geradores genéticos que criam combinações de 1 a 3 cores aleatórias (com multiplicadores de lucro).
+    * `!parque alimentar`: Interliga a Pescaria ao Parque. Os jogadores precisam esvaziar seus isopores (`!parque despensa`) para jogar peixes na jaula. O dinossauro possui nível, fase de crescimento (Filhote a Ancião), barra de XP quadrática e trava diária de digestão.
+* **Fundo de Investimento Passivo:** Ao subir de nível, os dinossauros geram bilheteria. Todo dia às 10h da manhã, o bot divide automaticamente os lucros do parque entre os membros mais ativos do chat.
+
 * **💸 Sistema Econômico Completo (Capitalismo Selvagem):** Uma economia viva rodando no banco de dados com a moeda oficial *Bostocoins*.
     * `!pix @amigo [valor]`: Transferência instantânea entre membros do grupo.
-    * `!trabalhar`: Sistema de CLT virtual com trabalhos gerados procedimentalmente (e cooldown de 12 horas).
+    * `!trabalhar`: Sistema de Carreira (The Sims style). Você tem uma profissão fixa (nível 1 a 5) que rende um salário tabelado a cada 8 horas. Em breve contará com sistema de `!estudar` para promoções.
+    * `!bico`: Precisa de dinheiro rápido? Faça bicos aleatórios e duvidosos (gerados procedimentalmente) a cada 2 horas para faturar entre 15 e 90 Bostocoins.
     * `!minhabosta`: O programa social "Minha Bosta, Minha Vida". Se você quebrou (saldo < 50), o governo te dá um auxílio.
     * `!investir (Bolsa Jurássica)`: Aplique fundos em empresas como "McBostossauro" e "OnlySaurs". Conta com sistema de juros compostos e tributação em faixas para quem tem muito dinheiro.
     * `!emprestimo (Agiota)`: Pegue empréstimos predatórios. O bot retém 30% de todo lucro futuro (pesca, trabalho) direto na fonte até abater a dívida.
@@ -40,10 +47,13 @@ O Bostossauro não é apenas um bot, é um estilo de vida. Aqui estão as skills
         * **Bolão da Rapaziada:** Jogo colaborativo de 1 a 20. O vencedor leva o pote total com todas as apostas somadas. 
     * **Eventos Agendados:** O bot recompensa automaticamente o "Top 1 Falador" (total de msgs x 2) e o "Patrocínio do Ódio" (xingamentos x 10) na rotina matinal.
 
-* **🎣 Pescaria Jurássica:** Um sistema completo de pesca e gerenciamento de stamina.
-    * `!pescar`: Tente a sorte no lago. O peso e a raridade variam por RNG. 
-    * `!pescaria loja`: Compre consumíveis (Ímãs, Repelentes) ou invista para FORJAR VARAS MELHORES (Fibra, Carbono, Adamantium) que multiplicam o peso dos peixes permanentemente.
-    * `!pescaria vender`: Capitalismo brutal aplicado. Venda seus troféus para gerar Bostocoins com o multiplicador do Agiota comendo parte da grana.
+* **🎣 Pescaria Jurássica (v4.3 - O Sindicato dos Pescadores):** Um sistema completo de pesca, gerenciamento de stamina e colecionismo de troféus.
+    * `!pescar`: Tente a sorte no lago. O peso e a raridade variam por RNG. Agora com peixes Míticos (0.5%) e Secretos (0.1%) para os mais viciados.
+    * `!pescaria loja`: Compre consumíveis (Ímãs, Repelentes) ou invista para FORJAR VARAS MELHORES (Fibra, Carbono, Grafeno, Adamantium) que multiplicam o peso dos peixes permanentemente e servem como itens de colecionador.
+    * `!pescaria vender`: Capitalismo brutal aplicado. Venda seus troféus para gerar Bostocoins. Suporta venda em lote (`!pescaria vender 1 2 5`) e coleta seletiva (`!pescaria vender lixo`) para reciclar sucata automaticamente.
+    * `!pescaria avaliar`: Calcula o valor total do seu patrimônio de peixes retidos no isopor.
+    * `!pescaria titulo`: Sistema de conquistas integrado à economia global. Acumule riquezas no isopor ou forje a Vara de Adamantium para ganhar títulos exclusivos como "Mestre Pescador" e "Wolverine dos Mares".
+    * `Múltiplos Rankings`: Competição tóxica alimentada por `!pescaria ranking`, `trofeus`, `toppessoal` e `topgrupo`.
 
 * **🔴 Sistema Pokémon Integrado:** Batalha RPG em turnos via chat com captura e ginásios.
     * Possui sistema de fila de golpes (JSON) para gerenciar ataques aprendidos em level up múltiplo (`!poke pendentes` e `!poke ensinar`).

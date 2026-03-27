@@ -1,5 +1,5 @@
 const helpDictionary = {
-    'default': `🦖 *BOSTOSSAURO OS* v4.1 - Atualização do Ibama 🦖
+    'default': `🦖 *BOSTOSSAURO OS* v5 - Jurassic BostoPark 🦖
 
 Ô humano, tá perdido ou só quer me alugar?
 Eu tô aqui processando bit igual um condenado e você pedindo ajuda... Tá, toma aí o que eu sei fazer (quando não tô fritando):
@@ -17,9 +17,13 @@ Pra saber os detalhes de um comando, digita:
 • *!minhabosta* ➝ Auxílio emergencial pra quem faliu de vez.
 • *!vip* ➝ Loja de cotas de IA (Mercado Negro).
 
-🎣 *PESCARIA (NOVO!)*
+🎣 *PESCARIA*
 • *!pescar/pesca* ➝ Pra pescar um peixe (se tiver isca). 
 • *!pescaria* ➝ Sistema completo de pesca, loja, mercado e rankings! 
+
+🦖 *JURASSIC BOSTOPARK (NOVO!)*
+• *!escavar* ➝ Ache minérios e Âmbar com DNA de dinossauro.
+• *!parque* ➝ Administre os dinossauros do grupo, alimente-os com peixes e receba a bilheteria diária!
 
 🎨 *MÍDIA & UTILITÁRIOS*
 • *!sticker (!s)* ➝ Faço figurinha. Se sua foto for feia, a culpa não é minha.
@@ -185,9 +189,19 @@ O Banco Central do Bostossauro permite agiotagem e doações.
 *Exemplo:* _!pix @João 50_`,
 
     'trabalhar': `💼 *COMANDO: !trabalhar*
-Vai assinar a CLT virtual pra farmar Bostocoins. O salário é aleatório e você só pode trabalhar a cada 12 horas.
+Assine a CLT virtual! Agora você tem uma carreira oficial (The Sims style).
+Seu salário é fixo (mais ou menos) e baseado no seu nível profissional.
 
-*Como usar:* !trabalhar`,
+*Como usar:* !trabalhar
+*Cooldown:* 8 horas.
+*Dica:* Fique de olho, em breve você poderá !estudar para ser promovido.`,
+
+    'bico': `🛠️ *COMANDO: !bico*
+Precisa de grana rápida? Vá fazer um trampo duvidoso.
+Paga entre 15 e 90 Bostocoins dependendo do seu esforço.
+
+*Como usar:* !bico
+*Cooldown:* 2 horas.`,
 
     'minhabosta': `🪙 *COMANDO: !minhabosta*
 O famoso "Minha Bosta Minha Vida". Auxílio emergencial do governo jurássico para quem perdeu tudo na roleta.
@@ -222,9 +236,9 @@ Transforma a imagem/documento que você enviou pra mim em um pdf.
 responde ela com o !pdf.
 `,
 
-'pescaria': `🎣 *COMANDO: !pescaria*
+    'pescaria': `🎣 *COMANDO: !pescaria*
 Bem-vindo ao Lago do Bostossauro! Pegue sua vara e vá pro sol.
-Você regenera 1 isca a cada 4 horas (Máximo 6).
+Você regenera 1 isca a cada 2 horas (Máximo 10).
 
 *Ação:*
 🎣 *!pescar* (ou !pesca) ➝ Joga a isca na água e tenta a sorte.
@@ -232,15 +246,19 @@ Você regenera 1 isca a cada 4 horas (Máximo 6).
 *Mercado, Loja & Forja:*
 🏪 *!pescaria loja* ➝ Gaste seus Bostocoins em iscas, buffs ou para forjar uma VARA MELHOR.
 🛍️ *!pescaria comprar [número_ou_vara]* ➝ Compra o item da loja.
-⚖️ *!pescaria vender* ➝ Veja o preço dos seus troféus e venda peixes ao mercado.
+⚖️ *!pescaria vender* ➝ Veja o preço dos seus troféus. Venda vários de uma vez (ex: !pescaria vender 1 2 5).
+♻️ *!pescaria vender lixo* ➝ Limpa o oceano reciclando botas e pneus automaticamente.
+📊 *!pescaria avaliar* ➝ Calcula a fortuna acumulada no seu isopor.
 
-*Inventário:*
+*Inventário & Ostentação:*
 🎒 *!pescaria perfil* ➝ Veja suas iscas, efeitos ativos e seus top 5 peixes.
+👑 *!pescaria titulo* ➝ Ostente seu império de peixes e ganhe títulos de nobreza da pesca.
 
 *Competição e Rankings:*
 🏆 *!pescaria ranking* ➝ O Top 10 de quem mais pescou (em Kg) na vida.
 🦈 *!pescaria trofeus* ➝ O Mural do Grupo: Os 10 peixes mais pesados pescados nesse chat.
-🌍 *!pescaria topgrupo* ➝ A elite do grupo: Peixes mais perfeitos por raridade.`,
+🌍 *!pescaria topgrupo* ➝ A elite do grupo: Peixes mais perfeitos por raridade.
+🏅 *!pescaria toppessoal* ➝ Seus troféus absolutos por raridade.`,
 
 
     'cota': `🔌 *COMANDO: !cota* (Apenas Admin)

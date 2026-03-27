@@ -12,6 +12,7 @@ const migrationCommandHandler = require('./migrarCommand');
 const resenhaCommand = require('./resenhaCommand');
 const CasinoHandler = require('./casinoHandler');
 const PescariaHandler = require('./pescariaHandler');
+const ParqueHandler = require('./parqueHandler');
 const RIOT_API_KEY = process.env.RIOT_API_KEY;
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
@@ -44,6 +45,7 @@ class ChatModel {
         this.resenhaHandler = new resenhaCommand(db, genAI);
         this.casinoHandler = new CasinoHandler(db);
         this.pescariaHandler = new PescariaHandler(db, this.casinoHandler);
+        this.parqueHandler = new ParqueHandler(db, this.casinoHandler, this.pescariaHandler);
     }
 
     async init() {
@@ -82,6 +84,16 @@ class ChatModel {
         this.commandHandlers = {
             '!timeout': async (ctx) => {
                 return await this.handleTimeoutCommand(ctx.name, ctx.command, ctx.sender, ctx.isGroup, ctx.mentions);
+            },
+            '!debug_grupo': async (ctx) => {
+                const tag = await this.pokemonHandler.getUserTag(ctx.sender);
+                if (ctx.sender !== "5513991008854@s.whatsapp.net") return "🔒 Privilégio de Admin.";
+                return await this.casinoHandler.handleDebugGroup(tag, ctx.from, ctx.sock);
+            },
+            '!exorcismo': async (ctx) => {
+                const tag = await this.pokemonHandler.getUserTag(ctx.sender);                
+                if (ctx.sender !== "5513991008854@s.whatsapp.net") return "🔒 Privilégio de Admin.";
+                return await this.casinoHandler.handleExorcismo(ctx.sender, tag);
             },
             '!d': async (ctx) => await this.handleDiceCommand(ctx.command, ctx.sender),
             '!menu': async () => await this.handleMenuCommand(),
@@ -167,8 +179,45 @@ class ChatModel {
                 return `${tag}🎰 **CASSINO E ECONOMIA DO BOSTOSSAURO** 🎰\n\n` +
                        `*Apostas:* \n🎰 *!cassino [valor]* (Slots)\n🪙 *!cassino [cara/coroa] [valor]*\n🎡 *!cassino roleta [vermelho/preto/verde] [valor]*\n\n` +
                        `*Loterias:*\n🎟️ *!cassino mega [1-100] [valor]*\n🤝 *!cassino bolao [1-20] [valor]*\n\n` +
-                       `*Faria Lima:*\n📈 *!investir* (Bolsa de Valores Jurássica)\n🏦 *!emprestimo* (Agiotagem)\n👑 *!titulo* (Cartório de Ostentação)\n\n` +
+                       `*Faria Lima:*\n💼 *!trabalhar* (Emprego CLT)\n🛠️ *!bico* (Trampo rápido)\n📈 *!investir* (Bolsa de Valores)\n🏦 *!emprestimo* (Agiota)\n👑 *!titulo* (Cartório de Ostentação)\n\n` +
                        `*Consultas:* \n💰 *!cassino saldo*`;
+            },
+            '!givecoins': async (ctx) => {
+                const tag = await this.pokemonHandler.getUserTag(ctx.sender);
+                const args = ctx.command.trim().split(/\s+/);
+                
+                let targetId = null;
+                let amountStr = null;
+                let excecoes = [];
+
+                for (let i = 1; i < args.length; i++) {
+                    if (args[i].toLowerCase() === 'all' || args[i].toLowerCase() === 'todos') {
+                        targetId = 'all';
+                    } else if (!isNaN(args[i])) {
+                        amountStr = args[i];
+                    }
+                }
+
+                if (targetId === 'all') {
+                    if (ctx.mentions && ctx.mentions.length > 0) {
+                        excecoes = ctx.mentions;
+                    }
+                } else {
+                    if (ctx.mentions && ctx.mentions.length > 0) {
+                        targetId = ctx.mentions[0];
+                    } else {
+                        const mentionArg = args.find(a => a.includes('@'));
+                        if (mentionArg) {
+                            targetId = mentionArg.replace(/[^0-9]/g, '') + "@s.whatsapp.net";
+                        }
+                    }
+                }
+
+                if (!targetId || !amountStr) {
+                    return `${tag}⚠️ Formato incorreto!\nUse: *!givecoins [all ou @usuario] [valor]*\nEx: _!givecoins all 500 @Excluido_ ou _!givecoins @Fulano 1000_`;
+                }
+
+                return await this.casinoHandler.handleGiveCoins(ctx.sender, tag, targetId, amountStr, ctx.from, ctx.sock, excecoes);
             },
             '!titulo': async (ctx) => {
                 const tag = await this.pokemonHandler.getUserTag(ctx.sender);
@@ -201,7 +250,49 @@ class ChatModel {
             },
             '!trabalhar': async (ctx) => {
                 const tag = await this.pokemonHandler.getUserTag(ctx.sender);
+                const args = ctx.command.trim().split(/\s+/);
+                const subCommand = args[1]?.toLowerCase();
+
+                if (subCommand === 'acelerar') {
+                    if (ctx.sender !== "5513991008854@s.whatsapp.net") return "🚫 Apenas o Ministro da Economia (Admin) pode usar isso.";
+                    return await this.casinoHandler.acelerarTrabalhoGlobal(tag);
+                }
+
+                if (subCommand === 'rh' || subCommand === 'embaralhar') {
+                    if (ctx.sender !== "5513991008854@s.whatsapp.net") return "🚫 Apenas a diretoria de RH pode fazer isso.";
+                    return await this.casinoHandler.shuffleJobsGlobal(tag);
+                }
+
+                if (subCommand === 'carreira' || subCommand === 'perfil') {
+                    return await this.casinoHandler.handleCarreira(ctx.sender, tag);
+                }
+
                 return await this.casinoHandler.handleTrabalhar(ctx.sender, tag);
+            },
+            '!trabalho': async (ctx) => {
+                const tag = await this.pokemonHandler.getUserTag(ctx.sender);
+                const args = ctx.command.trim().split(/\s+/);
+                const subCommand = args[1]?.toLowerCase();
+
+                if (subCommand === 'acelerar') {
+                    if (ctx.sender !== "5513991008854@s.whatsapp.net") return "🚫 Apenas o Ministro da Economia (Admin) pode usar isso.";
+                    return await this.casinoHandler.acelerarTrabalhoGlobal(tag);
+                }
+
+                if (subCommand === 'rh' || subCommand === 'embaralhar') {
+                    if (ctx.sender !== "5513991008854@s.whatsapp.net") return "🚫 Apenas a diretoria de RH pode fazer isso.";
+                    return await this.casinoHandler.shuffleJobsGlobal(tag);
+                }
+
+                if (subCommand === 'carreira' || subCommand === 'perfil') {
+                    return await this.casinoHandler.handleCarreira(ctx.sender, tag);
+                }
+
+                return await this.casinoHandler.handleTrabalhar(ctx.sender, tag);
+            },
+            '!bico': async (ctx) => {
+                const tag = await this.pokemonHandler.getUserTag(ctx.sender);
+                return await this.casinoHandler.handleBico(ctx.sender, tag);
             },
             '!pescar': async (ctx) => {
                 const tag = await this.pokemonHandler.getUserTag(ctx.sender);
@@ -236,8 +327,16 @@ class ChatModel {
                 }
                 
                 if (subCommand === 'vender') {
-                    const itemCode = args[2];
-                    return await this.pescariaHandler.handleVender(ctx.sender, tag, itemCode);
+                    if (args[2]?.toLowerCase() === 'lixo') {
+                        return await this.pescariaHandler.handleVenderLixo(ctx.sender, tag);
+                    }
+                    
+                    const itemCodes = args.slice(2).join(' ');
+                    return await this.pescariaHandler.handleVender(ctx.sender, tag, itemCodes);
+                }
+
+                if (subCommand === 'valor' || subCommand === 'avaliar' || subCommand === 'patrimonio') {
+                    return await this.pescariaHandler.avaliarEstoque(ctx.sender, tag);
                 }
 
                 if (subCommand === 'trofeus') {
@@ -267,7 +366,57 @@ class ChatModel {
                     return await this.pescariaHandler.getTopGrupoPorRaridade(ctx.from, tag);
                 }
 
-                return `${tag}🎣 **SISTEMA DE PESCA**\n\nOpções:\n🎣 *!pescar* (Joga a isca!)\n🏪 *!pescaria loja* (Compre Iscas, Buffs e Varas novas!)\n⚖️ *!pescaria vender* (Mercadão de peixes)\n🎒 *!pescaria perfil* (Iscas e Efeitos ativos)\n🏆 *!pescaria ranking* (Top pescadores)\n🦈 *!pescaria trofeus* (10 maiores deste grupo)\n🏅 *!pescaria toppessoal* (Seus troféus absolutos)\n🌍 *!pescaria topgrupo* (A Elite das Águas)`;
+                if (subCommand === 'titulo' || subCommand === 'titulos') {
+                    const action = args[2]?.toLowerCase();
+                    const param = args[3];
+                    return await this.pescariaHandler.handleTitulosPesca(ctx.sender, tag, action, param);
+                }
+
+                return `${tag}🎣 **SISTEMA DE PESCA**\n\nOpções:\n🎣 *!pescar* (Joga a isca!)\n🏪 *!pescaria loja* (Compre Iscas, Buffs e Varas novas!)\n⚖️ *!pescaria vender* (Mercadão de peixes)\n♻️ *!pescaria vender lixo* (Recicla as sucatas)\n🎒 *!pescaria perfil* (Iscas e Efeitos ativos)\n🏆 *!pescaria ranking* (Top pescadores)\n🦈 *!pescaria trofeus* (10 maiores deste grupo)\n🏅 *!pescaria toppessoal* (Seus troféus absolutos)\n🌍 *!pescaria topgrupo* (A Elite das Águas)\n📊 *!pescaria avaliar* (Calcula a fortuna no seu isopor)\n👑 *!pescaria titulo* (Ostente seu império de peixes)\n`;
+            },
+            '!parque': async (ctx) => {
+                const tag = await this.pokemonHandler.getUserTag(ctx.sender);
+                const args = ctx.command.trim().split(/\s+/);
+                const subCommand = args[1]?.toLowerCase();
+
+                if (subCommand === 'despensa' || subCommand === 'comida') {
+                    return await this.parqueHandler.listarComida(ctx.sender, tag);
+                }
+
+                if (subCommand === 'alimentar') {
+                    return await this.parqueHandler.alimentarDino(ctx.sender, tag, ctx.from, args[2], args[3]);
+                }
+
+                if (subCommand === 'mural' || subCommand === 'lista') {
+                    return await this.parqueHandler.verParqueGlobal(ctx.from, tag);
+                }
+
+                if (subCommand === 'perfil') {
+                    return await this.parqueHandler.verPerfilParque(ctx.sender, tag);
+                }
+
+                if (subCommand === 'mochila') {
+                    return await this.parqueHandler.verMochila(ctx.sender, tag);
+                }
+
+                if (subCommand === 'vender') {
+                    const param = args[2]?.toLowerCase();
+                    return await this.parqueHandler.venderMinerais(ctx.sender, tag, param);
+                }
+
+                return `${tag}🦖 **JURASSIC BOSTOPARK** 🦖\n\n` +
+                       `⛏️ *!escavar* (Use sua picareta para achar minérios ou Âmbar!)\n` +
+                       `🎒 *!parque mochila* (Veja suas pedras)\n` +
+                       `🤝 *!parque vender [numero/tudo]* (Venda os minérios)\n` +
+                       `🥩 *!parque despensa* (Veja os peixes para dar de comida)\n` +
+                       `🍗 *!parque alimentar [ID] [Nº_Comida]* (Alimente um dino)\n` +
+                       `🖼️ *!parque mural* (Veja os dinossauros do grupo)\n` +
+                       `🧬 *!parque perfil* (Sua coleção de genéticas)\n`;
+
+            },
+            '!escavar': async (ctx) => {
+                const tag = await this.pokemonHandler.getUserTag(ctx.sender);
+                return await this.parqueHandler.handleEscavar(ctx.sender, tag, ctx.name, ctx.from);
             },
         };
 
@@ -1044,7 +1193,7 @@ class ChatModel {
     }
 
     async handleMenuCommand(){
-        return `📍 *MENU RÁPIDO (v4.0 - Pokémon)* \n\n
+        return `📍 *MENU RÁPIDO (v4.3 - O Sindicato dos Pescadores)* \n\n
         🆘 !ajuda (ou !help)\n
         🗣️ !audio\n
         🌡️ !clima\n
@@ -1057,6 +1206,7 @@ class ChatModel {
         📄 !menu\n
         ✏️ !notas\n
         📙 !pdf\n
+        🎣 !pescaria (SISTEMA DE PESCA)\n
         🎮 !poke (JOGO COMPLETO)\n
         🖼️ !s (ou !sticker)\n
         🛎️ !resumo\n        

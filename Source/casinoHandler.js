@@ -1,34 +1,66 @@
 class CasinoHandler {
 
-    constructor(db) {
+constructor(db) {
         this.db = db;
-        this.trabalhos = [
-        "vendeu bolo de pote no farol debaixo de um sol de rachar",
-        "ajudou a consertar um ar-condicionado que tava cuspindo gelo",
-        "fez bico de garçom no bar do Sujinho e teve que aturar bêbado chorando",
-        "formatou o PC de um cliente, tirou 30 vírus Baidu e instalou o Windows pirata",
-        "passou a tarde inteira colhendo abóbora na fazenda do Minecraft",
-        "resolveu um bug bizarro num backend em Spring Boot que ia derrubar o TCC",
-        "fez elojob carregando uns bronze afundado de Yasuo no LoL",
-        "escreveu a redação do vestibular da Univesp pra um amigo folgado",
-        "vendeu pack do pé no onlyfans",
-        "vendeu água no balde na praia do gonzaga",
-        "ajudou uma velhinha a carregar as compras do supermercado",
-        "desentortou 15 pinos de um processador AMD usando uma lapiseira e muita fé",
-        "passou 5 horas debugando um código só pra descobrir que faltava um ponto e vírgula",
-        "revendeu uma RX 580 do Aliexpress jurando que 'foi usada só pra jogar paciência'",
-        "cobrou cinquentão pra mestrar uma sessão de RPG onde os jogadores ignoraram a história principal inteira",
-        "tentou arrumar a impressora da tia e acabou sendo nomeado o(a) 'menino(a) da TI' do bairro",
-        "centralizou uma div no CSS depois de chorar em posição fetal",
-        "montou um servidor caseiro num Celeron velho que passa mais tempo desligado que rodando",
-`trabalha com o guê?
-- Eu sou comercial.
-- Comercial di guê?
-- Comercial de vendas.
-- Vendas di guê?
-- Vendas... de qualquer coisa. Vendo água, vendo... produto de limpeza...`,
+        
+        // Agora os textos antigos são os BICOS (aleatórios e rápidos)
+        this.bicos = [
+            "vendeu bolo de pote no farol debaixo de um sol de rachar",
+            "ajudou a consertar um ar-condicionado que tava cuspindo gelo",
+            "fez bico de garçom no bar do Sujinho e teve que aturar bêbado chorando",
+            "formatou o PC de um cliente, tirou 30 vírus Baidu e instalou o Windows pirata",
+            "passou a tarde inteira colhendo abóbora na fazenda do Minecraft",
+            "resolveu um bug bizarro num backend em Spring Boot que ia derrubar o TCC",
+            "fez elojob carregando uns bronze afundado de Yasuo no LoL",
+            "escreveu a redação do vestibular da Univesp pra um amigo folgado",
+            "vendeu pack do pé no onlyfans",
+            "vendeu água no balde na praia do gonzaga",
+            "ajudou uma velhinha a carregar as compras do supermercado",
+            "desentortou 15 pinos de um processador AMD usando uma lapiseira e muita fé",
+            "passou 5 horas debugando um código só pra descobrir que faltava um ponto e vírgula",
+            "revendeu uma RX 580 do Aliexpress jurando que 'foi usada só pra jogar paciência'",
+            "cobrou cinquentão pra mestrar uma sessão de RPG onde os jogadores ignoraram a história principal inteira",
+            "tentou arrumar a impressora da tia e acabou sendo nomeado o(a) 'menino(a) da TI' do bairro",
+            "centralizou uma div no CSS depois de chorar em posição fetal",
+            "montou um servidor caseiro num Celeron velho que passa mais tempo desligado que rodando",
+            `trabalha com o guê?\n- Eu sou comercial.\n- Comercial di guê?\n- Comercial de vendas.\n- Vendas di guê?\n- Vendas... de qualquer coisa. Vendo água, vendo... produto de limpeza...`
+        ];
 
-    ];
+        this.CARREIRAS_CATALOGO = {
+            1: [
+                "Vendedor(a) de Chup Chup", "Entregador(a) de Panfleto", "Flanelinha de Shopping",
+                "Apanhador(a) de Reciclagem", "Guardador(a) de Lugar na Fila"
+            ],
+            2: [
+                "Atendente de Telemarketing", "Caixa de Lotação", "Mascote de Loja de Celular", 
+                "Vendedor(a) de Bolo de Pote", "Fiscal de Catraca"
+            ],
+            3: [
+                "Suporte Nível 1 (Saco de Pancadas)", "Técnico(a) de Informática de Bairro",
+                "Coach Quântico", "Corretor(a) de Jogo do Bicho", "Pescador(a) Profissional"
+            ],
+            4: [
+                "Desenvolvedor(a) em Spring Boot", "Trader de Criptomoeda",
+                "Dono(a) de Pirâmide Financeira", "Agiota de Bairro", "Sommelier de Água"
+            ],
+            5: [
+                "Herdeiro(a)", "CEO de MEI", "Dono(a) do Cassino",
+                "Faria Limer", "Prefeito(a) de Peruíbe"
+            ]
+        };
+
+        this.SALARIOS_BASE = { 1: 50, 2: 75, 3: 100, 4: 150, 5: 200 };
+
+        this.SUBNIVEIS = {
+            1: { nome: "Auxiliar", mult: 1.00 },
+            2: { nome: "Júnior", mult: 1.10 },
+            3: { nome: "Pleno", mult: 1.20 },
+            4: { nome: "Sênior", mult: 1.30 }
+        };
+
+        this.HOURS_TO_WORK = 8;
+        this.HOURS_TO_BICO = 2;
+        this.WORK_MULTIPLIER = 6;
     }
 
     async getBalance(userId) {
@@ -246,10 +278,10 @@ class CasinoHandler {
         return msg;
     }
 
-    // TRABALHO HONESTO
+    // TRABALHO OFICIAL
     async handleTrabalhar(userId, userTag) {
         const now = Math.floor(Date.now() / 1000);
-        const cooldown = 12 * 60 * 60;
+        const cooldown = this.HOURS_TO_WORK * 60 * 60;
 
         const user = await this.db.get("SELECT last_trabalho FROM usuarios WHERE id_usuario = ?", [userId]);
         
@@ -259,25 +291,128 @@ class CasinoHandler {
                 const timeLeft = cooldown - timePassed;
                 const hoursLeft = Math.floor(timeLeft / 3600);
                 const minutesLeft = Math.floor((timeLeft % 3600) / 60);
-                return `${userTag}🛑 O mercado de trabalho tá saturado! A CLT só permite assinar a carteira de novo em **${hoursLeft}h e ${minutesLeft}m**.`;
+                return `${userTag}🛑 O ponto eletrônico bloqueou! A CLT só permite trabalhar de novo em **${hoursLeft}h e ${minutesLeft}m**.`;
             }
         }
         
-        const bicoSorteado = this.trabalhos[Math.floor(Math.random() * this.trabalhos.length)];
-
-        const multiplicador = Math.floor(Math.random() * 4) + 1;
-        var salario = 50 * multiplicador;
-        if (bicoSorteado == this.trabalhos[this.trabalhos.length - 1]){
-            salario = salario * 4;
-        }
+        let financas = await this.processFinancas(userId);
+        let nivel = financas.carreira.nivel || 1;
+        let subnivel = financas.carreira.subnivel || 1;
         
-        const profitResult = await this.verifyProfit(userId, salario);
+        if (financas.carreira.id_job === undefined || financas.carreira.id_job === null) {
+            const maxJobs = this.CARREIRAS_CATALOGO[nivel].length;
+            financas.carreira.id_job = Math.floor(Math.random() * maxJobs);
+        }
+
+        const cargoBase = this.CARREIRAS_CATALOGO[nivel][financas.carreira.id_job];
+        const nomeSubnivel = this.SUBNIVEIS[subnivel].nome;
+        const cargoCompleto = `${cargoBase} ${nomeSubnivel}`;
+        
+        const salarioBase = this.SALARIOS_BASE[nivel];
+        const multiplicadorRNG = Math.floor(Math.random() * this.WORK_MULTIPLIER) + 1;
+        const bonusCargo = this.SUBNIVEIS[subnivel].mult;
+        
+        const salarioFinal = Math.floor(salarioBase * multiplicadorRNG * bonusCargo);
+        
+        const profitResult = await this.verifyProfit(userId, salarioFinal);
         
         await this.updateBalance(userId, profitResult.finalProfit);
         await this.db.run("UPDATE usuarios SET last_trabalho = ? WHERE id_usuario = ?", [now, userId]);
+        await this.db.run("UPDATE usuarios SET financas = ? WHERE id_usuario = ?", [JSON.stringify(financas), userId]);
 
-        return `${userTag}💼 **TRABALHADOR BRASILEIRO**\n\nVocê ${bicoSorteado} e faturou 🪙 **${salario} Bostocoins** pelo serviço!${profitResult.msg}\n\n_Lucro final recebido: 🪙 ${profitResult.finalProfit}_`;
+        let msg = `${userTag}💼 **EXPEDIENTE CONCLUÍDO**\n\nVocê bateu o ponto como **${cargoCompleto}** e recebeu seu salário de 🪙 **${salarioFinal} Bostocoins**!${profitResult.msg}\n\n_Lucro na carteira: 🪙 ${profitResult.finalProfit}_`;
 
+        if (nivel < 5 || subnivel < 4) {
+            msg += `\n\n📚 _Dica: Em breve você poderá usar !estudar para subir de cargo e ganhar mais!_`;
+        } else {
+            msg += `\n\n👑 _Você atingiu o topo da cadeia alimentar corporativa!_`;
+        }
+
+        return msg;
+    }
+
+    // REESTRUTURAÇÃO DE RH 
+    async shuffleJobsGlobal(userTag) {
+        const users = await this.db.all("SELECT id_usuario, financas FROM usuarios WHERE financas IS NOT NULL AND financas != '{}'");
+        let count = 0;
+
+        for (const u of users) {
+            try {
+                let financas = JSON.parse(u.financas);
+                
+                if (financas.carreira && financas.carreira.nivel) {
+                    const nivel = financas.carreira.nivel;
+                    const maxJobs = this.CARREIRAS_CATALOGO[nivel].length;
+                    
+                    financas.carreira.id_job = Math.floor(Math.random() * maxJobs);
+                    
+                    await this.db.run("UPDATE usuarios SET financas = ? WHERE id_usuario = ?", [JSON.stringify(financas), u.id_usuario]);
+                    count++;
+                }
+            } catch (e) {
+                console.error("Erro ao embaralhar empregos:", e);
+            }
+        }
+        
+        return `🔄 **REESTRUTURAÇÃO CORPORATIVA CONCLUÍDA!**\nO RH do Bostossauro enlouqueceu e transferiu **${count} trabalhadores** para novos departamentos.\nMandem os currículos atualizados!`;
+    }
+
+    // PERFIL PROFISSIONAL
+    async handleCarreira(userId, userTag) {
+        let financas = await this.processFinancas(userId);
+        const user = await this.db.get("SELECT last_trabalho FROM usuarios WHERE id_usuario = ?", [userId]);
+        
+        const nivel = financas.carreira.nivel || 1;
+        const subnivel = financas.carreira.subnivel || 1;
+        const id_job = financas.carreira.id_job;
+
+        let cargoCompleto = "Aguardando RH (Use !trabalhar para assinar a carteira!)";
+        if (id_job !== undefined && id_job !== null) {
+            const cargoBase = this.CARREIRAS_CATALOGO[nivel][id_job];
+            const nomeSubnivel = this.SUBNIVEIS[subnivel].nome;
+            cargoCompleto = `${cargoBase} ${nomeSubnivel}`;
+        }
+
+        const salarioBase = this.SALARIOS_BASE[nivel];
+        const bonusCargo = this.SUBNIVEIS[subnivel].mult;
+        const salarioFixo = Math.floor(salarioBase * bonusCargo);
+
+        const now = Math.floor(Date.now() / 1000);
+
+        let statusTrabalho = "✅ Disponível para bater o ponto!";
+        if (user && user.last_trabalho) {
+            const timePassed = now - user.last_trabalho;
+            const cooldownWork = this.HOURS_TO_WORK * 3600;
+            if (timePassed < cooldownWork) {
+                const timeLeft = cooldownWork - timePassed;
+                const h = Math.floor(timeLeft / 3600);
+                const m = Math.floor((timeLeft % 3600) / 60);
+                statusTrabalho = `⏳ Descansando (${h}h e ${m}m restantes)`;
+            }
+        }
+
+        let statusBico = "✅ Pronto pra fazer um bico!";
+        if (financas.last_bico > 0) {
+            const timePassed = now - financas.last_bico;
+            const cooldownBico = this.HOURS_TO_BICO * 3600;
+            if (timePassed < cooldownBico) {
+                const timeLeft = cooldownBico - timePassed;
+                const h = Math.floor(timeLeft / 3600);
+                const m = Math.floor((timeLeft % 3600) / 60);
+                statusBico = `⏳ Fugindo da receita (${h}h e ${m}m restantes)`;
+            }
+        }
+
+        let msg = `${userTag}👔 **CARTEIRA DE TRABALHO DIGITAL** 👔\n\n`;
+        msg += `🏢 **Cargo Atual:** ${cargoCompleto}\n`;
+        msg += `📊 **Nível:** ${nivel} | **Senioridade:** ${this.SUBNIVEIS[subnivel].nome}\n`;
+        msg += `💰 **Salário Base Mínimo:** 🪙 ${salarioFixo} _(+ Bônus de Esforço de até 6x)_\n\n`;
+        
+        msg += `⏱️ **PONTO ELETRÔNICO:**\n`;
+        msg += `💼 CLT Oficial: ${statusTrabalho}\n`;
+        msg += `🛠️ Bico Informal: ${statusBico}\n`;
+
+        return msg;
     }
 
     async processFinancas(userId) {
@@ -286,14 +421,18 @@ class CasinoHandler {
         const now = Math.floor(Date.now() / 1000);
         let financas = { 
             investimento: { montante: 0, ultimo_rendimento: now }, 
-            emprestimo: { devedor: 0 } 
+            emprestimo: { devedor: 0 },
+            carreira: { nivel: 1, subnivel: 1, id_job: null },
+            last_bico: 0
         };
-
         if (user && user.financas && user.financas !== '{}') {
             try { 
                 const parsed = JSON.parse(user.financas); 
                 financas.investimento = parsed.investimento || financas.investimento;
                 financas.emprestimo = parsed.emprestimo || financas.emprestimo;
+                financas.carreira = parsed.carreira || financas.carreira;
+                financas.last_bico = parsed.last_bico || financas.last_bico;
+                financas.titulo = parsed.titulo || financas.titulo;
             } catch (e) { console.error("Erro no JSON de finanças", e); }
         }
 
@@ -305,22 +444,48 @@ class CasinoHandler {
                 let m = financas.investimento.montante;
                 let yieldAmount = 0;
 
-                if (m > 5000) {
-                    yieldAmount += (m - 5000) * 0.02;
-                } else if (m > 3000) {
-                    yieldAmount += (m - 3000) * 0.05;
-                } else {
-                    yieldAmount += m * 0.10;
-                }
+                if (m > 5000) yieldAmount += (m - 5000) * 0.02;
+                else if (m > 3000) yieldAmount += (m - 3000) * 0.05;
+                else yieldAmount += m * 0.10;
 
                 financas.investimento.montante += Math.floor(yieldAmount);
             }
-
             financas.investimento.ultimo_rendimento += (daysPassed * 86400);
             await this.db.run("UPDATE usuarios SET financas = ? WHERE id_usuario = ?", [JSON.stringify(financas), userId]);
         }
 
         return financas;
+    }
+
+    //  O BICO
+    async handleBico(userId, userTag) {
+        const now = Math.floor(Date.now() / 1000);
+        const cooldown = this.HOURS_TO_BICO * 60 * 60;
+        
+        let financas = await this.processFinancas(userId);
+
+        if (financas.last_bico > 0) {
+            const timePassed = now - financas.last_bico;
+            if (timePassed < cooldown) {
+                const timeLeft = cooldown - timePassed;
+                const hoursLeft = Math.floor(timeLeft / 3600);
+                const minutesLeft = Math.floor((timeLeft % 3600) / 60);
+                return `${userTag}🛑 Calma aí, guerreirinho! Você tá muito cansado pro bico.\nEspera mais **${hoursLeft}h e ${minutesLeft}m**.`;
+            }
+        }
+
+        const bicoSorteado = this.bicos[Math.floor(Math.random() * this.bicos.length)];
+        
+        const multiplicador = Math.floor(Math.random() * this.WORK_MULTIPLIER) + 1;
+        const pagamento = 15 * multiplicador; 
+
+        const profitResult = await this.verifyProfit(userId, pagamento);
+        
+        financas.last_bico = now;
+        await this.db.run("UPDATE usuarios SET financas = ? WHERE id_usuario = ?", [JSON.stringify(financas), userId]);
+        await this.updateBalance(userId, profitResult.finalProfit);
+
+        return `${userTag}🛠️ **BICO REALIZADO**\n\nVocê ${bicoSorteado} e levantou 🪙 **${pagamento} Bostocoins** pelo serviço!${profitResult.msg}\n\n_Lucro na carteira: 🪙 ${profitResult.finalProfit}_\n\n💡 _Dica: O bico cansa. Você acabou de gastar a energia que poderia ser usada no *!escavar*!_`;
     }
 
     //  Verifica se o cara tá devendo
@@ -424,20 +589,24 @@ class CasinoHandler {
 
     async handleTitulos(userId, userTag, param, groupId) {
         const TITULOS = {
-            '1': { name: 'Faria Limer 🛴', price: 10000 },
-            '2': { name: 'Herdeiro(a) 💶', price: 15000 },
-            '3': { name: 'Chefe do Camarote 🍾', price: 20000 },
-            '4': { name: 'Primo(a) Rico(a) 🍎', price: 25000 },
-            '5': { name: 'Agiota Jurássico(a) 🦖', price: 50000 },
-            '6': { name: 'Membro do PCC (Primeiro Comando do Cassino) 🎲', price: 100000 }
+            '1': { name: 'Dev Pleno(a) 🪙', price: 2000 },
+            '2': { name: 'Dev Sênior 💵', price: 5000 },
+            '3': { name: 'Faria Limer 🛴', price: 10000 },
+            '4': { name: 'Herdeiro(a) 💶', price: 15000 },
+            '5': { name: 'Chefe do Camarote 🍾', price: 20000 },
+            '6': { name: 'Primo(a) Rico(a) 🍎', price: 25000 },
+            '7': { name: 'Agiota Jurássico(a) 🦖', price: 50000 },
+            '8': { name: 'Membro do PCC (Primeiro Comando do Cassino) 🎲', price: 75000 }
         };
 
         if (groupId === '120363422139578370@g.us') { 
-            TITULOS['7'] = { name: 'Matador de Fabio Brito 🔪', price: 100000 };
-            TITULOS['8'] = { name: 'Monarca da Cúpula 👑', price: 100000 };
+            const total = Object.keys(TITULOS).length;
+            TITULOS[String(total+1)] = { name: 'Matador de Fabio Brito 🔪', price: 100000 };
+            TITULOS[String(total+2)] = { name: 'Monarca da Cúpula 👑', price: 125000 };
         } 
         else if (groupId === '120363106038442674@g.us') {
-            TITULOS['7'] = { name: 'Discípulo Mestre 🧙‍♂️', price: 100000 };
+            const total = Object.keys(TITULOS).length;
+            TITULOS[String(total+1)] = { name: 'Discípulo Mestre 🧙‍♂️', price: 100000 };
         }
 
         const args = param ? param.trim().split(' ') : [];
@@ -478,6 +647,111 @@ class CasinoHandler {
         }
     }
 
+// INJEÇÃO NA ECONOMIA
+    async handleGiveCoins(senderId, senderTag, targetId, amountStr, groupId, sock, exceptions = []) {
+        if (senderId !== "5513991008854@s.whatsapp.net") {
+            return `${senderTag}🚫 Negativo! Só o Presidente do Banco Central tem a chave da impressora de dinheiro.`;
+        }
+
+        const amount = parseInt(amountStr);
+        if (isNaN(amount) || amount <= 0) {
+            return `${senderTag}⚠️ Digite um valor válido para injetar na economia.`;
+        }
+
+        if (targetId === 'all') {
+            if (!groupId.endsWith('@g.us')) return `${senderTag}⚠️ O alvo 'all' só funciona dentro de grupos.`;
+            
+            try {
+                const groupMetadata = await sock.groupMetadata(groupId);
+                const participants = groupMetadata.participants;
+                
+                let count = 0;
+                let ignorados = 0;
+
+                for (const p of participants) {
+                    let pPhone = p.phoneNumber ? p.phoneNumber : p.id;
+                    
+                    if (!pPhone.includes('@')) {
+                        pPhone += '@s.whatsapp.net';
+                    } else if (pPhone.includes(':')) {
+                        pPhone = pPhone.split(':')[0] + '@s.whatsapp.net';
+                    }
+                    
+                    pPhone = pPhone.replace(/(@s\.whatsapp\.net)+/g, '@s.whatsapp.net');
+
+                    const isException = exceptions.includes(pPhone) || exceptions.includes(p.id);
+
+                    if (isException) {
+                        ignorados++;
+                        continue;
+                    }
+
+                    const finalId = pPhone.includes('@s.whatsapp.net') ? pPhone : p.id;
+
+                    if (finalId.includes("5513991526878")) continue;
+
+                    await this.db.run(`INSERT OR IGNORE INTO usuarios (id_usuario, nome, banido_ate, uso_ia_diario, data_ultimo_uso, anotacoes) VALUES (?, 'Anônimo', 0, 0, '', '')`, [finalId]);
+                    await this.db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [amount, finalId]);
+                    count++;
+                }
+
+                let msg = `${senderTag}🚁 **MAMATA ESTATAL (SILVIO SANTOS JURÁSSICO)** 🚁\nO Banco Central imprimiu e distribuiu 🪙 **${amount} Bostocoins** para ${count} membros do grupo!`;
+                if (ignorados > 0) msg += `\n\n🚫 _Atenção: ${ignorados} pessoa(s) sofreram sanções do governo!_`;
+                return msg;
+
+            } catch (e) {
+                console.error("Erro ao dar moedas para todos:", e);
+                return `${senderTag}❌ Erro ao ler participantes.`;
+            }
+        } 
+        else {
+            await this.db.run(`INSERT OR IGNORE INTO usuarios (id_usuario, nome, banido_ate, uso_ia_diario, data_ultimo_uso, anotacoes) VALUES (?, 'Anônimo', 0, 0, '', '')`, [targetId]);
+            await this.db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [amount, targetId]);
+            
+            const cleanNum = targetId.split('@')[0];
+            return `${senderTag}💰 **INJEÇÃO DE CAPITAL** 💰\nO Banco Central transferiu 🪙 **${amount} Bostocoins** para @${cleanNum}.`;
+        }
+    }
+
+    async handleDebugGroup(userTag, groupId, sock) {
+        if (!groupId.endsWith('@g.us')) return "⚠️ Esse comando só funciona em grupos.";
+
+        try {
+            const groupMetadata = await sock.groupMetadata(groupId);
+            const participants = groupMetadata.participants;
+            
+            let msg = `🔍 **RAIO-X DE PARTICIPANTES (ANTI-FANTASMA)**\n`;
+            msg += `Grupo: ${groupMetadata.subject}\n\n`;
+
+            participants.forEach((p, i) => {
+                // Tenta reconstruir o JID de telefone
+                let pPhone = p.phoneNumber ? p.phoneNumber + '@s.whatsapp.net' : "N/A";
+                let status = p.phoneNumber ? "✅ HUMANO" : "👻 FANTASMA";
+                
+                msg += `*[${i + 1}]* ${status}\n`;
+                msg += `     ID: \`${p.id}\`\n`;
+                msg += `     TEL: \`${pPhone}\`\n`;
+                if (p.lid) msg += `     LID: \`${p.lid}\`\n`;
+                msg += `\n`;
+            });
+
+            return msg;
+        } catch (e) {
+            return "❌ Erro ao ler metadados do grupo.";
+        }
+    }
+
+    async handleExorcismo(senderId, userTag) {
+        if (senderId !== "5513991008854@s.whatsapp.net") return "🚫 Só o admin pode banir fantasmas.";
+
+        const result = await this.db.run(`
+            DELETE FROM usuarios 
+            WHERE id_usuario LIKE '%@lid' 
+        `);
+
+        return `${userTag}🧹 **EXORCISMO CONCLUÍDO!**\nForam eliminados **${result.changes} fantasmas** do banco de dados.\nA economia agora está limpa!`;
+    }
+
     // Atualiza o Show Balance para mostrar os acumulados
     async showBalance(userId, userTag) {
         const balance = await this.getBalance(userId);
@@ -486,6 +760,25 @@ class CasinoHandler {
         const total_bolao = (pote_bolao.total || 0) + estado.bolao_acumulado;
         
         return `${userTag}🏦 **BANCO DO BOSTOSSAURO**\n\nSeu saldo: 🪙 **${balance} Bostocoins**\n\n🤑 **ACUMULADOS DA SEMANA:**\n🎟️ *Mega:* Pagando **${estado.mega_multiplicador * 100}x** a aposta! (!cassino mega [1-100] [valor])\n🤝 *Bolão:* Pote atual de 🪙 **${total_bolao}**! (!cassino bolao [1-20] [valor])\n\n_Outros jogos: !cassino [aposta], cara/coroa, roleta_`;
+    }
+
+    // ACELERA O TEMPO PRA TRABALHAR EM 8 HORAS
+    async acelerarTrabalhoGlobal(userTag) {
+        const SECONDS_TO_SUBTRACT = 4 * 3600; 
+        
+        try {
+            const result = await this.db.run(`
+                UPDATE usuarios 
+                SET last_trabalho = last_trabalho - ? 
+                WHERE last_trabalho > 0
+            `, [SECONDS_TO_SUBTRACT]);
+            
+            return `⏳ O Ministro da Economia decretou hora extra e adiantou o relógio em 4 horas para **${result.changes} trabalhadores**!\nA CLT chora, o cooldown diminuiu. Vão bater o ponto!`;
+
+        } catch (e) {
+            console.error("Erro ao acelerar o tempo de trabalho:", e);
+            return `❌ Deu ruim no Ministério do Trabalho. Erro ao acelerar o tempo.`;
+        }
     }
 }
 

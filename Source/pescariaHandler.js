@@ -125,9 +125,12 @@ const STORE_CATALOG = {
 
 const ROD_CATALOG = {
     'bambu': { id: 'bambu', name: 'Vara de Bambu', mult: 1.0, emoji: '🎋', price: 0, next: 'fibra' },
-    'fibra': { id: 'fibra', name: 'Vara de Fibra de Vidro', mult: 1.20, emoji: '🎣', price: 800, next: 'carbono' },
-    'carbono': { id: 'carbono', name: 'Vara de Carbono', mult: 1.35, emoji: '💎', price: 1500, next: 'adamantium' },
-    'adamantium': { id: 'adamantium', name: 'Vara de Adamantium', mult: 1.50, emoji: '🌌', price: 3000, next: null }
+    'fibra': { id: 'fibra', name: 'Vara de Fibra de Vidro', mult: 1.10, emoji: '🎣', price: 800, next: 'grafite' },
+    'grafite': { id: 'grafite', name: 'Vara de Grafite Pro', mult: 1.20, emoji: '✒️', price: 1250, next: 'carbono' },
+    'carbono': { id: 'carbono', name: 'Vara de Carbono', mult: 1.30, emoji: '💎', price: 2000, next: 'aco' },    
+    'aco': { id: 'aco', name: 'Vara de Aço Temperado', mult: 1.40, emoji: '🔩', price: 3000, next: 'titanio' },
+    'grafeno': { id: 'titanio', name: 'Vara de Grafeno', mult: 1.50, emoji: '💎', price: 5000, next: 'adamantium' },
+    'adamantium': { id: 'adamantium', name: 'Vara de Adamantium', mult: 1.60, emoji: '🌌', price: 8, next: null }
 };
 
 const RARITY_MULTIPLIER = {
@@ -639,6 +642,7 @@ class PescariaHandler {
         const balance = userDb ? userDb.bostocoins : 0;
         let player = await this.getPlayerData(userId);
 
+        let msg = "";
         if (itemCode.toLowerCase() === 'vara') {
             const currentRodId = player.inventory.vara || 'bambu';
             const currentRod = ROD_CATALOG[currentRodId];
@@ -659,7 +663,11 @@ class PescariaHandler {
             await this.savePlayerData(userId, player);
 
             const novoBonus = Math.round((nextRod.mult - 1) * 100);
-            return `${userTag}⚒️ **VARA FORJADA COM SUCESSO!**\nO ferreiro pegou seus 🪙 ${nextRod.price} Bostocoins e montou uma ${nextRod.emoji} **${nextRod.name}** novinha em folha pra você!\n\n🐟 Agora todos os seus peixes serão **+${novoBonus}%** mais pesados (E consequentemente, mais caros)!`;
+            msg = `${userTag}⚒️ **VARA FORJADA COM SUCESSO!**\nO ferreiro pegou seus 🪙 ${nextRod.price} Bostocoins e montou uma ${nextRod.emoji} **${nextRod.name}** novinha em folha pra você!\n\n🐟 Agora todos os seus peixes serão **+${novoBonus}%** mais pesados (E consequentemente, mais caros)!`;
+            if (nextRod.id === 'adamantium') {
+                msg += `\n\n🐺 _Você impressionou o ferreiro e desbloqueou o título **Wolverine dos Mares**! Use *!pescaria titulo* para equipar._`;
+            }
+            return msg;
         }
 
         if (!STORE_CATALOG[itemCode]) {
@@ -682,7 +690,7 @@ class PescariaHandler {
 
         await this.savePlayerData(userId, player);
 
-        let msg = `${userTag}🛍️ **COMPRA REALIZADA COM SUCESSO!**\nVocê comprou ${item.emoji} *${item.name}* por 🪙 ${item.price} Bostocoins.\n`;
+        msg = `${userTag}🛍️ **COMPRA REALIZADA COM SUCESSO!**\nVocê comprou ${item.emoji} *${item.name}* por 🪙 ${item.price} Bostocoins.\n`;
         
         if (item.type === 'buff') {
             msg += `✨ O efeito já está ativo na sua próxima jogada! Confira em *!pescaria perfil*.`;
@@ -872,24 +880,37 @@ class PescariaHandler {
     // TÍTULOS DE PESCA
     async handleTitulosPesca(userId, userTag, action, param) {
         const { sellableArray } = await this.getSellableList(userId);
+        const player = await this.getPlayerData(userId);
+        
         let totalValue = 0;
         sellableArray.forEach(fish => totalValue += fish.value);
 
         const TITULOS_PESCA = {
-            '1': { name: 'Pescador Novato 🎣', req: 500 },
-            '2': { name: 'Pescador Experiente 🚤', req: 2000 },
-            '3': { name: 'Guru da Pesca 🧘‍♂️', req: 5000 },
-            '4': { name: 'Mestre Pescador 🔱', req: 10000 },
-            '5': { name: 'Imperador dos Mares 👑', req: 25000 } 
+            '1': { name: 'Pescador Novato 🎣', reqType: 'valor', req: 500 },
+            '2': { name: 'Pescador Experiente 🚤', reqType: 'valor', req: 2000 },
+            '3': { name: 'Guru da Pesca 🧘‍♂️', reqType: 'valor', req: 5000 },
+            '4': { name: 'Mestre Pescador 🔱', reqType: 'valor', req: 10000 },
+            '5': { name: 'Imperador dos Mares 👑', reqType: 'valor', req: 25000 },
+            '6': { name: 'Wolverine dos Mares 🐺', reqType: 'vara', req: 'adamantium' }
         };
 
         if (!action || action === 'lista' || action === 'loja') {
-            let msg = `${userTag}👑 **SINDICATO DOS PESCADORES** 👑\n_Mantenha o patrimônio no isopor para poder ostentar esses títulos!_\n\n`;
+            let msg = `${userTag}👑 **SINDICATO DOS PESCADORES** 👑\n_Mantenha os requisitos para poder ostentar esses títulos!_\n\n`;
             msg += `💰 **Patrimônio Atual:** 🪙 ${totalValue}\n\n`;
 
             for (const [id, t] of Object.entries(TITULOS_PESCA)) {
-                const status = totalValue >= t.req ? "✅ DESBLOQUEADO" : `🔒 Faltam 🪙 ${t.req - totalValue}`;
-                msg += `*[ ${id} ]* **${t.name}**\n      ${status} (Requer 🪙 ${t.req})\n\n`;
+                let unlocked = false;
+                let statusText = "";
+
+                if (t.reqType === 'valor') {
+                    unlocked = totalValue >= t.req;
+                    statusText = unlocked ? "✅ DESBLOQUEADO" : `🔒 Faltam 🪙 ${t.req - totalValue}`;
+                } else if (t.reqType === 'vara') {
+                    unlocked = player.inventory.vara === t.req;
+                    statusText = unlocked ? "✅ DESBLOQUEADO" : `🔒 Requer Vara de Adamantium`;
+                }
+
+                msg += `*[ ${id} ]* **${t.name}**\n      ${statusText}\n\n`;
             }
 
             msg += `📌 Para equipar: *!pescaria titulo equipar [numero]*\n`;
@@ -903,16 +924,27 @@ class PescariaHandler {
             const id = param;
             if (!TITULOS_PESCA[id]) return `${userTag}❌ Título não encontrado. Use *!pescaria titulo*.`;
             
-            const tituloObj = TITULOS_PESCA[id];
+            const t = TITULOS_PESCA[id];
             
-            if (totalValue < tituloObj.req) {
-                return `${userTag}🛑 O Sindicato barrou! Você precisa de 🪙 **${tituloObj.req}** no isopor para usar esse título. Continue pescando!`;
+            let unlocked = false;
+            let errorMsg = "";
+
+            if (t.reqType === 'valor') {
+                unlocked = totalValue >= t.req;
+                errorMsg = `🛑 O Sindicato barrou! Você precisa de 🪙 **${t.req}** no isopor para usar esse título.`;
+            } else if (t.reqType === 'vara') {
+                unlocked = player.inventory.vara === t.req;
+                errorMsg = `🛑 O Sindicato barrou! Você precisa forjar a Vara de Adamantium para usar esse título.`;
             }
 
-            financas.titulo = tituloObj.name;
+            if (!unlocked) {
+                return `${userTag}${errorMsg}`;
+            }
+
+            financas.titulo = t.name;
             await this.db.run("UPDATE usuarios SET financas = ? WHERE id_usuario = ?", [JSON.stringify(financas), userId]);
 
-            return `${userTag}🥂 **TÍTULO EQUIPADO COM SUCESSO!**\nAgora o grupo inteiro te reconhecerá como: **${tituloObj.name}**\n\n_Aviso: Se você vender seus troféus e o patrimônio cair, o título continua no seu nome, mas se você tirá-lo, não conseguirá equipar de novo!_`;
+            return `${userTag}🥂 **TÍTULO EQUIPADO COM SUCESSO!**\nAgora o grupo inteiro te reconhecerá como: **${t.name}**\n\n_Aviso: Se você perder os requisitos, o título continua no seu nome, mas se você tirá-lo, não conseguirá equipar de novo!_`;
         }
 
         if (action === 'remover') {

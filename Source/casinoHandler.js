@@ -331,6 +331,90 @@ constructor(db) {
         return msg;
     }
 
+    // REESTRUTURAÇÃO DE RH 
+    async shuffleJobsGlobal(userTag) {
+        const users = await this.db.all("SELECT id_usuario, financas FROM usuarios WHERE financas IS NOT NULL AND financas != '{}'");
+        let count = 0;
+
+        for (const u of users) {
+            try {
+                let financas = JSON.parse(u.financas);
+                
+                if (financas.carreira && financas.carreira.nivel) {
+                    const nivel = financas.carreira.nivel;
+                    const maxJobs = this.CARREIRAS_CATALOGO[nivel].length;
+                    
+                    financas.carreira.id_job = Math.floor(Math.random() * maxJobs);
+                    
+                    await this.db.run("UPDATE usuarios SET financas = ? WHERE id_usuario = ?", [JSON.stringify(financas), u.id_usuario]);
+                    count++;
+                }
+            } catch (e) {
+                console.error("Erro ao embaralhar empregos:", e);
+            }
+        }
+        
+        return `🔄 **REESTRUTURAÇÃO CORPORATIVA CONCLUÍDA!**\nO RH do Bostossauro enlouqueceu e transferiu **${count} trabalhadores** para novos departamentos.\nMandem os currículos atualizados!`;
+    }
+
+    // PERFIL PROFISSIONAL
+    async handleCarreira(userId, userTag) {
+        let financas = await this.processFinancas(userId);
+        const user = await this.db.get("SELECT last_trabalho FROM usuarios WHERE id_usuario = ?", [userId]);
+        
+        const nivel = financas.carreira.nivel || 1;
+        const subnivel = financas.carreira.subnivel || 1;
+        const id_job = financas.carreira.id_job;
+
+        let cargoCompleto = "Aguardando RH (Use !trabalhar para assinar a carteira!)";
+        if (id_job !== undefined && id_job !== null) {
+            const cargoBase = this.CARREIRAS_CATALOGO[nivel][id_job];
+            const nomeSubnivel = this.SUBNIVEIS[subnivel].nome;
+            cargoCompleto = `${cargoBase} ${nomeSubnivel}`;
+        }
+
+        const salarioBase = this.SALARIOS_BASE[nivel];
+        const bonusCargo = this.SUBNIVEIS[subnivel].mult;
+        const salarioFixo = Math.floor(salarioBase * bonusCargo);
+
+        const now = Math.floor(Date.now() / 1000);
+
+        let statusTrabalho = "✅ Disponível para bater o ponto!";
+        if (user && user.last_trabalho) {
+            const timePassed = now - user.last_trabalho;
+            const cooldownWork = this.HOURS_TO_WORK * 3600;
+            if (timePassed < cooldownWork) {
+                const timeLeft = cooldownWork - timePassed;
+                const h = Math.floor(timeLeft / 3600);
+                const m = Math.floor((timeLeft % 3600) / 60);
+                statusTrabalho = `⏳ Descansando (${h}h e ${m}m restantes)`;
+            }
+        }
+
+        let statusBico = "✅ Pronto pra fazer um bico!";
+        if (financas.last_bico > 0) {
+            const timePassed = now - financas.last_bico;
+            const cooldownBico = this.HOURS_TO_BICO * 3600;
+            if (timePassed < cooldownBico) {
+                const timeLeft = cooldownBico - timePassed;
+                const h = Math.floor(timeLeft / 3600);
+                const m = Math.floor((timeLeft % 3600) / 60);
+                statusBico = `⏳ Fugindo da receita (${h}h e ${m}m restantes)`;
+            }
+        }
+
+        let msg = `${userTag}👔 **CARTEIRA DE TRABALHO DIGITAL** 👔\n\n`;
+        msg += `🏢 **Cargo Atual:** ${cargoCompleto}\n`;
+        msg += `📊 **Nível:** ${nivel} | **Senioridade:** ${this.SUBNIVEIS[subnivel].nome}\n`;
+        msg += `💰 **Salário Base Mínimo:** 🪙 ${salarioFixo} _(+ Bônus de Esforço de até 6x)_\n\n`;
+        
+        msg += `⏱️ **PONTO ELETRÔNICO:**\n`;
+        msg += `💼 CLT Oficial: ${statusTrabalho}\n`;
+        msg += `🛠️ Bico Informal: ${statusBico}\n`;
+
+        return msg;
+    }
+
     async processFinancas(userId) {
         const user = await this.db.get("SELECT financas FROM usuarios WHERE id_usuario = ?", [userId]);
         

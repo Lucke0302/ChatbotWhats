@@ -325,6 +325,10 @@ class ChatModel {
                 }
                 
                 if (subCommand === 'vender') {
+                    if (args[2]?.toLowerCase() === 'lixo') {
+                        return await this.pescariaHandler.handleVenderLixo(ctx.sender, tag);
+                    }
+                    
                     const itemCodes = args.slice(2).join(' ');
                     return await this.pescariaHandler.handleVender(ctx.sender, tag, itemCodes);
                 }

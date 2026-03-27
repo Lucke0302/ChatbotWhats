@@ -4,6 +4,16 @@ const FISH_CATALOG = [
     { id: 'pneu', name: 'Pneu Furado', emoji: '🛞', avgWeight: 8.0, rarity: 'lixo' },
     { id: 'calota', name: 'Calota de Celta', emoji: '🛸', avgWeight: 1.2, rarity: 'lixo' },
     { id: 'baiacu_mc', name: 'Baiacu do Minecraft', emoji: '🐡', avgWeight: 0.5, rarity: 'lixo' },
+    { id: 'placa_mae_queimada', name: 'Placa-Mãe Curto-Circuitada', emoji: '🔥', avgWeight: 1.5, rarity: 'lixo' },
+    { id: 'teclado_multilaser', name: 'Teclado Multilaser Faltando W', emoji: '⌨️', avgWeight: 0.8, rarity: 'lixo' },
+    { id: 'cabo_vga', name: 'Cabo VGA Dobrado', emoji: '🔌', avgWeight: 0.3, rarity: 'lixo' },
+    { id: 'pote_sorvete', name: 'Pote de Sorvete (com feijão)', emoji: '🍲', avgWeight: 1.0, rarity: 'lixo' },
+    { id: 'memoria_ddr1', name: 'Pente de Memória DDR1 256MB', emoji: '💾', avgWeight: 0.1, rarity: 'lixo' },
+    { id: 'cooler_box', name: 'Cooler Box da Intel Cheio de Alga', emoji: '🌪️', avgWeight: 0.4, rarity: 'lixo' },
+    { id: 'mouse_bolinha', name: 'Mouse de Bolinha Amarelado', emoji: '🖱️', avgWeight: 0.2, rarity: 'lixo' },
+    { id: 'tcc_reprovado', name: 'Pen Drive com TCC Reprovado', emoji: '🗑️', avgWeight: 0.05, rarity: 'lixo' },
+    { id: 'cd_aol', name: 'CD de Instalação da AOL 100 Horas', emoji: '💿', avgWeight: 0.02, rarity: 'lixo' },
+    { id: 'fio_cobre', name: 'Emaranhado de Fio de Cobre Oxidado', emoji: '🧵', avgWeight: 5.0, rarity: 'lixo' },
 
     // COMUM
     { id: 'lambari', name: 'Lambari', emoji: '🐟', avgWeight: 0.1, rarity: 'comum' },
@@ -14,6 +24,11 @@ const FISH_CATALOG = [
     { id: 'sardinha_lata', name: 'Sardinha em Lata', emoji: '🥫', avgWeight: 0.3, rarity: 'comum' },
     { id: 'carpa', name: 'Carpa de Shopping', emoji: '🎏', avgWeight: 3.5, rarity: 'comum' },
     { id: 'peixe_pedra', name: 'Peixe-Pedra (Literalmente uma pedra)', emoji: '🪨', avgWeight: 4.0, rarity: 'comum' },
+    { id: 'peixe_galo', name: 'Peixe-Galo', emoji: '🐓', avgWeight: 1.8, rarity: 'comum' },
+    { id: 'porquinho', name: 'Peixe-Porquinho', emoji: '🐷', avgWeight: 0.4, rarity: 'comum' },
+    { id: 'tainha', name: 'Tainha', emoji: '🐟', avgWeight: 1.5, rarity: 'comum' },
+    { id: 'sardinha', name: 'Sardinha Fresca', emoji: '🐟', avgWeight: 0.2, rarity: 'comum' },    
+    { id: 'ram_2_gb_ddr2', name: 'Memória Ram 2 GB DDR2 600MHZ', emoji: '💾', avgWeight: 0.1, rarity: 'comum' },
 
     // INCOMUM
     { id: 'tambaqui', name: 'Tambaqui', emoji: '🐟', avgWeight: 15.0, rarity: 'incomum' },
@@ -24,30 +39,63 @@ const FISH_CATALOG = [
     { id: 'peixe_palhaco', name: 'Peixe-Palhaço Procurado', emoji: '🐠', avgWeight: 0.5, rarity: 'incomum' },
     { id: 'sapo_cururu', name: 'Sapo Cururu', emoji: '🐸', avgWeight: 2.5, rarity: 'incomum' },
     { id: 'pintado', name: 'Pintado', emoji: '🐟', avgWeight: 12.0, rarity: 'incomum' },
+    { id: 'truta', name: 'Truta', emoji: '🐟', avgWeight: 3.5, rarity: 'incomum' },
+    { id: 'peixe_espada', name: 'Peixe-Espada', emoji: '🗡️', avgWeight: 4.2, rarity: 'incomum' },
+    { id: 'baiacu', name: 'Baiacu', emoji: '🐡', avgWeight: 1.5, rarity: 'incomum' },
+    { id: 'cascudo', name: 'Cascudo Limpa-Vidro', emoji: '🧹', avgWeight: 1.0, rarity: 'incomum' },
+    { id: 'piraputanga', name: 'Piraputanga', emoji: '🐟', avgWeight: 2.8, rarity: 'incomum' },    
+    { id: 'ram_2_gb_ddr3', name: 'Memória Ram 2 GB DDR3 1300MHZ', emoji: '💾', avgWeight: 0.1, rarity: 'incomum' },
 
     // RARO
     { id: 'pirarucu', name: 'Pirarucu', emoji: '🐉', avgWeight: 100.0, rarity: 'raro' },
     { id: 'dourado', name: 'Dourado', emoji: '✨', avgWeight: 20.0, rarity: 'raro' },
     { id: 'magikarp', name: 'Magikarp', emoji: '🐠', avgWeight: 5.0, rarity: 'raro' },  
     { id: 'dratini', name: 'Dratini', emoji: '🐉', avgWeight: 3.3, rarity: 'raro' },
+    { id: 'enguia_eletrica', name: 'Enguia Elétrica', emoji: '⚡', avgWeight: 15.0, rarity: 'raro' },
+    { id: 'arraia', name: 'Arraia', emoji: '🦈', avgWeight: 35.0, rarity: 'raro' },
+    { id: 'peixe_leao', name: 'Peixe-Leão', emoji: '🦁', avgWeight: 1.2, rarity: 'raro' },
+    { id: 'tubarao_lixa', name: 'Tubarão-Lixa', emoji: '🦈', avgWeight: 80.0, rarity: 'raro' },    
+    { id: 'ram_8_gb_ddr3', name: 'Memória Ram 8 GB DDR3 1600MHZ', emoji: '💾', avgWeight: 0.1, rarity: 'raro' },
 
     // MUITO RARO
     { id: 'gyarados', name: 'Gyarados', emoji: '🐉', avgWeight: 125.0, rarity: 'muito_raro' },
     { id: 'marlin', name: 'Marlin Azul', emoji: '🦈', avgWeight: 300.0, rarity: 'muito_raro' },
     { id: 'tubarao_martelo', name: 'Tubarão Martelo', emoji: '🦈', avgWeight: 250.0, rarity: 'muito_raro' },
     { id: 'capivara', name: 'Capivara do Taquaral', emoji: '🐹', avgWeight: 60.0, rarity: 'muito_raro' },
+    { id: 'manta_ray', name: 'Raia Manta', emoji: '🦈', avgWeight: 1000.0, rarity: 'muito_raro' },
+    { id: 'peixe_lua', name: 'Peixe-Lua', emoji: '🌕', avgWeight: 1000.0, rarity: 'muito_raro' },
+    { id: 'narval', name: 'Narval', emoji: '🦄', avgWeight: 900.0, rarity: 'muito_raro' },
+    { id: 'golfinho', name: 'Golfinho Flipper', emoji: '🐬', avgWeight: 150.0, rarity: 'muito_raro' },
+    { id: 'ram_8_gb_ddr4', name: 'Memória Ram 8 GB DDR4 3200MHZ', emoji: '💾', avgWeight: 0.1, rarity: 'muito_raro' },
 
     // LENDÁRIO
     { id: 'magikarp_d', name: 'Magikarp Dourada', emoji: '✨', avgWeight: 10.0, rarity: 'lendario' },
     { id: 'gyarados_v', name: 'Gyarados Vermelho', emoji: '🐉', avgWeight: 250.0, rarity: 'lendario' },
-    { id: 'tubarao_branco', name: 'Kyogre', emoji: '🐋', avgWeight: 750.0, rarity: 'lendario' },
+    { id: 'tubarao_branco', name: 'Tubarão Branco', emoji: '🐋', avgWeight: 750.0, rarity: 'lendario' },    
+    { id: 'orca', name: 'Orca Assassina', emoji: '🐳', avgWeight: 1000.0, rarity: 'lendario' },
     { id: 'kraken_f', name: 'Kraken Filhote', emoji: '🦑', avgWeight: 500.0, rarity: 'lendario' },
+    { id: 'leviathan_f', name: 'Filhote de Leviatã', emoji: '🐉', avgWeight: 1000.0, rarity: 'lendario' },
+    { id: 'caranguejo_colossal', name: 'Caranguejo Colossal', emoji: '🦀', avgWeight: 800.0, rarity: 'lendario' },
+    { id: 'poseidon_peixe', name: 'O Tridente de Poseidon', emoji: '🔱', avgWeight: 25.0, rarity: 'lendario' },    
+    { id: 'ram_16_gb_ddr4', name: 'Memória Ram 16 GB DDR4 3600MHZ', emoji: '💾', avgWeight: 0.1, rarity: 'lendario' },
 
     // MÍTICO
     { id: 'bostossauro_aq', name: 'Bostossauro Aquático', emoji: '🦖', avgWeight: 999.9, rarity: 'mitico' },
     { id: 'fizz', name: 'Fizz Feedado', emoji: '🔱', avgWeight: 70.0, rarity: 'mitico' },
     { id: 'cthulhu', name: 'Cthulhu Dorminhoco', emoji: '🐙', avgWeight: 5000.0, rarity: 'mitico' },
-    { id: 'kraken', name: 'Kraken Adulto', emoji: '🐙', avgWeight: 2500.0, rarity: 'mitico' }
+    { id: 'kraken', name: 'Kraken Adulto', emoji: '🐙', avgWeight: 2500.0, rarity: 'mitico' },    
+    { id: 'megalodon', name: 'Megalodon', emoji: '🦈', avgWeight: 40000.0, rarity: 'mitico' },
+    { id: 'leviathan', name: 'Leviatã', emoji: '🐉', avgWeight: 50000.0, rarity: 'mitico' },
+    { id: 'baleia_azul', name: 'Baleia Azul Gigante', emoji: '🐋', avgWeight: 150000.0, rarity: 'mitico' },
+    { id: 'nami_ap', name: 'Nami Full AP', emoji: '🧜‍♀️', avgWeight: 60.0, rarity: 'mitico' },
+    { id: 'ryze_rio', name: 'Ryze Ultando no Rio', emoji: '🧙‍♂️', avgWeight: 80.0, rarity: 'mitico' },    
+    { id: 'ram_16_gb_ddr5', name: 'Memória Ram 16 GB DDR5 6000MHZ', emoji: '💾', avgWeight: 0.1, rarity: 'mitico' },
+
+    // SECRETOS
+    { id: 'peixe_silvio', name: 'Peixe de Ouro do Silvio Santos', emoji: '🏆', avgWeight: 100.0, rarity: 'secreto' },
+    { id: 'rtx_5090', name: 'RTX 5090 Ti Submersa e Intacta', emoji: '💻', avgWeight: 3.5, rarity: 'secreto' },
+    { id: 'codigo_tcc', name: 'O Código Fonte do TCC que Funciona', emoji: '💾', avgWeight: 0.01, rarity: 'secreto' },
+    { id: 'ram_64_gb_ddr5', name: 'Memória Ram 64 GB DDR5 6000MHZ', emoji: '💾', avgWeight: 0.1, rarity: 'secreto' },
 ];
 
 const ITEM_CATALOG = [
@@ -89,7 +137,21 @@ const RARITY_MULTIPLIER = {
     'raro': 50,
     'muito_raro': 200,
     'lendario': 500,
-    'mitico': 1000
+    'mitico': 1000,
+    'secreto': 20000
+};
+
+const RARITY_ORDER = ['comum', 'incomum', 'raro', 'muito_raro', 'lendario', 'mitico', 'secreto', 'lixo'];
+
+const RARITY_LABELS = {
+    'comum': '⚪ COMUM', 
+    'incomum': '🟢 INCOMUM', 
+    'raro': '🔵 RARO', 
+    'muito_raro': '🟣 MUITO RARO', 
+    'lendario': '🟡 LENDÁRIO', 
+    'mitico': '🔴 MÍTICO', 
+    'secreto': '🌌 ?????', 
+    'lixo': '🟤 LIXO'
 };
 
 const MAX_BAITS = 10;
@@ -193,7 +255,8 @@ class PescariaHandler {
             let roll = Math.random() * 100;
             let selectedRarity = 'comum';
             
-            if (roll < 0.5) selectedRarity = 'mitico';
+            if (roll < 0.1) selectedRarity = 'secreto';
+            if (roll < 1) selectedRarity = 'mitico';
             else if (roll < 5) selectedRarity = 'lendario';
             else if (roll < 20) selectedRarity = 'muito_raro';
             else if (roll < 40) selectedRarity = 'raro';
@@ -379,17 +442,17 @@ class PescariaHandler {
     async getTopPessoal(userId, userTag) {
         const player = await this.getPlayerData(userId);
         
-        if (!Array.isArray(player.records) || player.records.length === 0) {
+        if (!player.records || Object.keys(player.records).length === 0) {
             return `${userTag} Você ainda não tem nenhum recorde. Jogue a isca na água primeiro!`;
         }
 
         const categorized = {};
 
-        for (const record of player.records) {
-            const fishInfo = FISH_CATALOG.find(f => f.id === record.id);
+        for (const [fishId, recordData] of Object.entries(player.records)) {
+            const fishInfo = FISH_CATALOG.find(f => f.id === fishId);
             if (!fishInfo) continue;
 
-            const weight = record.weight;
+            const weight = typeof recordData === 'object' ? recordData.weight : recordData;
             const maxWeight = fishInfo.avgWeight * 1.5;
             const score = (weight / maxWeight) * 100;
 
@@ -404,17 +467,11 @@ class PescariaHandler {
         }
 
         let msg = `${userTag}🎣 **SEUS MELHORES PEIXES (Por Raridade)** 🎣\n_Nota: Proximidade do peso máximo padrão_\n\n`;
-        
-        const rarityOrder = ['comum', 'incomum', 'raro', 'muito_raro', 'lendario', 'mitico', 'lixo'];
-        const rarityLabels = {
-            'comum': '⚪ COMUM', 'incomum': '🟢 INCOMUM', 'raro': '🔵 RARO', 
-            'muito_raro': '🟣 MUITO RARO', 'lendario': '🟡 LENDÁRIO', 'mitico': '🔴 MÍTICO', 'lixo': '🟤 LIXO'
-        };
         const medalhas = ["🥇", "🥈", "🥉"];
 
-        for (const rarity of rarityOrder) {
+        for (const rarity of RARITY_ORDER) {
             if (categorized[rarity] && categorized[rarity].length > 0) {
-                msg += `*${rarityLabels[rarity]}*\n`;
+                msg += `*${RARITY_LABELS[rarity]}*\n`;
                 
                 const top3 = categorized[rarity].sort((a, b) => b.score - a.score).slice(0, 3);
                 
@@ -515,20 +572,13 @@ class PescariaHandler {
         }
 
         let msg = `🏆 **A ELITE DA PESCARIA DO GRUPO** 🏆\n_Os peixes mais perfeitos por categoria:_\n\n`;
-        
-        const rarityOrder = ['comum', 'incomum', 'raro', 'muito_raro', 'lendario', 'mitico', 'lixo'];
-        const rarityLabels = {
-            'comum': '⚪ COMUM', 'incomum': '🟢 INCOMUM', 'raro': '🔵 RARO', 
-            'muito_raro': '🟣 MUITO RARO', 'lendario': '🟡 LENDÁRIO', 'mitico': '🔴 MÍTICO', 'lixo': '🟤 LIXO'
-        };
         const medalhas = ["🥇", "🥈", "🥉"];
-
         let encontrouAlgo = false;
 
-        for (const rarity of rarityOrder) {
+        for (const rarity of RARITY_ORDER) {
             if (categorized[rarity] && categorized[rarity].length > 0) {
                 encontrouAlgo = true;
-                msg += `*${rarityLabels[rarity]}*\n`;
+                msg += `*${RARITY_LABELS[rarity]}*\n`;
                 
                 const top3 = categorized[rarity].sort((a, b) => b.score - a.score).slice(0, 3);
                 
@@ -670,10 +720,9 @@ class PescariaHandler {
             });
         });
 
-        const rarityOrder = ['comum', 'incomum', 'raro', 'muito_raro', 'lendario', 'mitico', 'lixo'];
         let sellableArray = [];
 
-        rarityOrder.forEach(rarity => {
+        RARITY_ORDER.forEach(rarity => {
             if (categorized[rarity]) {
                 const sorted = categorized[rarity].sort((a, b) => b.weight - a.weight);
                 sellableArray.push(...sorted);
@@ -692,17 +741,12 @@ class PescariaHandler {
         }
 
         if (!itemIndicesStr || itemIndicesStr.trim() === '') {
-            const rarityLabels = {
-                'comum': '⚪ COMUM', 'incomum': '🟢 INCOMUM', 'raro': '🔵 RARO', 
-                'muito_raro': '🟣 MUITO RARO', 'lendario': '🟡 LENDÁRIO', 'mitico': '🔴 MÍTICO', 'lixo': '🟤 LIXO'
-            };
-
             let msg = `${userTag}🏪 **MERCADÃO DE PEIXES DE PERUÍBE** 🏪\n_Fórmula: Raridade x Perfeição_\n\n`;
             
             let lastRarity = "";
             sellableArray.forEach((f, i) => {
                 if (f.rarity !== lastRarity) {
-                    msg += `\n*${rarityLabels[f.rarity]}*\n`;
+                    msg += `\n*${RARITY_LABELS[f.rarity]}*\n`;
                     lastRarity = f.rarity;
                 }
                 msg += `*[ ${i + 1} ]* ${f.emoji} ${f.name} (${f.weight.toFixed(2)}kg) - **${f.score.toFixed(1)}%** ➝ 🪙 **${f.value}**\n`;
@@ -716,7 +760,6 @@ class PescariaHandler {
         let indices = rawIndices.map(s => parseInt(s) - 1);
 
         indices = indices.filter(i => !isNaN(i) && i >= 0 && i < sellableArray.length);
-
         indices = [...new Set(indices)];
 
         if (indices.length === 0) {
@@ -730,7 +773,6 @@ class PescariaHandler {
 
         for (const index of indices) {
             const fishToSell = sellableArray[index];
-
             const originalIndex = player.records.findIndex(r => 
                 r.id === fishToSell.id && r.weight === fishToSell.weight && r.date === fishToSell.date
             );
@@ -760,6 +802,46 @@ class PescariaHandler {
         msg += `\n💰 **Valor Bruto Total:** 🪙 **${totalValue}**${profitResult.msg}`;
 
         return msg;
+    }
+
+    // ♻️ VENDA AUTOMÁTICA DE LIXO
+    async handleVenderLixo(userId, userTag) {
+        const player = await this.getPlayerData(userId);
+        
+        if (!player.records || !Array.isArray(player.records) || player.records.length === 0) {
+            return `${userTag} O seu inventário está vazio! Não há lixo para vender.`;
+        }
+
+        let totalValue = 0;
+        let trashCount = 0;
+        const newRecords = [];
+
+        for (const record of player.records) {
+            const fishInfo = FISH_CATALOG.find(f => f.id === record.id);
+            
+            if (fishInfo && fishInfo.rarity === 'lixo') {
+                const maxWeight = fishInfo.avgWeight * 1.5;
+                const perfeicao = record.weight / maxWeight; 
+                const value = Math.ceil((RARITY_MULTIPLIER['lixo'] || 5) * perfeicao); 
+                
+                totalValue += value;
+                trashCount++;
+            } else {
+                newRecords.push(record);
+            }
+        }
+
+        if (trashCount === 0) {
+            return `${userTag}♻️ Você não tem nenhum lixo no inventário. O oceano agradece!`;
+        }
+
+        player.records = newRecords;
+        await this.savePlayerData(userId, player);
+
+        const profitResult = await this.casinoHandler.verifyProfit(userId, totalValue);
+        await this.db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [profitResult.finalProfit, userId]);
+
+        return `${userTag}♻️ **COLETA SELETIVA CONCLUÍDA!**\n\nVocê reciclou **${trashCount} itens de lixo** (Botas, pneus, calotas...) e ganhou 🪙 **${totalValue} Bostocoins** pelo serviço ambiental!${profitResult.msg}`;
     }
 
     // FUNÇÃO DE MIGRAÇÃO DE DADOS

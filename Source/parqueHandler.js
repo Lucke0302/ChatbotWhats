@@ -427,7 +427,7 @@ class ParqueHandler {
             [groupId, dinoId, userName, userId, now, corString, multiplicadorTotal]
         );
 
-        const profitResult = await this.casinoHandler.verifyProfit(userId, dinoInfo.ticket_value * 10);
+        const profitResult = await this.casinoHandler.verifyProfit(userId, dinoInfo.ticket_value);
         await this.db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [profitResult.finalProfit, userId]);
 
         let msg = `🦟 **UM MOSQUITO NO ÂMBAR!** 🦟\n_A sirene da InGen tocou e os helicópteros chegaram!_\n\n`;
@@ -435,7 +435,7 @@ class ParqueHandler {
         msg += `🧬 **MUTAÇÃO GENÉTICA (${qtdCores} Cores):**\n`;
         msg += `🎨 Padrão: ${corString}\n`;
         msg += `🎟️ Bônus de Bilheteria: **${multiplicadorTotal.toFixed(2)}x**\n\n`;
-        msg += `💰 A InGen te pagou uma recompensa de 🪙 **${dinoInfo.ticket_value * 10} Bostocoins** pelo DNA raro!${profitResult.msg}\n\n`;
+        msg += `💰 A InGen te pagou uma recompensa de 🪙 **${dinoInfo.ticket_value} Bostocoins** pelo DNA raro!${profitResult.msg}\n\n`;
         msg += `💡 _Use *!parque mural* para ver o bicho na jaula e *!pescar* para arrumar comida pra ele!_`;
         
         return msg;

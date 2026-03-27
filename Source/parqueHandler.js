@@ -231,7 +231,7 @@ class ParqueHandler {
             if (!dinoInfo) continue;
 
             if (d.reserva_comida > 0) {
-                const xpNecessarioProLevel = Math.pow(d.nivel, 2) * dinoInfo.base_xp_req * 10;
+                const xpNecessarioProLevel = Math.pow(d.nivel, 2) * dinoInfo.base_xp_req;
                 const faltaProLevel = xpNecessarioProLevel - d.xp_atual;
                 
                 if (d.reserva_comida >= faltaProLevel) {
@@ -454,7 +454,7 @@ class ParqueHandler {
         dinos.forEach(d => {
             const dinoInfo = DINO_CATALOG[d.especie_id];
             if (dinoInfo) {
-                const xpNecessario = Math.pow(d.nivel, 2) * dinoInfo.base_xp_req * 10;
+                const xpNecessario = Math.pow(d.nivel, 2) * dinoInfo.base_xp_req;
                 const porcentagem = ((d.xp_atual / xpNecessario) * 100).toFixed(1);
                 const classe = this.getClasseDino(d.nivel); // <--- Puxa a classe
                 
@@ -513,7 +513,7 @@ class ParqueHandler {
         const food = edibleFishes[foodIndex];
         const dinoInfo = DINO_CATALOG[dino.especie_id];
         
-        const xpNecessarioProLevel = Math.pow(dino.nivel, 2) * dinoInfo.base_xp_req * 10;
+        const xpNecessarioProLevel = Math.pow(dino.nivel, 2) * dinoInfo.base_xp_req;
         const now = Math.floor(Date.now() / 1000);
         
         const today = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });

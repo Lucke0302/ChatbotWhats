@@ -136,25 +136,10 @@ class ParqueHandler {
             try { data = JSON.parse(user.parque_data); } catch (e) { data = {}; }
         }
 
-        const now = Math.floor(Date.now() / 1000);
-
+        // Agora o player salva apenas a mochila de minérios, a estamina fica lá em financas.last_bico
         let player = {
-            inventory: data.inventory || {},
-            shovels: data.shovels !== undefined ? data.shovels : MAX_SHOVELS,
-            last_regen: data.last_regen || now
+            inventory: data.inventory || {}
         };
-
-        if (player.shovels < MAX_SHOVELS) {
-            const timePassed = now - player.last_regen;
-            const generated = Math.floor(timePassed / SHOVEL_REGEN_SECONDS);
-            
-            if (generated > 0) {
-                player.shovels = Math.min(MAX_SHOVELS, player.shovels + generated);
-                player.last_regen += generated * SHOVEL_REGEN_SECONDS;
-            }
-        } else {
-            player.last_regen = now;
-        }
 
         return player;
     }
@@ -485,12 +470,9 @@ class ParqueHandler {
 
     // PERFIL DO JOGADOR
     async verPerfilParque(userId, userTag) {
-        const player = await this.getPlayerData(userId);
-        
         const dinos = await this.db.all("SELECT * FROM parque_dinossauros WHERE descobridor_id = ? ORDER BY nivel DESC", [userId]);
         
         let msg = `${userTag}🎒 **PERFIL DE PALEONTÓLOGO** 🎒\n\n`;
-        msg += `⛏️ **Pás disponíveis:** ${player.shovels}/${MAX_SHOVELS}\n\n`;
 
         if (!dinos || dinos.length === 0) {
             msg += `🦴 _Você ainda não clonou nenhum dinossauro para o parque. Continue escavando!_`;

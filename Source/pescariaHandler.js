@@ -863,9 +863,65 @@ class PescariaHandler {
         msg += `💰 **Valor Estimado:** 🪙 **${totalValue} Bostocoins**\n\n`;
         if(totalValue < 500)msg += `_Que pobreza! Bora pescar mais ai..._`;
         else if (totalValue < 2000) msg += `_Tá com um dinheirinho, hein? Usa *!pescaria vender* para negociar ou *!pescar* pra aumentar o patrimônio._`;      
-        else msg += `_Tá rico, hein? Use *!pescaria vender* para negociar essas belezinhas no mercadão._`;
+        else if (totalValue <5000) msg += `_Tá rico, hein? Use *!pescaria vender* para negociar essas belezinhas no mercadão._`;
+        else msg `_É o mestre da pesca! (Absolute cinema)_`
 
         return msg;
+    }
+
+    // TÍTULOS DE PESCA
+    async handleTitulosPesca(userId, userTag, action, param) {
+        const { sellableArray } = await this.getSellableList(userId);
+        let totalValue = 0;
+        sellableArray.forEach(fish => totalValue += fish.value);
+
+        const TITULOS_PESCA = {
+            '1': { name: 'Pescador Novato 🎣', req: 500 },
+            '2': { name: 'Pescador Experiente 🚤', req: 2000 },
+            '3': { name: 'Guru da Pesca 🧘‍♂️', req: 5000 },
+            '4': { name: 'Mestre Pescador 🔱', req: 10000 },
+            '5': { name: 'Imperador dos Mares 👑', req: 25000 } 
+        };
+
+        if (!action || action === 'lista' || action === 'loja') {
+            let msg = `${userTag}👑 **SINDICATO DOS PESCADORES** 👑\n_Mantenha o patrimônio no isopor para poder ostentar esses títulos!_\n\n`;
+            msg += `💰 **Patrimônio Atual:** 🪙 ${totalValue}\n\n`;
+
+            for (const [id, t] of Object.entries(TITULOS_PESCA)) {
+                const status = totalValue >= t.req ? "✅ DESBLOQUEADO" : `🔒 Faltam 🪙 ${t.req - totalValue}`;
+                msg += `*[ ${id} ]* **${t.name}**\n      ${status} (Requer 🪙 ${t.req})\n\n`;
+            }
+
+            msg += `📌 Para equipar: *!pescaria titulo equipar [numero]*\n`;
+            msg += `🧹 Para remover: *!pescaria titulo remover*`;
+            return msg;
+        }
+
+        let financas = await this.casinoHandler.processFinancas(userId);
+
+        if (action === 'equipar') {
+            const id = param;
+            if (!TITULOS_PESCA[id]) return `${userTag}❌ Título não encontrado. Use *!pescaria titulo*.`;
+            
+            const tituloObj = TITULOS_PESCA[id];
+            
+            if (totalValue < tituloObj.req) {
+                return `${userTag}🛑 O Sindicato barrou! Você precisa de 🪙 **${tituloObj.req}** no isopor para usar esse título. Continue pescando!`;
+            }
+
+            financas.titulo = tituloObj.name;
+            await this.db.run("UPDATE usuarios SET financas = ? WHERE id_usuario = ?", [JSON.stringify(financas), userId]);
+
+            return `${userTag}🥂 **TÍTULO EQUIPADO COM SUCESSO!**\nAgora o grupo inteiro te reconhecerá como: **${tituloObj.name}**\n\n_Aviso: Se você vender seus troféus e o patrimônio cair, o título continua no seu nome, mas se você tirá-lo, não conseguirá equipar de novo!_`;
+        }
+
+        if (action === 'remover') {
+            financas.titulo = null;
+            await this.db.run("UPDATE usuarios SET financas = ? WHERE id_usuario = ?", [JSON.stringify(financas), userId]);
+            return `${userTag}🧹 Título removido. Você escondeu suas credenciais de pescador.`;
+        }
+
+        return `${userTag}⚠️ Comando inválido. Use *!pescaria titulo*.`;
     }
 
     // FUNÇÃO DE MIGRAÇÃO DE DADOS

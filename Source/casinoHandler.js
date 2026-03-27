@@ -1,34 +1,42 @@
 class CasinoHandler {
 
-    constructor(db) {
+constructor(db) {
         this.db = db;
-        this.trabalhos = [
-        "vendeu bolo de pote no farol debaixo de um sol de rachar",
-        "ajudou a consertar um ar-condicionado que tava cuspindo gelo",
-        "fez bico de garçom no bar do Sujinho e teve que aturar bêbado chorando",
-        "formatou o PC de um cliente, tirou 30 vírus Baidu e instalou o Windows pirata",
-        "passou a tarde inteira colhendo abóbora na fazenda do Minecraft",
-        "resolveu um bug bizarro num backend em Spring Boot que ia derrubar o TCC",
-        "fez elojob carregando uns bronze afundado de Yasuo no LoL",
-        "escreveu a redação do vestibular da Univesp pra um amigo folgado",
-        "vendeu pack do pé no onlyfans",
-        "vendeu água no balde na praia do gonzaga",
-        "ajudou uma velhinha a carregar as compras do supermercado",
-        "desentortou 15 pinos de um processador AMD usando uma lapiseira e muita fé",
-        "passou 5 horas debugando um código só pra descobrir que faltava um ponto e vírgula",
-        "revendeu uma RX 580 do Aliexpress jurando que 'foi usada só pra jogar paciência'",
-        "cobrou cinquentão pra mestrar uma sessão de RPG onde os jogadores ignoraram a história principal inteira",
-        "tentou arrumar a impressora da tia e acabou sendo nomeado o(a) 'menino(a) da TI' do bairro",
-        "centralizou uma div no CSS depois de chorar em posição fetal",
-        "montou um servidor caseiro num Celeron velho que passa mais tempo desligado que rodando",
-`trabalha com o guê?
-- Eu sou comercial.
-- Comercial di guê?
-- Comercial de vendas.
-- Vendas di guê?
-- Vendas... de qualquer coisa. Vendo água, vendo... produto de limpeza...`,
+        
+        // Agora os textos antigos são os BICOS (aleatórios e rápidos)
+        this.bicos = [
+            "vendeu bolo de pote no farol debaixo de um sol de rachar",
+            "ajudou a consertar um ar-condicionado que tava cuspindo gelo",
+            "fez bico de garçom no bar do Sujinho e teve que aturar bêbado chorando",
+            "formatou o PC de um cliente, tirou 30 vírus Baidu e instalou o Windows pirata",
+            "passou a tarde inteira colhendo abóbora na fazenda do Minecraft",
+            "resolveu um bug bizarro num backend em Spring Boot que ia derrubar o TCC",
+            "fez elojob carregando uns bronze afundado de Yasuo no LoL",
+            "escreveu a redação do vestibular da Univesp pra um amigo folgado",
+            "vendeu pack do pé no onlyfans",
+            "vendeu água no balde na praia do gonzaga",
+            "ajudou uma velhinha a carregar as compras do supermercado",
+            "desentortou 15 pinos de um processador AMD usando uma lapiseira e muita fé",
+            "passou 5 horas debugando um código só pra descobrir que faltava um ponto e vírgula",
+            "revendeu uma RX 580 do Aliexpress jurando que 'foi usada só pra jogar paciência'",
+            "cobrou cinquentão pra mestrar uma sessão de RPG onde os jogadores ignoraram a história principal inteira",
+            "tentou arrumar a impressora da tia e acabou sendo nomeado o(a) 'menino(a) da TI' do bairro",
+            "centralizou uma div no CSS depois de chorar em posição fetal",
+            "montou um servidor caseiro num Celeron velho que passa mais tempo desligado que rodando",
+            `trabalha com o guê?\n- Eu sou comercial.\n- Comercial di guê?\n- Comercial de vendas.\n- Vendas di guê?\n- Vendas... de qualquer coisa. Vendo água, vendo... produto de limpeza...`
+        ];
 
-    ];
+        this.carreiras = {
+            1: { titulo: "Entregador de Panfleto", salario: 50 },
+            2: { titulo: "Atendente de Telemarketing", salario: 75 },
+            3: { titulo: "Suporte Nível 1 (Saco de Pancadas)", salario: 100 },
+            4: { titulo: "Desenvolvedor Júnior", salario: 150 },
+            5: { titulo: "Faria Limer (Herdeiro)", salario: 200 }
+        };
+
+        this.HOURS_TO_WORK = 8;
+        this.HOURS_TO_BICO = 2;
+        this.WORK_MULTIPLIER = 6;
     }
 
     async getBalance(userId) {
@@ -246,10 +254,10 @@ class CasinoHandler {
         return msg;
     }
 
-    // TRABALHO HONESTO
+    // TRABALHO OFICIAL
     async handleTrabalhar(userId, userTag) {
         const now = Math.floor(Date.now() / 1000);
-        const cooldown = 12 * 60 * 60;
+        const cooldown = this.HOURS_TO_WORK * 60 * 60;
 
         const user = await this.db.get("SELECT last_trabalho FROM usuarios WHERE id_usuario = ?", [userId]);
         
@@ -259,25 +267,31 @@ class CasinoHandler {
                 const timeLeft = cooldown - timePassed;
                 const hoursLeft = Math.floor(timeLeft / 3600);
                 const minutesLeft = Math.floor((timeLeft % 3600) / 60);
-                return `${userTag}🛑 O mercado de trabalho tá saturado! A CLT só permite assinar a carteira de novo em **${hoursLeft}h e ${minutesLeft}m**.`;
+                return `${userTag}🛑 O ponto eletrônico bloqueou! A CLT só permite trabalhar de novo em **${hoursLeft}h e ${minutesLeft}m**.`;
             }
         }
         
-        const bicoSorteado = this.trabalhos[Math.floor(Math.random() * this.trabalhos.length)];
-
-        const multiplicador = Math.floor(Math.random() * 4) + 1;
-        var salario = 50 * multiplicador;
-        if (bicoSorteado == this.trabalhos[this.trabalhos.length - 1]){
-            salario = salario * 4;
-        }
+        let financas = await this.processFinancas(userId);
+        const nivelAtual = financas.carreira.nivel || 1;
+        const profissao = this.carreiras[nivelAtual];
+        
+        const multiplicador = Math.floor(Math.random() * this.WORK_MULTIPLIER) + 1;
+        const salario = profissao.salario * multiplicador;
         
         const profitResult = await this.verifyProfit(userId, salario);
         
         await this.updateBalance(userId, profitResult.finalProfit);
         await this.db.run("UPDATE usuarios SET last_trabalho = ? WHERE id_usuario = ?", [now, userId]);
 
-        return `${userTag}💼 **TRABALHADOR BRASILEIRO**\n\nVocê ${bicoSorteado} e faturou 🪙 **${salario} Bostocoins** pelo serviço!${profitResult.msg}\n\n_Lucro final recebido: 🪙 ${profitResult.finalProfit}_`;
+        let msg = `${userTag}💼 **EXPEDIENTE CONCLUÍDO**\n\nVocê bateu o ponto como **${profissao.titulo}** (Nível ${nivelAtual}) e recebeu seu salário (baseado em metas) de 🪙 **${salario} Bostocoins**!${profitResult.msg}\n\n_Lucro na carteira: 🪙 ${profitResult.finalProfit}_`;
 
+        if (nivelAtual < Object.keys(this.carreiras).length) {
+            msg += `\n\n📚 _Dica: Em breve você poderá usar !estudar para subir de cargo e ganhar mais!_`;
+        } else {
+            msg += `\n\n👑 _Você atingiu o topo da cadeia alimentar corporativa!_`;
+        }
+
+        return msg;
     }
 
     async processFinancas(userId) {
@@ -286,7 +300,9 @@ class CasinoHandler {
         const now = Math.floor(Date.now() / 1000);
         let financas = { 
             investimento: { montante: 0, ultimo_rendimento: now }, 
-            emprestimo: { devedor: 0 } 
+            emprestimo: { devedor: 0 },
+            carreira: { nivel: 1 },
+            last_bico: 0
         };
 
         if (user && user.financas && user.financas !== '{}') {
@@ -294,6 +310,9 @@ class CasinoHandler {
                 const parsed = JSON.parse(user.financas); 
                 financas.investimento = parsed.investimento || financas.investimento;
                 financas.emprestimo = parsed.emprestimo || financas.emprestimo;
+                financas.carreira = parsed.carreira || financas.carreira;
+                financas.last_bico = parsed.last_bico || financas.last_bico;
+                financas.titulo = parsed.titulo || financas.titulo;
             } catch (e) { console.error("Erro no JSON de finanças", e); }
         }
 
@@ -305,22 +324,48 @@ class CasinoHandler {
                 let m = financas.investimento.montante;
                 let yieldAmount = 0;
 
-                if (m > 5000) {
-                    yieldAmount += (m - 5000) * 0.02;
-                } else if (m > 3000) {
-                    yieldAmount += (m - 3000) * 0.05;
-                } else {
-                    yieldAmount += m * 0.10;
-                }
+                if (m > 5000) yieldAmount += (m - 5000) * 0.02;
+                else if (m > 3000) yieldAmount += (m - 3000) * 0.05;
+                else yieldAmount += m * 0.10;
 
                 financas.investimento.montante += Math.floor(yieldAmount);
             }
-
             financas.investimento.ultimo_rendimento += (daysPassed * 86400);
             await this.db.run("UPDATE usuarios SET financas = ? WHERE id_usuario = ?", [JSON.stringify(financas), userId]);
         }
 
         return financas;
+    }
+
+    //  O BICO
+    async handleBico(userId, userTag) {
+        const now = Math.floor(Date.now() / 1000);
+        const cooldown = this.HOURS_TO_BICO * 60 * 60;
+        
+        let financas = await this.processFinancas(userId);
+
+        if (financas.last_bico > 0) {
+            const timePassed = now - financas.last_bico;
+            if (timePassed < cooldown) {
+                const timeLeft = cooldown - timePassed;
+                const hoursLeft = Math.floor(timeLeft / 3600);
+                const minutesLeft = Math.floor((timeLeft % 3600) / 60);
+                return `${userTag}🛑 Calma aí, guerreirinho! Você tá muito cansado pro bico.\nEspera mais **${hoursLeft}h e ${minutesLeft}m**.`;
+            }
+        }
+
+        const bicoSorteado = this.bicos[Math.floor(Math.random() * this.bicos.length)];
+        
+        const multiplicador = Math.floor(Math.random() * this.WORK_MULTIPLIER) + 1;
+        const pagamento = 15 * multiplicador; 
+
+        const profitResult = await this.verifyProfit(userId, pagamento);
+        
+        financas.last_bico = now;
+        await this.db.run("UPDATE usuarios SET financas = ? WHERE id_usuario = ?", [JSON.stringify(financas), userId]);
+        await this.updateBalance(userId, profitResult.finalProfit);
+
+        return `${userTag}🛠️ **BICO REALIZADO**\n\nVocê ${bicoSorteado} e levantou 🪙 **${pagamento} Bostocoins** pelo serviço!${profitResult.msg}\n\n_Lucro na carteira: 🪙 ${profitResult.finalProfit}_`;
     }
 
     //  Verifica se o cara tá devendo
@@ -595,6 +640,25 @@ class CasinoHandler {
         const total_bolao = (pote_bolao.total || 0) + estado.bolao_acumulado;
         
         return `${userTag}🏦 **BANCO DO BOSTOSSAURO**\n\nSeu saldo: 🪙 **${balance} Bostocoins**\n\n🤑 **ACUMULADOS DA SEMANA:**\n🎟️ *Mega:* Pagando **${estado.mega_multiplicador * 100}x** a aposta! (!cassino mega [1-100] [valor])\n🤝 *Bolão:* Pote atual de 🪙 **${total_bolao}**! (!cassino bolao [1-20] [valor])\n\n_Outros jogos: !cassino [aposta], cara/coroa, roleta_`;
+    }
+
+    // ACELERA O TEMPO PRA TRABALHAR EM 8 HORAS
+    async acelerarTrabalhoGlobal(userTag) {
+        const SECONDS_TO_SUBTRACT = 4 * 3600; 
+        
+        try {
+            const result = await this.db.run(`
+                UPDATE usuarios 
+                SET last_trabalho = last_trabalho - ? 
+                WHERE last_trabalho > 0
+            `, [SECONDS_TO_SUBTRACT]);
+            
+            return `⏳ O Ministro da Economia decretou hora extra e adiantou o relógio em 4 horas para **${result.changes} trabalhadores**!\nA CLT chora, o cooldown diminuiu. Vão bater o ponto!`;
+
+        } catch (e) {
+            console.error("Erro ao acelerar o tempo de trabalho:", e);
+            return `❌ Deu ruim no Ministério do Trabalho. Erro ao acelerar o tempo.`;
+        }
     }
 }
 

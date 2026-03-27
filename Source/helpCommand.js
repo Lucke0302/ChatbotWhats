@@ -185,9 +185,19 @@ O Banco Central do Bostossauro permite agiotagem e doações.
 *Exemplo:* _!pix @João 50_`,
 
     'trabalhar': `💼 *COMANDO: !trabalhar*
-Vai assinar a CLT virtual pra farmar Bostocoins. O salário é aleatório e você só pode trabalhar a cada 12 horas.
+Assine a CLT virtual! Agora você tem uma carreira oficial (The Sims style).
+Seu salário é fixo (mais ou menos) e baseado no seu nível profissional.
 
-*Como usar:* !trabalhar`,
+*Como usar:* !trabalhar
+*Cooldown:* 8 horas.
+*Dica:* Fique de olho, em breve você poderá !estudar para ser promovido.`,
+
+    'bico': `🛠️ *COMANDO: !bico*
+Precisa de grana rápida? Vá fazer um trampo duvidoso.
+Paga entre 15 e 90 Bostocoins dependendo do seu esforço.
+
+*Como usar:* !bico
+*Cooldown:* 2 horas.`,
 
     'minhabosta': `🪙 *COMANDO: !minhabosta*
 O famoso "Minha Bosta Minha Vida". Auxílio emergencial do governo jurássico para quem perdeu tudo na roleta.

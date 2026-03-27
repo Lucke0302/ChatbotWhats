@@ -177,7 +177,7 @@ class ChatModel {
                 return `${tag}🎰 **CASSINO E ECONOMIA DO BOSTOSSAURO** 🎰\n\n` +
                        `*Apostas:* \n🎰 *!cassino [valor]* (Slots)\n🪙 *!cassino [cara/coroa] [valor]*\n🎡 *!cassino roleta [vermelho/preto/verde] [valor]*\n\n` +
                        `*Loterias:*\n🎟️ *!cassino mega [1-100] [valor]*\n🤝 *!cassino bolao [1-20] [valor]*\n\n` +
-                       `*Faria Lima:*\n📈 *!investir* (Bolsa de Valores Jurássica)\n🏦 *!emprestimo* (Agiotagem)\n👑 *!titulo* (Cartório de Ostentação)\n\n` +
+                       `*Faria Lima:*\n💼 *!trabalhar* (Emprego CLT)\n🛠️ *!bico* (Trampo rápido)\n📈 *!investir* (Bolsa de Valores)\n🏦 *!emprestimo* (Agiota)\n👑 *!titulo* (Cartório de Ostentação)\n\n` +
                        `*Consultas:* \n💰 *!cassino saldo*`;
             },
             '!givecoins': async (ctx) => {
@@ -248,7 +248,21 @@ class ChatModel {
             },
             '!trabalhar': async (ctx) => {
                 const tag = await this.pokemonHandler.getUserTag(ctx.sender);
+                const args = ctx.command.trim().split(/\s+/);
+                const subCommand = args[1]?.toLowerCase();
+
+                if (subCommand === 'acelerar') {
+                    if (ctx.sender !== "5513991008854@s.whatsapp.net") {
+                        return "🚫 Apenas o Ministro da Economia pode usar isso.";
+                    }
+                    return await this.casinoHandler.acelerarTrabalhoGlobal(tag);
+                }
+
                 return await this.casinoHandler.handleTrabalhar(ctx.sender, tag);
+            },
+            '!bico': async (ctx) => {
+                const tag = await this.pokemonHandler.getUserTag(ctx.sender);
+                return await this.casinoHandler.handleBico(ctx.sender, tag);
             },
             '!pescar': async (ctx) => {
                 const tag = await this.pokemonHandler.getUserTag(ctx.sender);

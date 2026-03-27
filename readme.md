@@ -27,7 +27,8 @@ O Bostossauro não é apenas um bot, é um estilo de vida. Aqui estão as skills
 
 * **💸 Sistema Econômico Completo (Capitalismo Selvagem):** Uma economia viva rodando no banco de dados com a moeda oficial *Bostocoins*.
     * `!pix @amigo [valor]`: Transferência instantânea entre membros do grupo.
-    * `!trabalhar`: Sistema de CLT virtual com trabalhos gerados procedimentalmente (e cooldown de 12 horas).
+    * `!trabalhar`: Sistema de Carreira (The Sims style). Você tem uma profissão fixa (nível 1 a 5) que rende um salário tabelado a cada 8 horas. Em breve contará com sistema de `!estudar` para promoções.
+    * `!bico`: Precisa de dinheiro rápido? Faça bicos aleatórios e duvidosos (gerados procedimentalmente) a cada 2 horas para faturar entre 15 e 90 Bostocoins.
     * `!minhabosta`: O programa social "Minha Bosta, Minha Vida". Se você quebrou (saldo < 50), o governo te dá um auxílio.
     * `!investir (Bolsa Jurássica)`: Aplique fundos em empresas como "McBostossauro" e "OnlySaurs". Conta com sistema de juros compostos e tributação em faixas para quem tem muito dinheiro.
     * `!emprestimo (Agiota)`: Pegue empréstimos predatórios. O bot retém 30% de todo lucro futuro (pesca, trabalho) direto na fonte até abater a dívida.

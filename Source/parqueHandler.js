@@ -144,6 +144,125 @@ class ParqueHandler {
         return player;
     }
 
+    // PERFIL DO JOGADOR
+    async verPerfilParque(userId, userTag) {
+        const dinos = await this.db.all("SELECT * FROM parque_dinossauros WHERE descobridor_id = ? ORDER BY nivel DESC, multiplicador_bilheteria DESC", [userId]);
+        
+        const player = await this.getPlayerData(userId);
+        const inv = player.inventory || {};
+        let totalMinerais = 0;
+        let valorEstimadoMochila = 0;
+        
+        Object.entries(inv).forEach(([id, qtd]) => {
+            if (qtd > 0) {
+                totalMinerais += qtd;
+                const minInfo = MINERAL_CATALOG.find(m => m.id === id);
+                if (minInfo) valorEstimadoMochila += (minInfo.value * qtd);
+            }
+        });
+
+        let financas = await this.casinoHandler.processFinancas(userId);
+        const titulo = financas.titulo ? `\n🏷️ *Título:* ${financas.titulo}` : "";
+
+        let msg = `${userTag}🦕 **CREDENCIAL DA INGEN** 🦕${titulo}\n\n`;
+
+        msg += `🎒 **Resumo da Mochila:**\n`;
+        if (totalMinerais > 0) {
+            msg += `⛏️ Pedras escavadas: **${totalMinerais}**\n`;
+            msg += `💰 Valor estimado: 🪙 **${valorEstimadoMochila}**\n`;
+            msg += `_(Use !parque mochila para ver o inventário completo)_\n\n`;
+        } else {
+            msg += `_Sua mochila está vazia. Pegue a picareta e vá trabalhar!_\n\n`;
+        }
+
+        if (!dinos || dinos.length === 0) {
+            msg += `🦴 **Expedições:**\n_Você ainda não clonou nenhum dinossauro para o parque. O John Hammond está decepcionado com você!_`;
+            return msg;
+        }
+
+        const totalEspecies = Object.keys(DINO_CATALOG).length;
+        let multiplicadorTotal = 0;
+        dinos.forEach(d => multiplicadorTotal += (d.multiplicador_bilheteria || 1));
+
+        msg += `🧬 **DNA & CLONAGEM:**\n`;
+        msg += `🦕 Espécies Descobertas: **${dinos.length}/${totalEspecies}**\n`;
+        msg += `🎟️ Bônus de Bilheteria Injetado no Grupo: **+${multiplicadorTotal.toFixed(2)}x**\n\n`;
+
+        msg += `🌟 **SEUS MELHORES DINOSSAUROS:**\n`;
+        
+        const topDinos = dinos.slice(0, 5);
+        topDinos.forEach(d => {
+            const dinoInfo = DINO_CATALOG[d.especie_id];
+            if (dinoInfo) {
+                const classe = this.getClasseDino(d.nivel);
+                msg += `${dinoInfo.emoji} **${dinoInfo.name}** (Nvl ${d.nivel} - ${classe})\n`;
+                msg += `   🎨 Cor: _${d.cor}_ (Ticket: ${d.multiplicador_bilheteria.toFixed(2)}x)\n`;
+            }
+        });
+
+        if (dinos.length > 5) {
+            msg += `\n_...e mais ${dinos.length - 5} dinossauros que estão pastando pelo parque._`;
+        }
+
+        return msg;
+    }
+
+    // REGISTRO PARENTAL
+    async handleTitulosParque(userId, userTag, paramStr) {
+        const dinos = await this.db.all("SELECT DISTINCT especie_id FROM parque_dinossauros WHERE descobridor_id = ?", [userId]);
+        
+        if (!dinos || dinos.length === 0) {
+            return `${userTag} 🚫 Você ainda não descobriu nenhum dinossauro! Ache um Âmbar na escavação ou pescaria antes de ir ao conselho tutelar.`;
+        }
+
+        if (!paramStr || paramStr.trim() === '') {
+            let msg = `${userTag}👑 **CARTÓRIO PARENTAL JURÁSSICO** 👑\n_Reivindique a guarda das feras que você trouxe à vida!_\n\n`;
+            msg += `**Seus filhos legítimos disponíveis:**\n`;
+            dinos.forEach(d => {
+                const info = DINO_CATALOG[d.especie_id];
+                if (info) msg += `- ${info.emoji} ${info.name} (ID: *${d.especie_id}*)\n`;
+            });
+            msg += `\n📌 **Como registrar a criança:**\n*!parque titulo [pai/mae/nazare] [id_do_dino]*\n`;
+            msg += `_Ex: !parque titulo pai t_rex_\n\n`;
+            msg += `🧹 Para remover a guarda: *!parque titulo remover*`;
+            return msg;
+        }
+
+        const args = paramStr.trim().split(/\s+/);
+        const prefixoRaw = args[0].toLowerCase();
+
+        if (prefixoRaw === 'remover') {
+            let financas = await this.casinoHandler.processFinancas(userId);
+            financas.titulo = null;
+            await this.db.run("UPDATE usuarios SET financas = ? WHERE id_usuario = ?", [JSON.stringify(financas), userId]);
+            return `${userTag}🧹 Título removido. Você foi comprar cigarro e abandonou a família jurássica.`;
+        }
+
+        if (args.length < 2) return `${userTag} ⚠️ Faltou o ID do dinossauro. Ex: *!parque titulo mae iguanodon*`;
+
+        const dinoId = args[1].toLowerCase();
+        const discoveredIds = dinos.map(d => d.especie_id);
+        
+        if (!discoveredIds.includes(dinoId)) {
+            return `${userTag} ❌ Você não tem os direitos de descoberta sobre a espécie *${dinoId}*! Tentando roubar o filho dos outros, é?`;
+        }
+
+        let prefixoOficial = "";
+        if (prefixoRaw === 'pai') prefixoOficial = "Pai";
+        else if (prefixoRaw === 'mae' || prefixoRaw === 'mãe') prefixoOficial = "Mãe";
+        else if (prefixoRaw === 'nazare' || prefixoRaw === 'nazaré') prefixoOficial = "Nazaré Tedesco";
+        else return `${userTag} ⚠️ Parentesco inválido! Escolha entre: *pai, mae* ou *nazare*.`;
+
+        const dinoInfo = DINO_CATALOG[dinoId];
+        const novoTitulo = `${prefixoOficial} de ${dinoInfo.name} ${dinoInfo.emoji}`;
+
+        let financas = await this.casinoHandler.processFinancas(userId);
+        financas.titulo = novoTitulo;
+        await this.db.run("UPDATE usuarios SET financas = ? WHERE id_usuario = ?", [JSON.stringify(financas), userId]);
+
+        return `${userTag}👩‍👦 **CERTIDÃO DE NASCIMENTO EMITIDA!**\nVocê assumiu a guarda do dinossauro! Seu novo título global agora é: **${novoTitulo}**`;
+    }
+
     // MOCHILA DE ESCAVAÇÃO
     async verMochila(userId, userTag) {
         const player = await this.getPlayerData(userId);
@@ -477,30 +596,6 @@ class ParqueHandler {
         });
 
         msg += `🍗 Para alimentar um dino: *!parque alimentar [ID] [Nº Comida]*`;
-        return msg;
-    }
-
-    // PERFIL DO JOGADOR
-    async verPerfilParque(userId, userTag) {
-        const dinos = await this.db.all("SELECT * FROM parque_dinossauros WHERE descobridor_id = ? ORDER BY nivel DESC", [userId]);
-        
-        let msg = `${userTag}🎒 **PERFIL DE PALEONTÓLOGO** 🎒\n\n`;
-
-        if (!dinos || dinos.length === 0) {
-            msg += `🦴 _Você ainda não clonou nenhum dinossauro para o parque. Continue escavando!_`;
-            return msg;
-        }
-
-        msg += `🧬 **SEUS DINOSSAUROS CLONADOS:**\n_Lembre-se: Você não pode achar a mesma espécie duas vezes!_\n\n`;
-        
-        dinos.forEach(d => {
-            const dinoInfo = DINO_CATALOG[d.especie_id];
-            if (dinoInfo) {
-                const classe = this.getClasseDino(d.nivel);
-                msg += `${dinoInfo.emoji} **${dinoInfo.name}** (Nvl ${d.nivel} - ${classe}) - Cor: _${d.cor}_\n`;
-            }
-        });
-
         return msg;
     }
 

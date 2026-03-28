@@ -133,6 +133,13 @@ const ROD_CATALOG = {
         'adamantium': { id: 'adamantium', name: 'Vara de Adamantium', mult: 1.60, luck: 30, anti_lixo: 100, ambar_chance: 6, emoji: '🌌', price: 8000, next: null }
 };
 
+const BOAT_CATALOG = {
+    'pequeno': { id: 'pequeno', name: 'Barquinho de Madeira', catches: 2, emoji: '🛶', price: 10000, next: 'medio' },
+    'medio': { id: 'medio', name: 'Lancha de Pesca', catches: 3, emoji: '🚤', price: 15000, next: 'grande' },
+    'grande': { id: 'grande', name: 'Navio Pesqueiro', catches: 4, emoji: '⛴️', price: 20000, next: 'industrial' },
+    'industrial': { id: 'industrial', name: 'Traineira Industrial', catches: 5, emoji: '🚢', price: 30000, next: null }
+};
+
 const RARITY_MULTIPLIER = {
     'lixo': 1,
     'comum': 5,
@@ -234,10 +241,16 @@ class PescariaHandler {
         let msg = `${userTag}🎣 **PESCARIA** 🎣\n_Iscas restantes: ${player.fishBaits}_\n\n`;
 
         let catches = 1;
+        if (player.inventory.barco) {
+            catches = BOAT_CATALOG[player.inventory.barco].catches;
+        }
+
         let weightMultiplierBuff = 1.0;
         let canCatchTrash = true;
 
-        if (player.active_items['anzol_duplo']) catches = 2;
+        // O Anzol Duplo DOBRA o total de redes jogadas! (1 vira 2, 5 vira 10)
+        if (player.active_items['anzol_duplo']) catches *= 2; 
+        
         if (player.active_items['anzol_chumbo']) weightMultiplierBuff *= 1.30;
         if (player.active_items['isca_radioativa']) weightMultiplierBuff *= 1.50;
         if (player.active_items['repelente']) canCatchTrash = false;
@@ -259,7 +272,7 @@ class PescariaHandler {
 
         for (let i = 0; i < catches; i++) {
             
-            const ambarTotalChance = 0.05 + (rodAmbarBonus / 100);
+            const ambarTotalChance = 0.05 + (rodAmbarBonus / 200);
 
             if (this.parqueHandler && Math.random() < ambarTotalChance) {
                 msg += `\n🎣 **ISSO NÃO É UM PEIXE!**\nVocê puxou um 🦟 **Âmbar Ancestral** do fundo do lago!\n\n`;
@@ -429,6 +442,12 @@ class PescariaHandler {
         const userRod = ROD_CATALOG[userRodId];
         const currentBonus = Math.round((userRod.mult - 1) * 100);
         msg += `🛠️ *Vara:* ${userRod.emoji} ${userRod.name} (+${currentBonus}% Peso | +${userRod.luck}% Sorte | -${userRod.anti_lixo}% Lixo)\n\n`;
+
+        if (player.inventory.barco) {
+            const userBoat = BOAT_CATALOG[player.inventory.barco];
+            msg += `⛴️ *Frota:* ${userBoat.emoji} ${userBoat.name} (Puxa ${userBoat.catches} peixes/isca)\n`;
+        }
+        msg += `\n`;
 
         // Status das Iscas
         msg += `🪣 *Iscas no Balde:* ${player.fishBaits}/${MAX_BAITS}\n`;
@@ -661,6 +680,27 @@ class PescariaHandler {
             msg += `✨ *Você já possui a melhor vara de pescar do universo!* O ferreiro chora de emoção ao vê-la.\n\n`;
         }
 
+        if (currentRodId === 'adamantium') {
+            msg += `\n⚓ **ESTALEIRO NAVAL:**\n`;
+            const currentBoatId = player.inventory.barco;
+            if (!currentBoatId) {
+                const nextBoat = BOAT_CATALOG['pequeno'];
+                msg += `_Você atualmente pesca da beira do barranco._\n`;
+                msg += `*[ barco ]* ${nextBoat.emoji} **${nextBoat.name}** ➝ 🪙 ${nextBoat.price}\n_Puxa ${nextBoat.catches} peixes por isca!_\n\n`;
+            } else {
+                const currentBoat = BOAT_CATALOG[currentBoatId];
+                if (currentBoat.next) {
+                    const nextBoat = BOAT_CATALOG[currentBoat.next];
+                    msg += `_Sua frota: ${currentBoat.emoji} ${currentBoat.name} (${currentBoat.catches} peixes/isca)_\n`;
+                    msg += `*[ barco ]* ${nextBoat.emoji} **${nextBoat.name}** ➝ 🪙 ${nextBoat.price}\n_Melhora para: ${nextBoat.catches} peixes por isca!_\n\n`;
+                } else {
+                    msg += `_Sua frota: ${currentBoat.emoji} ${currentBoat.name} (${currentBoat.catches} peixes/isca)_\n`;
+                    msg += `🛳️ *Você já domina os sete mares! Não há navio maior.*\n\n`;
+                }
+            }
+            if (!currentBoatId || BOAT_CATALOG[currentBoatId].next) msg += `⛴️ Para comprar frota: *!pescaria comprar barco*\n`;
+        }
+
         msg += `🛒 Para comprar consumíveis: *!pescaria comprar [número]*\n`;
         if (currentRod.next) msg += `🛠️ Para evoluir a vara: *!pescaria comprar vara*`;
         
@@ -701,6 +741,33 @@ class PescariaHandler {
                 msg += `\n\n🐺 _Você impressionou o ferreiro e desbloqueou o título **Wolverine dos Mares**! Use *!pescaria titulo* para equipar._`;
             }
             return msg;
+        }
+
+        if (itemCode.toLowerCase() === 'barco') {
+            const currentRodId = player.inventory.vara || 'bambu';
+            if (currentRodId !== 'adamantium') {
+                return `${userTag}✋ O engenheiro naval riu da sua cara. "Volte aqui quando tiver forjado uma Vara de Adamantium, pescador de lambari!"`;
+            }
+
+            const currentBoatId = player.inventory.barco;
+            let nextBoatId = 'pequeno';
+            if (currentBoatId) {
+                const currentBoat = BOAT_CATALOG[currentBoatId];
+                if (!currentBoat.next) return `${userTag}🛳️ Você já é dono da maior máquina de pescar do mundo!`;
+                nextBoatId = currentBoat.next;
+            }
+
+            const nextBoat = BOAT_CATALOG[nextBoatId];
+
+            if (balance < nextBoat.price) {
+                return `${userTag}💸 Barco custa caro! Você precisa de 🪙 **${nextBoat.price} Bostocoins** para comprar o ${nextBoat.emoji} *${nextBoat.name}*.\nSeu saldo: 🪙 ${balance}.`;
+            }
+
+            await this.db.run("UPDATE usuarios SET bostocoins = bostocoins - ? WHERE id_usuario = ?", [nextBoat.price, userId]);
+            player.inventory.barco = nextBoat.id;
+            await this.savePlayerData(userId, player);
+
+            return `${userTag}⛴️ **NOVO BARCO NA FROTA!**\nVocê pagou 🪙 ${nextBoat.price} Bostocoins e agora é o orgulhoso capitão do ${nextBoat.emoji} **${nextBoat.name}**!\n\n🐟 Suas redes agora arrastam **${nextBoat.catches} peixes por isca**! (Multiplica com Anzol Duplo!)`;
         }
 
         if (!STORE_CATALOG[itemCode]) {

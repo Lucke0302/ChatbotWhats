@@ -396,6 +396,10 @@ class ChatModel {
                 const args = ctx.command.trim().split(/\s+/);
                 const subCommand = args[1]?.toLowerCase();
 
+                if (subCommand === 'titulo' || subCommand === 'titulos') {
+                    const params = args.slice(2).join(' ');
+                    return await this.parqueHandler.handleTitulosParque(ctx.sender, tag, params);
+                }
                 if (subCommand === 'despensa' || subCommand === 'comida') {
                     return await this.parqueHandler.listarComida(ctx.sender, tag);
                 }

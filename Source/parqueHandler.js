@@ -574,7 +574,7 @@ class ParqueHandler {
 
     // MURAL GLOBAL
     async verParqueGlobal(groupId, userTag) {
-        const dinos = await this.db.all("SELECT * FROM parque_dinossauros WHERE group_id = ? ORDER BY nivel DESC, id ASC", [groupId]);
+        const dinos = await this.db.all("SELECT * FROM parque_dinossauros WHERE group_id = ? ORDER BY id ASC", [groupId]);
         
         if (!dinos || dinos.length === 0) {
             return `${userTag} 🚧 O **Jurassic BostoPark** deste grupo ainda é só um terreno baldio com mato alto. Escave e ache um âmbar para começar!`;

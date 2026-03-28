@@ -396,6 +396,13 @@ class ChatModel {
                 const args = ctx.command.trim().split(/\s+/);
                 const subCommand = args[1]?.toLowerCase();
 
+                if (subCommand === 'fixcolormult') {
+                    if (ctx.sender !== "5513991008854@s.whatsapp.net") {
+                        return "🚫 Apenas o Dr. Henry Wu pode brincar de Deus e reescrever o DNA.";
+                    }
+                    return await this.parqueHandler.fixColorMultipliers(tag);
+                }
+
                 if (subCommand === 'titulo' || subCommand === 'titulos') {
                     const params = args.slice(2).join(' ');
                     return await this.parqueHandler.handleTitulosParque(ctx.sender, tag, params);

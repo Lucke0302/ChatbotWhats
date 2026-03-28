@@ -538,15 +538,14 @@ class ParqueHandler {
 
         let coresEscolhidas = [];
         let coresNomes = [];
-        let multiplicadorTotal = 1.0;
-
+        let multiplicadorTotal = 0;
         let coresTemp = [...DINO_COLORS];
         for (let i = 0; i < qtdCores; i++) {
             const index = Math.floor(Math.random() * coresTemp.length);
             const cor = coresTemp.splice(index, 1)[0];
             coresEscolhidas.push(cor);
             coresNomes.push(`${cor.emoji} ${cor.name}`);
-            multiplicadorTotal *= cor.mult;
+            multiplicadorTotal += cor.mult;
         }
 
         const corString = coresNomes.join(" e ");
@@ -684,6 +683,29 @@ class ParqueHandler {
         }
 
         return msg;
+    }
+
+    // FIX DE MULTIPLICADORES DE CORES
+    async fixColorMultipliers(userTag) {
+        const dinos = await this.db.all("SELECT id, cor FROM parque_dinossauros");
+        let count = 0;
+
+        for (const dino of dinos) {
+            let novoMultiplicador = 0;
+            
+            for (const corBase of DINO_COLORS) {
+                if (dino.cor && dino.cor.includes(corBase.name)) {
+                    novoMultiplicador += corBase.mult;
+                }
+            }
+            
+            if (novoMultiplicador === 0) novoMultiplicador = 1.0;
+
+            await this.db.run("UPDATE parque_dinossauros SET multiplicador_bilheteria = ? WHERE id = ?", [novoMultiplicador, dino.id]);
+            count++;
+        }
+
+        return `${userTag} 🛠️ **MIGRAÇÃO GENÉTICA CONCLUÍDA!**\nO DNA de **${count} dinossauros** foi reescrito com sucesso.\nA bilheteria do parque acaba de sofrer uma inflação justíssima!`;
     }
 }
 

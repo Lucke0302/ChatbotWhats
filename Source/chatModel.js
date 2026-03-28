@@ -46,6 +46,7 @@ class ChatModel {
         this.casinoHandler = new CasinoHandler(db);
         this.pescariaHandler = new PescariaHandler(db, this.casinoHandler);
         this.parqueHandler = new ParqueHandler(db, this.casinoHandler, this.pescariaHandler);
+        this.pescariaHandler.setParqueHandler(this.parqueHandler);
     }
 
     async init() {
@@ -410,7 +411,8 @@ class ChatModel {
 
                 if (subCommand === 'vender') {
                     const param = args[2]?.toLowerCase();
-                    return await this.parqueHandler.venderMinerais(ctx.sender, tag, param);
+                    const qtd = args[3];
+                    return await this.parqueHandler.venderMinerais(ctx.sender, tag, param, qtd);
                 }
 
                 return `${tag}🦖 **JURASSIC BOSTOPARK** 🦖\n\n` +

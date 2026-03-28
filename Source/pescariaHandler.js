@@ -124,13 +124,13 @@ const STORE_CATALOG = {
 };
 
 const ROD_CATALOG = {
-    'bambu': { id: 'bambu', name: 'Vara de Bambu', mult: 1.0, emoji: '🎋', price: 0, next: 'fibra' },
-    'fibra': { id: 'fibra', name: 'Vara de Fibra de Vidro', mult: 1.10, emoji: '🎣', price: 800, next: 'grafite' },
-    'grafite': { id: 'grafite', name: 'Vara de Grafite Pro', mult: 1.20, emoji: '✒️', price: 1250, next: 'carbono' },
-    'carbono': { id: 'carbono', name: 'Vara de Carbono', mult: 1.30, emoji: '💎', price: 2000, next: 'aco' },    
-    'aco': { id: 'aco', name: 'Vara de Aço Temperado', mult: 1.40, emoji: '🔩', price: 3000, next: 'titanio' },
-    'grafeno': { id: 'grafeno', name: 'Vara de Grafeno', mult: 1.50, emoji: '💎', price: 5000, next: 'adamantium' },
-    'adamantium': { id: 'adamantium', name: 'Vara de Adamantium', mult: 1.60, emoji: '🌌', price: 8000, next: null }
+        'bambu': { id: 'bambu', name: 'Vara de Bambu', mult: 1.0, luck: 0, anti_lixo: 0, ambar_chance: 0, emoji: '🎋', price: 0, next: 'fibra' },
+        'fibra': { id: 'fibra', name: 'Vara de Fibra de Vidro', mult: 1.10, luck: 5, anti_lixo: 10, ambar_chance: 1, emoji: '🎣', price: 800, next: 'grafite' },
+        'grafite': { id: 'grafite', name: 'Vara de Grafite Pro', mult: 1.20, luck: 10, anti_lixo: 20, ambar_chance: 2, emoji: '✒️', price: 1250, next: 'carbono' },
+        'carbono': { id: 'carbono', name: 'Vara de Carbono', mult: 1.30, luck: 15, anti_lixo: 40, ambar_chance: 3, emoji: '💎', price: 2000, next: 'aco' },    
+        'aco': { id: 'aco', name: 'Vara de Aço Temperado', mult: 1.40, luck: 20, anti_lixo: 60, ambar_chance: 4, emoji: '🔩', price: 3000, next: 'grafeno' },
+        'grafeno': { id: 'grafeno', name: 'Vara de Grafeno', mult: 1.50, luck: 25, anti_lixo: 80, ambar_chance: 5, emoji: '💎', price: 5000, next: 'adamantium' },
+        'adamantium': { id: 'adamantium', name: 'Vara de Adamantium', mult: 1.60, luck: 30, anti_lixo: 100, ambar_chance: 6, emoji: '🌌', price: 8000, next: null }
 };
 
 const RARITY_MULTIPLIER = {
@@ -138,9 +138,9 @@ const RARITY_MULTIPLIER = {
     'comum': 5,
     'incomum': 10,
     'raro': 50,
-    'muito_raro': 200,
-    'lendario': 500,
-    'mitico': 1000,
+    'muito_raro': 250,
+    'lendario': 750,
+    'mitico': 2000,
     'secreto': 20000
 };
 
@@ -210,6 +210,10 @@ class PescariaHandler {
         await this.db.run("UPDATE usuarios SET pescaria_data = ? WHERE id_usuario = ?", [jsonString, userId]);
     }
 
+    async setParqueHandler(parqueHandler) {
+        this.parqueHandler = parqueHandler;
+    }
+
     async pescar(userId, userTag, groupId) {
         let player = await this.getPlayerData(userId);
         const now = Math.floor(Date.now() / 1000);
@@ -239,7 +243,12 @@ class PescariaHandler {
         if (player.active_items['repelente']) canCatchTrash = false;
 
         const userRodId = player.inventory.vara || 'bambu';
-        const rodMultiplier = ROD_CATALOG[userRodId] ? ROD_CATALOG[userRodId].mult : 1.0;
+        const userRod = ROD_CATALOG[userRodId] || ROD_CATALOG['bambu'];
+        
+        const rodMultiplier = userRod.mult;
+        const rodLuck = userRod.luck;
+        const rodAntiLixo = userRod.anti_lixo; 
+        const rodAmbarBonus = userRod.ambar_chance || 0;
         
         weightMultiplierBuff *= rodMultiplier;
 
@@ -250,16 +259,27 @@ class PescariaHandler {
 
         for (let i = 0; i < catches; i++) {
             
+            const ambarTotalChance = 0.05 + (rodAmbarBonus / 100);
+
+            if (this.parqueHandler && Math.random() < ambarTotalChance) {
+                msg += `\n🎣 **ISSO NÃO É UM PEIXE!**\nVocê puxou um 🦟 **Âmbar Ancestral** do fundo do lago!\n\n`;
+                msg += await this.parqueHandler.acharAmbar(userId, userTag, groupId);
+                continue; 
+            }
+
             if (player.active_items['isca_radioativa'] && Math.random() < 0.20) {
                 msg += `☢️ A isca radioativa derreteu sua linha! O peixe fugiu.\n`;
                 continue;
             }
 
             let roll = Math.random() * 100;
+            
+            roll = roll * (1 - (rodLuck / 100)); 
+
             let selectedRarity = 'comum';
             
             if (roll < 0.1) selectedRarity = 'secreto';
-            if (roll < 1) selectedRarity = 'mitico';
+            else if (roll < 1) selectedRarity = 'mitico';
             else if (roll < 5) selectedRarity = 'lendario';
             else if (roll < 20) selectedRarity = 'muito_raro';
             else if (roll < 40) selectedRarity = 'raro';
@@ -268,6 +288,12 @@ class PescariaHandler {
 
             if (player.active_items['maldicao_baiacu'] && Math.random() < 0.35) {
                 selectedRarity = 'lixo';
+            }
+
+            if (selectedRarity === 'lixo') {
+                if (Math.random() * 100 < rodAntiLixo) {
+                    selectedRarity = 'comum'; 
+                }
             }
 
             if (selectedRarity === 'lixo' && !canCatchTrash) {
@@ -397,6 +423,12 @@ class PescariaHandler {
 
         let msg = `${userTag}🎣 **CARTEIRA DE PESCADOR** 🎣\n\n`;
         msg += `⚖️ *Peso Total Pescado:* ${player.total_weight.toFixed(2)}kg\n`;
+
+        // EXIBE A VARA E OS BUFFS
+        const userRodId = player.inventory.vara || 'bambu';
+        const userRod = ROD_CATALOG[userRodId];
+        const currentBonus = Math.round((userRod.mult - 1) * 100);
+        msg += `🛠️ *Vara:* ${userRod.emoji} ${userRod.name} (+${currentBonus}% Peso | +${userRod.luck}% Sorte | -${userRod.anti_lixo}% Lixo)\n\n`;
 
         // Status das Iscas
         msg += `🪣 *Iscas no Balde:* ${player.fishBaits}/${MAX_BAITS}\n`;
@@ -612,7 +644,7 @@ class PescariaHandler {
             msg += `*[ ${code} ]* ${item.emoji} **${item.name}** ➝ 🪙 ${item.price}\n_${item.desc}_\n\n`;
         }
         
-        msg += `🎣 **FORJA DE VARAS (_lá ele_)):**\n`;
+        msg += `🎣 **FORJA DE VARAS (_lá ele_):**\n`;
         const currentRodId = player.inventory.vara || 'bambu';
         const currentRod = ROD_CATALOG[currentRodId];
         
@@ -621,10 +653,11 @@ class PescariaHandler {
             const currentBonus = Math.round((currentRod.mult - 1) * 100);
             const nextBonus = Math.round((nextRod.mult - 1) * 100);
             
-            msg += `_Sua vara atual: ${currentRod.emoji} ${currentRod.name} (+${currentBonus}% peso)_\n\n`;
-            msg += `*[ vara ]* ${nextRod.emoji} **${nextRod.name}** ➝ 🪙 ${nextRod.price}\n_Melhora o ganho de peso dos peixes para +${nextBonus}%_\n\n`;
+            msg += `_Sua vara: ${currentRod.emoji} ${currentRod.name} (+${currentBonus}% Peso | +${currentRod.luck}% Sorte | -${currentRod.anti_lixo}% Lixo)_\n\n`;
+            msg += `*[ vara ]* ${nextRod.emoji} **${nextRod.name}** ➝ 🪙 ${nextRod.price}\n_Melhora para: +${nextBonus}% Peso | +${nextRod.luck}% Sorte | -${nextRod.anti_lixo}% Lixo_\n\n`;
         } else {
-            msg += `_Sua vara atual: ${currentRod.emoji} ${currentRod.name}_\n`;
+            const currentBonus = Math.round((currentRod.mult - 1) * 100);
+            msg += `_Sua vara: ${currentRod.emoji} ${currentRod.name} (+${currentBonus}% Peso | +${currentRod.luck}% Sorte | -${currentRod.anti_lixo}% Lixo)_\n`;
             msg += `✨ *Você já possui a melhor vara de pescar do universo!* O ferreiro chora de emoção ao vê-la.\n\n`;
         }
 

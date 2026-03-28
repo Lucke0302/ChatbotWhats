@@ -172,7 +172,7 @@ class ParqueHandler {
     }
 
     // VENDER MINERAIS
-    async venderMinerais(userId, userTag, itemIndexStr) {
+    async venderMinerais(userId, userTag, itemIndexStr, qtdStr) {
         const player = await this.getPlayerData(userId);
         const inv = player.inventory || {};
         const items = Object.entries(inv).filter(([id, qtd]) => qtd > 0);
@@ -197,16 +197,28 @@ class ParqueHandler {
         else {
             const index = parseInt(itemIndexStr) - 1;
             if (isNaN(index) || index < 0 || index >= items.length) {
-                return `${userTag} ⚠️ Número inválido! Verifique o número na sua *!parque mochila*.`;
+                return `${userTag} ⚠️ Número inválido! Verifique o número na sua *!parque mochila*.\nEx: _!parque vender 1 5_`;
             }
 
-            const [id, qtd] = items[index];
+            const [id, qtdTotal] = items[index];
             const minInfo = MINERAL_CATALOG.find(m => m.id === id);
             
+            let qtdParaVender = qtdTotal;
+            if (qtdStr) {
+                const parsedQtd = parseInt(qtdStr);
+                if (!isNaN(parsedQtd) && parsedQtd > 0) {
+                    qtdParaVender = Math.min(parsedQtd, qtdTotal);
+                }
+            }
+            
             if (minInfo) {
-                totalVendido = minInfo.value * qtd;
-                msg += `- Vendido ${qtd}x ${minInfo.emoji} ${minInfo.name}\n`;
-                delete player.inventory[id];
+                totalVendido = minInfo.value * qtdParaVender;
+                msg += `- Vendido ${qtdParaVender}x ${minInfo.emoji} ${minInfo.name}\n`;
+                
+                player.inventory[id] -= qtdParaVender;
+                if (player.inventory[id] <= 0) {
+                    delete player.inventory[id];
+                }
             }
         }
 

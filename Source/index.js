@@ -627,6 +627,13 @@ async function initDatabase() {
     `);
     console.log("✅ Tabela 'grupos_linkados' verificada.");    
 
+    try {
+        await db.exec(`ALTER TABLE parque_dinossauros ADD COLUMN nickname TEXT DEFAULT NULL;`);
+        console.log("✅ Coluna 'nickname' adicionada com sucesso!");
+    } catch (error) {
+        if (!error.message.includes("duplicate column name")) console.error(error.message);
+    }
+
     console.log('✅ Banco de dados SQLite inicializado e tabelas verificadas.');
 }
 

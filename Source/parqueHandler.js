@@ -702,17 +702,15 @@ class ParqueHandler {
             if (temTodos) {
                 const pais = dinosNoParque.filter(d => hibridoInfo.receita.includes(d.especie_id));
                 
-                let somaNiveis = 0;
                 let descobridoresNomes = new Set();
                 let descobridoresIds = new Set();
 
                 pais.forEach(p => {
-                    somaNiveis += p.nivel;
                     descobridoresNomes.add(p.descobridor_nome);
                     descobridoresIds.add(p.descobridor_id);
                 });
 
-                const nivelHibrido = Math.max(1, Math.floor(somaNiveis / pais.length));
+                const nivelHibrido = 1;
                 const nomeAutores = Array.from(descobridoresNomes).join(" & ");
                 
                 let idsFormatados = [];
@@ -748,7 +746,7 @@ class ParqueHandler {
                 msgHibrido += `\n\n🚨 **ALERTA DE SEGURANÇA MÁXIMA DA INGEN!** 🚨\n`;
                 msgHibrido += `O cruzamento de DNA no parque de vocês gerou uma mutação agressiva no laboratório!\n\n`;
                 msgHibrido += `🧬 **NOVO HÍBRIDO SINTETIZADO:** ${hibridoInfo.emoji} **${hibridoInfo.name}**\n`;
-                msgHibrido += `📈 **Poder Inicial:** Nível ${nivelHibrido} _(Média da força das matrizes)_\n`;
+                msgHibrido += `📈 **Poder Inicial:** Nível 1 _(Recém-saído da incubadora 🍼)_\n`;
                 msgHibrido += `👥 **Criadores:** ${nomeAutores}\n`;
                 msgHibrido += `💰 **Royalties InGen:** 🪙 ${recompensaIndividual} Bostocoins para cada criador!\n`;
                 
@@ -761,6 +759,54 @@ class ParqueHandler {
             }
         }
         return msgHibrido;
+    }
+
+    // BATIZAR DINOSSAURO
+    async handleApelidoDino(userId, userTag, groupId, dinoIdStr, novoNomeArray) {
+        const dinoId = parseInt(dinoIdStr);
+        if (isNaN(dinoId) || !novoNomeArray || novoNomeArray.length === 0) {
+            return `${userTag} ⚠️ Formato incorreto! Use: *!parque apelido [id_do_dino] [Novo Nome]*\nEx: _!parque apelido 5 Jubileu_`;
+        }
+
+        const novoNome = novoNomeArray.join(' ').trim();
+        if (novoNome.length > 30) return `${userTag} ⚠️ O apelido é muito grande! O limite do cartório é de 30 caracteres.`;
+
+        const dino = await this.db.get("SELECT * FROM parque_dinossauros WHERE id = ? AND group_id = ?", [dinoId, groupId]);
+        if (!dino) return `${userTag} ❌ Dinossauro não encontrado neste parque. Tem certeza que olhou o ID certo no mural?`;
+
+        const donos = dino.descobridor_id ? dino.descobridor_id.split(',') : [];
+        if (!donos.includes(userId)) {
+            return `${userTag} ❌ Só os descobridores/pais biológicos do dinossauro podem escolher o nome da criança!`;
+        }
+
+        const dinoInfo = DINO_CATALOG[dino.especie_id];
+        const currentName = dino.nickname || dinoInfo.name;
+
+        if (currentName !== dinoInfo.name) {
+            return `${userTag} 🛑 O dinossauro já foi batizado como **"${dino.nickname}"**! A InGen não permite trocar de nome duas vezes para não confundir os cientistas.`;
+        }
+
+        await this.db.run("UPDATE parque_dinossauros SET nickname = ? WHERE id = ?", [novoNome, dinoId]);
+
+        return `${userTag} 🏷️ **NOVO NOME DE BATISMO!**\nO ${dinoInfo.name} do parque agora atende orgulhosamente pelo nome de **"${novoNome}"**!`;
+    }
+
+    // FIX ADMIN PARA OS NICKNAMES
+    async fixNicknamesGlobais(userTag) {
+        const dinos = await this.db.all("SELECT id, especie_id, nickname FROM parque_dinossauros");
+        let count = 0;
+
+        for (const dino of dinos) {
+            if (!dino.nickname) {
+                const dinoInfo = DINO_CATALOG[dino.especie_id];
+                if (dinoInfo) {
+                    await this.db.run("UPDATE parque_dinossauros SET nickname = ? WHERE id = ?", [dinoInfo.name, dino.id]);
+                    count++;
+                }
+            }
+        }
+
+        return `${userTag} 🛠️ **MIGRAÇÃO DE CARTÓRIO CONCLUÍDA!**\n**${count} dinossauros** receberam seus nomes de espécie originais na coluna 'nickname'. Agora os donos podem renomeá-los!`;
     }
 
     // MURAL GLOBAL
@@ -778,9 +824,13 @@ class ParqueHandler {
             if (dinoInfo) {
                 const xpNecessario = 2 * d.nivel * dinoInfo.base_xp_req;
                 const porcentagem = ((d.xp_atual / xpNecessario) * 100).toFixed(1);
-                const classe = this.getClasseDino(d.nivel); // <--- Puxa a classe
+                const classe = this.getClasseDino(d.nivel); 
                 
-                msg += `🆔 *[ ID: ${d.id} ]* ${dinoInfo.emoji} **${dinoInfo.name}**\n`;
+                const nomeExibicao = (d.nickname && d.nickname !== dinoInfo.name) 
+                                     ? `${d.nickname} _(${dinoInfo.name})_` 
+                                     : dinoInfo.name;
+                
+                msg += `🆔 *[ ID: ${d.id} ]* ${dinoInfo.emoji} **${nomeExibicao}**\n`;
                 msg += `   🎨 Cor: ${d.cor} | 🧬 Lvl: ${d.nivel} [${classe}] (${porcentagem}% pro Nvl ${d.nivel + 1})\n`;
                 msg += `   🥩 Reserva: ${d.reserva_comida.toFixed(1)}kg | 👤 Por: ${d.descobridor_nome}\n\n`;
             }

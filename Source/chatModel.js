@@ -463,6 +463,17 @@ class ChatModel {
                     return await this.parqueHandler.venderMinerais(ctx.sender, tag, param, qtd);
                 }
 
+                if (subCommand === 'fixnicknames') {
+                    if (ctx.sender !== "5513991008854@s.whatsapp.net") {
+                        return "🚫 Apenas o A InGen tem a chave do cartório central.";
+                    }
+                    return await this.parqueHandler.fixNicknamesGlobais(tag);
+                }
+
+                if (subCommand === 'apelido' || subCommand === 'nome') {
+                    return await this.parqueHandler.handleApelidoDino(ctx.sender, tag, netGroupId, args[2], args.slice(3));
+                }
+
                 return `${tag}🦖 **JURASSIC BOSTOPARK** 🦖\n\n` +
                        `⛏️ *!escavar* (Ache minérios ou Âmbar!)\n` +
                        `🎒 *!parque mochila* (Veja suas pedras)\n` +
@@ -471,7 +482,9 @@ class ChatModel {
                        `🍗 *!parque alimentar [ID] [Nº_Comida]* (Alimente um dino)\n` +
                        `🖼️ *!parque mural* (Veja os dinossauros do grupo)\n` +
                        `🧬 *!parque perfil* (Sua coleção e ticket gerado)\n` +
-                       `👑 *!parque titulo [pai/mae/nazare] [ID]* (Guarda compartilhada!)\n`;
+                       `👑 *!parque titulo [pai/mae/nazare] [ID]* (Guarda compartilhada!)\n` +
+                       `🧬 *!parque perfil* (Sua coleção de genéticas)\n` +
+                       `🏷️ *!parque nome [ID] [Nome]* (Batize seu dino!)\n`;
 
             },
             '!escavar': async (ctx) => {

@@ -89,7 +89,7 @@ const FISH_CATALOG = [
     { id: 'baleia_azul', name: 'Baleia Azul Gigante', emoji: '🐋', avgWeight: 150000.0, rarity: 'mitico' },
     { id: 'nami_ap', name: 'Nami Full AP', emoji: '🧜‍♀️', avgWeight: 60.0, rarity: 'mitico' },
     { id: 'ryze_rio', name: 'Ryze Ultando no Rio', emoji: '🧙‍♂️', avgWeight: 80.0, rarity: 'mitico' },    
-    { id: 'ram_16_gb_ddr5', name: 'Memória Ram 16 GB DDR5 6000MHZ', emoji: '💾', avgWeight: 0.1, rarity: 'mitico' },
+    { id: 'ram_16_gb_ddr5', name: 'Memória Ram 32 GB DDR5 6000MHZ', emoji: '💾', avgWeight: 0.1, rarity: 'mitico' },
 
     // SECRETOS
     { id: 'peixe_silvio', name: 'Peixe de Ouro do Silvio Santos', emoji: '🏆', avgWeight: 100.0, rarity: 'secreto' },
@@ -124,13 +124,20 @@ const STORE_CATALOG = {
 };
 
 const ROD_CATALOG = {
-    'bambu': { id: 'bambu', name: 'Vara de Bambu', mult: 1.0, emoji: '🎋', price: 0, next: 'fibra' },
-    'fibra': { id: 'fibra', name: 'Vara de Fibra de Vidro', mult: 1.10, emoji: '🎣', price: 800, next: 'grafite' },
-    'grafite': { id: 'grafite', name: 'Vara de Grafite Pro', mult: 1.20, emoji: '✒️', price: 1250, next: 'carbono' },
-    'carbono': { id: 'carbono', name: 'Vara de Carbono', mult: 1.30, emoji: '💎', price: 2000, next: 'aco' },    
-    'aco': { id: 'aco', name: 'Vara de Aço Temperado', mult: 1.40, emoji: '🔩', price: 3000, next: 'titanio' },
-    'grafeno': { id: 'grafeno', name: 'Vara de Grafeno', mult: 1.50, emoji: '💎', price: 5000, next: 'adamantium' },
-    'adamantium': { id: 'adamantium', name: 'Vara de Adamantium', mult: 1.60, emoji: '🌌', price: 8000, next: null }
+        'bambu': { id: 'bambu', name: 'Vara de Bambu', mult: 1.0, luck: 0, anti_lixo: 0, ambar_chance: 0, emoji: '🎋', price: 0, next: 'fibra' },
+        'fibra': { id: 'fibra', name: 'Vara de Fibra de Vidro', mult: 1.10, luck: 5, anti_lixo: 10, ambar_chance: 1, emoji: '🎣', price: 800, next: 'grafite' },
+        'grafite': { id: 'grafite', name: 'Vara de Grafite Pro', mult: 1.20, luck: 10, anti_lixo: 20, ambar_chance: 2, emoji: '✒️', price: 1250, next: 'carbono' },
+        'carbono': { id: 'carbono', name: 'Vara de Carbono', mult: 1.30, luck: 15, anti_lixo: 40, ambar_chance: 3, emoji: '💎', price: 2000, next: 'aco' },    
+        'aco': { id: 'aco', name: 'Vara de Aço Temperado', mult: 1.40, luck: 20, anti_lixo: 60, ambar_chance: 4, emoji: '🔩', price: 3000, next: 'grafeno' },
+        'grafeno': { id: 'grafeno', name: 'Vara de Grafeno', mult: 1.50, luck: 25, anti_lixo: 80, ambar_chance: 5, emoji: '💎', price: 5000, next: 'adamantium' },
+        'adamantium': { id: 'adamantium', name: 'Vara de Adamantium', mult: 1.60, luck: 30, anti_lixo: 100, ambar_chance: 6, emoji: '🌌', price: 8000, next: null }
+};
+
+const BOAT_CATALOG = {
+    'pequeno': { id: 'pequeno', name: 'Barquinho de Madeira', catches: 2, emoji: '🛶', price: 10000, next: 'medio' },
+    'medio': { id: 'medio', name: 'Lancha de Pesca', catches: 3, emoji: '🚤', price: 15000, next: 'grande' },
+    'grande': { id: 'grande', name: 'Navio Pesqueiro', catches: 4, emoji: '⛴️', price: 20000, next: 'industrial' },
+    'industrial': { id: 'industrial', name: 'Traineira Industrial', catches: 5, emoji: '🚢', price: 30000, next: null }
 };
 
 const RARITY_MULTIPLIER = {
@@ -138,9 +145,9 @@ const RARITY_MULTIPLIER = {
     'comum': 5,
     'incomum': 10,
     'raro': 50,
-    'muito_raro': 200,
-    'lendario': 500,
-    'mitico': 1000,
+    'muito_raro': 250,
+    'lendario': 750,
+    'mitico': 2000,
     'secreto': 20000
 };
 
@@ -210,6 +217,10 @@ class PescariaHandler {
         await this.db.run("UPDATE usuarios SET pescaria_data = ? WHERE id_usuario = ?", [jsonString, userId]);
     }
 
+    async setParqueHandler(parqueHandler) {
+        this.parqueHandler = parqueHandler;
+    }
+
     async pescar(userId, userTag, groupId) {
         let player = await this.getPlayerData(userId);
         const now = Math.floor(Date.now() / 1000);
@@ -230,16 +241,27 @@ class PescariaHandler {
         let msg = `${userTag}🎣 **PESCARIA** 🎣\n_Iscas restantes: ${player.fishBaits}_\n\n`;
 
         let catches = 1;
+        if (player.inventory.barco) {
+            catches = BOAT_CATALOG[player.inventory.barco].catches;
+        }
+
         let weightMultiplierBuff = 1.0;
         let canCatchTrash = true;
 
-        if (player.active_items['anzol_duplo']) catches = 2;
+        // O Anzol Duplo DOBRA o total de redes jogadas! (1 vira 2, 5 vira 10)
+        if (player.active_items['anzol_duplo']) catches *= 2; 
+        
         if (player.active_items['anzol_chumbo']) weightMultiplierBuff *= 1.30;
         if (player.active_items['isca_radioativa']) weightMultiplierBuff *= 1.50;
         if (player.active_items['repelente']) canCatchTrash = false;
 
         const userRodId = player.inventory.vara || 'bambu';
-        const rodMultiplier = ROD_CATALOG[userRodId] ? ROD_CATALOG[userRodId].mult : 1.0;
+        const userRod = ROD_CATALOG[userRodId] || ROD_CATALOG['bambu'];
+        
+        const rodMultiplier = userRod.mult;
+        const rodLuck = userRod.luck;
+        const rodAntiLixo = userRod.anti_lixo; 
+        const rodAmbarBonus = userRod.ambar_chance || 0;
         
         weightMultiplierBuff *= rodMultiplier;
 
@@ -250,16 +272,27 @@ class PescariaHandler {
 
         for (let i = 0; i < catches; i++) {
             
+            const ambarTotalChance = 0.05 + (rodAmbarBonus / 200);
+
+            if (this.parqueHandler && Math.random() < ambarTotalChance) {
+                msg += `\n🎣 **ISSO NÃO É UM PEIXE!**\nVocê puxou um 🦟 **Âmbar Ancestral** do fundo do lago!\n\n`;
+                msg += await this.parqueHandler.acharAmbar(userId, userTag, groupId);
+                continue; 
+            }
+
             if (player.active_items['isca_radioativa'] && Math.random() < 0.20) {
                 msg += `☢️ A isca radioativa derreteu sua linha! O peixe fugiu.\n`;
                 continue;
             }
 
             let roll = Math.random() * 100;
+            
+            roll = roll * (1 - (rodLuck / 100)); 
+
             let selectedRarity = 'comum';
             
             if (roll < 0.1) selectedRarity = 'secreto';
-            if (roll < 1) selectedRarity = 'mitico';
+            else if (roll < 1) selectedRarity = 'mitico';
             else if (roll < 5) selectedRarity = 'lendario';
             else if (roll < 20) selectedRarity = 'muito_raro';
             else if (roll < 40) selectedRarity = 'raro';
@@ -268,6 +301,12 @@ class PescariaHandler {
 
             if (player.active_items['maldicao_baiacu'] && Math.random() < 0.35) {
                 selectedRarity = 'lixo';
+            }
+
+            if (selectedRarity === 'lixo') {
+                if (Math.random() * 100 < rodAntiLixo) {
+                    selectedRarity = 'comum'; 
+                }
             }
 
             if (selectedRarity === 'lixo' && !canCatchTrash) {
@@ -397,6 +436,18 @@ class PescariaHandler {
 
         let msg = `${userTag}🎣 **CARTEIRA DE PESCADOR** 🎣\n\n`;
         msg += `⚖️ *Peso Total Pescado:* ${player.total_weight.toFixed(2)}kg\n`;
+
+        // EXIBE A VARA E OS BUFFS
+        const userRodId = player.inventory.vara || 'bambu';
+        const userRod = ROD_CATALOG[userRodId];
+        const currentBonus = Math.round((userRod.mult - 1) * 100);
+        msg += `🛠️ *Vara:* ${userRod.emoji} ${userRod.name} (+${currentBonus}% Peso | +${userRod.luck}% Sorte | -${userRod.anti_lixo}% Lixo)\n\n`;
+
+        if (player.inventory.barco) {
+            const userBoat = BOAT_CATALOG[player.inventory.barco];
+            msg += `⛴️ *Frota:* ${userBoat.emoji} ${userBoat.name} (Puxa ${userBoat.catches} peixes/isca)\n`;
+        }
+        msg += `\n`;
 
         // Status das Iscas
         msg += `🪣 *Iscas no Balde:* ${player.fishBaits}/${MAX_BAITS}\n`;
@@ -612,7 +663,7 @@ class PescariaHandler {
             msg += `*[ ${code} ]* ${item.emoji} **${item.name}** ➝ 🪙 ${item.price}\n_${item.desc}_\n\n`;
         }
         
-        msg += `🎣 **FORJA DE VARAS (_lá ele_)):**\n`;
+        msg += `🎣 **FORJA DE VARAS (_lá ele_):**\n`;
         const currentRodId = player.inventory.vara || 'bambu';
         const currentRod = ROD_CATALOG[currentRodId];
         
@@ -621,11 +672,33 @@ class PescariaHandler {
             const currentBonus = Math.round((currentRod.mult - 1) * 100);
             const nextBonus = Math.round((nextRod.mult - 1) * 100);
             
-            msg += `_Sua vara atual: ${currentRod.emoji} ${currentRod.name} (+${currentBonus}% peso)_\n\n`;
-            msg += `*[ vara ]* ${nextRod.emoji} **${nextRod.name}** ➝ 🪙 ${nextRod.price}\n_Melhora o ganho de peso dos peixes para +${nextBonus}%_\n\n`;
+            msg += `_Sua vara: ${currentRod.emoji} ${currentRod.name} (+${currentBonus}% Peso | +${currentRod.luck}% Sorte | -${currentRod.anti_lixo}% Lixo)_\n\n`;
+            msg += `*[ vara ]* ${nextRod.emoji} **${nextRod.name}** ➝ 🪙 ${nextRod.price}\n_Melhora para: +${nextBonus}% Peso | +${nextRod.luck}% Sorte | -${nextRod.anti_lixo}% Lixo_\n\n`;
         } else {
-            msg += `_Sua vara atual: ${currentRod.emoji} ${currentRod.name}_\n`;
+            const currentBonus = Math.round((currentRod.mult - 1) * 100);
+            msg += `_Sua vara: ${currentRod.emoji} ${currentRod.name} (+${currentBonus}% Peso | +${currentRod.luck}% Sorte | -${currentRod.anti_lixo}% Lixo)_\n`;
             msg += `✨ *Você já possui a melhor vara de pescar do universo!* O ferreiro chora de emoção ao vê-la.\n\n`;
+        }
+
+        if (currentRodId === 'adamantium') {
+            msg += `\n⚓ **ESTALEIRO NAVAL:**\n`;
+            const currentBoatId = player.inventory.barco;
+            if (!currentBoatId) {
+                const nextBoat = BOAT_CATALOG['pequeno'];
+                msg += `_Você atualmente pesca da beira do barranco._\n`;
+                msg += `*[ barco ]* ${nextBoat.emoji} **${nextBoat.name}** ➝ 🪙 ${nextBoat.price}\n_Puxa ${nextBoat.catches} peixes por isca!_\n\n`;
+            } else {
+                const currentBoat = BOAT_CATALOG[currentBoatId];
+                if (currentBoat.next) {
+                    const nextBoat = BOAT_CATALOG[currentBoat.next];
+                    msg += `_Sua frota: ${currentBoat.emoji} ${currentBoat.name} (${currentBoat.catches} peixes/isca)_\n`;
+                    msg += `*[ barco ]* ${nextBoat.emoji} **${nextBoat.name}** ➝ 🪙 ${nextBoat.price}\n_Melhora para: ${nextBoat.catches} peixes por isca!_\n\n`;
+                } else {
+                    msg += `_Sua frota: ${currentBoat.emoji} ${currentBoat.name} (${currentBoat.catches} peixes/isca)_\n`;
+                    msg += `🛳️ *Você já domina os sete mares! Não há navio maior.*\n\n`;
+                }
+            }
+            if (!currentBoatId || BOAT_CATALOG[currentBoatId].next) msg += `⛴️ Para comprar frota: *!pescaria comprar barco*\n`;
         }
 
         msg += `🛒 Para comprar consumíveis: *!pescaria comprar [número]*\n`;
@@ -668,6 +741,33 @@ class PescariaHandler {
                 msg += `\n\n🐺 _Você impressionou o ferreiro e desbloqueou o título **Wolverine dos Mares**! Use *!pescaria titulo* para equipar._`;
             }
             return msg;
+        }
+
+        if (itemCode.toLowerCase() === 'barco') {
+            const currentRodId = player.inventory.vara || 'bambu';
+            if (currentRodId !== 'adamantium') {
+                return `${userTag}✋ O engenheiro naval riu da sua cara. "Volte aqui quando tiver forjado uma Vara de Adamantium, pescador de lambari!"`;
+            }
+
+            const currentBoatId = player.inventory.barco;
+            let nextBoatId = 'pequeno';
+            if (currentBoatId) {
+                const currentBoat = BOAT_CATALOG[currentBoatId];
+                if (!currentBoat.next) return `${userTag}🛳️ Você já é dono da maior máquina de pescar do mundo!`;
+                nextBoatId = currentBoat.next;
+            }
+
+            const nextBoat = BOAT_CATALOG[nextBoatId];
+
+            if (balance < nextBoat.price) {
+                return `${userTag}💸 Barco custa caro! Você precisa de 🪙 **${nextBoat.price} Bostocoins** para comprar o ${nextBoat.emoji} *${nextBoat.name}*.\nSeu saldo: 🪙 ${balance}.`;
+            }
+
+            await this.db.run("UPDATE usuarios SET bostocoins = bostocoins - ? WHERE id_usuario = ?", [nextBoat.price, userId]);
+            player.inventory.barco = nextBoat.id;
+            await this.savePlayerData(userId, player);
+
+            return `${userTag}⛴️ **NOVO BARCO NA FROTA!**\nVocê pagou 🪙 ${nextBoat.price} Bostocoins e agora é o orgulhoso capitão do ${nextBoat.emoji} **${nextBoat.name}**!\n\n🐟 Suas redes agora arrastam **${nextBoat.catches} peixes por isca**! (Multiplica com Anzol Duplo!)`;
         }
 
         if (!STORE_CATALOG[itemCode]) {
@@ -850,6 +950,58 @@ class PescariaHandler {
         await this.db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [profitResult.finalProfit, userId]);
 
         return `${userTag}♻️ **COLETA SELETIVA CONCLUÍDA!**\n\nVocê reciclou **${trashCount} itens de lixo** (Botas, pneus, calotas...) e ganhou 🪙 **${totalValue} Bostocoins** pelo serviço ambiental!${profitResult.msg}`;
+    }
+
+    // VENDA AUTOMÁTICA DE PEIXES REPETIDOS
+    async handleVenderRepetidos(userId, userTag) {
+        const player = await this.getPlayerData(userId);
+        
+        if (!player.records || !Array.isArray(player.records) || player.records.length === 0) {
+            return `${userTag} O seu isopor está vazio! Vá pescar antes de tentar vender vento.`;
+        }
+
+        const bestFishes = {};
+        const duplicates = [];
+
+        for (const record of player.records) {
+            if (!bestFishes[record.id]) {
+                bestFishes[record.id] = record;
+            } else {
+                if (record.weight > bestFishes[record.id].weight) {
+                    duplicates.push(bestFishes[record.id]);
+                    bestFishes[record.id] = record; 
+                } else {
+                    duplicates.push(record); 
+                }
+            }
+        }
+
+        if (duplicates.length === 0) {
+            return `${userTag}🐟 Seu isopor está limpo! Você só tem um exemplar (o seu recorde) de cada espécie no momento.`;
+        }
+
+        let totalValue = 0;
+        let soldCount = 0;
+
+        for (const record of duplicates) {
+            const fishInfo = FISH_CATALOG.find(f => f.id === record.id);
+            if (!fishInfo) continue;
+
+            const maxWeight = fishInfo.avgWeight * 1.5;
+            const perfeicao = record.weight / maxWeight;
+            const finalValue = Math.ceil((RARITY_MULTIPLIER[fishInfo.rarity] || 10) * perfeicao);
+
+            totalValue += finalValue;
+            soldCount++;
+        }
+
+        player.records = Object.values(bestFishes);
+        await this.savePlayerData(userId, player);
+
+        const profitResult = await this.casinoHandler.verifyProfit(userId, totalValue);
+        await this.db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [profitResult.finalProfit, userId]);
+
+        return `${userTag}📦 **LIMPEZA DE REPETIDOS CONCLUÍDA!**\n\nVocê vendeu **${soldCount} peixes duplicados** (mantendo apenas o seu recorde absoluto de cada espécie) e lucrou 🪙 **${totalValue} Bostocoins** no mercadão!${profitResult.msg}`;
     }
 
     // AVALIA O VALOR TOTAL DO INVENTÁRIO

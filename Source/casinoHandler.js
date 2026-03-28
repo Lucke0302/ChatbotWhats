@@ -425,17 +425,22 @@ constructor(db) {
             carreira: { nivel: 1, subnivel: 1, id_job: null },
             last_bico: 0
         };
+
         if (user && user.financas && user.financas !== '{}') {
             try { 
                 const parsed = JSON.parse(user.financas); 
-                financas.investimento = parsed.investimento || financas.investimento;
+                
+                if (parsed.investimento) {
+                    financas.investimento.montante = parsed.investimento.montante || 0;
+                    financas.investimento.ultimo_rendimento = parsed.investimento.ultimo_rendimento || now; 
+                }
+
                 financas.emprestimo = parsed.emprestimo || financas.emprestimo;
                 financas.carreira = parsed.carreira || financas.carreira;
                 financas.last_bico = parsed.last_bico || financas.last_bico;
                 financas.titulo = parsed.titulo || financas.titulo;
             } catch (e) { console.error("Erro no JSON de finanças", e); }
         }
-
         const timePassed = now - financas.investimento.ultimo_rendimento;
         const daysPassed = Math.floor(timePassed / 86400);
 
@@ -444,9 +449,20 @@ constructor(db) {
                 let m = financas.investimento.montante;
                 let yieldAmount = 0;
 
-                if (m > 5000) yieldAmount += (m - 5000) * 0.02;
-                else if (m > 3000) yieldAmount += (m - 3000) * 0.05;
-                else yieldAmount += m * 0.10;
+                if (m > 0) {
+                    let baseAmount = Math.min(m, 3000);
+                    yieldAmount += baseAmount * 0.10;
+                }
+                
+                if (m > 3000) {
+                    let midAmount = Math.min(m - 3000, 2000);
+                    yieldAmount += midAmount * 0.05;
+                }
+                
+                if (m > 5000) {
+                    let topAmount = m - 5000;
+                    yieldAmount += topAmount * 0.02;
+                }
 
                 financas.investimento.montante += Math.floor(yieldAmount);
             }
@@ -779,6 +795,55 @@ constructor(db) {
             console.error("Erro ao acelerar o tempo de trabalho:", e);
             return `❌ Deu ruim no Ministério do Trabalho. Erro ao acelerar o tempo.`;
         }
+    }
+
+    // ACELERA O COOLDOWN DO BICO/ESCAVAÇÃO EM 2 HORAS
+    async acelerarBicoGlobal(userTag) {
+        const SECONDS_TO_SUBTRACT = 2 * 3600; 
+        const users = await this.db.all("SELECT id_usuario, financas FROM usuarios WHERE financas IS NOT NULL AND financas != '{}'");
+        let count = 0;
+
+        for (const u of users) {
+            try {
+                let financas = JSON.parse(u.financas);
+                
+                if (financas.last_bico && financas.last_bico > 0) {
+                    financas.last_bico -= SECONDS_TO_SUBTRACT;
+                    await this.db.run("UPDATE usuarios SET financas = ? WHERE id_usuario = ?", [JSON.stringify(financas), u.id_usuario]);
+                    count++;
+                }
+            } catch (e) {
+                console.error("Erro ao acelerar bico para usuário:", u.id_usuario, e);
+            }
+        }
+        
+        return `⏳ **DECRETO DE URGÊNCIA!**\nO Banco Central adiantou o relógio em 2 horas para **${count} trabalhadores/mineradores**!\nA energia voltou! Vão fazer um *!bico* ou *!escavar* no parque!`;
+    }
+
+    // ACELERA O RENDIMENTO DOS INVESTIMENTOS EM 24 HORAS
+    async acelerarInvestimentoGlobal(userTag) {
+        const SECONDS_TO_SUBTRACT = 86400;
+        const users = await this.db.all("SELECT id_usuario, financas FROM usuarios WHERE financas IS NOT NULL AND financas != '{}'");
+        let count = 0;
+
+        for (const u of users) {
+            try {
+                let financas = JSON.parse(u.financas);
+                
+                if (financas.investimento && financas.investimento.montante > 0) {
+                    if (!financas.investimento.ultimo_rendimento) {
+                        financas.investimento.ultimo_rendimento = Math.floor(Date.now() / 1000);
+                    }
+                    financas.investimento.ultimo_rendimento -= SECONDS_TO_SUBTRACT;
+                    await this.db.run("UPDATE usuarios SET financas = ? WHERE id_usuario = ?", [JSON.stringify(financas), u.id_usuario]);
+                    count++;
+                }
+            } catch (e) {
+                console.error("Erro ao acelerar investimentos:", u.id_usuario, e);
+            }
+        }
+        
+        return `📈 **MÁQUINA DO TEMPO DE WALL STREET!**\nA CVM dormiu e o relógio adiantou em 24 horas.\n**${count} investidores** acabaram de receber seus juros diários! Use *!investir* para conferir a mágica dos juros compostos.`;
     }
 }
 

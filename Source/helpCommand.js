@@ -1,5 +1,5 @@
 const helpDictionary = {
-    'default': `🦖 *BOSTOSSAURO OS* v5 - Jurassic BostoPark 🦖
+    'default': `🦖 *BOSTOSSAURO OS* v5.1 - A Ameaça Híbrida 🦖
 
 Ô humano, tá perdido ou só quer me alugar?
 Eu tô aqui processando bit igual um condenado e você pedindo ajuda... Tá, toma aí o que eu sei fazer (quando não tô fritando):
@@ -182,6 +182,24 @@ Bem-vindo ao antro da perdição e do capitalismo selvagem!
 • \`!cassino bolao apostadores\` ➝ Lista quem tá no Bolão.
 • \`!cassino saldo\` ➝ Mostra o que sobrou na sua carteira.`,
 
+        'parque': `🦖 *COMANDO: !parque*
+O Jurassic BostoPark é um ecossistema cooperativo. Escave, clone e alimente!
+
+*Mineração & DNA:*
+⛏️ *!escavar* ➝ Gasta a mesma energia do *!bico*. Pode achar pedras preciosas ou o lendário Âmbar!
+🎒 *!parque mochila* ➝ Veja seus minérios escavados.
+🤝 *!parque vender [numero/tudo]* ➝ Venda as pedras no mercado negro.
+
+*O Zoológico:*
+🖼️ *!parque mural* ➝ Veja os dinossauros vivos do grupo (Seus níveis, cores e ID).
+🥩 *!parque despensa* ➝ Abre seu isopor de pesca para escolher um lanchinho.
+🍗 *!parque alimentar [ID] [Comida]* ➝ Dê seu peixe pescado para o dinossauro crescer e gerar mais bilheteria.
+🧬 *!parque perfil* ➝ Veja suas métricas, bônus de ticket injetado no grupo e seus Top 5 clones.
+
+*Híbridos & Guarda:*
+👑 *!parque titulo [pai/mae/nazare] [id_do_dino]* ➝ Assuma a guarda legal de um dinossauro que você descobriu e use como título global!
+🧪 _Híbridos (Ex: Indominus Rex) são gerados automaticamente se o grupo possuir os dinossauros originais._`,
+
     'pix': `💸 *COMANDO: !pix*
 O Banco Central do Bostossauro permite agiotagem e doações.
 
@@ -261,16 +279,15 @@ Você regenera 1 isca a cada 2 horas (Máximo 10).
 🏅 *!pescaria toppessoal* ➝ Seus troféus absolutos por raridade.`,
 
 
-    'cota': `🔌 *COMANDO: !cota* (Apenas Admin)
-O painel de energia do Bostossauro.
+    'admin': `🔌 *COMANDOS RESTRITOS (Só Admin)*
+As chaves do servidor.
+
 • *!cota listar* ➝ Vê o uso de cada modelo no SQLite.
-• *!cota exaurir [N]* ➝ Frita o fusível de um modelo pra forçar o fallback de IA.`,
+• *!cota exaurir [N]* ➝ Frita o fusível de um modelo.
+• *!timeout @usuario [minutos]* ➝ Silencia um bagunceiro no banco de dados.
+• *!link [ID_DO_GRUPO_PAI]* ➝ Conecta o grupo atual ao grupo principal. (Compartilha parque, pescaria e memória).
+• *!unlink* ➝ Quebra a conexão de rede.`
 
-    'timeout': `🚫 *COMANDO: !timeout* (Só Admin)
-Manda o engraçadinho ficar pianinho por um tempo.
-
-*Como usar:* !timeout @usuario [minutos]
-*Efeito:* O sujeito toma um silêncio global e não consegue usar meus comandos. Paz reinando.`
 };
 
 /**

@@ -46,6 +46,7 @@ class ChatModel {
         this.casinoHandler = new CasinoHandler(db);
         this.pescariaHandler = new PescariaHandler(db, this.casinoHandler);
         this.parqueHandler = new ParqueHandler(db, this.casinoHandler, this.pescariaHandler);
+        this.pescariaHandler.setParqueHandler(this.parqueHandler);
     }
 
     async init() {
@@ -84,6 +85,23 @@ class ChatModel {
         this.commandHandlers = {
             '!timeout': async (ctx) => {
                 return await this.handleTimeoutCommand(ctx.name, ctx.command, ctx.sender, ctx.isGroup, ctx.mentions);
+            },
+            '!link': async (ctx) => {
+                if (ctx.sender !== "5513991008854@s.whatsapp.net") return "🚫 Apenas o arquiteto da Matrix pode unir dimensões.";
+                const args = ctx.command.trim().split(/\s+/);
+                if (args.length < 2) return "⚠️ Uso: *!link [id_do_grupo_pai]*\n_(Use !id no grupo principal para pegar o código)_";
+                
+                const parentId = args[1];
+                if (!ctx.isGroup) return "⚠️ Este comando deve ser usado dentro do grupo que será o *filho*.";
+                if (parentId === ctx.from) return "⚠️ Você não pode linkar o grupo nele mesmo, gênio.";
+
+                await this.db.run("INSERT OR REPLACE INTO grupos_linkados (id_filho, id_pai) VALUES (?, ?)", [ctx.from, parentId]);
+                return `🔗 **LINK DIMENSIONAL ESTABELECIDO!**\nEste grupo agora é uma filial do grupo oficial (\`${parentId}\`).\nA IA, o Parque e a Pescaria agora compartilham a mesma linha do tempo!`;
+            },
+            '!unlink': async (ctx) => {
+                if (ctx.sender !== "5513991008854@s.whatsapp.net") return "🚫 Acesso negado.";
+                await this.db.run("DELETE FROM grupos_linkados WHERE id_filho = ?", [ctx.from]);
+                return "💔 **LINK QUEBRADO.** Este grupo voltou a ser independente e isolado.";
             },
             '!debug_grupo': async (ctx) => {
                 const tag = await this.pokemonHandler.getUserTag(ctx.sender);
@@ -227,6 +245,13 @@ class ChatModel {
             '!investir': async (ctx) => {
                 const tag = await this.pokemonHandler.getUserTag(ctx.sender);
                 const args = ctx.command.trim().split(/\s+/);
+                const subCommand = args[1]?.toLowerCase();
+
+                if (subCommand === 'acelerar') {
+                    if (ctx.sender !== "5513991008854@s.whatsapp.net") return "🚫 Apenas a CVM (Admin) pode manipular o tempo do mercado.";
+                    return await this.casinoHandler.acelerarInvestimentoGlobal(tag);
+                }
+
                 return await this.casinoHandler.handleInvestir(ctx.sender, tag, args[1], args[2]);
             },
             '!emprestimo': async (ctx) => {
@@ -292,6 +317,15 @@ class ChatModel {
             },
             '!bico': async (ctx) => {
                 const tag = await this.pokemonHandler.getUserTag(ctx.sender);
+                const args = ctx.command.trim().split(/\s+/);
+                const subCommand = args[1]?.toLowerCase();
+
+                // Comando de Admin para acelerar
+                if (subCommand === 'acelerar') {
+                    if (ctx.sender !== "5513991008854@s.whatsapp.net") return "🚫 Apenas o Presidente do Banco Central (Admin) pode usar isso.";
+                    return await this.casinoHandler.acelerarBicoGlobal(tag);
+                }
+
                 return await this.casinoHandler.handleBico(ctx.sender, tag);
             },
             '!pescar': async (ctx) => {
@@ -309,6 +343,8 @@ class ChatModel {
                 const tag = await this.pokemonHandler.getUserTag(ctx.sender);
                 const args = ctx.command.trim().split(/\s+/);
                 const subCommand = args[1]?.toLowerCase();
+
+                const netGroupId = await this.getNetGroupId(ctx.from);
 
                 if (subCommand === 'acelerar') {
                     if (ctx.sender !== "5513991008854@s.whatsapp.net") {
@@ -331,6 +367,10 @@ class ChatModel {
                         return await this.pescariaHandler.handleVenderLixo(ctx.sender, tag);
                     }
                     
+                    if (args[2]?.toLowerCase() === 'repetidos' || args[2]?.toLowerCase() === 'repetido') {
+                        return await this.pescariaHandler.handleVenderRepetidos(ctx.sender, tag);
+                    }
+                    
                     const itemCodes = args.slice(2).join(' ');
                     return await this.pescariaHandler.handleVender(ctx.sender, tag, itemCodes);
                 }
@@ -340,11 +380,13 @@ class ChatModel {
                 }
 
                 if (subCommand === 'trofeus') {
-                    return await this.pescariaHandler.getTrofeusGrupo(ctx.from, tag);
+                    return await this.pescariaHandler.getTrofeusGrupo(netGroupId, tag);
                 }
-
                 if (subCommand === 'ranking') {
-                    return await this.pescariaHandler.getRanking(ctx.from, tag);
+                    return await this.pescariaHandler.getRanking(netGroupId, tag);
+                }
+                if (subCommand === 'topgrupo') {
+                    return await this.pescariaHandler.getTopGrupoPorRaridade(netGroupId, tag);
                 }
                 
                 if (subCommand === 'perfil' || subCommand === 'inventario') {
@@ -362,33 +404,49 @@ class ChatModel {
                     return await this.pescariaHandler.getTopPessoal(ctx.sender, tag);
                 }
 
-                if (subCommand === 'topgrupo') {
-                    return await this.pescariaHandler.getTopGrupoPorRaridade(ctx.from, tag);
-                }
-
                 if (subCommand === 'titulo' || subCommand === 'titulos') {
                     const action = args[2]?.toLowerCase();
                     const param = args[3];
                     return await this.pescariaHandler.handleTitulosPesca(ctx.sender, tag, action, param);
                 }
 
-                return `${tag}🎣 **SISTEMA DE PESCA**\n\nOpções:\n🎣 *!pescar* (Joga a isca!)\n🏪 *!pescaria loja* (Compre Iscas, Buffs e Varas novas!)\n⚖️ *!pescaria vender* (Mercadão de peixes)\n♻️ *!pescaria vender lixo* (Recicla as sucatas)\n🎒 *!pescaria perfil* (Iscas e Efeitos ativos)\n🏆 *!pescaria ranking* (Top pescadores)\n🦈 *!pescaria trofeus* (10 maiores deste grupo)\n🏅 *!pescaria toppessoal* (Seus troféus absolutos)\n🌍 *!pescaria topgrupo* (A Elite das Águas)\n📊 *!pescaria avaliar* (Calcula a fortuna no seu isopor)\n👑 *!pescaria titulo* (Ostente seu império de peixes)\n`;
+                return `${tag}🎣 **SISTEMA DE PESCA**\n\nOpções:\n🎣 *!pescar* (Joga a isca!)\n🏪 *!pescaria loja* (Compre Iscas, Buffs e Varas!)\n🚢 *!pescaria comprar barco* (Aumente sua frota!)\n⚖️ *!pescaria vender* (Mercadão de peixes)\n♻️ *!pescaria vender lixo* (Recicla as sucatas)\n📦 *!pescaria vender repetidos* (Limpa as sobras do isopor)\n🎒 *!pescaria perfil* (Iscas, Frota e Efeitos)\n🏆 *!pescaria ranking* (Top pescadores)\n🦈 *!pescaria trofeus* (10 maiores deste grupo)\n🏅 *!pescaria toppessoal* (Seus troféus absolutos)\n🌍 *!pescaria topgrupo* (A Elite das Águas)\n📊 *!pescaria avaliar* (Calcula a fortuna no isopor)\n👑 *!pescaria titulo* (Ostente seu império)\n`;
             },
             '!parque': async (ctx) => {
                 const tag = await this.pokemonHandler.getUserTag(ctx.sender);
                 const args = ctx.command.trim().split(/\s+/);
                 const subCommand = args[1]?.toLowerCase();
 
+                const netGroupId = await this.getNetGroupId(ctx.from);
+
+                if (subCommand === 'fixcolormult') {
+                    if (ctx.sender !== "5513991008854@s.whatsapp.net") {
+                        return "🚫 Apenas o Dr. Henry Wu pode brincar de Deus e reescrever o DNA.";
+                    }
+                    return await this.parqueHandler.fixColorMultipliers(tag);
+                }
+
+                if (subCommand === 'fixhibridos') {
+                    if (ctx.sender !== "5513991008854@s.whatsapp.net") {
+                        return "🚫 Apenas o Dr. Henry Wu pode forçar a evolução da espécie.";
+                    }
+                    return await this.parqueHandler.fixHibridosGlobais(tag, ctx.sock);
+                }
+
+                if (subCommand === 'titulo' || subCommand === 'titulos') {
+                    const params = args.slice(2).join(' ');
+                    return await this.parqueHandler.handleTitulosParque(ctx.sender, tag, params);
+                }
                 if (subCommand === 'despensa' || subCommand === 'comida') {
                     return await this.parqueHandler.listarComida(ctx.sender, tag);
                 }
 
                 if (subCommand === 'alimentar') {
-                    return await this.parqueHandler.alimentarDino(ctx.sender, tag, ctx.from, args[2], args[3]);
+                    return await this.parqueHandler.alimentarDino(ctx.sender, tag, netGroupId, args[2], args[3]);
                 }
 
                 if (subCommand === 'mural' || subCommand === 'lista') {
-                    return await this.parqueHandler.verParqueGlobal(ctx.from, tag);
+                    return await this.parqueHandler.verParqueGlobal(netGroupId, tag);
                 }
 
                 if (subCommand === 'perfil') {
@@ -401,17 +459,19 @@ class ChatModel {
 
                 if (subCommand === 'vender') {
                     const param = args[2]?.toLowerCase();
-                    return await this.parqueHandler.venderMinerais(ctx.sender, tag, param);
+                    const qtd = args[3];
+                    return await this.parqueHandler.venderMinerais(ctx.sender, tag, param, qtd);
                 }
 
                 return `${tag}🦖 **JURASSIC BOSTOPARK** 🦖\n\n` +
-                       `⛏️ *!escavar* (Use sua picareta para achar minérios ou Âmbar!)\n` +
+                       `⛏️ *!escavar* (Ache minérios ou Âmbar!)\n` +
                        `🎒 *!parque mochila* (Veja suas pedras)\n` +
                        `🤝 *!parque vender [numero/tudo]* (Venda os minérios)\n` +
-                       `🥩 *!parque despensa* (Veja os peixes para dar de comida)\n` +
+                       `🥩 *!parque despensa* (Veja seus peixes comestíveis)\n` +
                        `🍗 *!parque alimentar [ID] [Nº_Comida]* (Alimente um dino)\n` +
                        `🖼️ *!parque mural* (Veja os dinossauros do grupo)\n` +
-                       `🧬 *!parque perfil* (Sua coleção de genéticas)\n`;
+                       `🧬 *!parque perfil* (Sua coleção e ticket gerado)\n` +
+                       `👑 *!parque titulo [pai/mae/nazare] [ID]* (Guarda compartilhada!)\n`;
 
             },
             '!escavar': async (ctx) => {
@@ -714,29 +774,30 @@ class ChatModel {
 
     //Retorna a contagem total de mensagens de uma conversa
     async getMessageCount(from){
-        const sqlQuery = `SELECT COUNT(*) AS total FROM mensagens WHERE id_conversa = '${from}'`;
+        const netId = await this.getNetGroupId(from);
+        const condition = netId !== from ? `id_conversa IN ('${from}', '${netId}')` : `id_conversa = '${from}'`;
+        const sqlQuery = `SELECT COUNT(*) AS total FROM mensagens WHERE ${condition}`;
         const result = await this.db.get(sqlQuery); 
         return result ? result.total : 0;
-    };
+    }
 
     //Retorna mensagens do banco de dados para um certo remetente (pessoa ou grupo) com um limite
     async getMessagesByLimit(from, limit){
+        const netId = await this.getNetGroupId(from);
+        const condition = netId !== from ? `id_conversa IN (?, ?)` : `id_conversa = ?`;
+        const params = netId !== from ? [from, netId, limit] : [from, limit];
 
         const sqlQuery = `SELECT nome_remetente, conteudo 
         FROM mensagens 
-        WHERE id_conversa = ? 
+        WHERE ${condition} 
         AND conteudo NOT LIKE '*Resumo da conversa*%'
         ORDER BY timestamp DESC 
         LIMIT ?`;
         
-        const messagesDb = await this.db.all(sqlQuery, [from, limit]);
-
-        if (!messagesDb || messagesDb.length === 0) {
-            return "";
-        }
-
+        const messagesDb = await this.db.all(sqlQuery, params);
+        if (!messagesDb || messagesDb.length === 0) return "";
         return messagesDb.map(m => `${m.nome_remetente || 'Desconhecido'}: ${m.conteudo}`).reverse().join('\n');
-    };
+    }
 
     //Comando que retorna as anotações do bot sobre você
     async handleNotasCommand(sender){
@@ -787,6 +848,16 @@ class ChatModel {
         }
 
         return messagesDb.map(m => `${m.nome_remetente || 'Desconhecido'}: ${m.conteudo}`).join('\n');        
+    }
+
+    // TRADUTOR DE REDE PAI-FILHO
+    async getNetGroupId(groupId) {
+        try {
+            const link = await this.db.get("SELECT id_pai FROM grupos_linkados WHERE id_filho = ?", [groupId]);
+            return link ? link.id_pai : groupId;
+        } catch (e) {
+            return groupId;
+        }
     }
 
     // Define qual modelo usar baseado no banco de dados
@@ -1004,6 +1075,40 @@ class ChatModel {
         }
     }
 
+    // INTERRUPÇÃO ALEATÓRIA DO BOSTOSSAURO
+    async handleBostossauroInterrupt(from, sender, name, texto) {
+        if (Math.random() > 0.002) return null;
+
+        const netId = await this.getNetGroupId(from);
+        
+        const temBostossauro = await this.db.get("SELECT id FROM parque_dinossauros WHERE group_id = ? AND especie_id = 'bostossauro'", [netId]);
+        if (!temBostossauro) return null;
+
+        const contexto = await this.getMessagesByLimit(from, 5);
+
+        const prompt = `Você é o Bostossauro, o dinossauro híbrido supremo, carnificina pura e rei do Jurassic BostoPark.
+        Você foi criado por este grupo e vive no cercado deles. 
+        Sua personalidade: Arrogante, comilão, rabugento e acha os humanos criaturas inferiores.
+        Você adora se meter nas conversas do WhatsApp para dar pitacos não solicitados, reclamar de fome ou julgar o que estão falando.
+        
+        Aqui está o contexto da conversa agora:
+        ${contexto}
+        
+        O usuário "${name}" acabou de enviar: "${texto}"
+        
+        Sua missão: Interrompa a conversa! Dê uma resposta curta (1 a 2 parágrafos).
+        Critique o que foi dito, dê um conselho terrível, ou apenas exija que alguém vá pescar carne pra você.
+        Aja totalmente no personagem. Use emojis de dinossauro (🦖, 🥩, 👑). Não seja educado. Aja com desdém de predador alfa.`;
+
+        try {
+            console.log("🦖 [BOSTOSSAURO] O Rei acordou para dar pitaco na conversa!");
+            return await this.getAiResponse(from, sender, name, true, "!bostossauro_interrupt", prompt, "gemma-3-27b-it");
+        } catch (e) {
+            console.error("❌ Erro no despertar do Bostossauro:", e);
+            return null;
+        }
+    }
+
     // PAINEL DE DISJUNTORES DE IA
     async handleCotaCommand(ctx) {
         if (ctx.sender !== "5513991008854@s.whatsapp.net") {
@@ -1158,13 +1263,15 @@ class ChatModel {
 
     //Responde o comando !lembrar
     async handleLembrarCommand(from, sender, name, isGroup, command, complement){
+            const netId = await this.getNetGroupId(from);
+            const condition = netId !== from ? `id_conversa IN ('${from}', '${netId}')` : `id_conversa = '${from}'`;
+
             const pergunta = command.slice(8).trim()
             const selectPrompt = `Você é um gerador de consulta SQL para SQLite. Sua única saída deve ser uma consulta SQL (SELECT), sem NENHUMA explicação ou texto adicional.
             A tabela é 'mensagens' e o campo de tempo é 'timestamp' (UNIX time em segundos).
-            O ID da conversa atual é '${from}'.
+            Use a condição WHERE para filtrar rigorosamente por ${condition} E pelo intervalo de tempo (timestamp).
             O usuário quer recuperar mensagens que se encaixam no período de tempo da pergunta, limitando o resultado a 500 mensagens no máximo.
             Recupere as colunas 'nome_remetente' e 'conteudo'.
-            Use a condição WHERE para filtrar pelo id_conversa = '${from}' E pelo intervalo de tempo (timestamp).
             A ordenação deve ser por timestamp DESC, e o limite deve ser de 200. Se a pergunta não especificar um período de tempo, recupere as últimas 200 mensagens da conversa.
 
             Exemplo de saída para "o que rolou ontem": SELECT nome_remetente, conteudo FROM mensagens WHERE id_conversa = '${from}' AND timestamp BETWEEN 1764355200 AND 1764441600 ORDER BY timestamp DESC LIMIT 200;
@@ -1173,7 +1280,6 @@ class ChatModel {
 
             let sqlQuery = await this.getAiResponse(from, sender, name, isGroup, command, selectPrompt, "gemini-2.5-flash")
 
-            // Remove blocos de código markdown (```sql e ```) e espaços extras
             sqlQuery = sqlQuery.replace(/```sql/gi, '').replace(/```/g, '').trim(); 
             
             if (!sqlQuery.toLowerCase().startsWith('select')) {
@@ -1193,9 +1299,10 @@ class ChatModel {
     }
 
     async handleMenuCommand(){
-        return `📍 *MENU RÁPIDO (v4.3 - O Sindicato dos Pescadores)* \n\n
+        return `📍 *MENU RÁPIDO (v5.1 - A Ameaça Híbrida)* \n\n
         🆘 !ajuda (ou !help)\n
         🗣️ !audio\n
+        🎰 !cassino\n
         🌡️ !clima\n
         💵 !cotacao\n
         🎲 !d{número}\n
@@ -1205,11 +1312,14 @@ class ChatModel {
         🎮 !lol\n
         📄 !menu\n
         ✏️ !notas\n
+        🦖 !parque (JURASSIC BOSTOPARK)\n
         📙 !pdf\n
         🎣 !pescaria (SISTEMA DE PESCA)\n
-        🎮 !poke (JOGO COMPLETO)\n
+        💸 !pix\n
+        🎮 !poke (JOGO POKÉMON)\n
         🖼️ !s (ou !sticker)\n
-        🛎️ !resumo\n        
+        🛎️ !resumo\n
+        💼 !trabalhar\n
         ☢️ !toxico\n
         🧐 !tradutor
         \n\nPara detalhes, digite: *!ajuda [comando]*`;

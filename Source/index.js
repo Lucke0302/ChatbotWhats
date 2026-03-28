@@ -577,7 +577,6 @@ async function initDatabase() {
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             group_id TEXT NOT NULL,
             especie_id TEXT NOT NULL,
-            descobridor_nome TEXT NOT NULL,
             nivel INTEGER DEFAULT 1,
             xp_atual INTEGER DEFAULT 0,
             data_descoberta INTEGER
@@ -587,25 +586,46 @@ async function initDatabase() {
 
     try {
         await db.exec(`ALTER TABLE parque_dinossauros ADD COLUMN reserva_comida REAL DEFAULT 0;`);
-        console.log("✅ Coluna 'parque_data' adicionada com sucesso!");
+        console.log("✅ Coluna 'reserva_comida' adicionada com sucesso!");
     } catch (error) {
         if (!error.message.includes("duplicate column name")) console.error(error.message);
     }
 
     try {
         await db.exec(`ALTER TABLE parque_dinossauros ADD COLUMN ultimo_level_up INTEGER DEFAULT 0;`);
-        console.log("✅ Coluna 'parque_data' adicionada com sucesso!");
+        console.log("✅ Coluna 'ultimo_level_up' adicionada com sucesso!");
     } catch (error) {
         if (!error.message.includes("duplicate column name")) console.error(error.message);
     }
 
-        try {
-        await db.exec(`ALTER TABLE parque_dinossauros ADD COLUMN reserva_comida REAL DEFAULT 0;`);
-        console.log("✅ Coluna 'parque_data' adicionada com sucesso!");
+    try {
+        await db.exec(`ALTER TABLE parque_dinossauros ADD COLUMN cor TEXT DEFAULT 'Padrão';`);
+        console.log("✅ Coluna 'cor' adicionada com sucesso!");
     } catch (error) {
         if (!error.message.includes("duplicate column name")) console.error(error.message);
     }
-    
+
+    try {
+        await db.exec(`ALTER TABLE parque_dinossauros ADD COLUMN descobridor_id TEXT DEFAULT '';`);
+        console.log("✅ Coluna 'descobridor_id' adicionada com sucesso!");
+    } catch (error) {
+        if (!error.message.includes("duplicate column name")) console.error(error.message);
+    }
+
+    try {
+        await db.exec(`ALTER TABLE parque_dinossauros ADD COLUMN multiplicador_bilheteria REAL DEFAULT 1.0;`);
+        console.log("✅ Coluna 'multiplicador_bilheteria' adicionada com sucesso!");
+    } catch (error) {
+        if (!error.message.includes("duplicate column name")) console.error(error.message);
+    }
+
+    await db.exec(`
+        CREATE TABLE IF NOT EXISTS grupos_linkados (
+            id_filho TEXT PRIMARY KEY,
+            id_pai TEXT NOT NULL
+        );
+    `);
+    console.log("✅ Tabela 'grupos_linkados' verificada.");    
 
     console.log('✅ Banco de dados SQLite inicializado e tabelas verificadas.');
 }
@@ -721,6 +741,12 @@ const botCommands = {
     },
     '!escavar': {
         emoji: '⛏️'
+    },
+    '!link': {
+        emoji: '🔗'
+    },
+    '!unlink': {
+        emoji: '⛓️‍💥'
     },
 };
 
@@ -1512,6 +1538,13 @@ async function connectToWhatsApp() {
                 }
                 if (isGroup && chatbot.isOnline && command.includes('aura')) {
                     await sendSticker(sock, db, from, msg, [sender], texto);
+                }
+
+                if (isGroup && chatbot.isOnline && texto && !texto.startsWith("!")) {
+                    const bostossauroResponse = await chatbot.handleBostossauroInterrupt(from, sender, name, texto);
+                    if (bostossauroResponse) {
+                        await sendAndSave(sock, db, from, bostossauroResponse, msg, [sender]);
+                    }
                 }
             }catch (error) {
                 await handleBotError(error, replyToUser, contextObj);

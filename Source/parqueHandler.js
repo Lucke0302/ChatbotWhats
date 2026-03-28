@@ -106,10 +106,123 @@ const DINO_CATALOG = {
     'quetzalcoatlus': { name: 'Quetzalcoatlus', emoji: '🦅', rarity: 'lendario', base_xp_req: 1900, ticket_value: 700 },
     'argentinosaurus': { name: 'Argentinosaurus', emoji: '🦕', rarity: 'lendario', base_xp_req: 3000, ticket_value: 950 },
 
-    // SECRETOS
-    'indominus': { name: 'Indominus Rex', emoji: '🧬', rarity: 'mitico', base_xp_req: 5000, ticket_value: 1500 },
-    'indoraptor': { name: 'Indoraptor', emoji: '🖤', rarity: 'mitico', base_xp_req: 5500, ticket_value: 1100 },
-    'scorpios': { name: 'Scorpios Rex', emoji: '🦂', rarity: 'mitico', base_xp_req: 5200, ticket_value: 1050 },
+    // ------------- HÍBRIDOS ------------------- //
+
+    // HÍBRIDOS COMUNS
+    'compsograptor': { 
+        name: 'Compsograptor', emoji: '🦎', rarity: 'comum', 
+        base_xp_req: 440, ticket_value: 240, 
+        receita: ['compsognathus', 'oviraptor'] 
+    },
+    'herrerapsitacus': { 
+        name: 'Herrerapsitacus', emoji: '🦖', rarity: 'comum', 
+        base_xp_req: 530, ticket_value: 320, 
+        receita: ['psittacosaurus', 'herrerasaurus'] 
+    },
+    'dodognathus': { 
+        name: 'Dodognathus', emoji: '🦎', rarity: 'comum', 
+        base_xp_req: 400, ticket_value: 200, 
+        receita: ['compsognathus', 'dodo'] 
+    },
+    'galliraptor': { 
+        name: 'Galliraptor', emoji: '🦖', rarity: 'comum', 
+        base_xp_req: 460, ticket_value: 260, 
+        receita: ['gallimimus', 'oviraptor'] 
+    },
+    'micropsittaco': { 
+        name: 'Micropsittaco', emoji: '🦎', rarity: 'comum', 
+        base_xp_req: 430, ticket_value: 220, 
+        receita: ['microceratus', 'psittacosaurus'] 
+    },
+    'trooherrera': { 
+        name: 'Trooherrera Zoiudo', emoji: '👀', rarity: 'comum', 
+        base_xp_req: 540, ticket_value: 340, 
+        receita: ['troodon', 'herrerasaurus'] 
+    },
+
+    // HÍBRIDOS INCOMUNS
+    'pachydilo': { 
+        name: 'Pachydilophosaurus', emoji: '🦕', rarity: 'incomum', 
+        base_xp_req: 1060, ticket_value: 670, 
+        receita: ['pachycephalosaurus', 'dilophosaurus'] 
+    },
+    'protostygi': { 
+        name: 'Protostygimoloch', emoji: '🦏', rarity: 'incomum', 
+        base_xp_req: 1040, ticket_value: 650, 
+        receita: ['protoceratops', 'stygimoloch'] 
+    },
+    'iguano-coritho': { 
+        name: 'Iguanocorythosaurus', emoji: '🦖', rarity: 'incomum', 
+        base_xp_req: 1200, ticket_value: 900, 
+        receita: ['iguanodon', 'corythosaurus'] 
+    },
+    'para-kentro': { 
+        name: 'Parakentrosaurus', emoji: '🦔', rarity: 'incomum', 
+        base_xp_req: 1260, ticket_value: 1040, 
+        receita: ['parasaurolophus', 'kentrosaurus'] 
+    },
+
+    // HÍBRIDOS SECRETOS
+    'stegoceratops': { 
+        name: 'Stegoceratops', emoji: '🦏', rarity: 'secreto', 
+        base_xp_req: 2440, ticket_value: 1700, 
+        receita: ['stegosaurus', 'triceratops'] 
+    },
+    'ankylodocus': { 
+        name: 'Ankylodocus', emoji: '🦕', rarity: 'secreto', 
+        base_xp_req: 6100, ticket_value: 2400, 
+        receita: ['ankylosaurus', 'diplodocus'] 
+    },
+    'carnoraptor': { 
+        name: 'Carnoraptor', emoji: '🐊', rarity: 'secreto', 
+        base_xp_req: 1860, ticket_value: 1300, 
+        receita: ['carnotaurus', 'velociraptor'] 
+    },
+    'spinoraptor': { 
+        name: 'Spinoraptor', emoji: '🦈', rarity: 'secreto', 
+        base_xp_req: 4900, ticket_value: 2100, 
+        receita: ['spinosaurus', 'velociraptor'] 
+    },
+    'pachygalosaurus': { 
+        name: 'Pachygalosaurus', emoji: '🏃‍♂️', rarity: 'secreto', 
+        base_xp_req: 740, ticket_value: 440, 
+        receita: ['pachycephalosaurus', 'gallimimus'] 
+    },
+    'allonodon': { 
+        name: 'Allonodon', emoji: '🦅', rarity: 'secreto', 
+        base_xp_req: 2560, ticket_value: 2040, 
+        receita: ['allosaurus', 'pteranodon'] 
+    },
+    'giganotoceratops': { 
+        name: 'Giganotoceratops', emoji: '🌋', rarity: 'secreto', 
+        base_xp_req: 5800, ticket_value: 2600, 
+        receita: ['giganotosaurus', 'triceratops'] 
+    },
+    'therizinoraptor': { 
+        name: 'Therizinoraptor', emoji: '🔪', rarity: 'secreto', 
+        base_xp_req: 4700, ticket_value: 1800, 
+        receita: ['therizinosaurus', 'velociraptor'] 
+    },
+    'scorpios': { 
+        name: 'Scorpios Rex', emoji: '🦂', rarity: 'secreto', 
+        base_xp_req: 5360, ticket_value: 2100, 
+        receita: ['t_rex', 'carnotaurus'] 
+    },
+    'indominus': { 
+        name: 'Indominus Rex', emoji: '🧬', rarity: 'secreto', 
+        base_xp_req: 4500, ticket_value: 2300, 
+        receita: ['t_rex', 'velociraptor'] 
+    },
+    'indoraptor': { 
+        name: 'Indoraptor', emoji: '🖤', rarity: 'secreto', 
+        base_xp_req: 21000, ticket_value: 2500, 
+        receita: ['indominus', 'velociraptor'] 
+    },
+    'bostossauro': { 
+        name: 'Bostossauro', emoji: '👑', rarity: 'secreto', 
+        base_xp_req: 100000, ticket_value: 5000, 
+        receita: ['indominus', 'indoraptor', 'scorpios', 'stegoceratops', 'ankylodocus', 'carnoraptor', 'spinoraptor', 'pachygalosaurus', 'allonodon', 'giganotoceratops', 'therizinoraptor'] 
+    }
 };
 
 class ParqueHandler {
@@ -136,27 +249,131 @@ class ParqueHandler {
             try { data = JSON.parse(user.parque_data); } catch (e) { data = {}; }
         }
 
-        const now = Math.floor(Date.now() / 1000);
-
+        // Agora o player salva apenas a mochila de minérios, a estamina fica lá em financas.last_bico
         let player = {
-            inventory: data.inventory || {},
-            shovels: data.shovels !== undefined ? data.shovels : MAX_SHOVELS,
-            last_regen: data.last_regen || now
+            inventory: data.inventory || {}
         };
 
-        if (player.shovels < MAX_SHOVELS) {
-            const timePassed = now - player.last_regen;
-            const generated = Math.floor(timePassed / SHOVEL_REGEN_SECONDS);
-            
-            if (generated > 0) {
-                player.shovels = Math.min(MAX_SHOVELS, player.shovels + generated);
-                player.last_regen += generated * SHOVEL_REGEN_SECONDS;
+        return player;
+    }
+
+    // PERFIL DO JOGADOR
+    async verPerfilParque(userId, userTag) {
+        const dinos = await this.db.all("SELECT * FROM parque_dinossauros WHERE descobridor_id LIKE ? ORDER BY nivel DESC, multiplicador_bilheteria DESC", ['%' + userId + '%']);
+        
+        const player = await this.getPlayerData(userId);
+        const inv = player.inventory || {};
+        let totalMinerais = 0;
+        let valorEstimadoMochila = 0;
+        
+        Object.entries(inv).forEach(([id, qtd]) => {
+            if (qtd > 0) {
+                totalMinerais += qtd;
+                const minInfo = MINERAL_CATALOG.find(m => m.id === id);
+                if (minInfo) valorEstimadoMochila += (minInfo.value * qtd);
             }
+        });
+
+        let financas = await this.casinoHandler.processFinancas(userId);
+        const titulo = financas.titulo ? `\n🏷️ *Título:* ${financas.titulo}` : "";
+
+        let msg = `${userTag}🦕 **CREDENCIAL DA INGEN** 🦕${titulo}\n\n`;
+
+        msg += `🎒 **Resumo da Mochila:**\n`;
+        if (totalMinerais > 0) {
+            msg += `⛏️ Pedras escavadas: **${totalMinerais}**\n`;
+            msg += `💰 Valor estimado: 🪙 **${valorEstimadoMochila}**\n`;
+            msg += `_(Use !parque mochila para ver o inventário completo)_\n\n`;
         } else {
-            player.last_regen = now;
+            msg += `_Sua mochila está vazia. Pegue a picareta e vá trabalhar!_\n\n`;
         }
 
-        return player;
+        if (!dinos || dinos.length === 0) {
+            msg += `🦴 **Expedições:**\n_Você ainda não clonou nenhum dinossauro para o parque. O John Hammond está decepcionado com você!_`;
+            return msg;
+        }
+
+        const totalEspecies = Object.keys(DINO_CATALOG).length;
+        let multiplicadorTotal = 0;
+        dinos.forEach(d => multiplicadorTotal += (d.multiplicador_bilheteria || 1));
+
+        msg += `🧬 **DNA & CLONAGEM:**\n`;
+        msg += `🦕 Espécies Descobertas: **${dinos.length}/${totalEspecies}**\n`;
+        msg += `🎟️ Bônus de Bilheteria Injetado no Grupo: **+${multiplicadorTotal.toFixed(2)}x**\n\n`;
+
+        msg += `🌟 **SEUS MELHORES DINOSSAUROS:**\n`;
+        
+        const topDinos = dinos.slice(0, 5);
+        topDinos.forEach(d => {
+            const dinoInfo = DINO_CATALOG[d.especie_id];
+            if (dinoInfo) {
+                const classe = this.getClasseDino(d.nivel);
+                msg += `${dinoInfo.emoji} **${dinoInfo.name}** (Nvl ${d.nivel} - ${classe})\n`;
+                msg += `   🎨 Cor: _${d.cor}_ (Ticket: ${d.multiplicador_bilheteria.toFixed(2)}x)\n`;
+            }
+        });
+
+        if (dinos.length > 5) {
+            msg += `\n_...e mais ${dinos.length - 5} dinossauros que estão pastando pelo parque._`;
+        }
+
+        return msg;
+    }
+
+    // REGISTRO PARENTAL
+    async handleTitulosParque(userId, userTag, paramStr) {
+        const dinos = await this.db.all("SELECT DISTINCT especie_id FROM parque_dinossauros WHERE descobridor_id LIKE ?", ['%' + userId + '%']);
+        
+        if (!dinos || dinos.length === 0) {
+            return `${userTag} 🚫 Você ainda não descobriu nenhum dinossauro! Ache um Âmbar na escavação ou pescaria antes de ir ao conselho tutelar.`;
+        }
+
+        if (!paramStr || paramStr.trim() === '') {
+            let msg = `${userTag}👑 **CARTÓRIO PARENTAL JURÁSSICO** 👑\n_Reivindique a guarda das feras que você trouxe à vida!_\n\n`;
+            msg += `**Seus filhos legítimos disponíveis:**\n`;
+            dinos.forEach(d => {
+                const info = DINO_CATALOG[d.especie_id];
+                if (info) msg += `- ${info.emoji} ${info.name} (ID: *${d.especie_id}*)\n`;
+            });
+            msg += `\n📌 **Como registrar a criança:**\n*!parque titulo [pai/mae/nazare] [id_do_dino]*\n`;
+            msg += `_Ex: !parque titulo pai t_rex_\n\n`;
+            msg += `🧹 Para remover a guarda: *!parque titulo remover*`;
+            return msg;
+        }
+
+        const args = paramStr.trim().split(/\s+/);
+        const prefixoRaw = args[0].toLowerCase();
+
+        if (prefixoRaw === 'remover') {
+            let financas = await this.casinoHandler.processFinancas(userId);
+            financas.titulo = null;
+            await this.db.run("UPDATE usuarios SET financas = ? WHERE id_usuario = ?", [JSON.stringify(financas), userId]);
+            return `${userTag}🧹 Título removido. Você foi comprar cigarro e abandonou a família jurássica.`;
+        }
+
+        if (args.length < 2) return `${userTag} ⚠️ Faltou o ID do dinossauro. Ex: *!parque titulo mae iguanodon*`;
+
+        const dinoId = args[1].toLowerCase();
+        const discoveredIds = dinos.map(d => d.especie_id);
+        
+        if (!discoveredIds.includes(dinoId)) {
+            return `${userTag} ❌ Você não tem os direitos de descoberta sobre a espécie *${dinoId}*! Tentando roubar o filho dos outros, é?`;
+        }
+
+        let prefixoOficial = "";
+        if (prefixoRaw === 'pai') prefixoOficial = "Pai";
+        else if (prefixoRaw === 'mae' || prefixoRaw === 'mãe') prefixoOficial = "Mãe";
+        else if (prefixoRaw === 'nazare' || prefixoRaw === 'nazaré') prefixoOficial = "Nazaré Tedesco";
+        else return `${userTag} ⚠️ Parentesco inválido! Escolha entre: *pai, mae* ou *nazare*.`;
+
+        const dinoInfo = DINO_CATALOG[dinoId];
+        const novoTitulo = `${prefixoOficial} de ${dinoInfo.name} ${dinoInfo.emoji}`;
+
+        let financas = await this.casinoHandler.processFinancas(userId);
+        financas.titulo = novoTitulo;
+        await this.db.run("UPDATE usuarios SET financas = ? WHERE id_usuario = ?", [JSON.stringify(financas), userId]);
+
+        return `${userTag}👩‍👦 **CERTIDÃO DE NASCIMENTO EMITIDA!**\nVocê assumiu a guarda do dinossauro! Seu novo título global agora é: **${novoTitulo}**`;
     }
 
     // MOCHILA DE ESCAVAÇÃO
@@ -187,7 +404,7 @@ class ParqueHandler {
     }
 
     // VENDER MINERAIS
-    async venderMinerais(userId, userTag, itemIndexStr) {
+    async venderMinerais(userId, userTag, itemIndexStr, qtdStr) {
         const player = await this.getPlayerData(userId);
         const inv = player.inventory || {};
         const items = Object.entries(inv).filter(([id, qtd]) => qtd > 0);
@@ -212,16 +429,28 @@ class ParqueHandler {
         else {
             const index = parseInt(itemIndexStr) - 1;
             if (isNaN(index) || index < 0 || index >= items.length) {
-                return `${userTag} ⚠️ Número inválido! Verifique o número na sua *!parque mochila*.`;
+                return `${userTag} ⚠️ Número inválido! Verifique o número na sua *!parque mochila*.\nEx: _!parque vender 1 5_`;
             }
 
-            const [id, qtd] = items[index];
+            const [id, qtdTotal] = items[index];
             const minInfo = MINERAL_CATALOG.find(m => m.id === id);
             
+            let qtdParaVender = qtdTotal;
+            if (qtdStr) {
+                const parsedQtd = parseInt(qtdStr);
+                if (!isNaN(parsedQtd) && parsedQtd > 0) {
+                    qtdParaVender = Math.min(parsedQtd, qtdTotal);
+                }
+            }
+            
             if (minInfo) {
-                totalVendido = minInfo.value * qtd;
-                msg += `- Vendido ${qtd}x ${minInfo.emoji} ${minInfo.name}\n`;
-                delete player.inventory[id];
+                totalVendido = minInfo.value * qtdParaVender;
+                msg += `- Vendido ${qtdParaVender}x ${minInfo.emoji} ${minInfo.name}\n`;
+                
+                player.inventory[id] -= qtdParaVender;
+                if (player.inventory[id] <= 0) {
+                    delete player.inventory[id];
+                }
             }
         }
 
@@ -246,7 +475,7 @@ class ParqueHandler {
             if (!dinoInfo) continue;
 
             if (d.reserva_comida > 0) {
-                const xpNecessarioProLevel = Math.pow(d.nivel, 2) * dinoInfo.base_xp_req * 10;
+                const xpNecessarioProLevel = 2 * d.nivel * dinoInfo.base_xp_req;
                 const faltaProLevel = xpNecessarioProLevel - d.xp_atual;
                 
                 if (d.reserva_comida >= faltaProLevel) {
@@ -399,11 +628,11 @@ class ParqueHandler {
         else if (roll < 50) rarity = 'incomum';
 
         let especiesDisponiveis = Object.entries(DINO_CATALOG)
-            .filter(([id, info]) => info.rarity === rarity && !idsDescobertos.includes(id));
+            .filter(([id, info]) => info.rarity === rarity && !idsDescobertos.includes(id) && !info.receita);
 
         if (especiesDisponiveis.length === 0) {
             especiesDisponiveis = Object.entries(DINO_CATALOG)
-                .filter(([id, info]) => !idsDescobertos.includes(id));
+                .filter(([id, info]) => !idsDescobertos.includes(id) && !info.receita);
         }
 
         if (especiesDisponiveis.length === 0) {
@@ -422,15 +651,14 @@ class ParqueHandler {
 
         let coresEscolhidas = [];
         let coresNomes = [];
-        let multiplicadorTotal = 1.0;
-
+        let multiplicadorTotal = 0;
         let coresTemp = [...DINO_COLORS];
         for (let i = 0; i < qtdCores; i++) {
             const index = Math.floor(Math.random() * coresTemp.length);
             const cor = coresTemp.splice(index, 1)[0];
             coresEscolhidas.push(cor);
             coresNomes.push(`${cor.emoji} ${cor.name}`);
-            multiplicadorTotal *= cor.mult;
+            multiplicadorTotal += cor.mult;
         }
 
         const corString = coresNomes.join(" e ");
@@ -442,7 +670,7 @@ class ParqueHandler {
             [groupId, dinoId, userName, userId, now, corString, multiplicadorTotal]
         );
 
-        const profitResult = await this.casinoHandler.verifyProfit(userId, dinoInfo.ticket_value * 10);
+        const profitResult = await this.casinoHandler.verifyProfit(userId, dinoInfo.ticket_value);
         await this.db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [profitResult.finalProfit, userId]);
 
         let msg = `🦟 **UM MOSQUITO NO ÂMBAR!** 🦟\n_A sirene da InGen tocou e os helicópteros chegaram!_\n\n`;
@@ -450,15 +678,94 @@ class ParqueHandler {
         msg += `🧬 **MUTAÇÃO GENÉTICA (${qtdCores} Cores):**\n`;
         msg += `🎨 Padrão: ${corString}\n`;
         msg += `🎟️ Bônus de Bilheteria: **${multiplicadorTotal.toFixed(2)}x**\n\n`;
-        msg += `💰 A InGen te pagou uma recompensa de 🪙 **${dinoInfo.ticket_value * 10} Bostocoins** pelo DNA raro!${profitResult.msg}\n\n`;
+        msg += `💰 A InGen te pagou uma recompensa de 🪙 **${dinoInfo.ticket_value} Bostocoins** pelo DNA raro!${profitResult.msg}\n\n`;
         msg += `💡 _Use *!parque mural* para ver o bicho na jaula e *!pescar* para arrumar comida pra ele!_`;
+
+        const hibridoExtra = await this.verificarHibridos(groupId);
+        if (hibridoExtra) msg += hibridoExtra;
         
         return msg;
     }
 
+    // LABORATÓRIO GENÉTICO
+    async verificarHibridos(groupId) {
+        let msgHibrido = "";
+        const dinosNoParque = await this.db.all("SELECT * FROM parque_dinossauros WHERE group_id = ?", [groupId]);
+        const especiesNoParque = dinosNoParque.map(d => d.especie_id);
+
+        for (const [hibridoId, hibridoInfo] of Object.entries(DINO_CATALOG)) {
+            if (!hibridoInfo.receita) continue; 
+            if (especiesNoParque.includes(hibridoId)) continue;
+
+            const temTodos = hibridoInfo.receita.every(paiId => especiesNoParque.includes(paiId));
+            
+            if (temTodos) {
+                const pais = dinosNoParque.filter(d => hibridoInfo.receita.includes(d.especie_id));
+                
+                let somaNiveis = 0;
+                let descobridoresNomes = new Set();
+                let descobridoresIds = new Set();
+
+                pais.forEach(p => {
+                    somaNiveis += p.nivel;
+                    descobridoresNomes.add(p.descobridor_nome);
+                    descobridoresIds.add(p.descobridor_id);
+                });
+
+                const nivelHibrido = Math.max(1, Math.floor(somaNiveis / pais.length));
+                const nomeAutores = Array.from(descobridoresNomes).join(" & ");
+                
+                let idsFormatados = [];
+                Array.from(descobridoresIds).forEach(id => {
+                    idsFormatados.push(...id.split(','));
+                });
+                idsFormatados = [...new Set(idsFormatados)];
+                const idSalvamento = idsFormatados.join(',');
+
+                let coresHibrido = [];
+                let coresMultiplicador = 0;
+                let coresTemp = [...DINO_COLORS];
+                for (let i = 0; i < 3; i++) {
+                    const index = Math.floor(Math.random() * coresTemp.length);
+                    const cor = coresTemp.splice(index, 1)[0];
+                    coresHibrido.push(`${cor.emoji} ${cor.name}`);
+                    coresMultiplicador += cor.mult;
+                }
+                const corString = coresHibrido.join(" e ");
+
+                const now = Math.floor(Date.now() / 1000);
+                await this.db.run(`
+                    INSERT INTO parque_dinossauros (group_id, especie_id, descobridor_nome, descobridor_id, nivel, xp_atual, data_descoberta, reserva_comida, ultimo_level_up, cor, multiplicador_bilheteria)
+                    VALUES (?, ?, ?, ?, ?, 0, ?, 0, 0, ?, ?)`,
+                    [groupId, hibridoId, nomeAutores, idSalvamento, nivelHibrido, now, corString, coresMultiplicador]
+                );
+
+                const recompensaIndividual = Math.floor(hibridoInfo.ticket_value / idsFormatados.length);
+                for (const uid of idsFormatados) {
+                    await this.db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [recompensaIndividual, uid]);
+                }
+
+                msgHibrido += `\n\n🚨 **ALERTA DE SEGURANÇA MÁXIMA DA INGEN!** 🚨\n`;
+                msgHibrido += `O cruzamento de DNA no parque de vocês gerou uma mutação agressiva no laboratório!\n\n`;
+                msgHibrido += `🧬 **NOVO HÍBRIDO SINTETIZADO:** ${hibridoInfo.emoji} **${hibridoInfo.name}**\n`;
+                msgHibrido += `📈 **Poder Inicial:** Nível ${nivelHibrido} _(Média da força das matrizes)_\n`;
+                msgHibrido += `👥 **Criadores:** ${nomeAutores}\n`;
+                msgHibrido += `💰 **Royalties InGen:** 🪙 ${recompensaIndividual} Bostocoins para cada criador!\n`;
+                
+                if (hibridoId === 'bostossauro') {
+                    msgHibrido += `\n👑 **O REI DESPERTOU!** O Bostossauro supremo nasceu... Rezemos por misericórdia.\n`;
+                }
+
+                especiesNoParque.push(hibridoId);
+                dinosNoParque.push({ especie_id: hibridoId, nivel: nivelHibrido, descobridor_nome: nomeAutores, descobridor_id: idSalvamento });
+            }
+        }
+        return msgHibrido;
+    }
+
     // MURAL GLOBAL
     async verParqueGlobal(groupId, userTag) {
-        const dinos = await this.db.all("SELECT * FROM parque_dinossauros WHERE group_id = ? ORDER BY nivel DESC, id ASC", [groupId]);
+        const dinos = await this.db.all("SELECT * FROM parque_dinossauros WHERE group_id = ? ORDER BY id ASC", [groupId]);
         
         if (!dinos || dinos.length === 0) {
             return `${userTag} 🚧 O **Jurassic BostoPark** deste grupo ainda é só um terreno baldio com mato alto. Escave e ache um âmbar para começar!`;
@@ -469,7 +776,7 @@ class ParqueHandler {
         dinos.forEach(d => {
             const dinoInfo = DINO_CATALOG[d.especie_id];
             if (dinoInfo) {
-                const xpNecessario = Math.pow(d.nivel, 2) * dinoInfo.base_xp_req * 10;
+                const xpNecessario = 2 * d.nivel * dinoInfo.base_xp_req;
                 const porcentagem = ((d.xp_atual / xpNecessario) * 100).toFixed(1);
                 const classe = this.getClasseDino(d.nivel); // <--- Puxa a classe
                 
@@ -480,33 +787,6 @@ class ParqueHandler {
         });
 
         msg += `🍗 Para alimentar um dino: *!parque alimentar [ID] [Nº Comida]*`;
-        return msg;
-    }
-
-    // PERFIL DO JOGADOR
-    async verPerfilParque(userId, userTag) {
-        const player = await this.getPlayerData(userId);
-        
-        const dinos = await this.db.all("SELECT * FROM parque_dinossauros WHERE descobridor_id = ? ORDER BY nivel DESC", [userId]);
-        
-        let msg = `${userTag}🎒 **PERFIL DE PALEONTÓLOGO** 🎒\n\n`;
-        msg += `⛏️ **Pás disponíveis:** ${player.shovels}/${MAX_SHOVELS}\n\n`;
-
-        if (!dinos || dinos.length === 0) {
-            msg += `🦴 _Você ainda não clonou nenhum dinossauro para o parque. Continue escavando!_`;
-            return msg;
-        }
-
-        msg += `🧬 **SEUS DINOSSAUROS CLONADOS:**\n_Lembre-se: Você não pode achar a mesma espécie duas vezes!_\n\n`;
-        
-        dinos.forEach(d => {
-            const dinoInfo = DINO_CATALOG[d.especie_id];
-            if (dinoInfo) {
-                const classe = this.getClasseDino(d.nivel);
-                msg += `${dinoInfo.emoji} **${dinoInfo.name}** (Nvl ${d.nivel} - ${classe}) - Cor: _${d.cor}_\n`;
-            }
-        });
-
         return msg;
     }
 
@@ -531,7 +811,7 @@ class ParqueHandler {
         const food = edibleFishes[foodIndex];
         const dinoInfo = DINO_CATALOG[dino.especie_id];
         
-        const xpNecessarioProLevel = Math.pow(dino.nivel, 2) * dinoInfo.base_xp_req * 10;
+        const xpNecessarioProLevel = 2 * dino.nivel * dinoInfo.base_xp_req;
         const now = Math.floor(Date.now() / 1000);
         
         const today = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
@@ -595,6 +875,54 @@ class ParqueHandler {
         }
 
         return msg;
+    }
+
+    // FIX DE MULTIPLICADORES DE CORES
+    async fixColorMultipliers(userTag) {
+        const dinos = await this.db.all("SELECT id, cor FROM parque_dinossauros");
+        let count = 0;
+
+        for (const dino of dinos) {
+            let novoMultiplicador = 0;
+            
+            for (const corBase of DINO_COLORS) {
+                if (dino.cor && dino.cor.includes(corBase.name)) {
+                    novoMultiplicador += corBase.mult;
+                }
+            }
+            
+            if (novoMultiplicador === 0) novoMultiplicador = 1.0;
+
+            await this.db.run("UPDATE parque_dinossauros SET multiplicador_bilheteria = ? WHERE id = ?", [novoMultiplicador, dino.id]);
+            count++;
+        }
+
+        return `${userTag} 🛠️ **MIGRAÇÃO GENÉTICA CONCLUÍDA!**\nO DNA de **${count} dinossauros** foi reescrito com sucesso.\nA bilheteria do parque acaba de sofrer uma inflação justíssima!`;
+    }
+
+    // FIX GLOBAL DE HÍBRIDOS RETROATIVOS 
+    async fixHibridosGlobais(userTag, sock) {
+        const grupos = await this.db.all("SELECT DISTINCT group_id FROM parque_dinossauros");
+        let gruposAfetados = 0;
+
+        for (const grupo of grupos) {
+            const hibridosNovos = await this.verificarHibridos(grupo.group_id);
+
+            if (hibridosNovos && hibridosNovos.trim() !== "") {
+                gruposAfetados++;
+                
+                if (sock) {
+                    try {
+                        await sock.sendMessage(grupo.group_id, { text: hibridosNovos });
+                        await new Promise(resolve => setTimeout(resolve, 1500)); 
+                    } catch(e) {
+                        console.error("Erro ao avisar grupo sobre o fix de híbrido:", e);
+                    }
+                }
+            }
+        }
+
+        return `${userTag} 🛠️ **VARREDURA GENÉTICA CONCLUÍDA!**\nA InGen revirou os parques e ativou mutações adormecidas em **${gruposAfetados} grupos**.\nOs alarmes tocaram e os dinossauros já estão nas jaulas!`;
     }
 }
 

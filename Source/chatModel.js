@@ -86,6 +86,23 @@ class ChatModel {
             '!timeout': async (ctx) => {
                 return await this.handleTimeoutCommand(ctx.name, ctx.command, ctx.sender, ctx.isGroup, ctx.mentions);
             },
+            '!link': async (ctx) => {
+                if (ctx.sender !== "5513991008854@s.whatsapp.net") return "🚫 Apenas o arquiteto da Matrix pode unir dimensões.";
+                const args = ctx.command.trim().split(/\s+/);
+                if (args.length < 2) return "⚠️ Uso: *!link [id_do_grupo_pai]*\n_(Use !id no grupo principal para pegar o código)_";
+                
+                const parentId = args[1];
+                if (!ctx.isGroup) return "⚠️ Este comando deve ser usado dentro do grupo que será o *filho*.";
+                if (parentId === ctx.from) return "⚠️ Você não pode linkar o grupo nele mesmo, gênio.";
+
+                await this.db.run("INSERT OR REPLACE INTO grupos_linkados (id_filho, id_pai) VALUES (?, ?)", [ctx.from, parentId]);
+                return `🔗 **LINK DIMENSIONAL ESTABELECIDO!**\nEste grupo agora é uma filial do grupo oficial (\`${parentId}\`).\nA IA, o Parque e a Pescaria agora compartilham a mesma linha do tempo!`;
+            },
+            '!unlink': async (ctx) => {
+                if (ctx.sender !== "5513991008854@s.whatsapp.net") return "🚫 Acesso negado.";
+                await this.db.run("DELETE FROM grupos_linkados WHERE id_filho = ?", [ctx.from]);
+                return "💔 **LINK QUEBRADO.** Este grupo voltou a ser independente e isolado.";
+            },
             '!debug_grupo': async (ctx) => {
                 const tag = await this.pokemonHandler.getUserTag(ctx.sender);
                 if (ctx.sender !== "5513991008854@s.whatsapp.net") return "🔒 Privilégio de Admin.";
@@ -327,6 +344,8 @@ class ChatModel {
                 const args = ctx.command.trim().split(/\s+/);
                 const subCommand = args[1]?.toLowerCase();
 
+                const netGroupId = await this.getNetGroupId(ctx.from);
+
                 if (subCommand === 'acelerar') {
                     if (ctx.sender !== "5513991008854@s.whatsapp.net") {
                         return "🚫 Apenas o Deus do Tempo pode usar isso.";
@@ -361,11 +380,13 @@ class ChatModel {
                 }
 
                 if (subCommand === 'trofeus') {
-                    return await this.pescariaHandler.getTrofeusGrupo(ctx.from, tag);
+                    return await this.pescariaHandler.getTrofeusGrupo(netGroupId, tag);
                 }
-
                 if (subCommand === 'ranking') {
-                    return await this.pescariaHandler.getRanking(ctx.from, tag);
+                    return await this.pescariaHandler.getRanking(netGroupId, tag);
+                }
+                if (subCommand === 'topgrupo') {
+                    return await this.pescariaHandler.getTopGrupoPorRaridade(netGroupId, tag);
                 }
                 
                 if (subCommand === 'perfil' || subCommand === 'inventario') {
@@ -383,10 +404,6 @@ class ChatModel {
                     return await this.pescariaHandler.getTopPessoal(ctx.sender, tag);
                 }
 
-                if (subCommand === 'topgrupo') {
-                    return await this.pescariaHandler.getTopGrupoPorRaridade(ctx.from, tag);
-                }
-
                 if (subCommand === 'titulo' || subCommand === 'titulos') {
                     const action = args[2]?.toLowerCase();
                     const param = args[3];
@@ -399,6 +416,8 @@ class ChatModel {
                 const tag = await this.pokemonHandler.getUserTag(ctx.sender);
                 const args = ctx.command.trim().split(/\s+/);
                 const subCommand = args[1]?.toLowerCase();
+
+                const netGroupId = await this.getNetGroupId(ctx.from);
 
                 if (subCommand === 'fixcolormult') {
                     if (ctx.sender !== "5513991008854@s.whatsapp.net") {
@@ -416,11 +435,11 @@ class ChatModel {
                 }
 
                 if (subCommand === 'alimentar') {
-                    return await this.parqueHandler.alimentarDino(ctx.sender, tag, ctx.from, args[2], args[3]);
+                    return await this.parqueHandler.alimentarDino(ctx.sender, tag, netGroupId, args[2], args[3]);
                 }
 
                 if (subCommand === 'mural' || subCommand === 'lista') {
-                    return await this.parqueHandler.verParqueGlobal(ctx.from, tag);
+                    return await this.parqueHandler.verParqueGlobal(netGroupId, tag);
                 }
 
                 if (subCommand === 'perfil') {
@@ -747,29 +766,30 @@ class ChatModel {
 
     //Retorna a contagem total de mensagens de uma conversa
     async getMessageCount(from){
-        const sqlQuery = `SELECT COUNT(*) AS total FROM mensagens WHERE id_conversa = '${from}'`;
+        const netId = await this.getNetGroupId(from);
+        const condition = netId !== from ? `id_conversa IN ('${from}', '${netId}')` : `id_conversa = '${from}'`;
+        const sqlQuery = `SELECT COUNT(*) AS total FROM mensagens WHERE ${condition}`;
         const result = await this.db.get(sqlQuery); 
         return result ? result.total : 0;
-    };
+    }
 
     //Retorna mensagens do banco de dados para um certo remetente (pessoa ou grupo) com um limite
     async getMessagesByLimit(from, limit){
+        const netId = await this.getNetGroupId(from);
+        const condition = netId !== from ? `id_conversa IN (?, ?)` : `id_conversa = ?`;
+        const params = netId !== from ? [from, netId, limit] : [from, limit];
 
         const sqlQuery = `SELECT nome_remetente, conteudo 
         FROM mensagens 
-        WHERE id_conversa = ? 
+        WHERE ${condition} 
         AND conteudo NOT LIKE '*Resumo da conversa*%'
         ORDER BY timestamp DESC 
         LIMIT ?`;
         
-        const messagesDb = await this.db.all(sqlQuery, [from, limit]);
-
-        if (!messagesDb || messagesDb.length === 0) {
-            return "";
-        }
-
+        const messagesDb = await this.db.all(sqlQuery, params);
+        if (!messagesDb || messagesDb.length === 0) return "";
         return messagesDb.map(m => `${m.nome_remetente || 'Desconhecido'}: ${m.conteudo}`).reverse().join('\n');
-    };
+    }
 
     //Comando que retorna as anotações do bot sobre você
     async handleNotasCommand(sender){
@@ -820,6 +840,16 @@ class ChatModel {
         }
 
         return messagesDb.map(m => `${m.nome_remetente || 'Desconhecido'}: ${m.conteudo}`).join('\n');        
+    }
+
+    // TRADUTOR DE REDE PAI-FILHO
+    async getNetGroupId(groupId) {
+        try {
+            const link = await this.db.get("SELECT id_pai FROM grupos_linkados WHERE id_filho = ?", [groupId]);
+            return link ? link.id_pai : groupId;
+        } catch (e) {
+            return groupId;
+        }
     }
 
     // Define qual modelo usar baseado no banco de dados
@@ -1191,13 +1221,15 @@ class ChatModel {
 
     //Responde o comando !lembrar
     async handleLembrarCommand(from, sender, name, isGroup, command, complement){
+            const netId = await this.getNetGroupId(from);
+            const condition = netId !== from ? `id_conversa IN ('${from}', '${netId}')` : `id_conversa = '${from}'`;
+
             const pergunta = command.slice(8).trim()
             const selectPrompt = `Você é um gerador de consulta SQL para SQLite. Sua única saída deve ser uma consulta SQL (SELECT), sem NENHUMA explicação ou texto adicional.
             A tabela é 'mensagens' e o campo de tempo é 'timestamp' (UNIX time em segundos).
-            O ID da conversa atual é '${from}'.
+            Use a condição WHERE para filtrar rigorosamente por ${condition} E pelo intervalo de tempo (timestamp).
             O usuário quer recuperar mensagens que se encaixam no período de tempo da pergunta, limitando o resultado a 500 mensagens no máximo.
             Recupere as colunas 'nome_remetente' e 'conteudo'.
-            Use a condição WHERE para filtrar pelo id_conversa = '${from}' E pelo intervalo de tempo (timestamp).
             A ordenação deve ser por timestamp DESC, e o limite deve ser de 200. Se a pergunta não especificar um período de tempo, recupere as últimas 200 mensagens da conversa.
 
             Exemplo de saída para "o que rolou ontem": SELECT nome_remetente, conteudo FROM mensagens WHERE id_conversa = '${from}' AND timestamp BETWEEN 1764355200 AND 1764441600 ORDER BY timestamp DESC LIMIT 200;
@@ -1206,7 +1238,6 @@ class ChatModel {
 
             let sqlQuery = await this.getAiResponse(from, sender, name, isGroup, command, selectPrompt, "gemini-2.5-flash")
 
-            // Remove blocos de código markdown (```sql e ```) e espaços extras
             sqlQuery = sqlQuery.replace(/```sql/gi, '').replace(/```/g, '').trim(); 
             
             if (!sqlQuery.toLowerCase().startsWith('select')) {

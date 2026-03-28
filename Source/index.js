@@ -618,7 +618,14 @@ async function initDatabase() {
     } catch (error) {
         if (!error.message.includes("duplicate column name")) console.error(error.message);
     }
-    
+
+    await db.exec(`
+        CREATE TABLE IF NOT EXISTS grupos_linkados (
+            id_filho TEXT PRIMARY KEY,
+            id_pai TEXT NOT NULL
+        );
+    `);
+    console.log("✅ Tabela 'grupos_linkados' verificada.");    
 
     console.log('✅ Banco de dados SQLite inicializado e tabelas verificadas.');
 }

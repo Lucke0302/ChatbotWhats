@@ -228,6 +228,13 @@ class ChatModel {
             '!investir': async (ctx) => {
                 const tag = await this.pokemonHandler.getUserTag(ctx.sender);
                 const args = ctx.command.trim().split(/\s+/);
+                const subCommand = args[1]?.toLowerCase();
+
+                if (subCommand === 'acelerar') {
+                    if (ctx.sender !== "5513991008854@s.whatsapp.net") return "🚫 Apenas a CVM (Admin) pode manipular o tempo do mercado.";
+                    return await this.casinoHandler.acelerarInvestimentoGlobal(tag);
+                }
+
                 return await this.casinoHandler.handleInvestir(ctx.sender, tag, args[1], args[2]);
             },
             '!emprestimo': async (ctx) => {

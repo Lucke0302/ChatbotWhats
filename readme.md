@@ -1,4 +1,4 @@
-# 🦖 Bostossauro Bot v5
+# 🦖 Bostossauro Bot v5.1
 > *"Eu sabo... mas às vezes a RAM acaba."*
 
 Bem-vindo ao repositório oficial do **Bostossauro**, o bot de WhatsApp mais sarcástico, sincero e levemente instável do hemisfério sul. Este projeto nasceu da vontade de automatizar respostas, jogar RPG de mesa via texto e, principalmente, julgar as conversas dos seus grupos com o poder da Inteligência Artificial.
@@ -25,11 +25,12 @@ O Bostossauro não é apenas um bot, é um estilo de vida. Aqui estão as skills
     * `!s baixa`: Qualidade duvidosa.
     * `!s podi`: Modo *deep fried*, destrói a imagem até virar arte abstrata.
 
-* **🦖 Jurassic BostoPark (v5- A Ameaça Mesozóica):** Um ecossistema massivo de "Tamagotchi Comunitário" e escavação que interliga todas as economias do bot.
-    * `!escavar`: Divide a estamina com o `!bico`. O jogador minera pedras preciosas (para vender) e tem chance de achar um Âmbar contendo DNA de dinossauros.
-* **Sistema de Gacha e Cores:** Os dinossauros variam de Comuns a Míticos, possuindo geradores genéticos que criam combinações de 1 a 3 cores aleatórias (com multiplicadores de lucro).
-    * `!parque alimentar`: Interliga a Pescaria ao Parque. Os jogadores precisam esvaziar seus isopores (`!parque despensa`) para jogar peixes na jaula. O dinossauro possui nível, fase de crescimento (Filhote a Ancião), barra de XP quadrática e trava diária de digestão.
-* **Fundo de Investimento Passivo:** Ao subir de nível, os dinossauros geram bilheteria. Todo dia às 10h da manhã, o bot divide automaticamente os lucros do parque entre os membros mais ativos do chat.
+* **🦖 Jurassic BostoPark (v5.1 - A Ameaça Híbrida):** Um ecossistema massivo de "Tamagotchi Comunitário" interligado à economia.
+    * `!escavar`: Divide a estamina com o bico. Minere pedras preciosas ou ache Âmbar com DNA!
+    * `!parque alimentar`: Os dinossauros agora se alimentam dos peixes do seu isopor (`!parque despensa`). Possuem fase de crescimento (Filhote a Ancião) e geram **Bilheteria Diária** dividida com os membros ativos!
+    * **🧬 Laboratório de Híbridos (Endgame):** Se o grupo reunir os DNAs corretos (Ex: T-Rex + Velociraptor), o bot sintetiza passivamente aberrações como o **Indominus Rex** e o temido **Bostossauro**, pagando royalties aos criadores originais!
+    * **👑 Cartório Genético:** Use `!parque titulo pai t_rex` para ostentar a guarda da fera no seu nome global.
+    * **🤖 Despertar do Rei:** Se o grupo sintetizar o Supremo Bostossauro, a IA acorda e tem 0.2% de chance de interromper organicamente as conversas do WhatsApp (usando o Gemma 3 27B) para dar pitacos ou reclamar de fome.
 
 * **💸 Sistema Econômico Completo (Capitalismo Selvagem):** Uma economia viva rodando no banco de dados com a moeda oficial *Bostocoins*.
     * `!pix @amigo [valor]`: Transferência instantânea entre membros do grupo.

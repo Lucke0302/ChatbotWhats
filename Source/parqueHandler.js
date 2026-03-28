@@ -106,10 +106,123 @@ const DINO_CATALOG = {
     'quetzalcoatlus': { name: 'Quetzalcoatlus', emoji: '🦅', rarity: 'lendario', base_xp_req: 1900, ticket_value: 700 },
     'argentinosaurus': { name: 'Argentinosaurus', emoji: '🦕', rarity: 'lendario', base_xp_req: 3000, ticket_value: 950 },
 
-    // SECRETOS
-    'indominus': { name: 'Indominus Rex', emoji: '🧬', rarity: 'mitico', base_xp_req: 5000, ticket_value: 1500 },
-    'indoraptor': { name: 'Indoraptor', emoji: '🖤', rarity: 'mitico', base_xp_req: 5500, ticket_value: 1100 },
-    'scorpios': { name: 'Scorpios Rex', emoji: '🦂', rarity: 'mitico', base_xp_req: 5200, ticket_value: 1050 },
+    // ------------- HÍBRIDOS ------------------- //
+
+    // HÍBRIDOS COMUNS
+    'compsograptor': { 
+        name: 'Compsograptor', emoji: '🦎', rarity: 'comum', 
+        base_xp_req: 440, ticket_value: 240, 
+        receita: ['compsognathus', 'oviraptor'] 
+    },
+    'herrerapsitacus': { 
+        name: 'Herrerapsitacus', emoji: '🦖', rarity: 'comum', 
+        base_xp_req: 530, ticket_value: 320, 
+        receita: ['psittacosaurus', 'herrerasaurus'] 
+    },
+    'dodognathus': { 
+        name: 'Dodognathus', emoji: '🦎', rarity: 'comum', 
+        base_xp_req: 400, ticket_value: 200, 
+        receita: ['compsognathus', 'dodo'] 
+    },
+    'galliraptor': { 
+        name: 'Galliraptor', emoji: '🦖', rarity: 'comum', 
+        base_xp_req: 460, ticket_value: 260, 
+        receita: ['gallimimus', 'oviraptor'] 
+    },
+    'micropsittaco': { 
+        name: 'Micropsittaco', emoji: '🦎', rarity: 'comum', 
+        base_xp_req: 430, ticket_value: 220, 
+        receita: ['microceratus', 'psittacosaurus'] 
+    },
+    'trooherrera': { 
+        name: 'Trooherrera Zoiudo', emoji: '👀', rarity: 'comum', 
+        base_xp_req: 540, ticket_value: 340, 
+        receita: ['troodon', 'herrerasaurus'] 
+    },
+
+    // HÍBRIDOS INCOMUNS
+    'pachydilo': { 
+        name: 'Pachydilophosaurus', emoji: '🦕', rarity: 'incomum', 
+        base_xp_req: 1060, ticket_value: 670, 
+        receita: ['pachycephalosaurus', 'dilophosaurus'] 
+    },
+    'protostygi': { 
+        name: 'Protostygimoloch', emoji: '🦏', rarity: 'incomum', 
+        base_xp_req: 1040, ticket_value: 650, 
+        receita: ['protoceratops', 'stygimoloch'] 
+    },
+    'iguano-coritho': { 
+        name: 'Iguanocorythosaurus', emoji: '🦖', rarity: 'incomum', 
+        base_xp_req: 1200, ticket_value: 900, 
+        receita: ['iguanodon', 'corythosaurus'] 
+    },
+    'para-kentro': { 
+        name: 'Parakentrosaurus', emoji: '🦔', rarity: 'incomum', 
+        base_xp_req: 1260, ticket_value: 1040, 
+        receita: ['parasaurolophus', 'kentrosaurus'] 
+    },
+
+    // HÍBRIDOS SECRETOS
+    'stegoceratops': { 
+        name: 'Stegoceratops', emoji: '🦏', rarity: 'secreto', 
+        base_xp_req: 2440, ticket_value: 1700, 
+        receita: ['stegosaurus', 'triceratops'] 
+    },
+    'ankylodocus': { 
+        name: 'Ankylodocus', emoji: '🦕', rarity: 'secreto', 
+        base_xp_req: 6100, ticket_value: 2400, 
+        receita: ['ankylosaurus', 'diplodocus'] 
+    },
+    'carnoraptor': { 
+        name: 'Carnoraptor', emoji: '🐊', rarity: 'secreto', 
+        base_xp_req: 1860, ticket_value: 1300, 
+        receita: ['carnotaurus', 'velociraptor'] 
+    },
+    'spinoraptor': { 
+        name: 'Spinoraptor', emoji: '🦈', rarity: 'secreto', 
+        base_xp_req: 4900, ticket_value: 2100, 
+        receita: ['spinosaurus', 'velociraptor'] 
+    },
+    'pachygalosaurus': { 
+        name: 'Pachygalosaurus', emoji: '🏃‍♂️', rarity: 'secreto', 
+        base_xp_req: 740, ticket_value: 440, 
+        receita: ['pachycephalosaurus', 'gallimimus'] 
+    },
+    'allonodon': { 
+        name: 'Allonodon', emoji: '🦅', rarity: 'secreto', 
+        base_xp_req: 2560, ticket_value: 2040, 
+        receita: ['allosaurus', 'pteranodon'] 
+    },
+    'giganotoceratops': { 
+        name: 'Giganotoceratops', emoji: '🌋', rarity: 'secreto', 
+        base_xp_req: 5800, ticket_value: 2600, 
+        receita: ['giganotosaurus', 'triceratops'] 
+    },
+    'therizinoraptor': { 
+        name: 'Therizinoraptor', emoji: '🔪', rarity: 'secreto', 
+        base_xp_req: 4700, ticket_value: 1800, 
+        receita: ['therizinosaurus', 'velociraptor'] 
+    },
+    'scorpios': { 
+        name: 'Scorpios Rex', emoji: '🦂', rarity: 'secreto', 
+        base_xp_req: 5360, ticket_value: 2100, 
+        receita: ['t_rex', 'carnotaurus'] 
+    },
+    'indominus': { 
+        name: 'Indominus Rex', emoji: '🧬', rarity: 'secreto', 
+        base_xp_req: 4500, ticket_value: 2300, 
+        receita: ['t_rex', 'velociraptor'] 
+    },
+    'indoraptor': { 
+        name: 'Indoraptor', emoji: '🖤', rarity: 'secreto', 
+        base_xp_req: 21000, ticket_value: 2500, 
+        receita: ['indominus', 'velociraptor'] 
+    },
+    'bostossauro': { 
+        name: 'Bostossauro', emoji: '👑', rarity: 'secreto', 
+        base_xp_req: 100000, ticket_value: 5000, 
+        receita: ['indominus', 'indoraptor', 'scorpios', 'stegoceratops', 'ankylodocus', 'carnoraptor', 'spinoraptor', 'pachygalosaurus', 'allonodon', 'giganotoceratops', 'therizinoraptor'] 
+    }
 };
 
 class ParqueHandler {
@@ -146,7 +259,7 @@ class ParqueHandler {
 
     // PERFIL DO JOGADOR
     async verPerfilParque(userId, userTag) {
-        const dinos = await this.db.all("SELECT * FROM parque_dinossauros WHERE descobridor_id = ? ORDER BY nivel DESC, multiplicador_bilheteria DESC", [userId]);
+        const dinos = await this.db.all("SELECT * FROM parque_dinossauros WHERE descobridor_id LIKE ? ORDER BY nivel DESC, multiplicador_bilheteria DESC", ['%' + userId + '%']);
         
         const player = await this.getPlayerData(userId);
         const inv = player.inventory || {};
@@ -209,7 +322,7 @@ class ParqueHandler {
 
     // REGISTRO PARENTAL
     async handleTitulosParque(userId, userTag, paramStr) {
-        const dinos = await this.db.all("SELECT DISTINCT especie_id FROM parque_dinossauros WHERE descobridor_id = ?", [userId]);
+        const dinos = await this.db.all("SELECT DISTINCT especie_id FROM parque_dinossauros WHERE descobridor_id LIKE ?", ['%' + userId + '%']);
         
         if (!dinos || dinos.length === 0) {
             return `${userTag} 🚫 Você ainda não descobriu nenhum dinossauro! Ache um Âmbar na escavação ou pescaria antes de ir ao conselho tutelar.`;
@@ -515,11 +628,11 @@ class ParqueHandler {
         else if (roll < 50) rarity = 'incomum';
 
         let especiesDisponiveis = Object.entries(DINO_CATALOG)
-            .filter(([id, info]) => info.rarity === rarity && !idsDescobertos.includes(id));
+            .filter(([id, info]) => info.rarity === rarity && !idsDescobertos.includes(id) && !info.receita);
 
         if (especiesDisponiveis.length === 0) {
             especiesDisponiveis = Object.entries(DINO_CATALOG)
-                .filter(([id, info]) => !idsDescobertos.includes(id));
+                .filter(([id, info]) => !idsDescobertos.includes(id) && !info.receita);
         }
 
         if (especiesDisponiveis.length === 0) {
@@ -567,8 +680,87 @@ class ParqueHandler {
         msg += `🎟️ Bônus de Bilheteria: **${multiplicadorTotal.toFixed(2)}x**\n\n`;
         msg += `💰 A InGen te pagou uma recompensa de 🪙 **${dinoInfo.ticket_value} Bostocoins** pelo DNA raro!${profitResult.msg}\n\n`;
         msg += `💡 _Use *!parque mural* para ver o bicho na jaula e *!pescar* para arrumar comida pra ele!_`;
+
+        const hibridoExtra = await this.verificarHibridos(groupId);
+        if (hibridoExtra) msg += hibridoExtra;
         
         return msg;
+    }
+
+    // LABORATÓRIO GENÉTICO
+    async verificarHibridos(groupId) {
+        let msgHibrido = "";
+        const dinosNoParque = await this.db.all("SELECT * FROM parque_dinossauros WHERE group_id = ?", [groupId]);
+        const especiesNoParque = dinosNoParque.map(d => d.especie_id);
+
+        for (const [hibridoId, hibridoInfo] of Object.entries(DINO_CATALOG)) {
+            if (!hibridoInfo.receita) continue; 
+            if (especiesNoParque.includes(hibridoId)) continue;
+
+            const temTodos = hibridoInfo.receita.every(paiId => especiesNoParque.includes(paiId));
+            
+            if (temTodos) {
+                const pais = dinosNoParque.filter(d => hibridoInfo.receita.includes(d.especie_id));
+                
+                let somaNiveis = 0;
+                let descobridoresNomes = new Set();
+                let descobridoresIds = new Set();
+
+                pais.forEach(p => {
+                    somaNiveis += p.nivel;
+                    descobridoresNomes.add(p.descobridor_nome);
+                    descobridoresIds.add(p.descobridor_id);
+                });
+
+                const nivelHibrido = Math.max(1, Math.floor(somaNiveis / pais.length));
+                const nomeAutores = Array.from(descobridoresNomes).join(" & ");
+                
+                let idsFormatados = [];
+                Array.from(descobridoresIds).forEach(id => {
+                    idsFormatados.push(...id.split(','));
+                });
+                idsFormatados = [...new Set(idsFormatados)];
+                const idSalvamento = idsFormatados.join(',');
+
+                let coresHibrido = [];
+                let coresMultiplicador = 0;
+                let coresTemp = [...DINO_COLORS];
+                for (let i = 0; i < 3; i++) {
+                    const index = Math.floor(Math.random() * coresTemp.length);
+                    const cor = coresTemp.splice(index, 1)[0];
+                    coresHibrido.push(`${cor.emoji} ${cor.name}`);
+                    coresMultiplicador += cor.mult;
+                }
+                const corString = coresHibrido.join(" e ");
+
+                const now = Math.floor(Date.now() / 1000);
+                await this.db.run(`
+                    INSERT INTO parque_dinossauros (group_id, especie_id, descobridor_nome, descobridor_id, nivel, xp_atual, data_descoberta, reserva_comida, ultimo_level_up, cor, multiplicador_bilheteria)
+                    VALUES (?, ?, ?, ?, ?, 0, ?, 0, 0, ?, ?)`,
+                    [groupId, hibridoId, nomeAutores, idSalvamento, nivelHibrido, now, corString, coresMultiplicador]
+                );
+
+                const recompensaIndividual = Math.floor(hibridoInfo.ticket_value / idsFormatados.length);
+                for (const uid of idsFormatados) {
+                    await this.db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [recompensaIndividual, uid]);
+                }
+
+                msgHibrido += `\n\n🚨 **ALERTA DE SEGURANÇA MÁXIMA DA INGEN!** 🚨\n`;
+                msgHibrido += `O cruzamento de DNA no parque de vocês gerou uma mutação agressiva no laboratório!\n\n`;
+                msgHibrido += `🧬 **NOVO HÍBRIDO SINTETIZADO:** ${hibridoInfo.emoji} **${hibridoInfo.name}**\n`;
+                msgHibrido += `📈 **Poder Inicial:** Nível ${nivelHibrido} _(Média da força das matrizes)_\n`;
+                msgHibrido += `👥 **Criadores:** ${nomeAutores}\n`;
+                msgHibrido += `💰 **Royalties InGen:** 🪙 ${recompensaIndividual} Bostocoins para cada criador!\n`;
+                
+                if (hibridoId === 'bostossauro') {
+                    msgHibrido += `\n👑 **O REI DESPERTOU!** O Bostossauro supremo nasceu... Rezemos por misericórdia.\n`;
+                }
+
+                especiesNoParque.push(hibridoId);
+                dinosNoParque.push({ especie_id: hibridoId, nivel: nivelHibrido, descobridor_nome: nomeAutores, descobridor_id: idSalvamento });
+            }
+        }
+        return msgHibrido;
     }
 
     // MURAL GLOBAL
@@ -706,6 +898,31 @@ class ParqueHandler {
         }
 
         return `${userTag} 🛠️ **MIGRAÇÃO GENÉTICA CONCLUÍDA!**\nO DNA de **${count} dinossauros** foi reescrito com sucesso.\nA bilheteria do parque acaba de sofrer uma inflação justíssima!`;
+    }
+
+    // FIX GLOBAL DE HÍBRIDOS RETROATIVOS 
+    async fixHibridosGlobais(userTag, sock) {
+        const grupos = await this.db.all("SELECT DISTINCT group_id FROM parque_dinossauros");
+        let gruposAfetados = 0;
+
+        for (const grupo of grupos) {
+            const hibridosNovos = await this.verificarHibridos(grupo.group_id);
+
+            if (hibridosNovos && hibridosNovos.trim() !== "") {
+                gruposAfetados++;
+                
+                if (sock) {
+                    try {
+                        await sock.sendMessage(grupo.group_id, { text: hibridosNovos });
+                        await new Promise(resolve => setTimeout(resolve, 1500)); 
+                    } catch(e) {
+                        console.error("Erro ao avisar grupo sobre o fix de híbrido:", e);
+                    }
+                }
+            }
+        }
+
+        return `${userTag} 🛠️ **VARREDURA GENÉTICA CONCLUÍDA!**\nA InGen revirou os parques e ativou mutações adormecidas em **${gruposAfetados} grupos**.\nOs alarmes tocaram e os dinossauros já estão nas jaulas!`;
     }
 }
 

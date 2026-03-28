@@ -426,6 +426,13 @@ class ChatModel {
                     return await this.parqueHandler.fixColorMultipliers(tag);
                 }
 
+                if (subCommand === 'fixhibridos') {
+                    if (ctx.sender !== "5513991008854@s.whatsapp.net") {
+                        return "🚫 Apenas o Dr. Henry Wu pode forçar a evolução da espécie.";
+                    }
+                    return await this.parqueHandler.fixHibridosGlobais(tag, ctx.sock);
+                }
+
                 if (subCommand === 'titulo' || subCommand === 'titulos') {
                     const params = args.slice(2).join(' ');
                     return await this.parqueHandler.handleTitulosParque(ctx.sender, tag, params);
@@ -1064,6 +1071,40 @@ class ChatModel {
             // Se der erro 503 ou 429, o errorHandler pega lá na frente
             console.error("Erro na requisição IA:", error);
             throw error;
+        }
+    }
+
+    // INTERRUPÇÃO ALEATÓRIA DO BOSTOSSAURO
+    async handleBostossauroInterrupt(from, sender, name, texto) {
+        if (Math.random() > 0.002) return null;
+
+        const netId = await this.getNetGroupId(from);
+        
+        const temBostossauro = await this.db.get("SELECT id FROM parque_dinossauros WHERE group_id = ? AND especie_id = 'bostossauro'", [netId]);
+        if (!temBostossauro) return null;
+
+        const contexto = await this.getMessagesByLimit(from, 5);
+
+        const prompt = `Você é o Bostossauro, o dinossauro híbrido supremo, carnificina pura e rei do Jurassic BostoPark.
+        Você foi criado por este grupo e vive no cercado deles. 
+        Sua personalidade: Arrogante, comilão, rabugento e acha os humanos criaturas inferiores.
+        Você adora se meter nas conversas do WhatsApp para dar pitacos não solicitados, reclamar de fome ou julgar o que estão falando.
+        
+        Aqui está o contexto da conversa agora:
+        ${contexto}
+        
+        O usuário "${name}" acabou de enviar: "${texto}"
+        
+        Sua missão: Interrompa a conversa! Dê uma resposta curta (1 a 2 parágrafos).
+        Critique o que foi dito, dê um conselho terrível, ou apenas exija que alguém vá pescar carne pra você.
+        Aja totalmente no personagem. Use emojis de dinossauro (🦖, 🥩, 👑). Não seja educado. Aja com desdém de predador alfa.`;
+
+        try {
+            console.log("🦖 [BOSTOSSAURO] O Rei acordou para dar pitaco na conversa!");
+            return await this.getAiResponse(from, sender, name, true, "!bostossauro_interrupt", prompt, "gemma-3-27b-it");
+        } catch (e) {
+            console.error("❌ Erro no despertar do Bostossauro:", e);
+            return null;
         }
     }
 

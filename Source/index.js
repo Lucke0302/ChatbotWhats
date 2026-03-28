@@ -1539,6 +1539,13 @@ async function connectToWhatsApp() {
                 if (isGroup && chatbot.isOnline && command.includes('aura')) {
                     await sendSticker(sock, db, from, msg, [sender], texto);
                 }
+
+                if (isGroup && chatbot.isOnline && texto && !texto.startsWith("!")) {
+                    const bostossauroResponse = await chatbot.handleBostossauroInterrupt(from, sender, name, texto);
+                    if (bostossauroResponse) {
+                        await sendAndSave(sock, db, from, bostossauroResponse, msg, [sender]);
+                    }
+                }
             }catch (error) {
                 await handleBotError(error, replyToUser, contextObj);
             }

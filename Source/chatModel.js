@@ -348,6 +348,10 @@ class ChatModel {
                         return await this.pescariaHandler.handleVenderLixo(ctx.sender, tag);
                     }
                     
+                    if (args[2]?.toLowerCase() === 'repetidos' || args[2]?.toLowerCase() === 'repetido') {
+                        return await this.pescariaHandler.handleVenderRepetidos(ctx.sender, tag);
+                    }
+                    
                     const itemCodes = args.slice(2).join(' ');
                     return await this.pescariaHandler.handleVender(ctx.sender, tag, itemCodes);
                 }
@@ -389,7 +393,7 @@ class ChatModel {
                     return await this.pescariaHandler.handleTitulosPesca(ctx.sender, tag, action, param);
                 }
 
-                return `${tag}🎣 **SISTEMA DE PESCA**\n\nOpções:\n🎣 *!pescar* (Joga a isca!)\n🏪 *!pescaria loja* (Compre Iscas, Buffs e Varas novas!)\n⚖️ *!pescaria vender* (Mercadão de peixes)\n♻️ *!pescaria vender lixo* (Recicla as sucatas)\n🎒 *!pescaria perfil* (Iscas e Efeitos ativos)\n🏆 *!pescaria ranking* (Top pescadores)\n🦈 *!pescaria trofeus* (10 maiores deste grupo)\n🏅 *!pescaria toppessoal* (Seus troféus absolutos)\n🌍 *!pescaria topgrupo* (A Elite das Águas)\n📊 *!pescaria avaliar* (Calcula a fortuna no seu isopor)\n👑 *!pescaria titulo* (Ostente seu império de peixes)\n`;
+                return `${tag}🎣 **SISTEMA DE PESCA**\n\nOpções:\n🎣 *!pescar* (Joga a isca!)\n🏪 *!pescaria loja* (Compre Iscas, Buffs e Varas novas!)\n⚖️ *!pescaria vender* (Mercadão de peixes)\n♻️ *!pescaria vender lixo* (Recicla as sucatas)\n📦 *!pescaria vender repetidos* (Vende as sobras e guarda os recordes)\n🎒 *!pescaria perfil* (Iscas e Efeitos ativos)\n🏆 *!pescaria ranking* (Top pescadores)\n🦈 *!pescaria trofeus* (10 maiores deste grupo)\n🏅 *!pescaria toppessoal* (Seus troféus absolutos)\n🌍 *!pescaria topgrupo* (A Elite das Águas)\n📊 *!pescaria avaliar* (Calcula a fortuna no seu isopor)\n👑 *!pescaria titulo* (Ostente seu império de peixes)\n`;
             },
             '!parque': async (ctx) => {
                 const tag = await this.pokemonHandler.getUserTag(ctx.sender);

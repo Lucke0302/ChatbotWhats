@@ -410,7 +410,7 @@ class ChatModel {
                     return await this.pescariaHandler.handleTitulosPesca(ctx.sender, tag, action, param);
                 }
 
-                return `${tag}🎣 **SISTEMA DE PESCA**\n\nOpções:\n🎣 *!pescar* (Joga a isca!)\n🏪 *!pescaria loja* (Compre Iscas, Buffs e Varas novas!)\n⚖️ *!pescaria vender* (Mercadão de peixes)\n♻️ *!pescaria vender lixo* (Recicla as sucatas)\n📦 *!pescaria vender repetidos* (Vende as sobras e guarda os recordes)\n🎒 *!pescaria perfil* (Iscas e Efeitos ativos)\n🏆 *!pescaria ranking* (Top pescadores)\n🦈 *!pescaria trofeus* (10 maiores deste grupo)\n🏅 *!pescaria toppessoal* (Seus troféus absolutos)\n🌍 *!pescaria topgrupo* (A Elite das Águas)\n📊 *!pescaria avaliar* (Calcula a fortuna no seu isopor)\n👑 *!pescaria titulo* (Ostente seu império de peixes)\n`;
+                return `${tag}🎣 **SISTEMA DE PESCA**\n\nOpções:\n🎣 *!pescar* (Joga a isca!)\n🏪 *!pescaria loja* (Compre Iscas, Buffs e Varas!)\n🚢 *!pescaria comprar barco* (Aumente sua frota!)\n⚖️ *!pescaria vender* (Mercadão de peixes)\n♻️ *!pescaria vender lixo* (Recicla as sucatas)\n📦 *!pescaria vender repetidos* (Limpa as sobras do isopor)\n🎒 *!pescaria perfil* (Iscas, Frota e Efeitos)\n🏆 *!pescaria ranking* (Top pescadores)\n🦈 *!pescaria trofeus* (10 maiores deste grupo)\n🏅 *!pescaria toppessoal* (Seus troféus absolutos)\n🌍 *!pescaria topgrupo* (A Elite das Águas)\n📊 *!pescaria avaliar* (Calcula a fortuna no isopor)\n👑 *!pescaria titulo* (Ostente seu império)\n`;
             },
             '!parque': async (ctx) => {
                 const tag = await this.pokemonHandler.getUserTag(ctx.sender);
@@ -464,13 +464,14 @@ class ChatModel {
                 }
 
                 return `${tag}🦖 **JURASSIC BOSTOPARK** 🦖\n\n` +
-                       `⛏️ *!escavar* (Use sua picareta para achar minérios ou Âmbar!)\n` +
+                       `⛏️ *!escavar* (Ache minérios ou Âmbar!)\n` +
                        `🎒 *!parque mochila* (Veja suas pedras)\n` +
                        `🤝 *!parque vender [numero/tudo]* (Venda os minérios)\n` +
-                       `🥩 *!parque despensa* (Veja os peixes para dar de comida)\n` +
+                       `🥩 *!parque despensa* (Veja seus peixes comestíveis)\n` +
                        `🍗 *!parque alimentar [ID] [Nº_Comida]* (Alimente um dino)\n` +
                        `🖼️ *!parque mural* (Veja os dinossauros do grupo)\n` +
-                       `🧬 *!parque perfil* (Sua coleção de genéticas)\n`;
+                       `🧬 *!parque perfil* (Sua coleção e ticket gerado)\n` +
+                       `👑 *!parque titulo [pai/mae/nazare] [ID]* (Guarda compartilhada!)\n`;
 
             },
             '!escavar': async (ctx) => {
@@ -1298,9 +1299,10 @@ class ChatModel {
     }
 
     async handleMenuCommand(){
-        return `📍 *MENU RÁPIDO (v4.3 - O Sindicato dos Pescadores)* \n\n
+        return `📍 *MENU RÁPIDO (v5.1 - A Ameaça Híbrida)* \n\n
         🆘 !ajuda (ou !help)\n
         🗣️ !audio\n
+        🎰 !cassino\n
         🌡️ !clima\n
         💵 !cotacao\n
         🎲 !d{número}\n
@@ -1310,11 +1312,14 @@ class ChatModel {
         🎮 !lol\n
         📄 !menu\n
         ✏️ !notas\n
+        🦖 !parque (JURASSIC BOSTOPARK)\n
         📙 !pdf\n
         🎣 !pescaria (SISTEMA DE PESCA)\n
-        🎮 !poke (JOGO COMPLETO)\n
+        💸 !pix\n
+        🎮 !poke (JOGO POKÉMON)\n
         🖼️ !s (ou !sticker)\n
-        🛎️ !resumo\n        
+        🛎️ !resumo\n
+        💼 !trabalhar\n
         ☢️ !toxico\n
         🧐 !tradutor
         \n\nPara detalhes, digite: *!ajuda [comando]*`;

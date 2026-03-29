@@ -538,23 +538,114 @@ class ParqueHandler {
 
     // Menu de Comida
     async listarComida(userId, userTag) {
-        const { sellableArray } = await this.pescariaHandler.getSellableList(userId);
-        
-        const edibleFishes = sellableArray.filter(f => !this.INEDIBLE_ITEMS.includes(f.id));
+        const { grouped } = await this.getGroupedDispensa(userId);
 
-        if (edibleFishes.length === 0) {
+        if (grouped.length === 0) {
             return `${userTag} 🪹 Seu isopor está vazio ou só tem sucata! Dinossauros não comem placas-mãe. Vá pescar!`;
         }
 
         let msg = `${userTag}🥩 **DISPENSA DO PARQUE (Seu Isopor)** 🥩\n_Escolha um lanchinho para os dinossauros:_\n\n`;
         
-        edibleFishes.forEach((f, i) => {
-            msg += `*[ ${i + 1} ]* ${f.emoji} ${f.name} (**${f.weight.toFixed(2)}kg**)\n`;
+        grouped.forEach((g, i) => {
+            const prefixo = g.count > 1 ? `**${g.count}x** ` : '';
+            msg += `*[ ${i + 1} ]* ${prefixo}${g.emoji} ${g.name} (**${g.weightStr}kg**)\n`;
         });
 
-        msg += `\n🦖 Para alimentar um dino, use: *!parque alimentar [id_do_dino] [numero_da_comida]*\n`;
+        msg += `\n🦖 Para alimentar um dino: *!parque alimentar [id_do_dino] [numero_da_comida]*\n`;
+        msg += `🔪 Para fatiar um peixe: *!parque porcionar [numero_da_comida] [peso_da_porcao]*\n`;
         msg += `_Dica: O ID do dino você vê em !parque mural_`;
         return msg;
+    }
+
+    async getGroupedDispensa(userId) {
+        const { sellableArray, player } = await this.pescariaHandler.getSellableList(userId);
+        const edibleFishes = sellableArray.filter(f => !this.INEDIBLE_ITEMS.includes(f.id));
+
+        const grouped = [];
+        for (const fish of edibleFishes) {
+            const weightStr = fish.weight.toFixed(2);
+            
+            const existing = grouped.find(g => g.id === fish.id && g.weightStr === weightStr);
+            
+            if (existing) {
+                existing.count++;
+                existing.instances.push(fish);
+            } else {
+                grouped.push({
+                    id: fish.id,
+                    name: fish.name,
+                    emoji: fish.emoji,
+                    weight: fish.weight,
+                    weightStr: weightStr,
+                    count: 1,
+                    instances: [fish],
+                    originalFish: fish
+                });
+            }
+        }
+        return { grouped, player };
+    }
+
+    async verReservaGlobal(groupId, userTag) {
+        let estoque = await this.db.get("SELECT carne, vegetal FROM parque_estoque WHERE group_id = ?", [groupId]);
+        if (!estoque) {
+            estoque = { carne: 0, vegetal: 0 };
+        }
+
+        let msg = `${userTag}🏢 **CÂMARA FRIGORÍFICA DA INGEN (Reserva do Grupo)** 🏢\n_O suprimento coletivo para alimentar os dinossauros._\n\n`;
+        msg += `🥩 **Carnes (Pesca):** ${estoque.carne.toFixed(2)} kg\n`;
+        msg += `🥬 **Vegetais (Fazenda):** ${estoque.vegetal.toFixed(2)} kg\n\n`;
+        msg += `_Para doar: *!parque depositar [id_despensa] [tudo]*_\n`;
+        msg += `_Para alimentar usando a reserva: *!parque alimentar [id_dino] reserva*_`;
+        
+        return msg;
+    }
+
+    async depositarComida(userId, userTag, groupId, foodIndexStr, qtdStr) {
+        const foodIndex = parseInt(foodIndexStr) - 1;
+
+        if (isNaN(foodIndex)) {
+            return `${userTag} ⚠️ Formato incorreto! Use: *!parque depositar [numero_da_comida] [qtd/tudo]*\nEx: _!parque depositar 1 tudo_`;
+        }
+
+        const { grouped, player } = await this.getGroupedDispensa(userId);
+
+        if (foodIndex < 0 || foodIndex >= grouped.length) {
+            return `${userTag} ❌ Comida não encontrada na despensa.`;
+        }
+
+        const group = grouped[foodIndex];
+        
+        let qtd = 1;
+        if (qtdStr && (qtdStr.toLowerCase() === 'tudo' || qtdStr.toLowerCase() === 'all')) {
+            qtd = group.instances.length;
+        } else if (!isNaN(parseInt(qtdStr))) {
+            qtd = Math.min(parseInt(qtdStr), group.instances.length);
+        }
+
+        let pesoTotalDepositado = 0;
+
+        for (let i = 0; i < qtd; i++) {
+            const food = group.instances[i];
+            pesoTotalDepositado += food.weight;
+            
+            const originalIndex = player.records.findIndex(r => r.instanceId === food.instanceId || (r.id === food.id && r.weight === food.weight && r.date === food.date));
+            if (originalIndex > -1) {
+                player.records.splice(originalIndex, 1);
+            }
+        }
+
+        await this.pescariaHandler.savePlayerData(userId, player);
+
+        await this.db.run(`
+            INSERT INTO parque_estoque (group_id, carne, vegetal) 
+            VALUES (?, ?, 0) 
+            ON CONFLICT(group_id) 
+            DO UPDATE SET carne = carne + ?`, 
+            [groupId, pesoTotalDepositado, pesoTotalDepositado]
+        );
+
+        return `${userTag} 🚚 **DOAÇÃO RECEBIDA!**\n\nVocê transferiu **${qtd}x** ${group.emoji} ${group.name} para a câmara frigorífica do grupo.\nTotal doado: 🥩 **${pesoTotalDepositado.toFixed(2)} kg de Carne**!\nO John Hammond saúda o seu comunismo jurássico.`;
     }
 
     async handleEscavar(userId, userTag, userName, groupId) {
@@ -702,17 +793,15 @@ class ParqueHandler {
             if (temTodos) {
                 const pais = dinosNoParque.filter(d => hibridoInfo.receita.includes(d.especie_id));
                 
-                let somaNiveis = 0;
                 let descobridoresNomes = new Set();
                 let descobridoresIds = new Set();
 
                 pais.forEach(p => {
-                    somaNiveis += p.nivel;
                     descobridoresNomes.add(p.descobridor_nome);
                     descobridoresIds.add(p.descobridor_id);
                 });
 
-                const nivelHibrido = Math.max(1, Math.floor(somaNiveis / pais.length));
+                const nivelHibrido = 1;
                 const nomeAutores = Array.from(descobridoresNomes).join(" & ");
                 
                 let idsFormatados = [];
@@ -748,7 +837,7 @@ class ParqueHandler {
                 msgHibrido += `\n\n🚨 **ALERTA DE SEGURANÇA MÁXIMA DA INGEN!** 🚨\n`;
                 msgHibrido += `O cruzamento de DNA no parque de vocês gerou uma mutação agressiva no laboratório!\n\n`;
                 msgHibrido += `🧬 **NOVO HÍBRIDO SINTETIZADO:** ${hibridoInfo.emoji} **${hibridoInfo.name}**\n`;
-                msgHibrido += `📈 **Poder Inicial:** Nível ${nivelHibrido} _(Média da força das matrizes)_\n`;
+                msgHibrido += `📈 **Poder Inicial:** Nível 1 _(Recém-saído da incubadora 🍼)_\n`;
                 msgHibrido += `👥 **Criadores:** ${nomeAutores}\n`;
                 msgHibrido += `💰 **Royalties InGen:** 🪙 ${recompensaIndividual} Bostocoins para cada criador!\n`;
                 
@@ -761,6 +850,54 @@ class ParqueHandler {
             }
         }
         return msgHibrido;
+    }
+
+    // BATIZAR DINOSSAURO
+    async handleApelidoDino(userId, userTag, groupId, dinoIdStr, novoNomeArray) {
+        const dinoId = parseInt(dinoIdStr);
+        if (isNaN(dinoId) || !novoNomeArray || novoNomeArray.length === 0) {
+            return `${userTag} ⚠️ Formato incorreto! Use: *!parque apelido [id_do_dino] [Novo Nome]*\nEx: _!parque apelido 5 Jubileu_`;
+        }
+
+        const novoNome = novoNomeArray.join(' ').trim();
+        if (novoNome.length > 30) return `${userTag} ⚠️ O apelido é muito grande! O limite do cartório é de 30 caracteres.`;
+
+        const dino = await this.db.get("SELECT * FROM parque_dinossauros WHERE id = ? AND group_id = ?", [dinoId, groupId]);
+        if (!dino) return `${userTag} ❌ Dinossauro não encontrado neste parque. Tem certeza que olhou o ID certo no mural?`;
+
+        const donos = dino.descobridor_id ? dino.descobridor_id.split(',') : [];
+        if (!donos.includes(userId)) {
+            return `${userTag} ❌ Só os descobridores/pais biológicos do dinossauro podem escolher o nome da criança!`;
+        }
+
+        const dinoInfo = DINO_CATALOG[dino.especie_id];
+        const currentName = dino.nickname || dinoInfo.name;
+
+        if (currentName !== dinoInfo.name) {
+            return `${userTag} 🛑 O dinossauro já foi batizado como **"${dino.nickname}"**! A InGen não permite trocar de nome duas vezes para não confundir os cientistas.`;
+        }
+
+        await this.db.run("UPDATE parque_dinossauros SET nickname = ? WHERE id = ?", [novoNome, dinoId]);
+
+        return `${userTag} 🏷️ **NOVO NOME DE BATISMO!**\nO ${dinoInfo.name} do parque agora atende orgulhosamente pelo nome de **"${novoNome}"**!`;
+    }
+
+    // FIX ADMIN PARA OS NICKNAMES
+    async fixNicknamesGlobais(userTag) {
+        const dinos = await this.db.all("SELECT id, especie_id, nickname FROM parque_dinossauros");
+        let count = 0;
+
+        for (const dino of dinos) {
+            if (!dino.nickname) {
+                const dinoInfo = DINO_CATALOG[dino.especie_id];
+                if (dinoInfo) {
+                    await this.db.run("UPDATE parque_dinossauros SET nickname = ? WHERE id = ?", [dinoInfo.name, dino.id]);
+                    count++;
+                }
+            }
+        }
+
+        return `${userTag} 🛠️ **MIGRAÇÃO DE CARTÓRIO CONCLUÍDA!**\n**${count} dinossauros** receberam seus nomes de espécie originais na coluna 'nickname'. Agora os donos podem renomeá-los!`;
     }
 
     // MURAL GLOBAL
@@ -778,9 +915,13 @@ class ParqueHandler {
             if (dinoInfo) {
                 const xpNecessario = 2 * d.nivel * dinoInfo.base_xp_req;
                 const porcentagem = ((d.xp_atual / xpNecessario) * 100).toFixed(1);
-                const classe = this.getClasseDino(d.nivel); // <--- Puxa a classe
+                const classe = this.getClasseDino(d.nivel); 
                 
-                msg += `🆔 *[ ID: ${d.id} ]* ${dinoInfo.emoji} **${dinoInfo.name}**\n`;
+                const nomeExibicao = (d.nickname && d.nickname !== dinoInfo.name) 
+                                     ? `${d.nickname} _(${dinoInfo.name})_` 
+                                     : dinoInfo.name;
+                
+                msg += `🆔 *[ ID: ${d.id} ]* ${dinoInfo.emoji} **${nomeExibicao}**\n`;
                 msg += `   🎨 Cor: ${d.cor} | 🧬 Lvl: ${d.nivel} [${classe}] (${porcentagem}% pro Nvl ${d.nivel + 1})\n`;
                 msg += `   🥩 Reserva: ${d.reserva_comida.toFixed(1)}kg | 👤 Por: ${d.descobridor_nome}\n\n`;
             }
@@ -792,33 +933,73 @@ class ParqueHandler {
 
     async alimentarDino(userId, userTag, groupId, dinoIdStr, foodIndexStr) {
         const dinoId = parseInt(dinoIdStr);
-        const foodIndex = parseInt(foodIndexStr) - 1;
 
-        if (isNaN(dinoId) || isNaN(foodIndex)) {
-            return `${userTag} ⚠️ Formato incorreto! Use: *!parque alimentar [id_do_dino] [numero_da_comida]*\nPara ver sua comida digite *!parque despensa*.`;
+        if (isNaN(dinoId) || !foodIndexStr) {
+            return `${userTag} ⚠️ Formato incorreto! Use: *!parque alimentar [id_do_dino] [numero_da_comida]* OU *!parque alimentar [id_do_dino] reserva*`;
         }
 
         const dino = await this.db.get("SELECT * FROM parque_dinossauros WHERE id = ? AND group_id = ?", [dinoId, groupId]);
         if (!dino) return `${userTag} ❌ Dinossauro não encontrado neste parque. Tem certeza que anotou o ID certo?`;
 
-        const { sellableArray, player } = await this.pescariaHandler.getSellableList(userId);
-        const edibleFishes = sellableArray.filter(f => !this.INEDIBLE_ITEMS.includes(f.id));
-
-        if (foodIndex < 0 || foodIndex >= edibleFishes.length) {
-            return `${userTag} ❌ Comida não encontrada na dispensa.`;
-        }
-
-        const food = edibleFishes[foodIndex];
         const dinoInfo = DINO_CATALOG[dino.especie_id];
-        
         const xpNecessarioProLevel = 2 * dino.nivel * dinoInfo.base_xp_req;
         const now = Math.floor(Date.now() / 1000);
-        
         const today = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
         const lastLevelUpDate = new Date(dino.ultimo_level_up * 1000).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
         const hasLeveledUpToday = dino.ultimo_level_up > 0 && today === lastLevelUpDate;
 
-        let pesoOfertado = food.weight;
+        let pesoOfertado = 0;
+        let foodName = "";
+        let foodEmoji = "";
+        let usandoReserva = false;
+
+        if (foodIndexStr.toLowerCase() === 'reserva') {
+            if (hasLeveledUpToday) {
+                return `${userTag} 🛑 O dinossauro já subiu de nível hoje! A InGen proíbe pegar comida da Reserva Global apenas para guardar na barriga dele. Volte amanhã.`;
+            }
+
+            const estoque = await this.db.get("SELECT carne, vegetal FROM parque_estoque WHERE group_id = ?",[groupId]) || { carne: 0, vegetal: 0 };
+            
+            const herbivoros = ['triceratops', 'stegosaurus', 'ankylosaurus', 'diplodocus', 'brachiosaurus', 'apatosaurus', 'argentinosaurus', 'parasaurolophus', 'iguanodon', 'corythosaurus', 'stygimoloch', 'pachycephalosaurus', 'protoceratops', 'gallimimus', 'microceratus', 'dryosaurus', 'hypsilophodon', 'psittacosaurus', 'stegoceratops', 'ankylodocus', 'iguano-coritho', 'para-kentro'];
+            const dieta = herbivoros.includes(dino.especie_id) ? 'vegetal' : 'carne';
+            
+            let disponivel = estoque[dieta];
+            if (disponivel <= 0) return `${userTag} 🪹 A câmara frigorífica de **${dieta === 'carne' ? 'Carne 🥩' : 'Vegetais 🥬'}** está vazia! O grupo precisa depositar comida.`;
+
+            const faltaProLevel = xpNecessarioProLevel - dino.xp_atual;
+            pesoOfertado = Math.min(disponivel, faltaProLevel);
+            
+            if (dieta === 'carne') {
+                await this.db.run("UPDATE parque_estoque SET carne = carne - ? WHERE group_id = ?", [pesoOfertado, groupId]);
+            } else {
+                await this.db.run("UPDATE parque_estoque SET vegetal = vegetal - ? WHERE group_id = ?", [pesoOfertado, groupId]);
+            }
+
+            foodName = `Rações da Reserva Coletiva`;
+            foodEmoji = dieta === 'carne' ? '🥩' : '🥬';
+            usandoReserva = true;
+
+        } 
+        else {
+            const foodIndex = parseInt(foodIndexStr) - 1;
+            const { grouped, player } = await this.getGroupedDispensa(userId);
+            
+            if (foodIndex < 0 || foodIndex >= grouped.length) return `${userTag} ❌ Comida não encontrada na sua despensa.`;
+            
+            const group = grouped[foodIndex];
+            const food = group.instances[0];
+
+            pesoOfertado = food.weight;
+            foodName = food.name;
+            foodEmoji = food.emoji;
+
+            const originalIndex = player.records.findIndex(r => r.instanceId === food.instanceId || (r.id === food.id && r.weight === food.weight && r.date === food.date));
+            if (originalIndex > -1) {
+                player.records.splice(originalIndex, 1);
+                await this.pescariaHandler.savePlayerData(userId, player);
+            }
+        }
+
         let xpGanha = 0;
         let reservaGanha = 0;
         let upouDeNivel = false;
@@ -850,31 +1031,83 @@ class ParqueHandler {
             [dino.nivel, dino.xp_atual, dino.reserva_comida, dino.ultimo_level_up, dinoId]
         );
 
-        const originalIndex = player.records.findIndex(r => r.instanceId === food.instanceId || (r.id === food.id && r.weight === food.weight && r.date === food.date));
-        if (originalIndex > -1) {
-            player.records.splice(originalIndex, 1);
-            await this.pescariaHandler.savePlayerData(userId, player);
-        }
-
-        let msg = `${userTag}🥩 **HORA DO RANGO JURÁSSICO!**\n\n`;
-        msg += `Você jogou um(a) ${food.emoji} **${food.name}** (${food.weight.toFixed(2)}kg) na jaula do **${dinoInfo.name}** (Descoberto por: ${dino.descobridor_nome}).\n\n`;
+        let msg = `${userTag}🍽️ **HORA DO RANGO JURÁSSICO!**\n\n`;
+        msg += `Você jogou **${pesoOfertado.toFixed(2)}kg** de ${foodEmoji} *${foodName}* na jaula do **${dinoInfo.name}**!\n\n`;
 
         if (upouDeNivel) {
             const novaClasse = this.getClasseDino(dino.nivel);
-            msg += `🌟 **LEVEL UP!!!**\nO ${dinoInfo.name} comeu **${xpGanha.toFixed(2)}kg**, ficou com sono e subiu para o **Nível ${dino.nivel} (${novaClasse})**!\n`;
+            msg += `🌟 **LEVEL UP!!!**\nFicou com sono e subiu para o **Nível ${dino.nivel} (${novaClasse})**!\n`;
             msg += `💤 _Ele não pode mais subir de nível hoje._\n`;
         } else if (hasLeveledUpToday) {
-            msg += `💤 O dinossauro já está fazendo a digestão pesada do Level Up de hoje.\n`;
+            msg += `💤 O dinossauro guardou a comida, pois já está fazendo a digestão do Level Up de hoje.\n`;
         } else {
             const porcentagem = ((dino.xp_atual / xpNecessarioProLevel) * 100).toFixed(1);
             msg += `😋 Ele devorou tudo! (Crescimento: **${porcentagem}%** para o Nível ${dino.nivel + 1})\n`;
         }
 
-        if (reservaGanha > 0) {
-            msg += `🧊 Sobraram **${reservaGanha.toFixed(2)}kg** de carne que foram guardados na reserva térmica do parque para amanhã!\n`;
+        if (reservaGanha > 0 && !usandoReserva) {
+            msg += `🧊 Sobraram **${reservaGanha.toFixed(2)}kg** que foram guardados na reserva térmica individual do dino para amanhã!\n`;
         }
 
         return msg;
+    }
+
+    async porcionarComida(userId, userTag, foodIndexStr, pesoPorcaoStr) {
+        const foodIndex = parseInt(foodIndexStr) - 1;
+        const pesoPorcao = parseFloat(pesoPorcaoStr);
+
+        if (isNaN(foodIndex) || isNaN(pesoPorcao) || pesoPorcao <= 0) {
+            return `${userTag} ⚠️ Formato incorreto! Use: *!parque porcionar [numero_da_comida] [peso_em_kg]*\nEx: _!parque porcionar 1 50.5_`;
+        }
+
+        const { grouped, player } = await this.getGroupedDispensa(userId);
+
+        if (foodIndex < 0 || foodIndex >= grouped.length) {
+            return `${userTag} ❌ Peixe não encontrado na dispensa. Tem certeza que anotou o número certo?`;
+        }
+
+        const group = grouped[foodIndex];
+        const food = group.instances[0];
+
+        if (pesoPorcao >= food.weight) {
+            return `${userTag} 🛑 A porção ( ${pesoPorcao}kg ) tem que ser menor que o peso total do peixe ( ${food.weight.toFixed(2)}kg )! Você não sabe usar uma faca?`;
+        }
+
+        const qtdPorcoes = Math.floor(food.weight / pesoPorcao);
+        const resto = food.weight % pesoPorcao;
+
+        const originalIndex = player.records.findIndex(r => r.instanceId === food.instanceId || (r.id === food.id && r.weight === food.weight && r.date === food.date));
+        if (originalIndex > -1) {
+            player.records.splice(originalIndex, 1);
+        } else {
+            return `${userTag} ❌ Erro ao localizar o peixe no isopor para fatiar.`;
+        }
+
+        const generateId = () => Date.now().toString(36) + Math.random().toString(36).substring(2);
+
+        for(let i = 0; i < qtdPorcoes; i++) {
+            player.records.push({
+                id: food.id,
+                weight: pesoPorcao,
+                group_id: food.group_id,
+                date: Math.floor(Date.now() / 1000),
+                instanceId: generateId()
+            });
+        }
+
+        if (resto > 0.01) {
+            player.records.push({
+                id: food.id,
+                weight: resto,
+                group_id: food.group_id,
+                date: Math.floor(Date.now() / 1000),
+                instanceId: generateId()
+            });
+        }
+
+        await this.pescariaHandler.savePlayerData(userId, player);
+
+        return `${userTag} 🔪 **AÇOUGUEIRO PROFISSIONAL!**\n\nVocê fatiou o(a) ${food.emoji} **${food.name}** de ${food.weight.toFixed(2)}kg em:\n🥩 **${qtdPorcoes}x** porções de **${pesoPorcao.toFixed(2)}kg**.\n🍖 Sobrou um retalho de **${resto.toFixed(2)}kg**.\n\nUse *!parque despensa* para ver as novas peças de carne!`;
     }
 
     // FIX DE MULTIPLICADORES DE CORES

@@ -634,6 +634,15 @@ async function initDatabase() {
         if (!error.message.includes("duplicate column name")) console.error(error.message);
     }
 
+    await db.exec(`
+        CREATE TABLE IF NOT EXISTS parque_estoque (
+            group_id TEXT PRIMARY KEY,
+            carne REAL DEFAULT 0,
+            vegetal REAL DEFAULT 0
+        );
+    `);
+    console.log("✅ Tabela 'parque_estoque' verificada.");
+
     console.log('✅ Banco de dados SQLite inicializado e tabelas verificadas.');
 }
 

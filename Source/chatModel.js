@@ -474,11 +474,16 @@ class ChatModel {
                     return await this.parqueHandler.handleApelidoDino(ctx.sender, tag, netGroupId, args[2], args.slice(3));
                 }
 
+                if (subCommand === 'porcionar' || subCommand === 'cortar' || subCommand === 'picar') {
+                    return await this.parqueHandler.porcionarComida(ctx.sender, tag, args[2], args[3]);
+                }
+
                 return `${tag}🦖 **JURASSIC BOSTOPARK** 🦖\n\n` +
                        `⛏️ *!escavar* (Ache minérios ou Âmbar!)\n` +
                        `🎒 *!parque mochila* (Veja suas pedras)\n` +
                        `🤝 *!parque vender [numero/tudo]* (Venda os minérios)\n` +
                        `🥩 *!parque despensa* (Veja seus peixes comestíveis)\n` +
+                       `🔪 *!parque cortar* (Corte seus peixes grandes em porções)\n` +
                        `🍗 *!parque alimentar [ID] [Nº_Comida]* (Alimente um dino)\n` +
                        `🖼️ *!parque mural* (Veja os dinossauros do grupo)\n` +
                        `🧬 *!parque perfil* (Sua coleção e ticket gerado)\n` +

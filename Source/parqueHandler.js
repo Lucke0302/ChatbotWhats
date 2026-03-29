@@ -538,23 +538,52 @@ class ParqueHandler {
 
     // Menu de Comida
     async listarComida(userId, userTag) {
-        const { sellableArray } = await this.pescariaHandler.getSellableList(userId);
-        
-        const edibleFishes = sellableArray.filter(f => !this.INEDIBLE_ITEMS.includes(f.id));
+        const { grouped } = await this.getGroupedDispensa(userId);
 
-        if (edibleFishes.length === 0) {
+        if (grouped.length === 0) {
             return `${userTag} 🪹 Seu isopor está vazio ou só tem sucata! Dinossauros não comem placas-mãe. Vá pescar!`;
         }
 
         let msg = `${userTag}🥩 **DISPENSA DO PARQUE (Seu Isopor)** 🥩\n_Escolha um lanchinho para os dinossauros:_\n\n`;
         
-        edibleFishes.forEach((f, i) => {
-            msg += `*[ ${i + 1} ]* ${f.emoji} ${f.name} (**${f.weight.toFixed(2)}kg**)\n`;
+        grouped.forEach((g, i) => {
+            const prefixo = g.count > 1 ? `**${g.count}x** ` : '';
+            msg += `*[ ${i + 1} ]* ${prefixo}${g.emoji} ${g.name} (**${g.weightStr}kg**)\n`;
         });
 
-        msg += `\n🦖 Para alimentar um dino, use: *!parque alimentar [id_do_dino] [numero_da_comida]*\n`;
+        msg += `\n🦖 Para alimentar um dino: *!parque alimentar [id_do_dino] [numero_da_comida]*\n`;
+        msg += `🔪 Para fatiar um peixe: *!parque porcionar [numero_da_comida] [peso_da_porcao]*\n`;
         msg += `_Dica: O ID do dino você vê em !parque mural_`;
         return msg;
+    }
+
+    async getGroupedDispensa(userId) {
+        const { sellableArray, player } = await this.pescariaHandler.getSellableList(userId);
+        const edibleFishes = sellableArray.filter(f => !this.INEDIBLE_ITEMS.includes(f.id));
+
+        const grouped = [];
+        for (const fish of edibleFishes) {
+            const weightStr = fish.weight.toFixed(2);
+            
+            const existing = grouped.find(g => g.id === fish.id && g.weightStr === weightStr);
+            
+            if (existing) {
+                existing.count++;
+                existing.instances.push(fish);
+            } else {
+                grouped.push({
+                    id: fish.id,
+                    name: fish.name,
+                    emoji: fish.emoji,
+                    weight: fish.weight,
+                    weightStr: weightStr,
+                    count: 1,
+                    instances: [fish],
+                    originalFish: fish
+                });
+            }
+        }
+        return { grouped, player };
     }
 
     async handleEscavar(userId, userTag, userName, groupId) {
@@ -851,14 +880,14 @@ class ParqueHandler {
         const dino = await this.db.get("SELECT * FROM parque_dinossauros WHERE id = ? AND group_id = ?", [dinoId, groupId]);
         if (!dino) return `${userTag} ❌ Dinossauro não encontrado neste parque. Tem certeza que anotou o ID certo?`;
 
-        const { sellableArray, player } = await this.pescariaHandler.getSellableList(userId);
-        const edibleFishes = sellableArray.filter(f => !this.INEDIBLE_ITEMS.includes(f.id));
-
-        if (foodIndex < 0 || foodIndex >= edibleFishes.length) {
+        const { grouped, player } = await this.getGroupedDispensa(userId);
+        if (foodIndex < 0 || foodIndex >= grouped.length) {
             return `${userTag} ❌ Comida não encontrada na dispensa.`;
         }
 
-        const food = edibleFishes[foodIndex];
+        const group = grouped[foodIndex];
+        const food = group.instances[0];
+
         const dinoInfo = DINO_CATALOG[dino.especie_id];
         
         const xpNecessarioProLevel = 2 * dino.nivel * dinoInfo.base_xp_req;
@@ -925,6 +954,64 @@ class ParqueHandler {
         }
 
         return msg;
+    }
+
+    async porcionarComida(userId, userTag, foodIndexStr, pesoPorcaoStr) {
+        const foodIndex = parseInt(foodIndexStr) - 1;
+        const pesoPorcao = parseFloat(pesoPorcaoStr);
+
+        if (isNaN(foodIndex) || isNaN(pesoPorcao) || pesoPorcao <= 0) {
+            return `${userTag} ⚠️ Formato incorreto! Use: *!parque porcionar [numero_da_comida] [peso_em_kg]*\nEx: _!parque porcionar 1 50.5_`;
+        }
+
+        const { grouped, player } = await this.getGroupedDispensa(userId);
+
+        if (foodIndex < 0 || foodIndex >= grouped.length) {
+            return `${userTag} ❌ Peixe não encontrado na dispensa. Tem certeza que anotou o número certo?`;
+        }
+
+        const group = grouped[foodIndex];
+        const food = group.instances[0];
+
+        if (pesoPorcao >= food.weight) {
+            return `${userTag} 🛑 A porção ( ${pesoPorcao}kg ) tem que ser menor que o peso total do peixe ( ${food.weight.toFixed(2)}kg )! Você não sabe usar uma faca?`;
+        }
+
+        const qtdPorcoes = Math.floor(food.weight / pesoPorcao);
+        const resto = food.weight % pesoPorcao;
+
+        const originalIndex = player.records.findIndex(r => r.instanceId === food.instanceId || (r.id === food.id && r.weight === food.weight && r.date === food.date));
+        if (originalIndex > -1) {
+            player.records.splice(originalIndex, 1);
+        } else {
+            return `${userTag} ❌ Erro ao localizar o peixe no isopor para fatiar.`;
+        }
+
+        const generateId = () => Date.now().toString(36) + Math.random().toString(36).substring(2);
+
+        for(let i = 0; i < qtdPorcoes; i++) {
+            player.records.push({
+                id: food.id,
+                weight: pesoPorcao,
+                group_id: food.group_id,
+                date: Math.floor(Date.now() / 1000),
+                instanceId: generateId()
+            });
+        }
+
+        if (resto > 0.01) {
+            player.records.push({
+                id: food.id,
+                weight: resto,
+                group_id: food.group_id,
+                date: Math.floor(Date.now() / 1000),
+                instanceId: generateId()
+            });
+        }
+
+        await this.pescariaHandler.savePlayerData(userId, player);
+
+        return `${userTag} 🔪 **AÇOUGUEIRO PROFISSIONAL!**\n\nVocê fatiou o(a) ${food.emoji} **${food.name}** de ${food.weight.toFixed(2)}kg em:\n🥩 **${qtdPorcoes}x** porções de **${pesoPorcao.toFixed(2)}kg**.\n🍖 Sobrou um retalho de **${resto.toFixed(2)}kg**.\n\nUse *!parque despensa* para ver as novas peças de carne!`;
     }
 
     // FIX DE MULTIPLICADORES DE CORES

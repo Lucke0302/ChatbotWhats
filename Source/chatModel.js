@@ -368,7 +368,7 @@ class ChatModel {
                     }
                     
                     if (args[2]?.toLowerCase() === 'repetidos' || args[2]?.toLowerCase() === 'repetido') {
-                        return await this.pescariaHandler.handleVenderRepetidos(ctx.sender, tag);
+                        return await this.pescariaHandler.handleRepetidos(ctx.sender, tag, 'vender');
                     }
                     
                     const itemCodes = args.slice(2).join(' ');
@@ -478,12 +478,28 @@ class ChatModel {
                     return await this.parqueHandler.porcionarComida(ctx.sender, tag, args[2], args[3]);
                 }
 
+                if (subCommand === 'reserva' || subCommand === 'estoque') {
+                    return await this.parqueHandler.verReservaGlobal(netGroupId, tag);
+                }
+
+                if (subCommand === 'depositar' || subCommand === 'doar') {
+                    if (args[2]?.toLowerCase() === 'repetidos' || args[2]?.toLowerCase() === 'repetido') {
+                        return await this.pescariaHandler.handleRepetidos(ctx.sender, tag, 'depositar', netGroupId);
+                    }
+
+                    return await this.parqueHandler.depositarComida(ctx.sender, tag, netGroupId, args[2], args[3]);
+                }
+
                 return `${tag}🦖 **JURASSIC BOSTOPARK** 🦖\n\n` +
                        `⛏️ *!escavar* (Ache minérios ou Âmbar!)\n` +
                        `🎒 *!parque mochila* (Veja suas pedras)\n` +
                        `🤝 *!parque vender [numero/tudo]* (Venda os minérios)\n` +
                        `🥩 *!parque despensa* (Veja seus peixes comestíveis)\n` +
-                       `🔪 *!parque cortar* (Corte seus peixes grandes em porções)\n` +
+                       `🥩 *!parque despensa* (Veja sua comida pessoal)\n` +
+                       `🏢 *!parque reserva* (Veja o estoque do Grupo)\n` +
+                       `🚚 *!parque depositar [ID_Despensa] [tudo]* (Doe comida!)\n` +
+                       `🍗 *!parque alimentar [ID] reserva* (Usa a comida coletiva)\n` +
+                       `🔪 *!parque porcionar [ID_Despensa] [Kg]* (Fatie a carne!)\n` +
                        `🍗 *!parque alimentar [ID] [Nº_Comida]* (Alimente um dino)\n` +
                        `🖼️ *!parque mural* (Veja os dinossauros do grupo)\n` +
                        `🧬 *!parque perfil* (Sua coleção e ticket gerado)\n` +

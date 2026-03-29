@@ -952,56 +952,83 @@ class PescariaHandler {
         return `${userTag}♻️ **COLETA SELETIVA CONCLUÍDA!**\n\nVocê reciclou **${trashCount} itens de lixo** (Botas, pneus, calotas...) e ganhou 🪙 **${totalValue} Bostocoins** pelo serviço ambiental!${profitResult.msg}`;
     }
 
-    // VENDA AUTOMÁTICA DE PEIXES REPETIDOS
-    async handleVenderRepetidos(userId, userTag) {
+    // PROCESSA PEIXES REPETIDOS
+    async handleRepetidos(userId, userTag, action = 'vender', groupId = null) {
         const player = await this.getPlayerData(userId);
         
         if (!player.records || !Array.isArray(player.records) || player.records.length === 0) {
-            return `${userTag} O seu isopor está vazio! Vá pescar antes de tentar vender vento.`;
+            return `${userTag} O seu isopor está vazio! Vá pescar antes de tentar ${action === 'vender' ? 'vender vento' : 'doar vento'}.`;
         }
 
+        const recordsToKeep = [];
         const bestFishes = {};
-        const duplicates = [];
+        const duplicatesToProcess = [];
 
         for (const record of player.records) {
+            const isInedible = action === 'depositar' && this.parqueHandler && this.parqueHandler.INEDIBLE_ITEMS.includes(record.id);
+            
+            if (isInedible) {
+                recordsToKeep.push(record);
+                continue;
+            }
+
             if (!bestFishes[record.id]) {
                 bestFishes[record.id] = record;
             } else {
                 if (record.weight > bestFishes[record.id].weight) {
-                    duplicates.push(bestFishes[record.id]);
+                    duplicatesToProcess.push(bestFishes[record.id]);
                     bestFishes[record.id] = record; 
                 } else {
-                    duplicates.push(record); 
+                    duplicatesToProcess.push(record); 
                 }
             }
         }
 
-        if (duplicates.length === 0) {
-            return `${userTag}🐟 Seu isopor está limpo! Você só tem um exemplar (o seu recorde) de cada espécie no momento.`;
+        if (duplicatesToProcess.length === 0) {
+            return `${userTag}🐟 Seu isopor está limpo! Você só tem um exemplar (o seu recorde) de cada espécie comestível.`;
         }
 
-        let totalValue = 0;
         let soldCount = 0;
+        let totalValue = 0;
+        let totalWeight = 0;
 
-        for (const record of duplicates) {
+        for (const record of duplicatesToProcess) {
             const fishInfo = FISH_CATALOG.find(f => f.id === record.id);
             if (!fishInfo) continue;
 
-            const maxWeight = fishInfo.avgWeight * 1.5;
-            const perfeicao = record.weight / maxWeight;
-            const finalValue = Math.ceil((RARITY_MULTIPLIER[fishInfo.rarity] || 10) * perfeicao);
-
-            totalValue += finalValue;
+            if (action === 'vender') {
+                const maxWeight = fishInfo.avgWeight * 1.5;
+                const perfeicao = record.weight / maxWeight;
+                const finalValue = Math.ceil((RARITY_MULTIPLIER[fishInfo.rarity] || 10) * perfeicao);
+                totalValue += finalValue;
+            } else if (action === 'depositar') {
+                totalWeight += record.weight;
+            }
             soldCount++;
         }
 
-        player.records = Object.values(bestFishes);
+        player.records = [...recordsToKeep, ...Object.values(bestFishes)];
         await this.savePlayerData(userId, player);
 
-        const profitResult = await this.casinoHandler.verifyProfit(userId, totalValue);
-        await this.db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [profitResult.finalProfit, userId]);
+        if (action === 'vender') {
+            const profitResult = await this.casinoHandler.verifyProfit(userId, totalValue);
+            await this.db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [profitResult.finalProfit, userId]);
 
-        return `${userTag}📦 **LIMPEZA DE REPETIDOS CONCLUÍDA!**\n\nVocê vendeu **${soldCount} peixes duplicados** (mantendo apenas o seu recorde absoluto de cada espécie) e lucrou 🪙 **${totalValue} Bostocoins** no mercadão!${profitResult.msg}`;
+            return `${userTag}📦 **LIMPEZA DE REPETIDOS CONCLUÍDA!**\n\nVocê vendeu **${soldCount} peixes duplicados** (mantendo apenas o seu recorde absoluto de cada espécie) e lucrou 🪙 **${totalValue} Bostocoins** no mercadão!${profitResult.msg}`;
+        } 
+        else if (action === 'depositar') {
+            if (!groupId) return `${userTag} ❌ Erro: ID do grupo não fornecido para o depósito.`;
+            
+            await this.db.run(`
+                INSERT INTO parque_estoque (group_id, carne, vegetal) 
+                VALUES (?, ?, 0) 
+                ON CONFLICT(group_id) 
+                DO UPDATE SET carne = carne + ?`, 
+                [groupId, totalWeight, totalWeight]
+            );
+
+            return `${userTag} 🚚 **DOAÇÃO EM MASSA CONCLUÍDA!**\n\nVocê transferiu **${soldCount} peixes duplicados** diretamente para a câmara frigorífica do parque.\n\n_(Seus recordes absolutos de tamanho e seus itens de lixo continuam salvos no isopor)_.\n\nTotal doado: 🥩 **${totalWeight.toFixed(2)} kg de Carne**!\nO ecossistema agradece.`;
+        }
     }
 
     // AVALIA O VALOR TOTAL DO INVENTÁRIO

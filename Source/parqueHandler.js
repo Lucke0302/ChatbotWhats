@@ -239,6 +239,12 @@ class ParqueHandler {
             'ram_2_gb_ddr2', 'ram_2_gb_ddr3', 'ram_8_gb_ddr3', 'ram_8_gb_ddr4', 
             'ram_16_gb_ddr4', 'ram_16_gb_ddr5', 'ram_64_gb_ddr5'
         ];
+
+        this.HERBIVOROS = ['triceratops', 'stegosaurus', 'ankylosaurus', 'diplodocus', 
+            'brachiosaurus', 'apatosaurus', 'argentinosaurus', 'parasaurolophus', 
+            'iguanodon', 'corythosaurus', 'stygimoloch', 'pachycephalosaurus', 
+            'protoceratops', 'gallimimus', 'microceratus', 'dryosaurus', 'hypsilophodon', 
+            'psittacosaurus', 'stegoceratops', 'ankylodocus', 'iguano-coritho', 'para-kentro'];
     }
     
     async getPlayerData(userId) {
@@ -979,14 +985,17 @@ class ParqueHandler {
                 msg += `   🎨 Cor: ${d.cor} | 🧬 Lvl: ${d.nivel} [${classe}] (${porcentagem}% pro Nvl ${d.nivel + 1})\n`;
                 
                 const idsCriadores = d.descobridor_id.split(',').map(i => i.trim()).filter(i => i !== '');
+                
+                const reservaEmoji = this.HERBIVOROS.includes(d.especie_id) ? '🍃' : '🥩';
+
                 if (idsCriadores.length > 1) {
                     const parceiros = idsCriadores
                         .filter(i => i !== equipeSelecionada.id)
                         .map(i => playerNames[i] ? getShortName(playerNames[i]) : 'Alguém')
                         .join(', ');
-                    msg += `   🥩 Reserva: ${d.reserva_comida.toFixed(1)}kg | 🤝 _Co-criado com: ${parceiros}_\n\n`;
+                    msg += `   ${reservaEmoji} Reserva: ${d.reserva_comida.toFixed(1)}kg | 🤝 _Co-criado com: ${parceiros}_\n\n`;
                 } else {
-                    msg += `   🥩 Reserva: ${d.reserva_comida.toFixed(1)}kg\n\n`;
+                    msg += `   ${reservaEmoji} Reserva: ${d.reserva_comida.toFixed(1)}kg\n\n`;
                 }
             }
         });
@@ -1024,8 +1033,7 @@ class ParqueHandler {
 
             const estoque = await this.db.get("SELECT carne, vegetal FROM parque_estoque WHERE group_id = ?",[groupId]) || { carne: 0, vegetal: 0 };
             
-            const herbivoros = ['triceratops', 'stegosaurus', 'ankylosaurus', 'diplodocus', 'brachiosaurus', 'apatosaurus', 'argentinosaurus', 'parasaurolophus', 'iguanodon', 'corythosaurus', 'stygimoloch', 'pachycephalosaurus', 'protoceratops', 'gallimimus', 'microceratus', 'dryosaurus', 'hypsilophodon', 'psittacosaurus', 'stegoceratops', 'ankylodocus', 'iguano-coritho', 'para-kentro'];
-            const dieta = herbivoros.includes(dino.especie_id) ? 'vegetal' : 'carne';
+            const dieta = this.HERBIVOROS.includes(dino.especie_id) ? 'vegetal' : 'carne';
             
             let disponivel = estoque[dieta];
             if (disponivel <= 0) return `${userTag} 🪹 A câmara frigorífica de **${dieta === 'carne' ? 'Carne 🥩' : 'Vegetais 🥬'}** está vazia! O grupo precisa depositar comida.`;

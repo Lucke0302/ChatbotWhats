@@ -1220,9 +1220,28 @@ class ChatModel {
             return { condicao: cache.condicao, emoji: cache.emoji, cidade: cidade };
         }
 
-        console.log(`[CLIMA] Atualizando cache de clima para: ${cidade}`);
+        console.log(`[CLIMA] Cache expirado/inexistente. Buscando clima para: ${cidade}`);
         const climaNovo = await getGameWeatherCondition(cidade);
         
+        if (climaNovo.failed) {
+            console.log(`[CLIMA] ⚠️ Falha na API para ${cidade}. Acionando protocolo de emergência.`);
+            
+            if (cache) {
+                const quinzeMinutosCooldown = now - 2700; 
+                await this.db.run("UPDATE clima_cache SET timestamp = ? WHERE cidade = ?", [quinzeMinutosCooldown, cidade]);
+                
+                return { condicao: cache.condicao, emoji: cache.emoji, cidade: cidade };
+            } else {
+                const quinzeMinutosCooldown = now - 2700;
+                await this.db.run(`
+                    INSERT INTO clima_cache (cidade, condicao, emoji, timestamp) 
+                    VALUES (?, 'nublado', '☁️', ?)`,
+                    [cidade, quinzeMinutosCooldown]
+                );
+                return { condicao: 'nublado', emoji: '☁️', cidade: cidade };
+            }
+        }
+
         await this.db.run(`
             INSERT INTO clima_cache (cidade, condicao, emoji, timestamp) 
             VALUES (?, ?, ?, ?)

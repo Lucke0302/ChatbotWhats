@@ -59,26 +59,26 @@ async function getWeather(city) {
  * Busca o clima para as mecânicas de jogo
  */
 async function getGameWeatherCondition(city) {
-    if (!city) return { condicao: 'nublado', emoji: '☁️' };
+    if (!city) return { condicao: 'nublado', emoji: '☁️', failed: true };
     
     try {
         const url = `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(city)}&appid=${WEATHER_API_KEY}&units=metric&lang=pt_br`;
         const response = await fetch(url);
         
-        if (!response.ok) return { condicao: 'nublado', emoji: '☁️' };
+        if (!response.ok) return { condicao: 'nublado', emoji: '☁️', failed: true };
 
         const data = await response.json();
         const description = data.weather[0].description.toLowerCase();
 
-        if (description.includes("chuva") || description.includes("garoa")) return { condicao: 'chuva', emoji: '🌧️' };
-        if (description.includes("trovoada") || description.includes("tempestade")) return { condicao: 'trovoada', emoji: '⛈️' };
-        if (description.includes("limpo") || description.includes("sol")) return { condicao: 'sol', emoji: '☀️' };
+        if (description.includes("chuva") || description.includes("garoa")) return { condicao: 'chuva', emoji: '🌧️', failed: false };
+        if (description.includes("trovoada") || description.includes("tempestade")) return { condicao: 'trovoada', emoji: '⛈️', failed: false };
+        if (description.includes("limpo") || description.includes("sol")) return { condicao: 'sol', emoji: '☀️', failed: false };
         
-        return { condicao: 'nublado', emoji: '☁️' };
+        return { condicao: 'nublado', emoji: '☁️', failed: false };
 
     } catch (error) {
         console.error("[GameWeather] Erro na API:", error);
-        return { condicao: 'nublado', emoji: '☁️' };
+        return { condicao: 'nublado', emoji: '☁️', failed: true };
     }
 }
 

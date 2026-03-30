@@ -488,7 +488,7 @@ class ParqueHandler {
                         [d.nivel, d.xp_atual, d.reserva_comida, d.ultimo_level_up, d.id]);
                     
                     const novaClasse = this.getClasseDino(d.nivel);
-                    digestaoMsg += `🍖 O **${dinoInfo.name}** de ${d.descobridor_nome} devorou as sobras na madrugada e acordou no **Nível ${d.nivel} (${novaClasse})**!\n`;
+                    digestaoMsg += `🍖 Um **${dinoInfo.name}** devorou as sobras na madrugada e acordou no **Nível ${d.nivel} (${novaClasse})**!\n`;
                 } else {
                     d.xp_atual += d.reserva_comida;
                     d.reserva_comida = 0;
@@ -757,8 +757,8 @@ class ParqueHandler {
         const now = Math.floor(Date.now() / 1000);
         await this.db.run(`
             INSERT INTO parque_dinossauros (group_id, especie_id, descobridor_nome, descobridor_id, nivel, xp_atual, data_descoberta, reserva_comida, ultimo_level_up, cor, multiplicador_bilheteria)
-            VALUES (?, ?, ?, ?, 1, 0, ?, 0, 0, ?, ?)`,
-            [groupId, dinoId, userName, userId, now, corString, multiplicadorTotal]
+            VALUES (?, ?, '', ?, 1, 0, ?, 0, 0, ?, ?)`,
+            [groupId, dinoId, userId, now, corString, multiplicadorTotal]
         );
 
         const profitResult = await this.casinoHandler.verifyProfit(userId, dinoInfo.ticket_value);
@@ -793,24 +793,25 @@ class ParqueHandler {
             if (temTodos) {
                 const pais = dinosNoParque.filter(d => hibridoInfo.receita.includes(d.especie_id));
                 
-                let descobridoresNomes = new Set();
                 let descobridoresIds = new Set();
-
                 pais.forEach(p => {
-                    descobridoresNomes.add(p.descobridor_nome);
-                    descobridoresIds.add(p.descobridor_id);
+                    if (p.descobridor_id) {
+                        p.descobridor_id.split(',').forEach(id => descobridoresIds.add(id.trim()));
+                    }
                 });
 
-                const nivelHibrido = 1;
-                const nomeAutores = Array.from(descobridoresNomes).join(" & ");
-                
-                let idsFormatados = [];
-                Array.from(descobridoresIds).forEach(id => {
-                    idsFormatados.push(...id.split(','));
-                });
-                idsFormatados = [...new Set(idsFormatados)];
+                let idsFormatados = Array.from(descobridoresIds).filter(id => id !== '');
                 const idSalvamento = idsFormatados.join(',');
 
+                let nomesAutoresArray = [];
+                for (const uid of idsFormatados) {
+                    const userDb = await this.db.get("SELECT nome FROM usuarios WHERE id_usuario = ?", [uid]);
+                    nomesAutoresArray.push(userDb ? userDb.nome : 'Alguém');
+                }
+                const nomeAutoresMsg = nomesAutoresArray.join(" & ");
+
+                const nivelHibrido = 1;
+                
                 let coresHibrido = [];
                 let coresMultiplicador = 0;
                 let coresTemp = [...DINO_COLORS];
@@ -825,8 +826,8 @@ class ParqueHandler {
                 const now = Math.floor(Date.now() / 1000);
                 await this.db.run(`
                     INSERT INTO parque_dinossauros (group_id, especie_id, descobridor_nome, descobridor_id, nivel, xp_atual, data_descoberta, reserva_comida, ultimo_level_up, cor, multiplicador_bilheteria)
-                    VALUES (?, ?, ?, ?, ?, 0, ?, 0, 0, ?, ?)`,
-                    [groupId, hibridoId, nomeAutores, idSalvamento, nivelHibrido, now, corString, coresMultiplicador]
+                    VALUES (?, ?, '', ?, ?, 0, ?, 0, 0, ?, ?)`,
+                    [groupId, hibridoId, idSalvamento, nivelHibrido, now, corString, coresMultiplicador]
                 );
 
                 const recompensaIndividual = Math.floor(hibridoInfo.ticket_value / idsFormatados.length);
@@ -838,7 +839,7 @@ class ParqueHandler {
                 msgHibrido += `O cruzamento de DNA no parque de vocês gerou uma mutação agressiva no laboratório!\n\n`;
                 msgHibrido += `🧬 **NOVO HÍBRIDO SINTETIZADO:** ${hibridoInfo.emoji} **${hibridoInfo.name}**\n`;
                 msgHibrido += `📈 **Poder Inicial:** Nível 1 _(Recém-saído da incubadora 🍼)_\n`;
-                msgHibrido += `👥 **Criadores:** ${nomeAutores}\n`;
+                msgHibrido += `👥 **Criadores:** ${nomeAutoresMsg}\n`;
                 msgHibrido += `💰 **Royalties InGen:** 🪙 ${recompensaIndividual} Bostocoins para cada criador!\n`;
                 
                 if (hibridoId === 'bostossauro') {
@@ -846,7 +847,7 @@ class ParqueHandler {
                 }
 
                 especiesNoParque.push(hibridoId);
-                dinosNoParque.push({ especie_id: hibridoId, nivel: nivelHibrido, descobridor_nome: nomeAutores, descobridor_id: idSalvamento });
+                dinosNoParque.push({ especie_id: hibridoId, nivel: nivelHibrido, descobridor_nome: '', descobridor_id: idSalvamento });
             }
         }
         return msgHibrido;
@@ -901,38 +902,54 @@ class ParqueHandler {
     }
 
     // MURAL GLOBAL
-    async verParqueGlobal(groupId, userTag, paramStr) {
+    async verParqueGlobal(groupId, userTag, paramStr, pokemonHandler) {
         const dinos = await this.db.all("SELECT * FROM parque_dinossauros WHERE group_id = ? ORDER BY id ASC", [groupId]);
         
         if (!dinos || dinos.length === 0) {
             return `${userTag} 🚧 O **Jurassic BostoPark** deste grupo ainda é só um terreno baldio com mato alto. Escave e ache um âmbar para começar!`;
         }
 
-        const equipes = {};
+        const playerCercados = {}; 
+        const uniqueUsers = new Set();
+
         dinos.forEach(d => {
-            const nomeStr = d.descobridor_nome || 'Desconhecido';
-            if (!equipes[nomeStr]) {
-                equipes[nomeStr] = [];
-            }
-            equipes[nomeStr].push(d);
+            if (!d.descobridor_id) return;
+            const ids = d.descobridor_id.split(',').map(id => id.trim()).filter(id => id !== '');
+            
+            ids.forEach(id => {
+                if (!playerCercados[id]) playerCercados[id] = [];
+                playerCercados[id].push(d);
+                uniqueUsers.add(id);
+            });
         });
 
-        const listaEquipes = Object.keys(equipes).map(nome => {
+        const playerNames = {};
+        for (const id of uniqueUsers) {
+            let currentTag = id; 
+            if (pokemonHandler) {
+                currentTag = await pokemonHandler.getUserTag(id);
+                currentTag = currentTag.replace(/\n/g, '').trim(); 
+            }
+            playerNames[id] = currentTag;
+        }
+
+        const listaEquipes = Object.keys(playerCercados).map(id => {
             return {
-                nome: nome,
-                dinos: equipes[nome]
+                id: id,
+                nome: playerNames[id] || 'Desconhecido',
+                dinos: playerCercados[id]
             };
         }).sort((a, b) => b.dinos.length - a.dinos.length);
 
         if (!paramStr || isNaN(parseInt(paramStr))) {
             let msg = `${userTag}🦖 **JURASSIC BOSTOPARK DO GRUPO** 🦕\n_A bilheteria agradece o turismo!_\n\n`;
-            msg += `📋 **Cercados por Descobridor/Equipe:**\n`;
+            msg += `📋 **Cercados Individuais:**\n`;
             
             listaEquipes.forEach((eq, index) => {
-                msg += `*[ ${index + 1} ]* ${eq.nome}: **${eq.dinos.length} dino(s)**\n`;
+                msg += `*[ ${index + 1} ]* ${eq.nome} ➝ **${eq.dinos.length} dino(s)**\n`;
             });
             
-            msg += `\n🔍 Para ver os dinossauros de alguém, use: *!parque mural [número]*\n`;
+            msg += `\n🔍 Para visitar o cercado de alguém, use: *!parque mural [número]*\n`;
             msg += `🍗 Para alimentar, use: *!parque alimentar [ID] [Nº_Comida]*`;
             return msg;
         }
@@ -943,7 +960,9 @@ class ParqueHandler {
         }
 
         const equipeSelecionada = listaEquipes[index];
-        let msg = `${userTag}🦖 **CERCADO: ${equipeSelecionada.nome.toUpperCase()}** 🦕\n_Dinossauros sob os cuidados desta equipe:_\n\n`;
+        let msg = `${userTag}🦖 **CERCADO:** ${equipeSelecionada.nome.toUpperCase()} 🦕\n_Dinossauros sob os cuidados deste tratador:_\n\n`;
+
+        const getShortName = (tag) => tag.replace(/^[^\w\s]+/, '').split('(')[0].trim();
 
         equipeSelecionada.dinos.forEach(d => {
             const dinoInfo = DINO_CATALOG[d.especie_id];
@@ -958,11 +977,21 @@ class ParqueHandler {
                 
                 msg += `🆔 *[ ID: ${d.id} ]* ${dinoInfo.emoji} **${nomeExibicao}**\n`;
                 msg += `   🎨 Cor: ${d.cor} | 🧬 Lvl: ${d.nivel} [${classe}] (${porcentagem}% pro Nvl ${d.nivel + 1})\n`;
-                msg += `   🥩 Reserva: ${d.reserva_comida.toFixed(1)}kg\n\n`;
+                
+                const idsCriadores = d.descobridor_id.split(',').map(i => i.trim()).filter(i => i !== '');
+                if (idsCriadores.length > 1) {
+                    const parceiros = idsCriadores
+                        .filter(i => i !== equipeSelecionada.id)
+                        .map(i => playerNames[i] ? getShortName(playerNames[i]) : 'Alguém')
+                        .join(', ');
+                    msg += `   🥩 Reserva: ${d.reserva_comida.toFixed(1)}kg | 🤝 _Co-criado com: ${parceiros}_\n\n`;
+                } else {
+                    msg += `   🥩 Reserva: ${d.reserva_comida.toFixed(1)}kg\n\n`;
+                }
             }
         });
 
-        msg += `🍗 Para alimentar um dino: *!parque alimentar [ID_do_Dino] [Nº_Comida]*`;
+        msg += `🍗 Para alimentar: *!parque alimentar [ID_do_Dino] [Nº_Comida]*`;
         return msg;
     }
 

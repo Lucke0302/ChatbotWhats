@@ -467,7 +467,7 @@ class ChatModel {
                 }
 
                 if (subCommand === 'mural' || subCommand === 'lista') {
-                    return await this.parqueHandler.verParqueGlobal(netGroupId, tag, args[2]);
+                    return await this.parqueHandler.verParqueGlobal(netGroupId, tag, args[2], this.pokemonHandler);
                 }
 
                 if (subCommand === 'perfil') {

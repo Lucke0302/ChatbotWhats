@@ -783,7 +783,7 @@ class PescariaHandler {
         await this.db.run("UPDATE usuarios SET bostocoins = bostocoins - ? WHERE id_usuario = ?", [item.price, userId]);
 
         if (item.type === 'instant') {
-            player.fishBaits += item.effect;
+            player.suprimentos += item.effect;
         } else if (item.type === 'buff') {
             player.active_items[item.id] = item.duration;
         }
@@ -795,7 +795,7 @@ class PescariaHandler {
         if (item.type === 'buff') {
             msg += `✨ O efeito já está ativo na sua próxima jogada! Confira em *!pescaria perfil*.`;
         } else {
-            msg += `🪣 Você agora tem **${player.fishBaits} iscas** no balde!`;
+            msg += `📦 Você agora tem **${player.suprimentos} Suprimentos** (Iscas/Água) no estoque!`;
         }
 
         return msg;

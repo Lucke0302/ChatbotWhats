@@ -522,8 +522,9 @@ class ChatModel {
                 const netGroupId = await this.getNetGroupId(ctx.from);
 
                 if (!subCommand || subCommand === 'perfil' || subCommand === 'ver') {
-                    return await this.fazendaHandler.verFazenda(ctx.sender, tag);
+                    return await this.fazendaHandler.verFazenda(ctx.sender, tag, args[2]);
                 }
+
                 if (subCommand === 'loja') {
                     return await this.fazendaHandler.getLoja(ctx.sender, tag);
                 }

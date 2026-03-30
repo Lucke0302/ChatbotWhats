@@ -89,33 +89,69 @@ class FazendaHandler {
     }
 
     // PERFIL E CANTEIROS
-    async verFazenda(userId, userTag) {
+    async verFazenda(userId, userTag, canteiroIdStr) {
         const data = await this.getFazendaData(userId);
         let pescariaPlayer = await this.pescariaHandler.getPlayerData(userId);
         const now = Math.floor(Date.now() / 1000);
 
+        if (canteiroIdStr && !isNaN(parseInt(canteiroIdStr))) {
+            const cId = parseInt(canteiroIdStr);
+            const canteiro = data.canteiros.find(c => c.id === cId);
+            
+            if (!canteiro) {
+                return `${userTag} ❌ Canteiro [ ${cId} ] não existe. Você possui apenas ${data.canteiros.length} canteiro(s)!`;
+            }
+
+            let msg = `${userTag}🟫 **DETALHES DO CANTEIRO [ ${cId} ]** 🟫\n\n`;
+
+            if (!canteiro.seedId) {
+                msg += `🌱 _A terra está arada, mas o canteiro está vazio!_\n\n`;
+                msg += `🛒 Use *!fazenda loja* para ver o catálogo e *!fazenda plantar [semente]* para iniciar a lavoura.`;
+                return msg;
+            }
+
+            const seed = SEEDS_CATALOG.find(s => s.id === canteiro.seedId);
+            msg += `**Plantação:** ${seed.emoji} ${seed.name}\n`;
+            msg += `🧬 **Saturação:** ${seed.saturation.toFixed(1)}x (XP)\n`;
+            
+            const tratorLevel = data.upgrades.trator || 1;
+            const tratorMult = TOOLS_CATALOG['trator'].find(t => t.level === tratorLevel).multiplier;
+            const baseKilos = this.BASE_YIELD_KG * seed.yieldMultiplier * tratorMult;
+            msg += `⚖️ **Estimativa de Safra:** ~${baseKilos.toFixed(2)}kg\n\n`;
+
+            if (now >= canteiro.harvestTime) {
+                msg += `✅ **STATUS:** PRONTA PARA COLHEITA!\n`;
+                msg += `🌾 _Use !fazenda colher ${cId}_\n`;
+            } else {
+                const timeLeft = canteiro.harvestTime - now;
+                const hours = Math.floor(timeLeft / 3600);
+                const mins = Math.floor((timeLeft % 3600) / 60);
+                msg += `⏳ **STATUS:** Crescendo... (Faltam ${hours}h e ${mins}m)\n`;
+                msg += `💧 **Regas aplicadas:** ${canteiro.regas}x\n\n`;
+                msg += `_Dica: !fazenda regar ${cId} para gastar energia e adiantar o crescimento!_\n`;
+            }
+            return msg;
+        }
+
         let msg = `${userTag}🚜 **SUA BOSTOFAZENDA** 🚜\n_Suprimentos: 📦 ${pescariaPlayer.suprimentos}/${this.MAX_SUPPLY}_\n\n`;
 
         data.canteiros.forEach(c => {
-            msg += `🟫 **Canteiro [ ${c.id} ]:**\n`;
             if (!c.seedId) {
-                msg += `   🌱 _Vazio_ (Pronto para plantar)\n\n`;
+                msg += `*[ ${c.id} ]* 🌱 _Vazio_\n`;
             } else {
                 const seed = SEEDS_CATALOG.find(s => s.id === c.seedId);
                 if (now >= c.harvestTime) {
-                    msg += `   ✅ ${seed.emoji} **${seed.name}** PRONTA PARA COLHEITA!\n`;
-                    msg += `   🌾 _Use !fazenda colher ${c.id}_\n\n`;
+                    msg += `*[ ${c.id} ]* ✅ Pronta: ${seed.emoji} ${seed.name}\n`;
                 } else {
                     const timeLeft = c.harvestTime - now;
                     const hours = Math.floor(timeLeft / 3600);
                     const mins = Math.floor((timeLeft % 3600) / 60);
-                    msg += `   ⏳ ${seed.emoji} Crescendo... (Faltam ${hours}h e ${mins}m)\n`;
-                    msg += `   💧 Regas aplicadas: ${c.regas}\n\n`;
+                    msg += `*[ ${c.id} ]* ⏳ Crescendo: ${seed.emoji} (Falta ${hours}h${mins}m)\n`;
                 }
             }
         });
 
-        msg += `💡 _Dica: Use !fazenda regar [nº] pra gastar 1 Suprimento e adiantar um pouco o tempo pra colher!_`;
+        msg += `\n🔍 _Use *!fazenda perfil [nº]* para ver os detalhes e a estimativa de peso da safra._`;
         return msg;
     }
 

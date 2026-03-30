@@ -18,33 +18,6 @@ const RIOT_API_KEY = process.env.RIOT_API_KEY;
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const { getWeather, getNextDayForecast, getGameWeatherCondition } = require('./weatherCommand');
 
-const CLIMA_MODES = {
-    'sol': { 
-        emoji: '☀️',
-        fazenda_tempo_mult: 0.9, fazenda_rega_custo: 2, 
-        pesca_ambar_mult: 2.0, pesca_peso_mult: 1.0, pesca_quebra_chance: 0,
-        parque_ticket_mult: 1.3, parque_xp_custo_mult: 1.0 
-    },
-    'chuva': { 
-        emoji: '🌧️',
-        fazenda_tempo_mult: 1.0, fazenda_rega_custo: 0, fazenda_podridao_chance: 0.05,
-        pesca_ambar_mult: 1.0, pesca_peso_mult: 1.2, pesca_quebra_chance: 0,
-        parque_ticket_mult: 0.5, parque_xp_custo_mult: 1.0 
-    },
-    'trovoada': { 
-        emoji: '⛈️',
-        fazenda_tempo_mult: 1.0, fazenda_rega_custo: 0, fazenda_alagamento_chance: 0.15, fazenda_peso_mult: 2.0,
-        pesca_ambar_mult: 1.0, pesca_peso_mult: 1.0, pesca_quebra_chance: 0.3, pesca_raridade_mult: 3.0,
-        parque_ticket_mult: 0.5, parque_xp_custo_mult: 1.1 
-    },
-    'nublado': { 
-        emoji: '☁️',
-        fazenda_tempo_mult: 1.0, fazenda_rega_custo: 1, 
-        pesca_ambar_mult: 1.0, pesca_peso_mult: 1.0, pesca_quebra_chance: 0,
-        parque_ticket_mult: 1.0, parque_xp_custo_mult: 1.0 
-    }
-};
-
 class ChatModel {
     constructor(db, genAI) {
         this.db = db;
@@ -374,11 +347,13 @@ class ChatModel {
             },
             '!pescar': async (ctx) => {
                 const tag = await this.pokemonHandler.getUserTag(ctx.sender);
-                return await this.pescariaHandler.pescar(ctx.sender, tag, ctx.from);
+                const clima = await this.getClimaUsuario(ctx.sender); 
+                return await this.pescariaHandler.pescar(ctx.sender, tag, ctx.from, clima);
             },
             '!pesca': async (ctx) => {
                 const tag = await this.pokemonHandler.getUserTag(ctx.sender);
-                return await this.pescariaHandler.pescar(ctx.sender, tag, ctx.from);
+                const clima = await this.getClimaUsuario(ctx.sender); 
+                return await this.pescariaHandler.pescar(ctx.sender, tag, ctx.from, clima);
             },
             '!vip': async (ctx) => {
                 return await this.handleVipStore(ctx);
@@ -1542,19 +1517,27 @@ class ChatModel {
         return await this.getAiResponse(from, sender, name, isGroup, "!traduzir", prompt, "gemma-3-12b-it");
     }
 
-    async handleClimaCommand(text, sender){       
-        let cleanText = text.replace(/^!clima\s*/i, '').trim()
-        if (text.toLowerCase().endsWith('amanhã')) {
-                const city = cleanText.replace(/amanhã$/i, '').trim()
-                return await weatherCommandHandler.getNextDayForecast(city)
+    async handleClimaCommand(text, sender) {       
+        let cleanText = text.replace(/^!clima\s*/i, '').trim();
+        let targetCity = cleanText;
+        let isTomorrow = false;
+
+        if (cleanText.toLowerCase().endsWith('amanhã')) {
+            targetCity = cleanText.replace(/amanhã$/i, '').trim();
+            isTomorrow = true;
+        } else if (cleanText.toLowerCase().endsWith('hoje')) {
+            targetCity = cleanText.replace(/hoje$/i, '').trim();
         }
-        else if (text.toLowerCase().endsWith('hoje')){            
-            const city = cleanText.replace(/hoje$/i, '').trim
-            return await weatherCommandHandler.getWeather(city)
+
+        if (!targetCity) {
+            const user = await this.db.get("SELECT cidade FROM usuarios WHERE id_usuario = ?", [sender]);
+            targetCity = user?.cidade || 'Santos';
         }
-        else{             
-            const city = cleanText
-            return await weatherCommandHandler.getWeather(city)
+
+        if (isTomorrow) {
+            return await weatherCommandHandler.getNextDayForecast(targetCity);
+        } else {
+            return await weatherCommandHandler.getWeather(targetCity);
         }
     }
     

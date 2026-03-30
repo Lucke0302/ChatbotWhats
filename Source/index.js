@@ -804,6 +804,9 @@ const botCommands = {
     },
     '!fazenda': {
         emoji: '🚜'
+    },
+    '!cidade': {
+        emoji: '📍'
     }
 };
 

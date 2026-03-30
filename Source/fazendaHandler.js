@@ -151,7 +151,17 @@ class FazendaHandler {
             msg += `   Buff: +${Math.floor((nextTrator.multiplier - 1) * 100)}% de Peso Colhido\n`;
             msg += `   💰 Custo: 🪙 ${nextTrator.price} ➝ _*!fazenda comprar trator*_\n`;
         } else {
-            msg += `🚜 _Trator Máximo Atingido!_\n`;
+            msg += `🚜 _Ce já tem o maior trator!_\n`;
+        }
+
+        const limiteCanteiros = 5;
+        if (data.canteiros.length < limiteCanteiros) {
+            const nextTerrenoPrice = 1000 * Math.pow(data.canteiros.length, 2);
+            msg += `🗺️ **Expansão de Terras** (Canteiro ${data.canteiros.length + 1})\n`;
+            msg += `   Permite plantar mais uma semente simultaneamente.\n`;
+            msg += `   💰 Custo: 🪙 ${nextTerrenoPrice} ➝ _*!fazenda comprar terreno*_\n`;
+        } else {
+            msg += `🗺️ _Fazenda em Tamanho Máximo (${limiteCanteiros} canteiros)!_\n`;
         }
 
         return msg;
@@ -165,6 +175,31 @@ class FazendaHandler {
         const data = await this.getFazendaData(userId);
         const userDb = await this.db.get("SELECT bostocoins FROM usuarios WHERE id_usuario = ?", [userId]);
         const balance = userDb ? userDb.bostocoins : 0;
+
+        // LÓGICA DE COMPRA DE TERRENO
+        if (tipo === 'terreno') {
+            const limiteCanteiros = 5; 
+            
+            if (data.canteiros.length >= limiteCanteiros) {
+                return `${userTag} 🛑 Você já atingiu o limite máximo de ${limiteCanteiros} canteiros! O Ibama proibiu desmatar o resto da reserva.`;
+            }
+
+            const price = 1000 * Math.pow(data.canteiros.length, 2);
+
+            if (balance < price) {
+                return `${userTag} 💸 A imobiliária riu da sua cara! Um novo lote de terra custa 🪙 **${price} Bostocoins**.`;
+            }
+
+            await this.db.run("UPDATE usuarios SET bostocoins = bostocoins - ? WHERE id_usuario = ?", [price, userId]);
+
+            const novoId = data.canteiros.length + 1;
+            data.canteiros.push({ id: novoId, seedId: null, plantTime: 0, harvestTime: 0, regas: 0 });
+            data.upgrades.maxCanteiros = novoId;
+
+            await this.saveFazendaData(userId, data);
+
+            return `${userTag} 🗺️ **EXPANSÃO AGRÍCOLA!**\n\nVocê subornou o Ibama, desmatou um pedaço da floresta e adquiriu o **Canteiro ${novoId}**!\nAgora você pode plantar mais sementes simultaneamente. Use *!fazenda perfil* para ver sua nova propriedade.`;
+        }
 
         const currentLevel = data.upgrades[tipo];
         const nextUpgrade = TOOLS_CATALOG[tipo].find(t => t.level === currentLevel + 1);

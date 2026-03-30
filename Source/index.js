@@ -664,6 +664,23 @@ async function initDatabase() {
         if (!e.message.includes("duplicate column name")) console.error(e.message);
     }
 
+    try {
+        await db.exec(`ALTER TABLE usuarios ADD COLUMN cidade TEXT DEFAULT 'Santos';`);
+        console.log("✅ Coluna 'cidade' adicionada com sucesso!");
+    } catch (error) {
+        if (!error.message.includes("duplicate column name")) console.error(error.message);
+    }
+
+    await db.exec(`
+        CREATE TABLE IF NOT EXISTS clima_cache (
+            cidade TEXT PRIMARY KEY,
+            condicao TEXT,
+            emoji TEXT,
+            timestamp INTEGER
+        );
+    `);
+    console.log("✅ Tabela 'clima_cache' verificada.");
+
     console.log('✅ Banco de dados SQLite inicializado e tabelas verificadas.');
 }
 

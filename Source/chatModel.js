@@ -16,6 +16,34 @@ const ParqueHandler = require('./parqueHandler');
 const { FazendaHandler } = require('./fazendaHandler');
 const RIOT_API_KEY = process.env.RIOT_API_KEY;
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+const { getWeather, getNextDayForecast, getGameWeatherCondition } = require('./weatherCommand');
+
+const CLIMA_MODES = {
+    'sol': { 
+        emoji: '☀️',
+        fazenda_tempo_mult: 0.9, fazenda_rega_custo: 2, 
+        pesca_ambar_mult: 2.0, pesca_peso_mult: 1.0, pesca_quebra_chance: 0,
+        parque_ticket_mult: 1.3, parque_xp_custo_mult: 1.0 
+    },
+    'chuva': { 
+        emoji: '🌧️',
+        fazenda_tempo_mult: 1.0, fazenda_rega_custo: 0, fazenda_podridao_chance: 0.05,
+        pesca_ambar_mult: 1.0, pesca_peso_mult: 1.2, pesca_quebra_chance: 0,
+        parque_ticket_mult: 0.5, parque_xp_custo_mult: 1.0 
+    },
+    'trovoada': { 
+        emoji: '⛈️',
+        fazenda_tempo_mult: 1.0, fazenda_rega_custo: 0, fazenda_alagamento_chance: 0.15, fazenda_peso_mult: 2.0,
+        pesca_ambar_mult: 1.0, pesca_peso_mult: 1.0, pesca_quebra_chance: 0.3, pesca_raridade_mult: 3.0,
+        parque_ticket_mult: 0.5, parque_xp_custo_mult: 1.1 
+    },
+    'nublado': { 
+        emoji: '☁️',
+        fazenda_tempo_mult: 1.0, fazenda_rega_custo: 1, 
+        pesca_ambar_mult: 1.0, pesca_peso_mult: 1.0, pesca_quebra_chance: 0,
+        parque_ticket_mult: 1.0, parque_xp_custo_mult: 1.0 
+    }
+};
 
 class ChatModel {
     constructor(db, genAI) {
@@ -114,6 +142,20 @@ class ChatModel {
                 const tag = await this.pokemonHandler.getUserTag(ctx.sender);                
                 if (ctx.sender !== "5513991008854@s.whatsapp.net") return "🔒 Privilégio de Admin.";
                 return await this.casinoHandler.handleExorcismo(ctx.sender, tag);
+            },
+            '!cidade': async (ctx) => {
+                const args = ctx.command.trim().split(/\s+/);
+                
+                if (args.length < 2) {
+                    const user = await this.db.get("SELECT cidade FROM usuarios WHERE id_usuario = ?", [ctx.sender]);
+                    const currentCity = user?.cidade || 'Santos';
+                    return `${ctx.name}, sua base de operações atual é: *${currentCity}*.\nPara mudar sua região e o clima, use: *!cidade [nome da cidade]*`;
+                }
+
+                const newCity = args.slice(1).join(' ');
+                await this.db.run("UPDATE usuarios SET cidade = ? WHERE id_usuario = ?", [newCity, ctx.sender]);
+                
+                return `🏙️ **BASE ATUALIZADA!**\nSua fazenda, frota de pesca e parque agora respondem ao clima de *${newCity}*.`;
             },
             '!d': async (ctx) => await this.handleDiceCommand(ctx.command, ctx.sender),
             '!menu': async () => await this.handleMenuCommand(),
@@ -1166,6 +1208,31 @@ class ChatModel {
         }
     }
 
+    // BUSCADOR DE CLIMA COM CACHE DE 1 HORA
+    async getClimaUsuario(userId) {
+        const user = await this.db.get("SELECT cidade FROM usuarios WHERE id_usuario = ?", [userId]);
+        const cidade = user?.cidade || 'Santos';
+        const now = Math.floor(Date.now() / 1000);
+
+        const cache = await this.db.get("SELECT * FROM clima_cache WHERE cidade = ?", [cidade]);
+        
+        if (cache && (now - cache.timestamp < 3600)) {
+            return { condicao: cache.condicao, emoji: cache.emoji, cidade: cidade };
+        }
+
+        console.log(`[CLIMA] Atualizando cache de clima para: ${cidade}`);
+        const climaNovo = await getGameWeatherCondition(cidade);
+        
+        await this.db.run(`
+            INSERT INTO clima_cache (cidade, condicao, emoji, timestamp) 
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(cidade) DO UPDATE SET condicao = ?, emoji = ?, timestamp = ?`,
+            [cidade, climaNovo.condicao, climaNovo.emoji, now, climaNovo.condicao, climaNovo.emoji, now]
+        );
+
+        return { condicao: climaNovo.condicao, emoji: climaNovo.emoji, cidade: cidade };
+    }
+
     // INTERRUPÇÃO ALEATÓRIA DO BOSTOSSAURO
     async handleBostossauroInterrupt(from, sender, name, texto) {
         if (Math.random() > 0.002) return null;
@@ -1394,6 +1461,7 @@ class ChatModel {
         🆘 !ajuda (ou !help)\n
         🗣️ !audio\n
         🎰 !cassino\n
+        📍 !cidade\n
         🌡️ !clima\n
         💵 !cotacao\n
         🎲 !d{número}\n

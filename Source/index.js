@@ -783,6 +783,9 @@ const botCommands = {
     '!unlink': {
         emoji: '⛓️‍💥'
     },
+    '!fazenda': {
+        emoji: '🚜'
+    }
 };
 
 //Inicia a conexão com mo Whatsapp para fazer todas as operações

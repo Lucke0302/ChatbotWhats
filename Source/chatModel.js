@@ -519,6 +519,8 @@ class ChatModel {
                 const args = ctx.command.trim().split(/\s+/);
                 const subCommand = args[1]?.toLowerCase();
 
+                const netGroupId = await this.getNetGroupId(ctx.from);
+
                 if (!subCommand || subCommand === 'perfil' || subCommand === 'ver') {
                     return await this.fazendaHandler.verFazenda(ctx.sender, tag);
                 }

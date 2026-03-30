@@ -658,9 +658,11 @@ async function initDatabase() {
     console.log("✅ Tabela 'fazenda_inventario' verificada.");
 
     try {
-        await db.exec(`ALTER TABLE fazenda_inventario ADD COLUMN armazem TEXT DEFAULT '[]';`);
         await db.exec(`ALTER TABLE fazenda_inventario ADD COLUMN trofeus TEXT DEFAULT '{}';`);
-    } catch (e) {}
+        console.log("✅ Coluna 'trofeus' adicionada/verificada com sucesso!");
+    } catch (e) {
+        if (!e.message.includes("duplicate column name")) console.error(e.message);
+    }
 
     console.log('✅ Banco de dados SQLite inicializado e tabelas verificadas.');
 }

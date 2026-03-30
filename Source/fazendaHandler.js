@@ -114,7 +114,7 @@ class FazendaHandler {
             }
         });
 
-        msg += `💡 _Dica: Use !fazenda regar [nº] para gastar 1 Suprimento e adiantar o tempo em 25%!_`;
+        msg += `💡 _Dica: Use !fazenda regar [nº] pra gastar 1 Suprimento e adiantar um pouco o tempo pra colher!_`;
         return msg;
     }
 

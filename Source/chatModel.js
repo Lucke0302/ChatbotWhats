@@ -534,7 +534,8 @@ class ChatModel {
             '!fazenda': async (ctx) => {
                 const tag = await this.pokemonHandler.getUserTag(ctx.sender);
                 const args = ctx.command.trim().split(/\s+/);
-                const subCommand = args[1]?.toLowerCase();
+                const subCommand = args[1]?.toLowerCase();                
+                const clima = await this.getClimaUsuario(ctx.sender); 
 
                 const netGroupId = await this.getNetGroupId(ctx.from);
 
@@ -546,13 +547,13 @@ class ChatModel {
                     return await this.fazendaHandler.getLoja(ctx.sender, tag);
                 }
                 if (subCommand === 'plantar') {
-                    return await this.fazendaHandler.plantar(ctx.sender, tag, args[2]);
+                    return await this.fazendaHandler.plantar(ctx.sender, tag, args[2], clima);
                 }
                 if (subCommand === 'regar' || subCommand === 'agua') {
-                    return await this.fazendaHandler.regar(ctx.sender, tag, args[2], ctx.from);
+                    return await this.fazendaHandler.regar(ctx.sender, tag, args[2], clima);
                 }
                 if (subCommand === 'colher') {
-                    return await this.fazendaHandler.colher(ctx.sender, tag, args[2], netGroupId);
+                    return await this.fazendaHandler.colher(ctx.sender, tag, args[2], netGroupId, clima);
                 }
                 if (subCommand === 'trofeus' || subCommand === 'recordes') {
                     return await this.fazendaHandler.getTrofeusGrupo(netGroupId, tag);

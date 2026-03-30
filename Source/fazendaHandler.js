@@ -30,6 +30,25 @@ const TOOLS_CATALOG = {
     ]
 };
 
+const CLIMA_FAZENDA = {
+    'sol': { 
+        tempo_mult: 0.9, rega_custo: 2, 
+        txt: '☀️ Sol Forte (Crescimento +10%, mas regar custa 2⚡)' 
+    },
+    'chuva': { 
+        tempo_mult: 1.0, rega_custo: 0, 
+        txt: '🌧️ Chuva (Rega GRATUITA! Mas cuidado com o excesso)' 
+    },
+    'trovoada': { 
+        tempo_mult: 1.0, rega_custo: 0, peso_mult: 1.30,
+        txt: '⛈️ Tempestade (Rega Grátis | Safra +30% Peso | Risco de Perda)' 
+    },
+    'nublado': { 
+        tempo_mult: 1.0, rega_custo: 1, 
+        txt: '☁️ Nublado (Condições normais)' 
+    }
+};
+
 class FazendaHandler {
     constructor(db, casinoHandler, pescariaHandler) {
         this.db = db;
@@ -433,8 +452,10 @@ class FazendaHandler {
     }
 
     // PLANTAR
-    async plantar(userId, userTag, seedId) {
+    async plantar(userId, userTag, seedId, climaAtual) {
         if (!seedId) return `${userTag} ⚠️ Qual semente? Use *!fazenda loja* para ver os IDs.`;
+
+        const mods = CLIMA_FAZENDA[climaAtual.condicao] || CLIMA_FAZENDA['nublado'];
         
         const seed = SEEDS_CATALOG.find(s => s.id === seedId.toLowerCase());
         if (!seed) return `${userTag} ❌ Semente desconhecida.`;
@@ -454,7 +475,7 @@ class FazendaHandler {
         const now = Math.floor(Date.now() / 1000);
         canteiroLivre.seedId = seed.id;
         canteiroLivre.plantTime = now;
-        canteiroLivre.harvestTime = now + (seed.growthTimeHours * 3600);
+        canteiroLivre.harvestTime = (now + (seed.growthTimeHours * 3600)) * mods.tempo_mult;
         canteiroLivre.regas = 0;
 
         await this.saveFazendaData(userId, data);
@@ -463,12 +484,14 @@ class FazendaHandler {
     }
 
     // REGAR
-    async regar(userId, userTag, canteiroIdStr) {
+    async regar(userId, userTag, canteiroIdStr, climaAtual) {
         const cId = parseInt(canteiroIdStr);
         if (isNaN(cId)) return `${userTag} ⚠️ Informe o número do canteiro. Ex: *!fazenda regar 1*`;
 
         const data = await this.getFazendaData(userId);
         const canteiro = data.canteiros.find(c => c.id === cId);
+
+        const mods = CLIMA_FAZENDA[climaAtual.condicao] || CLIMA_FAZENDA['nublado'];
 
         if (!canteiro) return `${userTag} ❌ Canteiro não existe.`;
         if (!canteiro.seedId) return `${userTag} 🟫 Vai regar terra pura? O canteiro está vazio!`;
@@ -477,8 +500,9 @@ class FazendaHandler {
         if (now >= canteiro.harvestTime) return `${userTag} ✅ A planta já cresceu! Use *!fazenda colher ${cId}*.`;
 
         const seed = SEEDS_CATALOG.find(s => s.id === canteiro.seedId);
+        const valorRegar = mods.rega_custo;
         
-        const gastou = await this.consumirSuprimento(userId, 1);
+        const gastou = await this.consumirSuprimento(userId, mods.rega_custo);
         if (!gastou) return `${userTag} 🪹 Você não tem Suprimentos (Água/Iscas)! Espere recarregar.`;
 
         const porcentagemRegador = Math.max(5, 30 - seed.saturation);
@@ -506,12 +530,13 @@ class FazendaHandler {
     }
 
     // COLHER 
-    async colher(userId, userTag, canteiroIdStr, groupId) {
+    async colher(userId, userTag, canteiroIdStr, groupId, climaAtual) {
         const cId = parseInt(canteiroIdStr);
         if (isNaN(cId)) return `${userTag} ⚠️ Informe o canteiro. Ex: *!fazenda colher 1*`;
 
         const data = await this.getFazendaData(userId);
         const canteiro = data.canteiros.find(c => c.id === cId);
+        const mods = CLIMA_FAZENDA[climaAtual.condicao] || CLIMA_FAZENDA['nublado'];
 
         if (!canteiro || !canteiro.seedId) return `${userTag} ❌ Este canteiro está vazio.`;
 
@@ -530,15 +555,23 @@ class FazendaHandler {
         let rngMsg = "";
         const roll = Math.random() * 100;
 
-        if (roll < 5) {
+        if (climaAtual.condicao == "trovoada" && Math.random() < 0.15){
             finalKilos = 0;
-            rngMsg = `\n🦗 **DESASTRE!** Uma nuvem de gafanhotos devorou sua plantação. Você perdeu TUDO!`;
-        } else if (roll < 15) {
-            finalKilos = baseKilos * 0.5;
-            rngMsg = `\n☀️ **SECA FORTE!** A terra rachou e sua colheita rendeu apenas a metade.`;
-        } else {
-            rngMsg = `\n🌟 Colheita perfeita! A terra estava fértil.`;
+            rngMsg = `\n⛈️ **DESASTRE!** A tempestade alagou toda a sua plantação. Você perdeu TUDO!`;
         }
+        else{
+            if (roll < 5) {
+                finalKilos = 0;
+                rngMsg = `\n🦗 **DESASTRE!** Uma nuvem de gafanhotos devorou sua plantação. Você perdeu TUDO!`;
+            } else if (roll < 15) {
+                finalKilos = baseKilos * 0.5;
+                rngMsg = `\n☀️ **SECA FORTE!** A terra rachou e sua colheita rendeu apenas a metade.`;
+            } else {
+                rngMsg = `\n🌟 Colheita perfeita! A terra estava fértil.`;
+            }
+        }
+
+
 
         let msg = `${userTag} 🚜 **COLHEITA REALIZADA** 🚜${rngMsg}\n`;
 

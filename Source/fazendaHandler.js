@@ -45,9 +45,9 @@ class FazendaHandler {
         
         if (!row) {
             const defaultCanteiros = [
-                { id: 1, seedId: null, plantTime: 0, harvestTime: 0, regas: 0 }
+                { id: 1, seedId: null, plantTime: 0, harvestTime: 0, regas: 0, adubado: false } 
             ];
-            const defaultUpgrades = { enxada: 1, trator: 1, maxCanteiros: 1 };
+            const defaultUpgrades = { enxada: 1, trator: 1, maxCanteiros: 1, adubos: 0 };
             const defaultArmazem = [];
             const defaultTrofeus = {};
 
@@ -58,9 +58,15 @@ class FazendaHandler {
             return { canteiros: defaultCanteiros, upgrades: defaultUpgrades, armazem: defaultArmazem, trofeus: defaultTrofeus };
         }
 
+        let canteirosParse = JSON.parse(row.canteiros);
+        canteirosParse.forEach(c => { if (c.adubado === undefined) c.adubado = false; });
+        
+        let upgradesParse = JSON.parse(row.upgrades);
+        if (upgradesParse.adubos === undefined) upgradesParse.adubos = 0;
+
         return {
-            canteiros: JSON.parse(row.canteiros),
-            upgrades: JSON.parse(row.upgrades),
+            canteiros: canteirosParse,
+            upgrades: upgradesParse,
             armazem: JSON.parse(row.armazem || '[]'),
             trofeus: row.trofeus ? JSON.parse(row.trofeus) : {}
         };
@@ -86,6 +92,174 @@ class FazendaHandler {
         pescariaPlayer.suprimentos -= quantidade;
         await this.pescariaHandler.savePlayerData(userId, pescariaPlayer);
         return true;
+    }
+
+    async getGroupedDispensa(userId) {
+        const { sellableArray, player } = await this.pescariaHandler.getSellableList(userId);
+        
+        let inedible = [];
+        if (this.pescariaHandler.parqueHandler && this.pescariaHandler.parqueHandler.INEDIBLE_ITEMS) {
+            inedible = this.pescariaHandler.parqueHandler.INEDIBLE_ITEMS;
+        } else {
+            inedible = ['bota', 'pneu', 'calota', 'baiacu_mc', 'placa_mae_queimada', 'teclado_multilaser', 'cabo_vga', 'pote_sorvete', 'memoria_ddr1', 'cooler_box', 'mouse_bolinha', 'tcc_reprovado', 'cd_aol', 'fio_cobre', 'ram_2_gb_ddr2', 'ram_2_gb_ddr3', 'ram_8_gb_ddr3', 'ram_8_gb_ddr4', 'ram_16_gb_ddr4', 'ram_16_gb_ddr5', 'ram_64_gb_ddr5', 'rtx_5090', 'codigo_tcc'];
+        }
+
+        const edibleFishes = sellableArray.filter(f => !inedible.includes(f.id));
+
+        const grouped = [];
+        for (const fish of edibleFishes) {
+            const weightStr = fish.weight.toFixed(2);
+            const existing = grouped.find(g => g.id === fish.id && g.weightStr === weightStr);
+            if (existing) {
+                existing.count++;
+                existing.instances.push(fish);
+            } else {
+                grouped.push({
+                    id: fish.id, name: fish.name, emoji: fish.emoji,
+                    weight: fish.weight, weightStr: weightStr, count: 1,
+                    instances: [fish]
+                });
+            }
+        }
+        return { grouped, player, edibleFishes };
+    }
+
+    // FABRICAR ADUBO
+    async compostar(userId, userTag, paramStr) {
+        const { grouped, player, edibleFishes } = await this.getGroupedDispensa(userId);
+        
+        if (edibleFishes.length === 0) {
+            return `${userTag} 🪹 Seu isopor está vazio ou só tem sucata! Vá pescar para ter o que compostar.`;
+        }
+
+        if (!paramStr || paramStr.trim() === '') {
+            let msg = `${userTag}💩 **COMPOSTEIRA JURÁSSICA** 💩\n_Transforme peixe em Adubo Orgânico (10kg = 1 Saco)_\n\n`;
+            
+            grouped.forEach((g, i) => {
+                const prefixo = g.count > 1 ? `**${g.count}x** ` : '';
+                msg += `*[ ${i + 1} ]* ${prefixo}${g.emoji} ${g.name} (**${g.weightStr}kg**)\n`;
+            });
+
+            msg += `\n♻️ *!fazenda compostar [numero]* (Pode pôr vários: _!fazenda compostar 1 3 5_)\n`;
+            msg += `♻️ *!fazenda compostar repetidos* (Gasta os clones, salva o maior)\n`;
+            msg += `♻️ *!fazenda compostar tudo* (Moe TUDO que for peixe!)`;
+            return msg;
+        }
+
+        const args = paramStr.trim().split(/\s+/);
+        const action = args[0].toLowerCase();
+        
+        let fishesToCompost = [];
+        let msgAction = "";
+
+        if (action === 'tudo' || action === 'all') {
+            fishesToCompost = [...edibleFishes];
+            msgAction = "o seu ISOPOR INTEIRO";
+        } 
+        else if (action === 'repetidos' || action === 'repetido') {
+            const bestFishes = {};
+            for (const fish of edibleFishes) {
+                if (!bestFishes[fish.id] || fish.weight > bestFishes[fish.id].weight) {
+                    bestFishes[fish.id] = fish;
+                }
+            }
+            
+            const bestInstanceIds = Object.values(bestFishes).map(f => f.instanceId);
+            fishesToCompost = edibleFishes.filter(f => !bestInstanceIds.includes(f.instanceId));
+            
+            if (fishesToCompost.length === 0) {
+                return `${userTag} 🐟 Você só tem um exemplar de cada espécie no isopor. Não há peixes repetidos para compostar!`;
+            }
+            msgAction = "**todos os peixes repetidos**";
+        } 
+        else {
+            let indices = args.map(s => parseInt(s) - 1).filter(i => !isNaN(i) && i >= 0 && i < grouped.length);
+            indices = [...new Set(indices)]; 
+            
+            if (indices.length === 0) {
+                return `${userTag} ⚠️ Número inválido. Veja a lista com *!fazenda compostar*.`;
+            }
+            
+            for (const idx of indices) {
+                fishesToCompost.push(grouped[idx].instances[0]);
+            }
+            msgAction = `**${fishesToCompost.length} peixe(s) selecionado(s)**`;
+        }
+
+        let pesoAcumulado = 0;
+        let instancesToRemove = [];
+
+        for (const f of fishesToCompost) {
+            pesoAcumulado += f.weight;
+            instancesToRemove.push(f.instanceId);
+        }
+
+        const qtdSacos = Math.floor(pesoAcumulado / 10.0);
+        const sobra = pesoAcumulado % 10.0;
+
+        if (qtdSacos <= 0) {
+            return `${userTag} 🛑 Deu ruim! Você jogou ${pesoAcumulado.toFixed(2)}kg na máquina. São necessários no mínimo **10kg** para fabricar 1 Saco de Adubo!\nJunte mais peixes na seleção (Ex: _*!fazenda compostar 1 2 3*_).`;
+        }
+
+        player.records = player.records.filter(r => !instancesToRemove.includes(r.instanceId));
+
+        let msgSobra = "";
+        if (sobra > 0.01) {
+            const ultimoPeixe = fishesToCompost[fishesToCompost.length - 1];
+            player.records.push({
+                id: ultimoPeixe.id,
+                weight: sobra,
+                group_id: ultimoPeixe.group_id || '120363422139578370@g.us',
+                date: Math.floor(Date.now() / 1000),
+                instanceId: crypto.randomUUID()
+            });
+            msgSobra = `🦴 **Troco:** Um retalho de **${sobra.toFixed(2)}kg** de ${ultimoPeixe.emoji} ${ultimoPeixe.name} voltou pro seu isopor para a próxima compostagem!\n\n`;
+        }
+
+        await this.pescariaHandler.savePlayerData(userId, player);
+
+        const data = await this.getFazendaData(userId);
+        data.upgrades.adubos += qtdSacos;
+        await this.saveFazendaData(userId, data);
+
+        let msg = `${userTag} ♻️ **COMPOSTAGEM CONCLUÍDA!**\n\n`;
+        msg += `Você triturou ${msgAction} (Usou: ${(pesoAcumulado - sobra).toFixed(2)}kg).\n\n`;
+        msg += `💩 **Fabricou:** ${qtdSacos} Saco(s) de Adubo Orgânico!\n`;
+        msg += msgSobra;
+        msg += `Use *!fazenda adubar [nº_canteiro]* para aplicar na lavoura.`;
+        
+        return msg;
+    }
+
+    // APLICAR ADUBO NO CANTEIRO
+    async adubar(userId, userTag, canteiroIdStr) {
+        const cId = parseInt(canteiroIdStr);
+        if (isNaN(cId)) return `${userTag} ⚠️ Informe o número do canteiro. Ex: *!fazenda adubar 1*`;
+
+        const data = await this.getFazendaData(userId);
+        const canteiro = data.canteiros.find(c => c.id === cId);
+
+        if (!canteiro) return `${userTag} ❌ Canteiro não existe.`;
+        if (!canteiro.seedId) return `${userTag} 🟫 Jogar adubo na terra vazia? Plante algo primeiro!`;
+        if (canteiro.adubado) return `${userTag} 🛑 Esse canteiro já está super-adubado! Se colocar mais, a planta morre queimada.`;
+
+        let msg = `${userTag} 💩 **TERRA FERTILIZADA!**\n`;
+
+        if (data.upgrades.adubos > 0) {
+            data.upgrades.adubos -= 1;
+            msg += `Você usou **1 Saco de Adubo Orgânico** (Feito de peixe)!\n`;
+        } 
+        else {
+            const gastou = await this.consumirSuprimento(userId, 1);
+            if (!gastou) return `${userTag} 🪹 Você não tem Sacos de Adubo Orgânico e está sem Suprimentos (Energia) para fazer o adubo químico!`;
+            msg += `Você gastou **1 Suprimento de Energia** para aplicar fertilizante sintético!\n`;
+        }
+
+        canteiro.adubado = true;
+        await this.saveFazendaData(userId, data);
+
+        msg += `🌱 A colheita final do Canteiro [ ${cId} ] renderá **+50% de peso**!`;
+        return msg;
     }
 
     // PERFIL E CANTEIROS
@@ -116,8 +290,10 @@ class FazendaHandler {
             
             const tratorLevel = data.upgrades.trator || 1;
             const tratorMult = TOOLS_CATALOG['trator'].find(t => t.level === tratorLevel).multiplier;
-            const baseKilos = this.BASE_YIELD_KG * seed.yieldMultiplier * tratorMult;
-            msg += `⚖️ **Estimativa de Safra:** ~${baseKilos.toFixed(2)}kg\n\n`;
+            let baseKilos = this.BASE_YIELD_KG * seed.yieldMultiplier * tratorMult;
+            if (canteiro.adubado) baseKilos *= 1.5;
+            
+            msg += `⚖️ **Estimativa de Safra:** ~${baseKilos.toFixed(2)}kg ${canteiro.adubado ? '(💩 Adubado!)' : ''}\n\n`;
 
             if (now >= canteiro.harvestTime) {
                 msg += `✅ **STATUS:** PRONTA PARA COLHEITA!\n`;
@@ -347,7 +523,8 @@ class FazendaHandler {
         const tratorLevel = data.upgrades.trator || 1;
         const tratorMult = TOOLS_CATALOG['trator'].find(t => t.level === tratorLevel).multiplier;
         
-        const baseKilos = this.BASE_YIELD_KG * seed.yieldMultiplier * tratorMult;
+        let baseKilos = this.BASE_YIELD_KG * seed.yieldMultiplier * tratorMult;
+        if (canteiro.adubado) baseKilos *= 1.5;
         
         let finalKilos = baseKilos;
         let rngMsg = "";
@@ -381,6 +558,7 @@ class FazendaHandler {
         canteiro.plantTime = 0;
         canteiro.harvestTime = 0;
         canteiro.regas = 0;
+        canteiro.adubado = false;
 
         await this.saveFazendaData(userId, data);
         return msg;

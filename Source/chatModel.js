@@ -549,8 +549,17 @@ class ChatModel {
                 if (subCommand === 'comprar') {
                     return await this.fazendaHandler.comprarUpgrade(ctx.sender, tag, args[2]);
                 }
+                if (subCommand === 'compostar' || subCommand === 'adubo') {
+                    const paramStr = args.slice(2).join(' ');
+                    return await this.fazendaHandler.compostar(ctx.sender, tag, paramStr);
+                }
+                if (subCommand === 'adubar') {
+                    return await this.fazendaHandler.adubar(ctx.sender, tag, args[2]);
+                }
 
                 return `${tag}🚜 **BOSTOFAZENDA** 🚜\n\n` +
+                       `💩 *!fazenda compostar [qtd]* (Moe 10kg de peixe = 1 Adubo)` +
+                       `🪴 *!fazenda adubar [canteiro]* (Gasta energia OU 1 adubo = +50% Peso)` +
                        `🌱 *!fazenda plantar [semente]* (Planta no canteiro)\n` +
                        `💧 *!fazenda regar [nº_canteiro]* (Gasta 1 Suprimento, adianta 25%)\n` +
                        `🌾 *!fazenda colher [nº_canteiro]* (Colhe a safra final)\n` +

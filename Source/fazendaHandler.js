@@ -204,8 +204,8 @@ class FazendaHandler {
     }
 
     async comprarUpgrade(userId, userTag, tipo) {
-        if (tipo !== 'enxada' && tipo !== 'trator') {
-            return `${userTag} ⚠️ O que você quer comprar? Use *!fazenda comprar enxada* ou *!fazenda comprar trator*.`;
+        if (tipo !== 'enxada' && tipo !== 'trator' && tipo !== 'terreno') {
+            return `${userTag} ⚠️ O que você quer comprar? Use *!fazenda comprar enxada*, *trator* ou *terreno*.`;
         }
 
         const data = await this.getFazendaData(userId);

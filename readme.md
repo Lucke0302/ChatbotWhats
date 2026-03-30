@@ -56,6 +56,13 @@ O Bostossauro não é apenas um bot, é um estilo de vida. Aqui estão as skills
     * `!pescaria titulo`: Sistema de conquistas integrado à economia global. Acumule riquezas no isopor ou forje a Vara de Adamantium para ganhar títulos exclusivos como "Mestre Pescador" e "Wolverine dos Mares".
     * `Múltiplos Rankings`: Competição tóxica alimentada por `!pescaria ranking`, `trofeus`, `toppessoal` e `topgrupo`.
 
+* **🚜 BostoFazenda (Beta / MVP):** O Agronegócio chegou ao parque!
+    * Compartilha a mesma barra de **"Suprimentos"** (energia) com a pescaria. Você escolhe se gasta pescando ou regando.
+    * `!fazenda plantar`: Plante sementes com diferentes tempos de crescimento e saturação de XP (Trigo, Cenoura, Abóbora, Melancia).
+    * `!fazenda regar`: Gaste 1 Suprimento para acelerar o tempo de crescimento da planta em 25%.
+    * `!fazenda colher`: Sistema de risco (RNG). A colheita pode ser perfeita, sofrer uma seca (-50%) ou ser devastada por gafanhotos (perda total).
+    * Alimente os herbívoros do parque com toneladas de vegetais transferindo sua safra para a Câmara Frigorífica da InGen!
+
 * **🔴 Sistema Pokémon Integrado:** Batalha RPG em turnos via chat com captura e ginásios.
     * Possui sistema de fila de golpes (JSON) para gerenciar ataques aprendidos em level up múltiplo (`!poke pendentes` e `!poke ensinar`).
     * Gerenciamento de Daycare passivo, Box de PC, inventário de TMs/Itens e Natures.

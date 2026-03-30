@@ -164,9 +164,9 @@ const RARITY_LABELS = {
     'lixo': '🟤 LIXO'
 };
 
-const MAX_BAITS = 10;
-const BAIT_REGEN_HOURS = 2;
-const BAIT_REGEN_SECONDS = BAIT_REGEN_HOURS * 3600;
+const MAX_SUPPLIES = 10;
+const SUPPLY_REGEN_HOURS = 2;
+const SUPPLY_REGEN_SECONDS = SUPPLY_REGEN_HOURS * 3600;
 
 class PescariaHandler {
     constructor(db, casinoHandler) {
@@ -179,11 +179,7 @@ class PescariaHandler {
         let data = {};
         
         if (user && user.pescaria_data) {
-            try {
-                data = JSON.parse(user.pescaria_data);
-            } catch (e) {
-                data = {};
-            }
+            try { data = JSON.parse(user.pescaria_data); } catch (e) { data = {}; }
         }
 
         const now = Math.floor(Date.now() / 1000);
@@ -193,21 +189,25 @@ class PescariaHandler {
             records: data.records || {},
             inventory: data.inventory || { vara: 'bambu' },
             active_items: data.active_items || {},
-            fishBaits: data.fishBaits !== undefined ? data.fishBaits : MAX_BAITS,
-            last_bait_regen: data.last_bait_regen || now
+            
+            suprimentos: data.suprimentos !== undefined ? data.suprimentos : (data.fishBaits !== undefined ? data.fishBaits : MAX_SUPPLIES),
+            last_supply_regen: data.last_supply_regen || data.last_bait_regen || now
         };
 
-        if (player.fishBaits < MAX_BAITS) {
-            const timePassed = now - player.last_bait_regen;
-            const generatedBaits = Math.floor(timePassed / BAIT_REGEN_SECONDS);
+        if (player.suprimentos < MAX_SUPPLIES) {
+            const timePassed = now - player.last_supply_regen;
+            const generated = Math.floor(timePassed / SUPPLY_REGEN_SECONDS);
             
-            if (generatedBaits > 0) {
-                player.fishBaits = Math.min(MAX_BAITS, player.fishBaits + generatedBaits);
-                player.last_bait_regen += generatedBaits * BAIT_REGEN_SECONDS;
+            if (generated > 0) {
+                player.suprimentos = Math.min(MAX_SUPPLIES, player.suprimentos + generated);
+                player.last_supply_regen += generated * SUPPLY_REGEN_SECONDS;
             }
         } else {
-            player.last_bait_regen = now;
+            player.last_supply_regen = now;
         }
+
+        delete player.fishBaits;
+        delete player.last_bait_regen;
 
         return player;
     }
@@ -225,20 +225,20 @@ class PescariaHandler {
         let player = await this.getPlayerData(userId);
         const now = Math.floor(Date.now() / 1000);
 
-        if (player.fishBaits < 1) {
-            const nextBaitIn = BAIT_REGEN_SECONDS - (now - player.last_bait_regen);
-            const hours = Math.floor(nextBaitIn / 3600);
-            const mins = Math.floor((nextBaitIn % 3600) / 60);
-            return `${userTag}🪹 Seu balde de iscas está vazio!\nVocê recebe uma isca nova em **${hours}h e ${mins}m**.\n_(Máximo acumulado: ${MAX_BAITS})_`;
+        if (player.suprimentos < 1) {
+            const nextIn = SUPPLY_REGEN_SECONDS - (now - player.last_supply_regen);
+            const hours = Math.floor(nextIn / 3600);
+            const mins = Math.floor((nextIn % 3600) / 60);
+            return `${userTag}🪹 Você está sem suprimentos (Iscas/Água)!\nVocê recebe uma nova carga de energia em **${hours}h e ${mins}m**.\n_(Máximo acumulado: ${MAX_SUPPLIES})_`;
         }
 
-        player.fishBaits -= 1;
+        player.suprimentos -= 1;
         
-        if (player.fishBaits === (MAX_BAITS - 1) && now - player.last_bait_regen < 10) {
-            player.last_bait_regen = now;
+        if (player.suprimentos === (MAX_SUPPLIES - 1) && now - player.last_supply_regen < 10) {
+            player.last_supply_regen = now;
         }
 
-        let msg = `${userTag}🎣 **PESCARIA** 🎣\n_Iscas restantes: ${player.fishBaits}_\n\n`;
+        let msg = `${userTag}🎣 **PESCARIA** 🎣\n_Suprimentos restantes: ${player.suprimentos}_\n\n`;
 
         let catches = 1;
         if (player.inventory.barco) {
@@ -449,13 +449,13 @@ class PescariaHandler {
         }
         msg += `\n`;
 
-        // Status das Iscas
-        msg += `🪣 *Iscas no Balde:* ${player.fishBaits}/${MAX_BAITS}\n`;
-        if (player.fishBaits < MAX_BAITS) {
-            const nextBaitIn = BAIT_REGEN_SECONDS - (now - player.last_bait_regen);
-            const hours = Math.floor(nextBaitIn / 3600);
-            const mins = Math.floor((nextBaitIn % 3600) / 60);
-            msg += `⏳ _Próxima isca em: ${hours}h e ${mins}m_\n`;
+        // Status dos Suprimentos
+        msg += `📦 *Suprimentos (Iscas/Água):* ${player.suprimentos}/${MAX_SUPPLIES}\n`;
+        if (player.suprimentos < MAX_SUPPLIES) {
+            const nextIn = SUPPLY_REGEN_SECONDS - (now - player.last_supply_regen);
+            const hours = Math.floor(nextIn / 3600);
+            const mins = Math.floor((nextIn % 3600) / 60);
+            msg += `⏳ _Próxima carga em: ${hours}h e ${mins}m_\n`;
         }
 
         // Efeitos/Itens Ativos

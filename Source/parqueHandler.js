@@ -499,7 +499,7 @@ class ParqueHandler {
             }
 
             const valorDino = Math.floor(dinoInfo.ticket_value * d.nivel * (d.multiplicador_bilheteria || 1.0));
-            bilheteriaTotal += valorDino;
+            bilheteriaTotal += valorDino / 2;
         }
 
         if (bilheteriaTotal <= 0 && digestaoMsg === "") return "";
@@ -512,7 +512,7 @@ class ParqueHandler {
             for (const ativo of ativos) {
                 await this.db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [cota, ativo.id_usuario]);
             }
-            pagamentoMsg = `💰 A bilheteria arrecadou 🪙 **${bilheteriaTotal} Bostocoins**!\nOs lucros foram divididos: 🪙 **${cota}** para cada um dos ${ativos.length} membros ativos.\n`;
+            pagamentoMsg = `💰 A bilheteria arrecadou 🪙 **${bilheteriaTotal*2} Bostocoins**,  mas a InGen comeu metade, restaram **${bilheteriaTotal*2}**!\nOs lucros foram divididos: 🪙 **${cota}** para cada um dos ${ativos.length} membros ativos.\n`;
         }
 
         let finalMsg = `\n🎟️ **RELATÓRIO MATINAL DO BOSTOPARK** 🎟️\n`;

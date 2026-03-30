@@ -205,6 +205,17 @@ constructor(db) {
     // MINHA BOSTA MINHA VIDA
     async handleMinhaBosta(userId, userTag) {
         const balance = await this.getBalance(userId);
+        const financas = await this.processFinancas(userId);
+        const investido = financas.investimento.montante || 0;
+
+        if (balance > 500) {
+            return `${userTag} 🛑 Você não tá pobre o suficiente! Volta quando tiver menos de 500 Bostocoins na carteira.`;
+        }
+
+        if (investido > 500) {
+            return `${userTag} 🧐 **MALHA FINA DO GOVERNO!**\n\nTá achando que o Banco Central é palhaço? Você tem 🪙 **${investido} Bostocoins** rendendo na Bolsa de Valores!\nSaca seus investimentos antes de vir mendigar auxílio emergencial, seu Faria Limer de araque!`;
+        }
+
         const now = Math.floor(Date.now() / 1000);
         const cooldown = 48 * 60 * 60;
 
@@ -217,9 +228,6 @@ constructor(db) {
                 const hoursLeft = Math.floor(timeLeft / 3600);
                 const minutesLeft = Math.floor((timeLeft % 3600) / 60);
                 return `${userTag}🛑 Calma lá, parasita! O governo só libera o benefício a cada 48 horas.\nVolte em **${hoursLeft}h e ${minutesLeft}m**.`;
-            }
-            if (balance > 50){
-                return `${userTag} Você não tá pobre o suficiente, volta quando tiver menos de 50 BostoCoins!`
             }
         }
 

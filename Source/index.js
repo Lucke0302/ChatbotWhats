@@ -643,6 +643,25 @@ async function initDatabase() {
     `);
     console.log("✅ Tabela 'parque_estoque' verificada.");
 
+    await db.exec(`
+        CREATE TABLE IF NOT EXISTS fazenda_inventario (
+            id_usuario TEXT PRIMARY KEY,
+            canteiros TEXT,
+            upgrades TEXT,
+            armazem TEXT DEFAULT '[]'
+        );
+    `);
+    
+    try {
+        await db.exec(`ALTER TABLE fazenda_inventario ADD COLUMN armazem TEXT DEFAULT '[]';`);
+    } catch (e) {}
+    console.log("✅ Tabela 'fazenda_inventario' verificada.");
+
+    try {
+        await db.exec(`ALTER TABLE fazenda_inventario ADD COLUMN armazem TEXT DEFAULT '[]';`);
+        await db.exec(`ALTER TABLE fazenda_inventario ADD COLUMN trofeus TEXT DEFAULT '{}';`);
+    } catch (e) {}
+
     console.log('✅ Banco de dados SQLite inicializado e tabelas verificadas.');
 }
 

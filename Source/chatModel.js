@@ -13,6 +13,7 @@ const resenhaCommand = require('./resenhaCommand');
 const CasinoHandler = require('./casinoHandler');
 const PescariaHandler = require('./pescariaHandler');
 const ParqueHandler = require('./parqueHandler');
+const { FazendaHandler } = require('./fazendaHandler');
 const RIOT_API_KEY = process.env.RIOT_API_KEY;
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
@@ -47,6 +48,7 @@ class ChatModel {
         this.pescariaHandler = new PescariaHandler(db, this.casinoHandler);
         this.parqueHandler = new ParqueHandler(db, this.casinoHandler, this.pescariaHandler);
         this.pescariaHandler.setParqueHandler(this.parqueHandler);
+        this.fazendaHandler = new FazendaHandler(db, this.casinoHandler, this.pescariaHandler);
     }
 
     async init() {
@@ -511,6 +513,49 @@ class ChatModel {
             '!escavar': async (ctx) => {
                 const tag = await this.pokemonHandler.getUserTag(ctx.sender);
                 return await this.parqueHandler.handleEscavar(ctx.sender, tag, ctx.name, ctx.from);
+            },
+            '!fazenda': async (ctx) => {
+                const tag = await this.pokemonHandler.getUserTag(ctx.sender);
+                const args = ctx.command.trim().split(/\s+/);
+                const subCommand = args[1]?.toLowerCase();
+
+                if (!subCommand || subCommand === 'perfil' || subCommand === 'ver') {
+                    return await this.fazendaHandler.verFazenda(ctx.sender, tag);
+                }
+                if (subCommand === 'loja') {
+                    return await this.fazendaHandler.getLoja(ctx.sender, tag);
+                }
+                if (subCommand === 'plantar') {
+                    return await this.fazendaHandler.plantar(ctx.sender, tag, args[2]);
+                }
+                if (subCommand === 'regar' || subCommand === 'agua') {
+                    return await this.fazendaHandler.regar(ctx.sender, tag, args[2], ctx.from);
+                }
+                if (subCommand === 'colher') {
+                    return await this.fazendaHandler.colher(ctx.sender, tag, args[2], netGroupId);
+                }
+                if (subCommand === 'trofeus' || subCommand === 'recordes') {
+                    return await this.fazendaHandler.getTrofeusGrupo(netGroupId, tag);
+                }
+                if (subCommand === 'despensa' || subCommand === 'armazem') {
+                    return await this.fazendaHandler.verArmazem(ctx.sender, tag);
+                }
+                if (subCommand === 'vender') {
+                    return await this.fazendaHandler.vender(ctx.sender, tag, args[2]);
+                }
+                if (subCommand === 'comprar') {
+                    return await this.fazendaHandler.comprarUpgrade(ctx.sender, tag, args[2]);
+                }
+
+                return `${tag}🚜 **BOSTOFAZENDA** 🚜\n\n` +
+                       `🌱 *!fazenda plantar [semente]* (Planta no canteiro)\n` +
+                       `💧 *!fazenda regar [nº_canteiro]* (Gasta 1 Suprimento, adianta 25%)\n` +
+                       `🌾 *!fazenda colher [nº_canteiro]* (Colhe a safra final)\n` +
+                       `🛠️ *!fazenda comprar [enxada/trator]* (Melhore sua produção!)\n`+
+                       `🏪 *!fazenda loja* (Catálogo de sementes)\n` +
+                       `🎒 *!fazenda despensa* (Veja seus vegetais)\n` +
+                       `💰 *!fazenda vender [número/tudo]* (Venda e lucre!)\n` +
+                       `🚜 *!fazenda perfil* (Veja o status das suas plantas)\n`;
             },
         };
 
@@ -1341,6 +1386,7 @@ class ChatModel {
         💵 !cotacao\n
         🎲 !d{número}\n
         🗣️ !falador\n
+        🚜 !fazenda (AGRONEGÓCIO BETA)\n
         🤖 !gpt {texto}\n
         🧠 !lembrar\n
         🎮 !lol\n

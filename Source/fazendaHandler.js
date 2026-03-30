@@ -41,7 +41,7 @@ class FazendaHandler {
     }
 
     async getFazendaData(userId) {
-        let row = await this.db.get("SELECT canteiros, upgrades, armazem FROM fazenda_inventario WHERE id_usuario = ?", [userId]);
+        let row = await this.db.get("SELECT canteiros, upgrades, armazem, trofeus FROM fazenda_inventario WHERE id_usuario = ?", [userId]);
         
         if (!row) {
             const defaultCanteiros = [
@@ -49,15 +49,16 @@ class FazendaHandler {
             ];
             const defaultUpgrades = { enxada: 1, trator: 1, maxCanteiros: 1 };
             const defaultArmazem = [];
+            const defaultTrofeus = {};
 
             await this.db.run(
-                "INSERT INTO fazenda_inventario (id_usuario, canteiros, upgrades, armazem) VALUES (?, ?, ?, ?)", 
-                [userId, JSON.stringify(defaultCanteiros), JSON.stringify(defaultUpgrades), JSON.stringify(defaultArmazem)]
+                "INSERT INTO fazenda_inventario (id_usuario, canteiros, upgrades, armazem, trofeus) VALUES (?, ?, ?, ?, ?)", 
+                [userId, JSON.stringify(defaultCanteiros), JSON.stringify(defaultUpgrades), JSON.stringify(defaultArmazem), JSON.stringify(defaultTrofeus)]
             );
-            return { canteiros: defaultCanteiros, upgrades: defaultUpgrades, armazem: defaultArmazem };
+            return { canteiros: defaultCanteiros, upgrades: defaultUpgrades, armazem: defaultArmazem, trofeus: defaultTrofeus };
         }
 
-            return {
+        return {
             canteiros: JSON.parse(row.canteiros),
             upgrades: JSON.parse(row.upgrades),
             armazem: JSON.parse(row.armazem || '[]'),

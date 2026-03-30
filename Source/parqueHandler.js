@@ -901,16 +901,51 @@ class ParqueHandler {
     }
 
     // MURAL GLOBAL
-    async verParqueGlobal(groupId, userTag) {
+    async verParqueGlobal(groupId, userTag, paramStr) {
         const dinos = await this.db.all("SELECT * FROM parque_dinossauros WHERE group_id = ? ORDER BY id ASC", [groupId]);
         
         if (!dinos || dinos.length === 0) {
             return `${userTag} 🚧 O **Jurassic BostoPark** deste grupo ainda é só um terreno baldio com mato alto. Escave e ache um âmbar para começar!`;
         }
 
-        let msg = `🦖 **JURASSIC BOSTOPARK DO GRUPO** 🦕\n_A bilheteria agradece o turismo! Use o ID para alimentar._\n\n`;
-
+        const equipes = {};
         dinos.forEach(d => {
+            const nomeStr = d.descobridor_nome || 'Desconhecido';
+            if (!equipes[nomeStr]) {
+                equipes[nomeStr] = [];
+            }
+            equipes[nomeStr].push(d);
+        });
+
+        const listaEquipes = Object.keys(equipes).map(nome => {
+            return {
+                nome: nome,
+                dinos: equipes[nome]
+            };
+        }).sort((a, b) => b.dinos.length - a.dinos.length);
+
+        if (!paramStr || isNaN(parseInt(paramStr))) {
+            let msg = `${userTag}🦖 **JURASSIC BOSTOPARK DO GRUPO** 🦕\n_A bilheteria agradece o turismo!_\n\n`;
+            msg += `📋 **Cercados por Descobridor/Equipe:**\n`;
+            
+            listaEquipes.forEach((eq, index) => {
+                msg += `*[ ${index + 1} ]* ${eq.nome}: **${eq.dinos.length} dino(s)**\n`;
+            });
+            
+            msg += `\n🔍 Para ver os dinossauros de alguém, use: *!parque mural [número]*\n`;
+            msg += `🍗 Para alimentar, use: *!parque alimentar [ID] [Nº_Comida]*`;
+            return msg;
+        }
+
+        const index = parseInt(paramStr) - 1;
+        if (index < 0 || index >= listaEquipes.length) {
+            return `${userTag} ⚠️ Cercado não encontrado! Digite apenas *!parque mural* para ver a lista válida.`;
+        }
+
+        const equipeSelecionada = listaEquipes[index];
+        let msg = `${userTag}🦖 **CERCADO: ${equipeSelecionada.nome.toUpperCase()}** 🦕\n_Dinossauros sob os cuidados desta equipe:_\n\n`;
+
+        equipeSelecionada.dinos.forEach(d => {
             const dinoInfo = DINO_CATALOG[d.especie_id];
             if (dinoInfo) {
                 const xpNecessario = 2 * d.nivel * dinoInfo.base_xp_req;
@@ -923,11 +958,11 @@ class ParqueHandler {
                 
                 msg += `🆔 *[ ID: ${d.id} ]* ${dinoInfo.emoji} **${nomeExibicao}**\n`;
                 msg += `   🎨 Cor: ${d.cor} | 🧬 Lvl: ${d.nivel} [${classe}] (${porcentagem}% pro Nvl ${d.nivel + 1})\n`;
-                msg += `   🥩 Reserva: ${d.reserva_comida.toFixed(1)}kg | 👤 Por: ${d.descobridor_nome}\n\n`;
+                msg += `   🥩 Reserva: ${d.reserva_comida.toFixed(1)}kg\n\n`;
             }
         });
 
-        msg += `🍗 Para alimentar um dino: *!parque alimentar [ID] [Nº Comida]*`;
+        msg += `🍗 Para alimentar um dino: *!parque alimentar [ID_do_Dino] [Nº_Comida]*`;
         return msg;
     }
 

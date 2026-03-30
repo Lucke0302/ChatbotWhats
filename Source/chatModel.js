@@ -348,12 +348,14 @@ class ChatModel {
             '!pescar': async (ctx) => {
                 const tag = await this.pokemonHandler.getUserTag(ctx.sender);
                 const clima = await this.getClimaUsuario(ctx.sender); 
-                return await this.pescariaHandler.pescar(ctx.sender, tag, ctx.from, clima);
+                const netGroupId = await this.getNetGroupId(ctx.from); 
+                return await this.pescariaHandler.pescar(ctx.sender, tag, netGroupId, clima);
             },
             '!pesca': async (ctx) => {
                 const tag = await this.pokemonHandler.getUserTag(ctx.sender);
                 const clima = await this.getClimaUsuario(ctx.sender); 
-                return await this.pescariaHandler.pescar(ctx.sender, tag, ctx.from, clima);
+                const netGroupId = await this.getNetGroupId(ctx.from); 
+                return await this.pescariaHandler.pescar(ctx.sender, tag, netGroupId, clima);
             },
             '!vip': async (ctx) => {
                 return await this.handleVipStore(ctx);
@@ -465,7 +467,7 @@ class ChatModel {
                 }
 
                 if (subCommand === 'mural' || subCommand === 'lista') {
-                    return await this.parqueHandler.verParqueGlobal(netGroupId, tag);
+                    return await this.parqueHandler.verParqueGlobal(netGroupId, tag, args[2]);
                 }
 
                 if (subCommand === 'perfil') {
@@ -529,7 +531,8 @@ class ChatModel {
             },
             '!escavar': async (ctx) => {
                 const tag = await this.pokemonHandler.getUserTag(ctx.sender);
-                return await this.parqueHandler.handleEscavar(ctx.sender, tag, ctx.name, ctx.from);
+                const netGroupId = await this.getNetGroupId(ctx.from); 
+                return await this.parqueHandler.handleEscavar(ctx.sender, tag, ctx.name, netGroupId);
             },
             '!fazenda': async (ctx) => {
                 const tag = await this.pokemonHandler.getUserTag(ctx.sender);

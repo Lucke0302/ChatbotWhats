@@ -228,6 +228,21 @@ class PescariaHandler {
         delete player.fishBaits;
         delete player.last_bait_regen;
 
+        const userRodId = player.inventory.vara || 'bambu';
+        const userRod = ROD_CATALOG[userRodId] || ROD_CATALOG['bambu'];
+        const userBoatId = player.inventory.barco;
+        const userBoat = userBoatId ? BOAT_CATALOG[userBoatId] : { catches: 1 };
+
+        const boatPenalty = userBoat.catches; 
+
+        player.fishing_stats = {
+            rod_mult: userRod.mult,
+            luck: userRod.luck / boatPenalty,
+            anti_lixo: userRod.anti_lixo / boatPenalty,
+            ambar_chance: (userRod.ambar_chance || 0) / boatPenalty,
+            catches: userBoat.catches
+        };
+
         return player;
     }
 
@@ -267,12 +282,8 @@ class PescariaHandler {
         }
 
         let msg = `${userTag}🎣 **PESCARIA EM ${climaAtual.cidade.toUpperCase()}**\n_Clima: ${mods.txt}_\n_Suprimentos restantes: ${player.suprimentos}_\n\n`;
-
-        let catches = 1;
-        if (player.inventory.barco) {
-            catches = BOAT_CATALOG[player.inventory.barco].catches;
-        }
-
+        
+        let catches = player.fishing_stats.catches;
         let weightMultiplierBuff = 1.0;
         let canCatchTrash = true;
 
@@ -282,15 +293,7 @@ class PescariaHandler {
         if (player.active_items['isca_radioativa']) weightMultiplierBuff *= 1.50;
         if (player.active_items['repelente']) canCatchTrash = false;
 
-        const userRodId = player.inventory.vara || 'bambu';
-        const userRod = ROD_CATALOG[userRodId] || ROD_CATALOG['bambu'];
-        
-        const rodMultiplier = userRod.mult;
-        const rodLuck = userRod.luck;
-        const rodAntiLixo = userRod.anti_lixo; 
-        const rodAmbarBonus = userRod.ambar_chance || 0;
-        
-        weightMultiplierBuff *= rodMultiplier;
+        weightMultiplierBuff *= player.fishing_stats.rod_mult;
 
         const activeItemNames = Object.keys(player.active_items).map(id => ITEM_CATALOG.find(i => i.id === id)?.name).filter(Boolean);
         if (activeItemNames.length > 0) {
@@ -301,7 +304,7 @@ class PescariaHandler {
 
             
             const chanceAmbar = 0.05 * mods.ambar_mult;            
-            const ambarTotalChance = chanceAmbar + (rodAmbarBonus / 200);
+            const ambarTotalChance = chanceAmbar + (player.fishing_stats.ambar_chance / 200);
 
             if (this.parqueHandler && Math.random() < ambarTotalChance) {
                 msg += `\n🎣 **ISSO NÃO É UM PEIXE!**\nVocê puxou um 🦟 **Âmbar Ancestral** do fundo do lago!\n\n`;
@@ -315,8 +318,7 @@ class PescariaHandler {
             }
 
             let roll = Math.random() * 100;
-            
-            roll = roll * (1 - (rodLuck / 100)); 
+            roll = roll * (1 - (player.fishing_stats.luck / 100));; 
 
             const chanceMitico = 1 * mods.raridade_mult;
             const chanceLendario = 5 * mods.raridade_mult; 
@@ -336,7 +338,7 @@ class PescariaHandler {
             }
 
             if (selectedRarity === 'lixo') {
-                if (Math.random() * 100 < rodAntiLixo) {
+                if (Math.random() * 100 < player.fishing_stats.anti_lixo) {
                     selectedRarity = 'comum'; 
                 }
             }
@@ -392,10 +394,10 @@ class PescariaHandler {
             msg += `\n🎁 **ACHADO NO LAGO!** Você fisgou: ${droppedItem.emoji} *${droppedItem.name}*\n`;
             
             if (droppedItem.type === 'instant') {
-                player.fishBaits += droppedItem.effect;
+                player.suprimentos += droppedItem.effect;
                 msg += `_${droppedItem.desc}_\n`;
             } else if (droppedItem.type === 'instant_debuff') {
-                player.fishBaits = Math.max(0, player.fishBaits + droppedItem.effect);
+                player.suprimentos = Math.max(0, player.suprimentos + droppedItem.effect);
                 msg += `_${droppedItem.desc}_\n`;
             } else {
                 player.active_items[droppedItem.id] = droppedItem.duration;

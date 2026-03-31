@@ -512,13 +512,22 @@ class ParqueHandler {
 
         const ativos = await this.db.all("SELECT DISTINCT id_usuario FROM ranking_ofensas WHERE id_conversa = ?", [groupId]);
         
-        let pagamentoMsg = "";
-        if (ativos.length > 0 && bilheteriaTotal > 0) {
-            const cota = Math.floor(bilheteriaTotal / ativos.length);
-            for (const ativo of ativos) {
-                await this.db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [cota, ativo.id_usuario]);
+        const donosSet = new Set();
+        dinos.forEach(d => {
+            if (d.descobridor_id) {
+                d.descobridor_id.split(',').forEach(id => donosSet.add(id.trim()));
             }
-            pagamentoMsg = `💰 A bilheteria arrecadou 🪙 **${bilheteriaTotal*2} Bostocoins**,  mas a InGen comeu metade, restaram **${bilheteriaTotal*2}**!\nOs lucros foram divididos: 🪙 **${cota}** para cada um dos ${ativos.length} membros ativos.\n`;
+        });
+
+        const acionistas = ativos.filter(a => donosSet.has(a.id_usuario));
+        
+        let pagamentoMsg = "";
+        if (acionistas.length > 0 && bilheteriaTotal > 0) {
+            const cota = Math.floor(bilheteriaTotal / acionistas.length);
+            for (const acionista of acionistas) {
+                await this.db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [cota, acionista.id_usuario]);
+            }
+            pagamentoMsg = `💰 A bilheteria arrecadou 🪙 **${bilheteriaTotal*2} Bostocoins**, mas a InGen comeu metade, restando 🪙 **${bilheteriaTotal}**!\nOs lucros foram divididos: 🪙 **${cota}** para cada um dos ${acionistas.length} investidores com dinos.\n`;
         }
 
         let finalMsg = `\n🎟️ **RELATÓRIO MATINAL DO BOSTOPARK** 🎟️\n`;

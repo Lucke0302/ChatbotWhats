@@ -68,10 +68,11 @@ constructor(db) {
         return user ? user.bostocoins : 0;
     }
 
-    async updateBalance(userId, amount, groupId = null, sock = null) {
-        if (amount < 0 && this.parqueHandler && groupId && groupId.includes('@g.us')) {
-            const gastoReal = Math.abs(amount);
-            this.parqueHandler.registrarProgressoComunitario(groupId, 'cassino', gastoReal, sock).catch(()=>{});
+    async updateBalance(userId, amount, groupId = null, sock = null, bet = 0) {
+        const valorParaMissao = bet > 0 ? bet : (amount < 0 ? Math.abs(amount) : 0);
+        
+        if (valorParaMissao > 0 && this.parqueHandler && groupId && groupId.includes('@g.us')) {
+            this.parqueHandler.registrarProgressoComunitario(groupId, 'cassino', valorParaMissao, sock).catch(()=>{});
         }
         
         await this.db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [amount, userId]);
@@ -94,14 +95,14 @@ constructor(db) {
         if (r1 === r2 && r2 === r3) {
             let multiplier = r1 === "💎" || r1 === "🦖" ? 20 : 10;
             const win = bet * multiplier;
-            await this.updateBalance(userId, win - bet, groupId, sock);
+            await this.updateBalance(userId, win - bet, groupId, sock, bet);
             return msg + `🏆 **JACKPOT!** Você tirou 3 iguais e ganhou 🪙 ${win} Bostocoins!`;
         } else if (r1 === r2 || r2 === r3 || r1 === r3) {
             const win = Math.floor(bet * 1.4);
-            await this.updateBalance(userId, win - bet, groupId, sock);
+            await this.updateBalance(userId, win - bet, groupId, sock, bet);
             return msg + `✨ **QUASE!** Deu parzinho. Você ganhou 🪙 ${win} Bostocoins.`;
         } else {
-            await this.updateBalance(userId, -bet, groupId, sock);
+            await this.updateBalance(userId, - bet, groupId, sock, bet);
             return msg + `💸 **PERDEU!** O cassino agradece sua doação de 🪙 ${bet} Bostocoins.`;
         }
     }
@@ -120,10 +121,11 @@ constructor(db) {
         let msg = `${userTag}🪙 A moeda girou e caiu... **${result.toUpperCase()}**!\n\n`;
 
         if (won) {
-            await this.updateBalance(userId, bet, groupId, sock);
-            return msg + `🎉 Você acertou e ganhou 🪙 ${bet * 1.8} Bostocoins!`;
+            const win = Math.floor(bet * 1.8);
+            await this.updateBalance(userId, win - bet, groupId, sock, bet);
+            return msg + `🎉 Você acertou e ganhou 🪙 ${win} Bostocoins!`;
         } else {
-            await this.updateBalance(userId, -bet, groupId, sock);
+            await this.updateBalance(userId, -bet, groupId, sock, bet);
             return msg + `💸 Você errou e perdeu 🪙 ${bet} Bostocoins.`;
         }
     }
@@ -150,10 +152,10 @@ constructor(db) {
         if (colorChoice === resultColor) {
             const multiplier = resultColor === 'verde' ? 12 : 2;
             const win = bet * multiplier;
-            await this.updateBalance(userId, win - bet, groupId, sock);
+            await this.updateBalance(userId, win - bet, groupId, sock, bet);
             return msg + `💰 **VITÓRIA!** Você multiplicou sua aposta por ${multiplier}x e ganhou 🪙 ${win} Bostocoins!`;
         } else {
-            await this.updateBalance(userId, -bet, groupId, sock);
+            await this.updateBalance(userId, -bet, groupId, sock, bet);
             return msg + `💸 **DERROTA!** Você apostou no ${colorChoice} e perdeu 🪙 ${bet}.`;
         }
     }

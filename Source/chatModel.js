@@ -382,13 +382,13 @@ class ChatModel {
                 const tag = await this.pokemonHandler.getUserTag(ctx.sender);
                 const clima = await this.getClimaUsuario(ctx.sender); 
                 const netGroupId = await this.getNetGroupId(ctx.from); 
-                return await this.pescariaHandler.pescar(ctx.sender, tag, netGroupId, clima);
+                return await this.pescariaHandler.pescar(ctx.sender, tag, netGroupId, clima, sock);
             },
             '!pesca': async (ctx) => {
                 const tag = await this.pokemonHandler.getUserTag(ctx.sender);
                 const clima = await this.getClimaUsuario(ctx.sender); 
                 const netGroupId = await this.getNetGroupId(ctx.from); 
-                return await this.pescariaHandler.pescar(ctx.sender, tag, netGroupId, clima);
+                return await this.pescariaHandler.pescar(ctx.sender, tag, netGroupId, clima, sock);
             },
             '!vip': async (ctx) => {
                 return await this.handleVipStore(ctx);

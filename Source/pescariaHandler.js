@@ -255,7 +255,7 @@ class PescariaHandler {
         this.parqueHandler = parqueHandler;
     }
 
-    async pescar(userId, userTag, groupId, climaAtual) {
+    async pescar(userId, userTag, groupId, climaAtual, sock) {
         if (!climaAtual) climaAtual = { condicao: 'nublado', emoji: '☁️', cidade: 'Desconhecida' };
         
         const mods = CLIMA_PESCA[climaAtual.condicao] || CLIMA_PESCA['nublado'];

@@ -1035,16 +1035,19 @@ class ChatModel {
         await this.db.run("UPDATE parque_dinossauros SET nivel = 1, xp_atual = 0, reserva_comida = 0");
 
         const grupos = await this.db.all("SELECT DISTINCT group_id FROM parque_dinossauros");
-        
         for (const grupo of grupos) {
             await this.db.run(`
                 INSERT INTO legado_grupos (group_id, temporada_atual, nivel_receita, conquistas_json)
                 VALUES (?, 2, 1, '{}')
-                ON CONFLICT(group_id) DO UPDATE SET 
-                temporada_atual = temporada_atual + 1,
-                nivel_receita = 1,
-                conquistas_json = '{}'
+                ON CONFLICT(group_id) DO UPDATE SET temporada_atual = temporada_atual + 1, nivel_receita = 1, conquistas_json = '{}'
             `, [grupo.group_id]);
+
+            const estoque = await this.db.get("SELECT carne, vegetal FROM parque_estoque WHERE group_id = ?", [grupo.group_id]);
+            if (estoque) {
+                const carneLegado = Math.floor((estoque.carne || 0) * 0.05);
+                const vegetalLegado = Math.floor((estoque.vegetal || 0) * 0.05);
+                await this.db.run("UPDATE parque_estoque SET carne = ?, vegetal = ? WHERE group_id = ?", [carneLegado, vegetalLegado, grupo.group_id]);
+            }
         }
 
         const msgApocalipse = `

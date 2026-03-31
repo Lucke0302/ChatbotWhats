@@ -245,6 +245,15 @@ class ParqueHandler {
             'iguanodon', 'corythosaurus', 'stygimoloch', 'pachycephalosaurus', 
             'protoceratops', 'gallimimus', 'microceratus', 'dryosaurus', 'hypsilophodon', 
             'psittacosaurus', 'stegoceratops', 'ankylodocus', 'iguano-coritho', 'para-kentro'];
+
+        this.MARCOS_SEASON = {
+            pesca_kg: { nome: "🎣 Pesca Oceânica", metas: [500, 2500, 10000, 50000], unidade: "kg" },
+            fazenda_kg: { nome: "🚜 Colheita Global", metas: [200, 1000, 5000, 20000], unidade: "kg" },
+            dino_lvl: { nome: "🦖 Nível dos Dinos", metas: [50, 150, 300, 600], unidade: " Lvl" },
+            upgrades: { nome: "🛠️ Tecnologia Ativa", metas: [10, 30, 60, 100], unidade: " un" },
+            vendas: { nome: "💰 Economia (Vendas)", metas: [10000, 50000, 250000, 1000000], unidade: " 🪙" },
+            cassino: { nome: "🎰 Vício em Apostas", metas: [10000, 50000, 250000, 1000000], unidade: " 🪙" }
+        };
     }
     
     async getPlayerData(userId) {
@@ -542,22 +551,93 @@ class ParqueHandler {
         try {
             legado = await this.db.get("SELECT * FROM legado_grupos WHERE group_id = ?", [groupId]);
         } catch (e) {
-            return `${userTag} ❌ O banco de dados ainda não foi atualizado. Aguarde o apocalipse.`;
+            return `${userTag} ❌ O banco ainda não foi atualizado.`;
         }
 
-        if (!legado) return `${userTag} 🚧 As missões da comunidade só estarão ativas após o primeiro Wipe Oficial.`;
+        if (!legado) return `${userTag} 🚧 As missões só estarão ativas após o primeiro Wipe Oficial.`;
 
+        const conquistas = JSON.parse(legado.conquistas_json || '{}');
         const nivel = legado.nivel_receita || 1;
         const mult = (nivel / 24).toFixed(2);
         
-        let msg = `${userTag}🎯 **MARCOS DA COMUNIDADE (Season ${legado.temporada_atual || 1})** 🎯\n\n`;
-        msg += `📈 **Nível de Receita do Parque:** ${nivel}/24\n`;
-        msg += `🎟️ **Lucro Atual da Bilheteria:** ${mult}x (Recebendo apenas ${Math.round(mult * 100)}%)\n\n`;
-        msg += `_O Bostoverso está em recessão! A InGen está monitorando o esforço coletivo para liberar a verba._\n`;
-        msg += `_Trabalhem juntos pescando, plantando, comprando melhorias e gastando no cassino para subir o nível de receita de volta aos 100%!_\n\n`;
-        msg += `_(A barra de progresso em tempo real das 24 conquistas está sendo instalada pelos engenheiros e chegará na próxima atualização!)_`;
+        const dinoData = await this.db.get("SELECT SUM(nivel) as total_lvl FROM parque_dinossauros WHERE group_id = ?", [groupId]);
+        conquistas['dino_lvl'] = dinoData ? (dinoData.total_lvl || 0) : 0;
         
+        let msg = `${userTag}🎯 **MARCOS DA COMUNIDADE (Season ${legado.temporada_atual || 1})** 🎯\n\n`;
+        msg += `📈 **Receita do Parque:** ${nivel}/24\n`;
+        msg += `🎟️ **Lucro da InGen:** ${mult}x (Recebendo ${Math.round(mult * 100)}%)\n\n`;
+
+        const drawBar = (current, max) => {
+            if (current >= max) return '🟩'.repeat(10);
+            const filled = Math.floor((current / max) * 10);
+            return '🟩'.repeat(filled) + '⬜'.repeat(10 - filled);
+        };
+
+        for (const [key, data] of Object.entries(this.MARCOS_SEASON)) {
+            const atual = conquistas[key] || 0;
+            let metaAtualIdx = data.metas.findIndex(m => atual < m);
+            if (metaAtualIdx === -1) metaAtualIdx = 3;
+            
+            const metaObj = data.metas[metaAtualIdx];
+            const isMax = atual >= data.metas[3];
+            
+            msg += `*${data.nome}* (Nvl ${isMax ? 4 : metaAtualIdx})\n`;
+            msg += `[${drawBar(atual, metaObj)}] ${isMax ? 'MAX' : `${Math.floor((atual/metaObj)*100)}%`}\n`;
+            msg += `Progresso: ${atual.toLocaleString('pt-BR')}${data.unidade} / ${metaObj.toLocaleString('pt-BR')}${data.unidade}\n\n`;
+        }
+
+        msg += `_Trabalhem juntos para bater as metas e subir o nível de receita do Parque!_`;
         return msg;
+    }
+
+    async registrarProgressoComunitario(groupId, categoria, valorAdicional, sock) {
+        if (!groupId || !categoria || !valorAdicional) return;
+
+        if (categoria === 'dino_lvl') return; 
+
+        try {
+            const legado = await this.db.get("SELECT * FROM legado_grupos WHERE group_id = ?", [groupId]);
+            if (!legado) return;
+
+            let conquistas = JSON.parse(legado.conquistas_json || '{}');
+            const valorAntigo = conquistas[categoria] || 0;
+            const valorNovo = valorAntigo + valorAdicional;
+            conquistas[categoria] = valorNovo;
+
+            const metasDaCategoria = this.MARCOS_SEASON[categoria].metas;
+            let niveisAntigosAtingidos = metasDaCategoria.filter(m => valorAntigo >= m).length;
+            let niveisNovosAtingidos = metasDaCategoria.filter(m => valorNovo >= m).length;
+
+            const diferencaDeNivel = niveisNovosAtingidos - niveisAntigosAtingidos;
+
+            if (diferencaDeNivel > 0) {
+                const novoNivelReceita = Math.min(24, (legado.nivel_receita || 1) + diferencaDeNivel);
+                
+                await this.db.run(
+                    "UPDATE legado_grupos SET conquistas_json = ?, nivel_receita = ? WHERE group_id = ?", 
+                    [JSON.stringify(conquistas), novoNivelReceita, groupId]
+                );
+
+                if (sock) {
+                    const nomeCat = this.MARCOS_SEASON[categoria].nome;
+                    const msgUP = `
+🎉 **MARCO COMUNITÁRIO ATINGIDO!** 🎉
+
+O esforço do grupo deu resultado! Vocês acabaram de subir de nível na categoria:
+🌟 **${nomeCat}** (Nível ${niveisNovosAtingidos}/4)
+
+📈 A receita global do parque subiu para **${novoNivelReceita}/24**!
+A InGen liberou mais verba para a próxima bilheteria. Usem \`!parque missoes\` para ver o painel atualizado.`;
+                    
+                    await sock.sendMessage(groupId, { text: msgUP });
+                }
+            } else {
+                await this.db.run("UPDATE legado_grupos SET conquistas_json = ? WHERE group_id = ?", [JSON.stringify(conquistas), groupId]);
+            }
+
+        } catch (e) {
+            console.error("Erro ao registrar progresso comunitário:", e);
+        }
     }
 
     async savePlayerData(userId, data) {

@@ -377,6 +377,10 @@ class PescariaHandler {
                     instanceId: crypto.randomUUID()
                 });
 
+                if (this.parqueHandler && groupId && groupId.includes('@g.us')) {
+                    this.parqueHandler.registrarProgressoComunitario(groupId, 'pesca_kg', actualWeight, sock).catch(()=>{});
+                }
+
                 if (player.active_items['ima_coins']) {
                     const moedasAchadas = Math.floor(Math.random() * 41) + 10;
                     const profitResult = await this.casinoHandler.verifyProfit(userId, moedasAchadas);

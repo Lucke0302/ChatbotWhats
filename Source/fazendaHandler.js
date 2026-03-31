@@ -555,6 +555,10 @@ class FazendaHandler {
         let rngMsg = "";
         const roll = Math.random() * 100;
 
+        if (this.parqueHandler && groupId && groupId.includes('@g.us')) {
+            this.parqueHandler.registrarProgressoComunitario(groupId, 'fazenda_kg', finalKilos, sock).catch(()=>{});
+        }
+
         if (climaAtual.condicao == "trovoada" && Math.random() < 0.15){
             finalKilos = 0;
             rngMsg = `\n⛈️ **DESASTRE!** A tempestade alagou toda a sua plantação. Você perdeu TUDO!`;

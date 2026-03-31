@@ -1,5 +1,5 @@
 const helpDictionary = {
-    'default': `🦖 *BOSTOSSAURO OS* v5.1 - A Ameaça Híbrida 🦖
+    'default': `🦖 *BOSTOSSAURO OS* v6.0 - O Colapso Temporal ⏳
 
 Ô humano, tá perdido ou só quer me alugar?
 Eu tô aqui processando bit igual um condenado e você pedindo ajuda... Tá, toma aí o que eu sei fazer (quando não tô fritando):
@@ -186,19 +186,26 @@ Bem-vindo ao antro da perdição e do capitalismo selvagem!
         'parque': `🦖 *COMANDO: !parque*
 O Jurassic BostoPark é um ecossistema cooperativo. Escave, clone e alimente!
 
+*Missões da Temporada:*
+🎯 *!parque missoes* ➝ Veja as metas da comunidade para restaurar o lucro da bilheteria cortada pela InGen após o Wipe!
+
 *Mineração & DNA:*
 ⛏️ *!escavar* ➝ Gasta a mesma energia do *!bico*. Pode achar pedras preciosas ou o lendário Âmbar!
 🎒 *!parque mochila* ➝ Veja seus minérios escavados.
 🤝 *!parque vender [numero/tudo]* ➝ Venda as pedras no mercado negro.
 
-*O Zoológico:*
+*Zoológico & Estoque comunitário:*
 🖼️ *!parque mural* ➝ Veja os dinossauros vivos do grupo (Seus níveis, cores e ID).
-🥩 *!parque despensa* ➝ Abre seu isopor de pesca para escolher um lanchinho.
-🍗 *!parque alimentar [ID] [Comida]* ➝ Dê seu peixe pescado para o dinossauro crescer e gerar mais bilheteria.
+🥩 *!parque despensa* ➝ Abre seu inventário para escolher um lanchinho (peixes e vegetais).
+🏢 *!parque reserva* ➝ Veja o estoque coletivo de comida do grupo.
+🚚 *!parque depositar [ID_Despensa] [tudo]* ➝ Doe sua comida para a reserva do parque.
+🔪 *!parque porcionar [ID_Despensa] [Kg]* ➝ Fatie peças grandes de carne em pedaços menores.
+🍗 *!parque alimentar [ID] [Nº_Comida/reserva]* ➝ Alimente o dinossauro com a sua comida ou com a reserva coletiva!
 🧬 *!parque perfil* ➝ Veja suas métricas, bônus de ticket injetado no grupo e seus Top 5 clones.
 
 *Híbridos & Guarda:*
-👑 *!parque titulo [pai/mae/nazare] [id_do_dino]* ➝ Assuma a guarda legal de um dinossauro que você descobriu e use como título global!
+🏷️ *!parque nome [ID] [Nome]* ➝ Batize um dinossauro que você descobriu.
+👑 *!parque titulo [pai/mae/nazare] [id_do_dino]* ➝ Assuma a guarda legal de um dinossauro e use como título global!
 🧪 _Híbridos (Ex: Indominus Rex) são gerados automaticamente se o grupo possuir os dinossauros originais._`,
 
     'fazenda': `🚜 *COMANDO: !fazenda* (BETA)

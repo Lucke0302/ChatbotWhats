@@ -68,12 +68,17 @@ constructor(db) {
         return user ? user.bostocoins : 0;
     }
 
-    async updateBalance(userId, amount) {
+    async updateBalance(userId, amount, groupId = null, sock = null) {
+        if (amount < 0 && this.parqueHandler && groupId && groupId.includes('@g.us')) {
+            const gastoReal = Math.abs(amount);
+            this.parqueHandler.registrarProgressoComunitario(groupId, 'cassino', gastoReal, sock).catch(()=>{});
+        }
+        
         await this.db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [amount, userId]);
     }
 
     // CAÇA-NÍQUEIS
-    async playSlots(userId, userTag, bet) {
+    async playSlots(userId, userTag, bet, groupId, sock) {
         const balance = await this.getBalance(userId);
         if (isNaN(bet) || bet <= 0) return `${userTag}⚠️ Digite um valor para apostar. Ex: *!cassino 50*\nVocê tem ${balance} Bostocoins!`;
         
@@ -89,20 +94,20 @@ constructor(db) {
         if (r1 === r2 && r2 === r3) {
             let multiplier = r1 === "💎" || r1 === "🦖" ? 20 : 10;
             const win = bet * multiplier;
-            await this.updateBalance(userId, win - bet);
+            await this.updateBalance(userId, win - bet, groupId, sock);
             return msg + `🏆 **JACKPOT!** Você tirou 3 iguais e ganhou 🪙 ${win} Bostocoins!`;
         } else if (r1 === r2 || r2 === r3 || r1 === r3) {
             const win = Math.floor(bet * 1.4);
-            await this.updateBalance(userId, win - bet);
+            await this.updateBalance(userId, win - bet, groupId, sock);
             return msg + `✨ **QUASE!** Deu parzinho. Você ganhou 🪙 ${win} Bostocoins.`;
         } else {
-            await this.updateBalance(userId, -bet);
+            await this.updateBalance(userId, -bet, groupId, sock);
             return msg + `💸 **PERDEU!** O cassino agradece sua doação de 🪙 ${bet} Bostocoins.`;
         }
     }
 
     // CARA OU COROA
-    async playCoinflip(userId, userTag, choice, bet) {
+    async playCoinflip(userId, userTag, choice, bet, groupId, sock) {
         const balance = await this.getBalance(userId);
         if (isNaN(bet) || bet <= 0) return `${userTag}⚠️ Digite um valor válido. Ex: *!cassino cara 50*\nVocê tem 🪙 ${balance} Bostocoins!`;
         if (choice !== 'cara' && choice !== 'coroa') return `${userTag}⚠️ Escolha 'cara' ou 'coroa'.`;
@@ -115,16 +120,16 @@ constructor(db) {
         let msg = `${userTag}🪙 A moeda girou e caiu... **${result.toUpperCase()}**!\n\n`;
 
         if (won) {
-            await this.updateBalance(userId, bet);
+            await this.updateBalance(userId, bet, groupId, sock);
             return msg + `🎉 Você acertou e ganhou 🪙 ${bet * 1.8} Bostocoins!`;
         } else {
-            await this.updateBalance(userId, -bet);
+            await this.updateBalance(userId, -bet, groupId, sock);
             return msg + `💸 Você errou e perdeu 🪙 ${bet} Bostocoins.`;
         }
     }
 
     // ROLETA SIMPLES
-    async playRoulette(userId, userTag, colorChoice, bet) {
+    async playRoulette(userId, userTag, colorChoice, bet, groupId, sock) {
         const balance = await this.getBalance(userId);
         if (isNaN(bet) || bet <= 0) return `${userTag}⚠️ Valor inválido. Ex: *!cassino roleta vermelho 100* \nVocê tem ${balance} Bostocoins!`;
         const choices = ['vermelho', 'preto', 'verde'];
@@ -145,16 +150,16 @@ constructor(db) {
         if (colorChoice === resultColor) {
             const multiplier = resultColor === 'verde' ? 12 : 2;
             const win = bet * multiplier;
-            await this.updateBalance(userId, win - bet);
+            await this.updateBalance(userId, win - bet, groupId, sock);
             return msg + `💰 **VITÓRIA!** Você multiplicou sua aposta por ${multiplier}x e ganhou 🪙 ${win} Bostocoins!`;
         } else {
-            await this.updateBalance(userId, -bet);
+            await this.updateBalance(userId, -bet, groupId, sock);
             return msg + `💸 **DERROTA!** Você apostou no ${colorChoice} e perdeu 🪙 ${bet}.`;
         }
     }
 
     // MEGABOSTA
-    async playMega(userId, userTag, number, bet) {
+    async playMega(userId, userTag, number, bet, groupId, sock) {
         const balance = await this.getBalance(userId);
         if (isNaN(number) || number < 1 || number > 100) return `${userTag}⚠️ Escolha um número de 1 a 100. Ex: *!cassino mega 42 100*`;
         if (isNaN(bet) || bet <= 0) return `${userTag}⚠️ Valor inválido. Ex: *!cassino mega 42 100*`;
@@ -163,14 +168,14 @@ constructor(db) {
         const estado = await this.db.get("SELECT mega_multiplicador FROM cassino_estado WHERE id = 1");
         const multiplicador_atual = estado.mega_multiplicador * 100;
 
-        await this.updateBalance(userId, -bet);
+        await this.updateBalance(userId, -bet, groupId, sock);
         await this.db.run("INSERT INTO loteria (id_usuario, numero, valor) VALUES (?, ?, ?)", [userId, number, bet]);
 
         return `${userTag}🎟️ **BILHETE DA MEGABOSTA COMPRADO!**\nApostou 🪙 ${bet} no número **${number}**.\nSe ganhar, leva 🪙 **${bet * multiplicador_atual}** na segunda-feira!`;
     }
 
     // BOLAO
-    async playBolao(userId, userTag, number, bet) {
+    async playBolao(userId, userTag, number, bet, groupId, sock) {
         const balance = await this.getBalance(userId);
         if (isNaN(number) || number < 1 || number > 20) return `${userTag}⚠️ Escolha um número de 1 a 20. Ex: *!cassino bolao 15 500*`;
         if (isNaN(bet) || bet <= 0) return `${userTag}⚠️ Valor inválido.`;
@@ -179,7 +184,7 @@ constructor(db) {
         const ticket = await this.db.get("SELECT * FROM bolao WHERE id_usuario = ?", [userId]);
         if (ticket) return `${userTag}🎟️ Você já tá no bolão dessa semana com o número **${ticket.numero}**! Só pode um por pessoa.`;
 
-        await this.updateBalance(userId, -bet);
+        await this.updateBalance(userId, -bet, groupId, sock);
         await this.db.run("INSERT INTO bolao (id_usuario, numero, valor) VALUES (?, ?, ?)", [userId, number, bet]);
 
         return `${userTag}🤝 **NO BOLÃO!**\nVocê jogou 🪙 ${bet} no número **${number}**. O pote do grupo só cresce! Resultado na segunda-feira.`;
@@ -196,7 +201,7 @@ constructor(db) {
 
         await this.db.run(`INSERT OR IGNORE INTO usuarios (id_usuario, nome, banido_ate, uso_ia_diario, data_ultimo_uso, anotacoes) VALUES (?, 'Anônimo', 0, 0, '', '')`, [receiverId]);
 
-        await this.updateBalance(senderId, -amount);
+        await this.updateBalance(senderId, -amount, grou);
         await this.updateBalance(receiverId, amount);
 
         return `💸 **PIX TRANSFERIDO!**\n\n${senderTag} enviou 🪙 **${amount} Bostocoins** com sucesso!\nO Banco Central do Bostossauro já aprovou a transação.`;

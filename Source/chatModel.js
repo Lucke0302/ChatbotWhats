@@ -50,6 +50,9 @@ class ChatModel {
         this.parqueHandler = new ParqueHandler(db, this.casinoHandler, this.pescariaHandler);
         this.pescariaHandler.setParqueHandler(this.parqueHandler);
         this.fazendaHandler = new FazendaHandler(db, this.casinoHandler, this.pescariaHandler);
+
+        this.fazendaHandler.parqueHandler = this.parqueHandler;
+        this.casinoHandler.parqueHandler = this.parqueHandler;
     }
 
     async init() {
@@ -200,22 +203,25 @@ class ChatModel {
                 const tag = await this.pokemonHandler.getUserTag(ctx.sender);
                 const args = ctx.command.trim().split(/\s+/);
                 const subCommand = args[1]?.toLowerCase();
+                
+                const groupId = ctx.from;
+                const sock = ctx.sock;
 
                 if (!subCommand || subCommand === 'saldo' || subCommand === 'ajuda') {
                     return await this.casinoHandler.showBalance(ctx.sender, tag);
                 }
                 if (!isNaN(subCommand)) {
                     const bet = parseInt(subCommand);
-                    return await this.casinoHandler.playSlots(ctx.sender, tag, bet);
+                    return await this.casinoHandler.playSlots(ctx.sender, tag, bet, groupId, sock);
                 }
                 if (subCommand === 'cara' || subCommand === 'coroa') {
                     const bet = parseInt(args[2]);
-                    return await this.casinoHandler.playCoinflip(ctx.sender, tag, subCommand, bet);
+                    return await this.casinoHandler.playCoinflip(ctx.sender, tag, subCommand, bet, groupId, sock);
                 }
                 if (subCommand === 'roleta') {
                     const color = args[2]?.toLowerCase();
                     const bet = parseInt(args[3]);
-                    return await this.casinoHandler.playRoulette(ctx.sender, tag, color, bet);
+                    return await this.casinoHandler.playRoulette(ctx.sender, tag, color, bet, groupId, sock);
                 }
 
                 if (subCommand === 'mega') {
@@ -225,7 +231,7 @@ class ChatModel {
                     
                     const number = parseInt(args[2]);
                     const bet = parseInt(args[3]);
-                    return await this.casinoHandler.playMega(ctx.sender, tag, number, bet);
+                    return await this.casinoHandler.playMega(ctx.sender, tag, number, bet, groupId, sock);
                 }
 
                 if (subCommand === 'bolao') {
@@ -235,14 +241,14 @@ class ChatModel {
 
                     const number = parseInt(args[2]);
                     const bet = parseInt(args[3]);
-                    return await this.casinoHandler.playBolao(ctx.sender, tag, number, bet);
+                    return await this.casinoHandler.playBolao(ctx.sender, tag, number, bet, groupId, sock);
                 }
 
                 return `${tag}🎰 **CASSINO E ECONOMIA DO BOSTOSSAURO** 🎰\n\n` +
-                       `*Apostas:* \n🎰 *!cassino [valor]* (Slots)\n🪙 *!cassino [cara/coroa] [valor]*\n🎡 *!cassino roleta [vermelho/preto/verde] [valor]*\n\n` +
-                       `*Loterias:*\n🎟️ *!cassino mega [1-100] [valor]*\n🤝 *!cassino bolao [1-20] [valor]*\n\n` +
-                       `*Faria Lima:*\n💼 *!trabalhar* (Emprego CLT)\n🛠️ *!bico* (Trampo rápido)\n📈 *!investir* (Bolsa de Valores)\n🏦 *!emprestimo* (Agiota)\n👑 *!titulo* (Cartório de Ostentação)\n\n` +
-                       `*Consultas:* \n💰 *!cassino saldo*`;
+                    `*Apostas:* \n🎰 *!cassino [valor]* (Slots)\n🪙 *!cassino [cara/coroa] [valor]*\n🎡 *!cassino roleta [vermelho/preto/verde] [valor]*\n\n` +
+                    `*Loterias:*\n🎟️ *!cassino mega [1-100] [valor]*\n🤝 *!cassino bolao [1-20] [valor]*\n\n` +
+                    `*Faria Lima:*\n💼 *!trabalhar* (Emprego CLT)\n🛠️ *!bico* (Trampo rápido)\n📈 *!investir* (Bolsa de Valores)\n🏦 *!emprestimo* (Agiota)\n👑 *!titulo* (Cartório de Ostentação)\n\n` +
+                    `*Consultas:* \n💰 *!cassino saldo*`;
             },
             '!givecoins': async (ctx) => {
                 const tag = await this.pokemonHandler.getUserTag(ctx.sender);
@@ -544,20 +550,18 @@ class ChatModel {
 
                 return `${tag}🦖 **JURASSIC BOSTOPARK** 🦖\n\n` +
                        `⛏️ *!escavar* (Ache minérios ou Âmbar!)\n` +
-                       `🎒 *!parque mochila* (Veja suas pedras)\n` +
-                       `🤝 *!parque vender [numero/tudo]* (Venda os minérios)\n` +
-                       `🥩 *!parque despensa* (Veja seus peixes comestíveis)\n` +
-                       `🥩 *!parque despensa* (Veja sua comida pessoal)\n` +
-                       `🏢 *!parque reserva* (Veja o estoque do Grupo)\n` +
-                       `🚚 *!parque depositar [ID_Despensa] [tudo]* (Doe comida!)\n` +
                        `🍗 *!parque alimentar [ID] reserva* (Usa a comida coletiva)\n` +
-                       `🔪 *!parque porcionar [ID_Despensa] [Kg]* (Fatie a carne!)\n` +
-                       `🍗 *!parque alimentar [ID] [Nº_Comida]* (Alimente um dino)\n` +
+                       `🚚 *!parque depositar [ID_Despensa] [tudo]* (Doe comida!)\n` +
+                       `🥩 *!parque despensa* (Veja seus peixes comestíveis)\n` +
+                       `🎯 *!parque missoes* (Metas da Temporada!)\n` +
+                       `🎒 *!parque mochila* (Veja suas pedras)\n` +
                        `🖼️ *!parque mural* (Veja os dinossauros do grupo)\n` +
+                       `🏷️ *!parque nome [ID] [Nome]* (Batize seu dino!)\n`+
                        `🧬 *!parque perfil* (Sua coleção e ticket gerado)\n` +
+                       `🔪 *!parque porcionar [ID_Despensa] [Kg]* (Fatie a carne!)\n` +
+                       `🏢 *!parque reserva* (Veja o estoque do Grupo)\n` +
                        `👑 *!parque titulo [pai/mae/nazare] [ID]* (Guarda compartilhada!)\n` +
-                       `🧬 *!parque perfil* (Sua coleção de genéticas)\n` +
-                       `🏷️ *!parque nome [ID] [Nome]* (Batize seu dino!)\n`;
+                       `🤝 *!parque vender [numero/tudo]* (Venda os minérios)\n`;
 
             },
             '!escavar': async (ctx) => {

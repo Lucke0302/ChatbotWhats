@@ -1,10 +1,14 @@
-# 🦖 Bostossauro Bot v5.1
-> *"Eu sabo... mas às vezes a RAM acaba."*
+# 🦖 Bostossauro Bot v6.0 - O Colapso Temporal
+> *"Eu sabo... mas às vezes o universo precisa ser resetado."*
 
 Bem-vindo ao repositório oficial do **Bostossauro**, o bot de WhatsApp mais sarcástico, sincero e levemente instável do hemisfério sul. Este projeto nasceu da vontade de automatizar respostas, jogar RPG de mesa via texto e, principalmente, julgar as conversas dos seus grupos com o poder da Inteligência Artificial.
 
 ## 🧠 O Que Ele Faz? (Funcionalidades)
 O Bostossauro não é apenas um bot, é um estilo de vida. Aqui estão as skills atuais:
+
+* **⏳ Sistema de Temporadas (Wipe Quinzenal):** A cada ciclo, a economia entra em colapso. O dinheiro, os barcos e as fazendas resetam, mas os jogadores ganham "Heranças" (buffs passivos e cashback) baseadas no progresso que tiveram na season anterior!
+
+* **🎯 Missões da Comunidade:** O lucro da bilheteria do Jurassic Park diminui após o Wipe. O grupo inteiro precisa cooperar (pescando, plantando, gastando no cassino e comprando upgrades) para encher a barra de progresso global e restaurar a receita de todos!
 
 * **✉️ Conversa Contextual:** Ele responde qualquer mensagem (especialmente no privado) usando o Gemini, lembrando das últimas mensagens para não parecer um peixinho dourado.
 

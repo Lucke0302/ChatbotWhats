@@ -82,6 +82,7 @@ class FazendaHandler {
         
         let upgradesParse = JSON.parse(row.upgrades);
         if (upgradesParse.adubos === undefined) upgradesParse.adubos = 0;
+        if (upgradesParse.sementes === undefined) upgradesParse.sementes = {};
 
         return {
             canteiros: canteirosParse,
@@ -359,12 +360,16 @@ class FazendaHandler {
         let msg = `${userTag}🏪 **COOPERATIVA AGRÍCOLA** 🏪\n_Saldo: 🪙 ${balance} Bostocoins_\n\n`;
         
         msg += `🌱 **CATÁLOGO DE SEMENTES**\n`;
+        const sementesEstoque = data.upgrades.sementes || {}; 
+
         SEEDS_CATALOG.forEach(s => {
-            msg += `${s.emoji} **${s.name}** ➝ 🪙 ${s.cost}\n`;
+            const qtdEstoque = sementesEstoque[s.id] || 0;
+            const avisoEstoque = qtdEstoque > 0 ? ` _(🎒 Você tem ${qtdEstoque} guardada(s))_` : '';
+            
+            msg += `${s.emoji} **${s.name}** ➝ 🪙 ${s.cost}${avisoEstoque}\n`;
             msg += `   ⏱️ Tempo: ${s.growthTimeHours}h | 🧬 Saturação: ${s.saturation}x\n`;
             msg += `   🛒 *!fazenda plantar ${s.id}*\n\n`;
         });
-
         msg += `\n🛠️ **EQUIPAMENTOS E TRATORES**\n_Aumentam a sua produção passiva!_\n\n`;
         
         const nextEnxada = TOOLS_CATALOG['enxada'].find(e => e.level === data.upgrades.enxada + 1);
@@ -456,21 +461,25 @@ class FazendaHandler {
         if (!seedId) return `${userTag} ⚠️ Qual semente? Use *!fazenda loja* para ver os IDs.`;
 
         const mods = CLIMA_FAZENDA[climaAtual.condicao] || CLIMA_FAZENDA['nublado'];
-        
         const seed = SEEDS_CATALOG.find(s => s.id === seedId.toLowerCase());
         if (!seed) return `${userTag} ❌ Semente desconhecida.`;
-
-        const userDb = await this.db.get("SELECT bostocoins FROM usuarios WHERE id_usuario = ?", [userId]);
-        const balance = userDb ? userDb.bostocoins : 0;
-
-        if (balance < seed.cost) return `${userTag} 💸 Você não tem 🪙 ${seed.cost} para comprar esta semente.`;
 
         const data = await this.getFazendaData(userId);
         const canteiroLivre = data.canteiros.find(c => !c.seedId);
 
         if (!canteiroLivre) return `${userTag} 🛑 Todos os seus canteiros estão ocupados!`;
 
-        await this.db.run("UPDATE usuarios SET bostocoins = bostocoins - ? WHERE id_usuario = ?", [seed.cost, userId]);
+        let usouEstoque = false;
+        if (data.upgrades.sementes && data.upgrades.sementes[seed.id] > 0) {
+            data.upgrades.sementes[seed.id] -= 1;
+            usouEstoque = true;
+        } else {
+            const userDb = await this.db.get("SELECT bostocoins FROM usuarios WHERE id_usuario = ?", [userId]);
+            const balance = userDb ? userDb.bostocoins : 0;
+
+            if (balance < seed.cost) return `${userTag} 💸 Você não tem 🪙 ${seed.cost} Bostocoins e nem sementes guardadas!`;
+            await this.db.run("UPDATE usuarios SET bostocoins = bostocoins - ? WHERE id_usuario = ?", [seed.cost, userId]);
+        }
 
         const now = Math.floor(Date.now() / 1000);
         canteiroLivre.seedId = seed.id;
@@ -480,7 +489,11 @@ class FazendaHandler {
 
         await this.saveFazendaData(userId, data);
 
-        return `${userTag} 🌱 **SEMENTE PLANTADA!**\nVocê gastou 🪙 ${seed.cost} e plantou ${seed.emoji} **${seed.name}** no Canteiro ${canteiroLivre.id}.\nFicará pronta em ${seed.growthTimeHours} horas!`;
+        if (usouEstoque) {
+            return `${userTag} 🌱 **SEMENTE PLANTADA (0 CUSTO)!**\nVocê usou uma semente do seu estoque e plantou ${seed.emoji} **${seed.name}** no Canteiro ${canteiroLivre.id}.\nFicará pronta em ${seed.growthTimeHours} horas!`;
+        } else {
+            return `${userTag} 🌱 **SEMENTE COMPRADA E PLANTADA!**\nVocê gastou 🪙 ${seed.cost} e plantou ${seed.emoji} **${seed.name}** no Canteiro ${canteiroLivre.id}.\nFicará pronta em ${seed.growthTimeHours} horas!`;
+        }
     }
 
     // REGAR
@@ -588,6 +601,15 @@ class FazendaHandler {
             if (!data.trofeus) data.trofeus = {};
             if (!data.trofeus[seed.id] || finalKilos > data.trofeus[seed.id].weight) {
                 data.trofeus[seed.id] = { weight: finalKilos, date: now, group_id: groupId };
+            }
+
+            let dropChance = 50 - (seed.cost / 200);
+            dropChance = Math.max(10, Math.min(50, dropChance)); 
+
+            if (Math.random() * 100 <= dropChance) {
+                if (!data.upgrades.sementes) data.upgrades.sementes = {};
+                data.upgrades.sementes[seed.id] = (data.upgrades.sementes[seed.id] || 0) + 1;
+                msg += `\n🌱 **SORTE GRANDE!** Você extraiu 1x Semente de ${seed.name} no meio da colheita! (Foi para o seu estoque)`;
             }
         }
 

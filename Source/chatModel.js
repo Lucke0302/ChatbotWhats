@@ -512,7 +512,7 @@ class ChatModel {
                 }
 
                 if (subCommand === 'missoes' || subCommand === 'missões' || subCommand === 'conquistas') {
-                    return await this.parqueHandler.verMissoesGlobais(netGroupId, tag);
+                    return await this.parqueHandler.verMissoesGlobais(netGroupId, tag, args[2]);
                 }
 
                 if (subCommand === 'vender') {

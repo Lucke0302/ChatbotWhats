@@ -546,7 +546,7 @@ class ParqueHandler {
         return finalMsg;
     }
 
-    async verMissoesGlobais(groupId, userTag) {
+    async verMissoesGlobais(groupId, userTag, paramStr) {
         let legado = null;
         try {
             legado = await this.db.get("SELECT * FROM legado_grupos WHERE group_id = ?", [groupId]);
@@ -562,10 +562,6 @@ class ParqueHandler {
         
         const dinoData = await this.db.get("SELECT SUM(nivel) as total_lvl FROM parque_dinossauros WHERE group_id = ?", [groupId]);
         conquistas['dino_lvl'] = dinoData ? (dinoData.total_lvl || 0) : 0;
-        
-        let msg = `${userTag}🎯 **MARCOS DA COMUNIDADE (Season ${legado.temporada_atual || 1})** 🎯\n\n`;
-        msg += `📈 **Receita do Parque:** ${nivel}/24\n`;
-        msg += `🎟️ **Lucro da InGen:** ${mult}x (Recebendo ${Math.round(mult * 100)}%)\n\n`;
 
         const drawBar = (current, max) => {
             if (current >= max) return '🟩'.repeat(10);
@@ -573,7 +569,61 @@ class ParqueHandler {
             return '🟩'.repeat(filled) + '⬜'.repeat(10 - filled);
         };
 
-        for (const [key, data] of Object.entries(this.MARCOS_SEASON)) {
+        const descricoes = {
+            pesca_kg: "Pesque os troféus no lago com !pescar para acumular peso global e provar que esse grupo não vive só de Ifood.",
+            fazenda_kg: "Colha as safras com !fazenda colher para abastecer o mercado e não deixar os herbívoros morrerem de inanição.",
+            dino_lvl: "Alimente os dinossauros com !parque alimentar e suba o nível deles. Afinal, dinossauro anão não atrai turista.",
+            upgrades: "Compre equipamentos na loja (!pescaria comprar ou !fazenda comprar) e movimente a indústria de base do Bostoverso.",
+            vendas: "Venda peixes e vegetais no mercadão. A InGen adora capitalismo e exige que o dinheiro gire.",
+            cassino: "Torre (ou ganhe) Bostocoins nas máquinas caça-níqueis e roletas do Cassino. A casa sempre vence, mas o grupo lucra a longo prazo."
+        };
+
+        const chavesMissao = Object.keys(this.MARCOS_SEASON);
+
+        if (paramStr && !isNaN(parseInt(paramStr))) {
+            const indexMissao = parseInt(paramStr) - 1;
+            
+            if (indexMissao < 0 || indexMissao >= chavesMissao.length) {
+                return `${userTag} ⚠️ Missão não encontrada. Digite *!parque missoes* para ver o catálogo de 1 a ${chavesMissao.length}.`;
+            }
+
+            const key = chavesMissao[indexMissao];
+            const data = this.MARCOS_SEASON[key];
+            const atual = conquistas[key] || 0;
+            
+            let metaAtualIdx = data.metas.findIndex(m => atual < m);
+            if (metaAtualIdx === -1) metaAtualIdx = 3; 
+            
+            const metaObj = data.metas[metaAtualIdx];
+            const isMax = atual >= data.metas[3];
+            const explicacao = descricoes[key];
+
+            let msgDetalhe = `${userTag}🎯 **DETALHES DA MISSÃO [ ${indexMissao + 1} ]** 🎯\n\n`;
+            msgDetalhe += `**${data.nome}** (Nvl ${isMax ? 4 : metaAtualIdx})\n`;
+            msgDetalhe += `_💡 ${explicacao}_\n\n`;
+            
+            msgDetalhe += `[${drawBar(atual, metaObj)}] ${isMax ? 'MAX' : `${Math.floor((atual/metaObj)*100)}%`}\n`;
+            msgDetalhe += `Progresso: ${atual.toLocaleString('pt-BR')}${data.unidade} / ${metaObj.toLocaleString('pt-BR')}${data.unidade}\n\n`;
+            
+            if (!isMax) {
+                msgDetalhe += `📈 **Próximas Metas a Desbloquear:**\n`;
+                for (let i = metaAtualIdx; i < data.metas.length; i++) {
+                    msgDetalhe += `- Nível ${i + 1}: ${data.metas[i].toLocaleString('pt-BR')}${data.unidade}\n`;
+                }
+            } else {
+                msgDetalhe += `🏆 **CATEGORIA ZERADA!** Vocês atingiram o ápice nessa área. A InGen está orgulhosa.`;
+            }
+
+            return msgDetalhe;
+        }
+
+        let msg = `${userTag}🎯 **MARCOS DA COMUNIDADE (Season ${legado.temporada_atual || 1})** 🎯\n\n`;
+        msg += `📈 **Receita do Parque:** ${nivel}/24\n`;
+        msg += `🎟️ **Lucro da InGen:** ${mult}x (Recebendo ${Math.round(mult * 100)}%)\n\n`;
+
+        let index = 1;
+        for (const key of chavesMissao) {
+            const data = this.MARCOS_SEASON[key];
             const atual = conquistas[key] || 0;
             let metaAtualIdx = data.metas.findIndex(m => atual < m);
             if (metaAtualIdx === -1) metaAtualIdx = 3;
@@ -581,12 +631,14 @@ class ParqueHandler {
             const metaObj = data.metas[metaAtualIdx];
             const isMax = atual >= data.metas[3];
             
-            msg += `*${data.nome}* (Nvl ${isMax ? 4 : metaAtualIdx})\n`;
+            msg += `*[ ${index} ]* **${data.nome}** (Nvl ${isMax ? 4 : metaAtualIdx})\n`;
             msg += `[${drawBar(atual, metaObj)}] ${isMax ? 'MAX' : `${Math.floor((atual/metaObj)*100)}%`}\n`;
             msg += `Progresso: ${atual.toLocaleString('pt-BR')}${data.unidade} / ${metaObj.toLocaleString('pt-BR')}${data.unidade}\n\n`;
+            
+            index++;
         }
 
-        msg += `_Trabalhem juntos para bater as metas e subir o nível de receita do Parque!_`;
+        msg += `🔍 _Use *!parque missoes [numero]* para ver detalhes e dicas de como subir uma missão específica._`;
         return msg;
     }
 

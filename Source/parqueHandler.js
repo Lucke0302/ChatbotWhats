@@ -479,12 +479,13 @@ class ParqueHandler {
     }
 
     async processarBilheteria(groupId) {
+        // Auditoria fiscal antes de fechar o caixa!
         await this.sincronizarMissoesLazy(groupId);
 
         const dinos = await this.db.all("SELECT * FROM parque_dinossauros WHERE group_id = ?", [groupId]);
         if (!dinos || dinos.length === 0) return "";
-        
-        let multReceita = 1 / 24;
+
+        let multReceita = 1 / 24; 
         try {
             const legado = await this.db.get("SELECT nivel_receita FROM legado_grupos WHERE group_id = ?", [groupId]);
             if (legado && legado.nivel_receita) {
@@ -492,7 +493,7 @@ class ParqueHandler {
             }
         } catch(e) {}
 
-        let bilheteriaTotal = 0;
+        let valorBrutoTotal = 0;
         let digestaoMsg = "";
 
         for (const d of dinos) {
@@ -524,10 +525,15 @@ class ParqueHandler {
             }
 
             const valorDino = Math.floor(dinoInfo.ticket_value * d.nivel * (d.multiplicador_bilheteria || 1.0));
-            bilheteriaTotal += valorDino * multReceita; 
+            valorBrutoTotal += valorDino; 
         }
 
-        if (bilheteriaTotal <= 0 && digestaoMsg === "") return "";
+        if (valorBrutoTotal <= 0 && digestaoMsg === "") return "";
+
+        const metadeInGen = Math.floor(valorBrutoTotal / 2);
+        const baseDoGrupo = valorBrutoTotal - metadeInGen;
+        
+        const lucroFinalGrupo = Math.floor(baseDoGrupo * multReceita);
 
         const ativos = await this.db.all("SELECT DISTINCT id_usuario FROM ranking_ofensas WHERE id_conversa = ?", [groupId]);
         
@@ -541,12 +547,19 @@ class ParqueHandler {
         const acionistas = ativos.filter(a => donosSet.has(a.id_usuario));
         
         let pagamentoMsg = "";
-        if (acionistas.length > 0 && bilheteriaTotal > 0) {
-            const cota = Math.floor(bilheteriaTotal / acionistas.length);
+        if (acionistas.length > 0 && lucroFinalGrupo > 0) {
+            const cota = Math.floor(lucroFinalGrupo / acionistas.length);
             for (const acionista of acionistas) {
                 await this.db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [cota, acionista.id_usuario]);
             }
-            pagamentoMsg = `💰 A bilheteria arrecadou 🪙 **${(bilheteriaTotal / multReceita).toFixed(0)} Bostocoins**, mas a InGen reteve a parte dela, restando 🪙 **${bilheteriaTotal.toFixed(0)}** (Multiplicador de ${multReceita.toFixed(2)}x)!\nOs lucros foram divididos: 🪙 **${cota}** para cada um dos ${acionistas.length} investidores com dinos.\n`;
+            
+            pagamentoMsg = `💰 A bilheteria arrecadou 🪙 **${valorBrutoTotal} Bostocoins** brutos!\n`;
+            pagamentoMsg += `🏢 A InGen confiscou 50% (🪙 **${metadeInGen}**).\n`;
+            pagamentoMsg += `📉 Dos 50% restantes (🪙 **${baseDoGrupo}**), vocês recuperaram apenas **${Math.round(multReceita * 100)}%** devido à política atualizada da InGen.\n`;
+            pagamentoMsg += `💸 **Lucro Líquido:** 🪙 **${lucroFinalGrupo}** (Cota de 🪙 **${cota}** para os ${acionistas.length} investidores).\n`;
+
+        } else if (lucroFinalGrupo <= 0 && valorBrutoTotal > 0) {
+            pagamentoMsg = `💰 A bilheteria arrecadou 🪙 **${valorBrutoTotal}**, mas a InGen levou 50% e limitou o resto. Vocês não lucraram NADA!\n`;
         }
 
         let finalMsg = `\n🎟️ **RELATÓRIO MATINAL DO BOSTOPARK** 🎟️\n`;

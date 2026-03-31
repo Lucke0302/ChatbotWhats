@@ -318,7 +318,7 @@ class PescariaHandler {
             }
 
             let roll = Math.random() * 100;
-            roll = roll * (1 - (player.fishing_stats.luck / 100));; 
+            roll = roll * (1 - (player.fishing_stats.luck / 100));
 
             const chanceMitico = 1 * mods.raridade_mult;
             const chanceLendario = 5 * mods.raridade_mult; 

@@ -116,6 +116,33 @@ class ChatModel {
                 if (ctx.sender !== "5513991008854@s.whatsapp.net") return "🔒 Privilégio de Admin.";
                 return await this.casinoHandler.handleExorcismo(ctx.sender, tag);
             },
+            '!admin': async (ctx) => {
+                const args = ctx.command.split(' ');
+                const subCommand = args[1] ? args[1].toLowerCase() : '';
+
+                if (!ctx.sender.includes('5513991008854')) {
+                    return "⚠️ Você não é o BostOuroboros para apagar universos. Volte para a roça!";
+                }
+
+                if (subCommand === 'wipe') {
+                    if (ctx.sock) {
+                        const grupos = await this.db.all("SELECT DISTINCT group_id FROM parque_dinossauros");
+                        
+                        for (const grupo of grupos) {
+                            try {
+                                await ctx.sock.sendMessage(grupo.group_id, { text: "⏳ Iniciando colapso temporal... O BostOuroboros está despertando." });
+                                await new Promise(resolve => setTimeout(resolve, 2000));
+                            } catch (e) {
+                                console.error(`Erro ao enviar aviso prévio de wipe para o grupo ${grupo.group_id}:`, e);
+                            }
+                        }
+                    }
+                    
+                    return await this.executarWipeGlobal(ctx.sock);
+                }
+
+                return "⚙️ **PAINEL DIVINO** ⚙️\n\nDisponível:\n*!admin wipe* - Reseta a temporada do Bostoverso.";
+            },
             '!cidade': async (ctx) => {
                 const args = ctx.command.trim().split(/\s+/);
                 
@@ -909,6 +936,143 @@ class ChatModel {
         const messagesDb = await this.db.all(sqlQuery, params);
         if (!messagesDb || messagesDb.length === 0) return "";
         return messagesDb.map(m => `${m.nome_remetente || 'Desconhecido'}: ${m.conteudo}`).reverse().join('\n');
+    }
+
+    async executarWipeGlobal(sock) {
+        console.log("🚨 INICIANDO PROTOCOLO DE WIPE GLOBAL...");
+        
+        const usuarios = await this.db.all("SELECT * FROM usuarios");
+        let veteranosRecompensados = 0;
+
+        for (const u of usuarios) {
+            try {
+                const pescaData = u.pescaria_data ? JSON.parse(u.pescaria_data) : {};
+                const fazendaData = u.fazenda_inventario ? JSON.parse(u.fazenda_inventario) : {};
+                
+                let descontoFazenda = 0;
+                let buffPesca = 0;
+                let bonusBostocoins = 0;
+
+                // Fazenda: 7.5% de desconto por canteiro extra
+                if (fazendaData.canteiros && fazendaData.canteiros > 1) {
+                    descontoFazenda = (fazendaData.canteiros - 1) * 0.075;
+                }
+
+                // Pesca: 5% extra de sorte se terminou com vara boa
+                if (pescaData.inventory && pescaData.inventory.vara && pescaData.inventory.vara !== 'bambu') {
+                    buffPesca = 0.05; 
+                }
+
+                // Acerto de Contas Financeiro: 5% do saldo atual e liquidação do isopor
+                const saldoAtual = u.bostocoins || 0; // Previne NaN
+                bonusBostocoins = Math.floor(saldoAtual * 0.05); 
+                
+                let isoporLiquido = 0;
+                try {
+                    const { sellableArray } = await this.pescariaHandler.getSellableList(u.id_usuario);
+                    if (sellableArray && sellableArray.length > 0) {
+                        sellableArray.forEach(fish => isoporLiquido += fish.value);
+                    }
+                } catch (e) {
+                    console.error(`Erro ao avaliar isopor de ${u.id_usuario} no wipe:`, e);
+                }
+
+                bonusBostocoins += Math.floor(isoporLiquido * 0.05);
+
+                // 5% do valor do estoque do armazém 
+                if (fazendaData.armazem && Array.isArray(fazendaData.armazem)) {
+                    let valorArmazem = 0;
+                    fazendaData.armazem.forEach(item => { 
+                        valorArmazem += (item.weight || 0) * 2; 
+                    });
+                    bonusBostocoins += Math.floor(valorArmazem * 0.05);
+                }
+
+                // Reembolso DIRETO (100%) das sementes que não puderam ser colhidas
+                if (fazendaData.plantacoes) {
+                    const canteirosOcupados = Object.keys(fazendaData.plantacoes).length;
+                    bonusBostocoins += (canteirosOcupados * 50);
+                }
+
+                const recordeSeason = {
+                    bostocoins_finais: saldoAtual,
+                    peso_pescado: pescaData.total_weight || 0,
+                    canteiros_finais: fazendaData.canteiros || 1,
+                    data_wipe: new Date().toISOString()
+                };
+
+                let legadoUser = await this.db.get("SELECT * FROM legado_usuarios WHERE id_usuario = ?", [u.id_usuario]);
+                let historicoCompleto = legadoUser ? JSON.parse(legadoUser.historico_json || '[]') : [];
+                historicoCompleto.push(recordeSeason);
+
+                await this.db.run(`
+                    INSERT INTO legado_usuarios (id_usuario, desconto_fazenda, buff_sorte_pesca, historico_json) 
+                    VALUES (?, ?, ?, ?)
+                    ON CONFLICT(id_usuario) DO UPDATE SET 
+                    desconto_fazenda = excluded.desconto_fazenda,
+                    buff_sorte_pesca = excluded.buff_sorte_pesca,
+                    historico_json = excluded.historico_json
+                `, [u.id_usuario, Math.min(descontoFazenda, 0.5), buffPesca, JSON.stringify(historicoCompleto)]);
+
+                const newPescaria = { suprimentos: 10, last_supply_regen: Math.floor(Date.now() / 1000), inventory: { vara: 'bambu', barco: null } };
+                const newFazenda = { canteiros: 1, armazem: [], nivel_trator: 0, nivel_enxada: 0 };
+                
+                await this.db.run(`
+                    UPDATE usuarios 
+                    SET bostocoins = ?, 
+                        pescaria_data = ?, 
+                        fazenda_inventario = ?
+                    WHERE id_usuario = ?
+                `, [bonusBostocoins, JSON.stringify(newPescaria), JSON.stringify(newFazenda), u.id_usuario]);
+
+                if (bonusBostocoins > 0) veteranosRecompensados++;
+
+            } catch (error) {
+                console.error(`Erro ao fazer wipe do usuario ${u.id_usuario}:`, error);
+            }
+        }
+
+        await this.db.run("UPDATE parque_dinossauros SET nivel = 1, xp_atual = 0, reserva_comida = 0");
+
+        const grupos = await this.db.all("SELECT DISTINCT group_id FROM parque_dinossauros");
+        
+        for (const grupo of grupos) {
+            await this.db.run(`
+                INSERT INTO legado_grupos (group_id, temporada_atual, nivel_receita, conquistas_json)
+                VALUES (?, 2, 1, '{}')
+                ON CONFLICT(group_id) DO UPDATE SET 
+                temporada_atual = temporada_atual + 1,
+                nivel_receita = 1,
+                conquistas_json = '{}'
+            `, [grupo.group_id]);
+        }
+
+        const msgApocalipse = `
+🌌 **O BOSTOUROBOROS DEVOROU O TEMPO!** 🌌
+_A Temporada acabou. Uma nova fenda temporal se abriu._
+
+O Bostoverso foi resetado! Suas fazendas viraram pó, seus barcos afundaram e o dinheiro evaporou... Mas a experiência fica!
+
+🏆 **O SEU LEGADO:**
+💰 Você manteve **5%** do seu patrimônio final para não começar do zero!
+🚜 Se você tinha muitos canteiros, ganhou um **Desconto Permanente** na loja agrícola desta season!
+🎣 Suas varas passadas se tornaram instinto, te dando um **Buff Oculto de Sorte**!
+🦖 **O Parque Sobreviveu!** Mas a InGen cortou a verba e os dinos resetaram pro nível 1. A bilheteria está pagando o mínimo. 
+
+Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para restaurar o lucro! Boa sorte na nova temporada! ⏳`;
+
+        for (const grupo of grupos) {
+            try {
+                if (sock) {
+                    await sock.sendMessage(grupo.group_id, { text: msgApocalipse });
+                    await new Promise(resolve => setTimeout(resolve, 2000)); // Delay para evitar bloqueio
+                }
+            } catch (e) {
+                console.error(`Erro ao avisar o grupo ${grupo.group_id} sobre o Wipe:`, e);
+            }
+        }
+
+        return `✅ Wipe finalizado. ${veteranosRecompensados} jogadores receberam bônus de legado.`;
     }
 
     //Comando que retorna as anotações do bot sobre você

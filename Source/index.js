@@ -681,6 +681,24 @@ async function initDatabase() {
     `);
     console.log("✅ Tabela 'clima_cache' verificada.");
 
+    await db.exec(`
+        CREATE TABLE IF NOT EXISTS legado_grupos (
+            group_id TEXT PRIMARY KEY,
+            temporada_atual INTEGER DEFAULT 1,
+            nivel_receita INTEGER DEFAULT 1,
+            conquistas_json TEXT DEFAULT '{}'
+        );
+    `);
+
+    await db.exec(`
+        CREATE TABLE IF NOT EXISTS legado_usuarios (
+            id_usuario TEXT PRIMARY KEY,
+            desconto_fazenda REAL DEFAULT 0,
+            buff_sorte_pesca REAL DEFAULT 0,
+            historico_json TEXT DEFAULT '{}'
+        );
+    `);
+
     console.log('✅ Banco de dados SQLite inicializado e tabelas verificadas.');
 }
 

@@ -530,7 +530,7 @@ class FazendaHandler {
     }
 
     // COLHER 
-    async colher(userId, userTag, canteiroIdStr, groupId, climaAtual) {
+    async colher(userId, userTag, canteiroIdStr, groupId, climaAtual, sock) {
         const cId = parseInt(canteiroIdStr);
         if (isNaN(cId)) return `${userTag} ⚠️ Informe o canteiro. Ex: *!fazenda colher 1*`;
 

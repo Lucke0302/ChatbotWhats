@@ -382,13 +382,13 @@ class ChatModel {
                 const tag = await this.pokemonHandler.getUserTag(ctx.sender);
                 const clima = await this.getClimaUsuario(ctx.sender); 
                 const netGroupId = await this.getNetGroupId(ctx.from); 
-                return await this.pescariaHandler.pescar(ctx.sender, tag, netGroupId, clima, sock);
+                return await this.pescariaHandler.pescar(ctx.sender, tag, netGroupId, clima, ctx.sock);
             },
             '!pesca': async (ctx) => {
                 const tag = await this.pokemonHandler.getUserTag(ctx.sender);
                 const clima = await this.getClimaUsuario(ctx.sender); 
                 const netGroupId = await this.getNetGroupId(ctx.from); 
-                return await this.pescariaHandler.pescar(ctx.sender, tag, netGroupId, clima, sock);
+                return await this.pescariaHandler.pescar(ctx.sender, tag, netGroupId, clima, ctx.sock);
             },
             '!vip': async (ctx) => {
                 return await this.handleVipStore(ctx);
@@ -591,7 +591,7 @@ class ChatModel {
                     return await this.fazendaHandler.regar(ctx.sender, tag, args[2], clima);
                 }
                 if (subCommand === 'colher') {
-                    return await this.fazendaHandler.colher(ctx.sender, tag, args[2], netGroupId, clima);
+                    return await this.fazendaHandler.colher(ctx.sender, tag, args[2], netGroupId, clima, ctx.sock);
                 }
                 if (subCommand === 'trofeus' || subCommand === 'recordes') {
                     return await this.fazendaHandler.getTrofeusGrupo(netGroupId, tag);

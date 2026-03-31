@@ -201,7 +201,7 @@ constructor(db) {
 
         await this.db.run(`INSERT OR IGNORE INTO usuarios (id_usuario, nome, banido_ate, uso_ia_diario, data_ultimo_uso, anotacoes) VALUES (?, 'Anônimo', 0, 0, '', '')`, [receiverId]);
 
-        await this.updateBalance(senderId, -amount, grou);
+        await this.updateBalance(senderId, -amount);
         await this.updateBalance(receiverId, amount);
 
         return `💸 **PIX TRANSFERIDO!**\n\n${senderTag} enviou 🪙 **${amount} Bostocoins** com sucesso!\nO Banco Central do Bostossauro já aprovou a transação.`;

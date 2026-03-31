@@ -4890,7 +4890,7 @@ class PokemonHandler {
             return `${userTag}✅ Nenhum Pokémon seu está tentando aprender golpes no momento.`;
         }
 
-        let msg = `${userTag}🚨 **POKÉMONS AGUARDANDO NOVOS GOLPES:** 🚨\n\n`;
+        let msg = `${userTag}🚨 **POKÉMON AGUARDANDO NOVOS GOLPES:** 🚨\n\n`;
 
         for (const p of pokes) {
             let pendingArray = [];

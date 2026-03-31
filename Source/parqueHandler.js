@@ -479,8 +479,18 @@ class ParqueHandler {
     }
 
     async processarBilheteria(groupId) {
+        await this.sincronizarMissoesLazy(groupId);
+
         const dinos = await this.db.all("SELECT * FROM parque_dinossauros WHERE group_id = ?", [groupId]);
         if (!dinos || dinos.length === 0) return "";
+        
+        let multReceita = 1 / 24;
+        try {
+            const legado = await this.db.get("SELECT nivel_receita FROM legado_grupos WHERE group_id = ?", [groupId]);
+            if (legado && legado.nivel_receita) {
+                multReceita = legado.nivel_receita / 24;
+            }
+        } catch(e) {}
 
         let bilheteriaTotal = 0;
         let digestaoMsg = "";
@@ -514,7 +524,7 @@ class ParqueHandler {
             }
 
             const valorDino = Math.floor(dinoInfo.ticket_value * d.nivel * (d.multiplicador_bilheteria || 1.0));
-            bilheteriaTotal += valorDino / 2;
+            bilheteriaTotal += valorDino * multReceita; 
         }
 
         if (bilheteriaTotal <= 0 && digestaoMsg === "") return "";
@@ -536,7 +546,7 @@ class ParqueHandler {
             for (const acionista of acionistas) {
                 await this.db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [cota, acionista.id_usuario]);
             }
-            pagamentoMsg = `💰 A bilheteria arrecadou 🪙 **${bilheteriaTotal*2} Bostocoins**, mas a InGen comeu metade, restando 🪙 **${bilheteriaTotal}**!\nOs lucros foram divididos: 🪙 **${cota}** para cada um dos ${acionistas.length} investidores com dinos.\n`;
+            pagamentoMsg = `💰 A bilheteria arrecadou 🪙 **${(bilheteriaTotal / multReceita).toFixed(0)} Bostocoins**, mas a InGen reteve a parte dela, restando 🪙 **${bilheteriaTotal.toFixed(0)}** (Multiplicador de ${multReceita.toFixed(2)}x)!\nOs lucros foram divididos: 🪙 **${cota}** para cada um dos ${acionistas.length} investidores com dinos.\n`;
         }
 
         let finalMsg = `\n🎟️ **RELATÓRIO MATINAL DO BOSTOPARK** 🎟️\n`;
@@ -547,6 +557,7 @@ class ParqueHandler {
     }
 
     async verMissoesGlobais(groupId, userTag, paramStr) {
+        await this.sincronizarMissoesLazy(groupId);
         let legado = null;
         try {
             legado = await this.db.get("SELECT * FROM legado_grupos WHERE group_id = ?", [groupId]);
@@ -561,7 +572,7 @@ class ParqueHandler {
         const mult = (nivel / 24).toFixed(2);
         
         const dinoData = await this.db.get("SELECT SUM(nivel) as total_lvl FROM parque_dinossauros WHERE group_id = ?", [groupId]);
-        conquistas['dino_lvl'] = dinoData ? (dinoData.total_lvl || 0) : 0;
+        conquistas['dino_lvl'] = dinoData ? (dinoData.total_lvl || 0) : 0;        
 
         const drawBar = (current, max) => {
             if (current >= max) return '🟩'.repeat(10);
@@ -640,6 +651,85 @@ class ParqueHandler {
 
         msg += `🔍 _Use *!parque missoes [numero]* para ver detalhes e dicas de como subir uma missão específica._`;
         return msg;
+    }
+
+    async sincronizarMissoesLazy(groupId) {
+        try {
+            const legado = await this.db.get("SELECT * FROM legado_grupos WHERE group_id = ?", [groupId]);
+            if (!legado) return;
+
+            let conquistas = JSON.parse(legado.conquistas_json || '{}');
+            let totalUpgrades = 0;
+
+            const activeUsers = await this.db.all("SELECT DISTINCT id_usuario FROM ranking_ofensas WHERE id_conversa = ?", [groupId]);
+
+            if (activeUsers && activeUsers.length > 0) {
+                const userIds = activeUsers.map(u => u.id_usuario);
+                const placeholders = userIds.map(() => '?').join(',');
+
+                const pescariaUsers = await this.db.all(`SELECT pescaria_data FROM usuarios WHERE id_usuario IN (${placeholders}) AND pescaria_data IS NOT NULL AND pescaria_data != '{}'`, userIds);
+                const rodOrder = ['bambu', 'fibra', 'grafite', 'carbono', 'aco', 'grafeno', 'adamantium'];
+                const boatOrder = ['pequeno', 'medio', 'grande', 'industrial'];
+
+                for (const u of pescariaUsers) {
+                    try {
+                        const pData = JSON.parse(u.pescaria_data);
+                        if (pData.inventory) {
+                            const rodIndex = rodOrder.indexOf(pData.inventory.vara || 'bambu');
+                            if (rodIndex > 0) totalUpgrades += rodIndex;
+                            if (pData.inventory.barco) {
+                                const boatIndex = boatOrder.indexOf(pData.inventory.barco);
+                                if (boatIndex >= 0) totalUpgrades += (boatIndex + 1);
+                            }
+                        }
+                    } catch(e) {}
+                }
+
+                const fazendaUsers = await this.db.all(`SELECT upgrades, canteiros FROM fazenda_inventario WHERE id_usuario IN (${placeholders})`, userIds);
+                for (const f of fazendaUsers) {
+                    try {
+                        const fUpgrades = JSON.parse(f.upgrades || '{}');
+                        const fCanteiros = JSON.parse(f.canteiros || '[]');
+                        if (fUpgrades.enxada && fUpgrades.enxada > 1) totalUpgrades += (fUpgrades.enxada - 1);
+                        if (fUpgrades.trator && fUpgrades.trator > 1) totalUpgrades += (fUpgrades.trator - 1);
+                        if (fCanteiros.length > 1) totalUpgrades += (fCanteiros.length - 1);
+                    } catch(e) {}
+                }
+            }
+
+            const dinoData = await this.db.get("SELECT SUM(nivel) as total_lvl FROM parque_dinossauros WHERE group_id = ?", [groupId]);
+            const totalDinoLvl = dinoData ? (dinoData.total_lvl || 0) : 0;
+
+            let houveMudanca = false;
+            let diferencaDeNivelTotal = 0;
+
+            const checarLevelUp = (categoria, valorAntigo, valorNovo) => {
+                if (valorNovo <= valorAntigo) return 0;
+                conquistas[categoria] = valorNovo;
+                houveMudanca = true;
+
+                const metas = this.MARCOS_SEASON[categoria].metas;
+                let niveisAntigos = metas.filter(m => valorAntigo >= m).length;
+                let niveisNovos = metas.filter(m => valorNovo >= m).length;
+                
+                return niveisNovos - niveisAntigos;
+            };
+
+            diferencaDeNivelTotal += checarLevelUp('upgrades', conquistas['upgrades'] || 0, totalUpgrades);
+            diferencaDeNivelTotal += checarLevelUp('dino_lvl', conquistas['dino_lvl'] || 0, totalDinoLvl);
+
+            if (houveMudanca) {
+                const novoNivelReceita = Math.min(24, (legado.nivel_receita || 1) + diferencaDeNivelTotal);
+                await this.db.run(
+                    "UPDATE legado_grupos SET conquistas_json = ?, nivel_receita = ? WHERE group_id = ?", 
+                    [JSON.stringify(conquistas), novoNivelReceita, groupId]
+                );
+                console.log(`[MISSÕES] Sincronização Concluída! Nível da Receita do grupo ${groupId} subiu para ${novoNivelReceita}`);
+            }
+
+        } catch (e) {
+            console.error("Erro na sincronização lazy das missões:", e);
+        }
     }
 
     async registrarProgressoComunitario(groupId, categoria, valorAdicional, sock) {

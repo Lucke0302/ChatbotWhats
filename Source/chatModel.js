@@ -505,6 +505,10 @@ class ChatModel {
                     return await this.parqueHandler.verMochila(ctx.sender, tag);
                 }
 
+                if (subCommand === 'missoes' || subCommand === 'missões' || subCommand === 'conquistas') {
+                    return await this.parqueHandler.verMissoesGlobais(netGroupId, tag);
+                }
+
                 if (subCommand === 'vender') {
                     const param = args[2]?.toLowerCase();
                     const qtd = args[3];
@@ -939,33 +943,34 @@ class ChatModel {
     }
 
     async executarWipeGlobal(sock) {
-        console.log("🚨 INICIANDO PROTOCOLO DE WIPE GLOBAL...");
+        console.log("🚨 [WIPE] INICIANDO PROTOCOLO DE WIPE GLOBAL...");
         
         const usuarios = await this.db.all("SELECT * FROM usuarios");
         let veteranosRecompensados = 0;
 
         for (const u of usuarios) {
             try {
+                console.log(`\n⏳ [WIPE] Processando usuário: ${u.nome || u.id_usuario}`);
+                
                 const pescaData = u.pescaria_data ? JSON.parse(u.pescaria_data) : {};
-                const fazendaData = u.fazenda_inventario ? JSON.parse(u.fazenda_inventario) : {};
+                const fazendaData = await this.fazendaHandler.getFazendaData(u.id_usuario);
+                const financasData = await this.casinoHandler.processFinancas(u.id_usuario);
                 
                 let descontoFazenda = 0;
                 let buffPesca = 0;
                 let bonusBostocoins = 0;
 
-                // Fazenda: 7.5% de desconto por canteiro extra
-                if (fazendaData.canteiros && fazendaData.canteiros > 1) {
-                    descontoFazenda = (fazendaData.canteiros - 1) * 0.075;
+                if (fazendaData.canteiros && fazendaData.canteiros.length > 1) {
+                    descontoFazenda = (fazendaData.canteiros.length - 1) * 0.075;
                 }
 
-                // Pesca: 5% extra de sorte se terminou com vara boa
                 if (pescaData.inventory && pescaData.inventory.vara && pescaData.inventory.vara !== 'bambu') {
                     buffPesca = 0.05; 
                 }
 
-                // Acerto de Contas Financeiro: 5% do saldo atual e liquidação do isopor
-                const saldoAtual = u.bostocoins || 0; // Previne NaN
+                const saldoAtual = u.bostocoins || 0;
                 bonusBostocoins = Math.floor(saldoAtual * 0.05); 
+                console.log(`   - 5% do Saldo de Bolso: 🪙 ${bonusBostocoins}`);
                 
                 let isoporLiquido = 0;
                 try {
@@ -974,30 +979,33 @@ class ChatModel {
                         sellableArray.forEach(fish => isoporLiquido += fish.value);
                     }
                 } catch (e) {
-                    console.error(`Erro ao avaliar isopor de ${u.id_usuario} no wipe:`, e);
+                    console.error(`   ❌ Erro ao avaliar isopor:`, e);
                 }
+                const bIsopor = Math.floor(isoporLiquido * 0.05);
+                bonusBostocoins += bIsopor;
+                console.log(`   - 5% do Isopor (Valor Total ${isoporLiquido}): 🪙 ${bIsopor}`);
 
-                bonusBostocoins += Math.floor(isoporLiquido * 0.05);
-
-                // 5% do valor do estoque do armazém 
-                if (fazendaData.armazem && Array.isArray(fazendaData.armazem)) {
-                    let valorArmazem = 0;
+                let valorArmazem = 0;
+                if (fazendaData.armazem && fazendaData.armazem.length > 0) {
                     fazendaData.armazem.forEach(item => { 
                         valorArmazem += (item.weight || 0) * 2; 
                     });
-                    bonusBostocoins += Math.floor(valorArmazem * 0.05);
                 }
+                const bArmazem = Math.floor(valorArmazem * 0.05);
+                bonusBostocoins += bArmazem;
+                console.log(`   - 5% do Armazém (Peso Total ${valorArmazem/2}kg): 🪙 ${bArmazem}`);
 
-                // Reembolso DIRETO (100%) das sementes que não puderam ser colhidas
-                if (fazendaData.plantacoes) {
-                    const canteirosOcupados = Object.keys(fazendaData.plantacoes).length;
-                    bonusBostocoins += (canteirosOcupados * 50);
-                }
+                const canteirosOcupados = fazendaData.canteiros.filter(c => c.seedId !== null).length;
+                const bPlantas = canteirosOcupados * 50;
+                bonusBostocoins += bPlantas;
+                if (canteirosOcupados > 0) console.log(`   - Reembolso Plantação (${canteirosOcupados} ocupados): +🪙 ${bPlantas}`);
+
+                console.log(`   💰 TOTAL RESCISÃO: 🪙 ${bonusBostocoins}`);
 
                 const recordeSeason = {
                     bostocoins_finais: saldoAtual,
                     peso_pescado: pescaData.total_weight || 0,
-                    canteiros_finais: fazendaData.canteiros || 1,
+                    canteiros_finais: fazendaData.canteiros.length || 1,
                     data_wipe: new Date().toISOString()
                 };
 
@@ -1015,25 +1023,45 @@ class ChatModel {
                 `, [u.id_usuario, Math.min(descontoFazenda, 0.5), buffPesca, JSON.stringify(historicoCompleto)]);
 
                 const newPescaria = { suprimentos: 10, last_supply_regen: Math.floor(Date.now() / 1000), inventory: { vara: 'bambu', barco: null } };
-                const newFazenda = { canteiros: 1, armazem: [], nivel_trator: 0, nivel_enxada: 0 };
-                
+                const newFinancas = {
+                    investimento: { montante: 0, ultimo_rendimento: Math.floor(Date.now() / 1000) },
+                    emprestimo: { devedor: 0 },
+                    carreira: { nivel: 1, subnivel: 1, id_job: null },
+                    last_bico: 0,
+                    titulo: financasData.titulo || null 
+                };
+
                 await this.db.run(`
                     UPDATE usuarios 
                     SET bostocoins = ?, 
                         pescaria_data = ?, 
-                        fazenda_inventario = ?
+                        financas = ?,
+                        last_trabalho = 0,
+                        last_minhabosta = 0
                     WHERE id_usuario = ?
-                `, [bonusBostocoins, JSON.stringify(newPescaria), JSON.stringify(newFazenda), u.id_usuario]);
+                `, [bonusBostocoins, JSON.stringify(newPescaria), JSON.stringify(newFinancas), u.id_usuario]);
+
+                const defaultCanteiros = [{ id: 1, seedId: null, plantTime: 0, harvestTime: 0, regas: 0, adubado: false }];
+                const defaultUpgrades = { enxada: 1, trator: 1, maxCanteiros: 1, adubos: 0 };
+                
+                await this.db.run(`
+                    UPDATE fazenda_inventario 
+                    SET canteiros = ?, upgrades = ?, armazem = '[]', trofeus = '{}'
+                    WHERE id_usuario = ?
+                `, [JSON.stringify(defaultCanteiros), JSON.stringify(defaultUpgrades), u.id_usuario]);
 
                 if (bonusBostocoins > 0) veteranosRecompensados++;
+                console.log(`✅ [WIPE] Usuário resetado com sucesso!`);
 
             } catch (error) {
-                console.error(`Erro ao fazer wipe do usuario ${u.id_usuario}:`, error);
+                console.error(`❌ [WIPE FATAL] Erro ao limpar o usuario ${u.id_usuario}:`, error);
             }
         }
 
+        console.log("\n🦖 [WIPE] NERFANDO OS DINOSSAUROS...");
         await this.db.run("UPDATE parque_dinossauros SET nivel = 1, xp_atual = 0, reserva_comida = 0");
 
+        console.log("🏛️ [WIPE] ATUALIZANDO AS CONQUISTAS DOS GRUPOS...");
         const grupos = await this.db.all("SELECT DISTINCT group_id FROM parque_dinossauros");
         for (const grupo of grupos) {
             await this.db.run(`
@@ -1057,7 +1085,7 @@ _A Temporada acabou. Uma nova fenda temporal se abriu._
 O Bostoverso foi resetado! Suas fazendas viraram pó, seus barcos afundaram e o dinheiro evaporou... Mas a experiência fica!
 
 🏆 **O SEU LEGADO:**
-💰 Você manteve **5%** do seu patrimônio final para não começar do zero!
+💰 Você manteve **5%** do seu patrimônio final (Bolsa + Armazéns) para não começar do zero!
 🚜 Se você tinha muitos canteiros, ganhou um **Desconto Permanente** na loja agrícola desta season!
 🎣 Suas varas passadas se tornaram instinto, te dando um **Buff Oculto de Sorte**!
 🦖 **O Parque Sobreviveu!** Mas a InGen cortou a verba e os dinos resetaram pro nível 1. A bilheteria está pagando o mínimo. 
@@ -1068,31 +1096,16 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
             try {
                 if (sock) {
                     await sock.sendMessage(grupo.group_id, { text: msgApocalipse });
-                    await new Promise(resolve => setTimeout(resolve, 2000)); // Delay para evitar bloqueio
+                    await new Promise(resolve => setTimeout(resolve, 2000));
                 }
             } catch (e) {
                 console.error(`Erro ao avisar o grupo ${grupo.group_id} sobre o Wipe:`, e);
             }
         }
 
+        console.log(`✅ [WIPE] PROCESSO CONCLUÍDO! ${veteranosRecompensados} jogadores reembolsados.`);
         return `✅ Wipe finalizado. ${veteranosRecompensados} jogadores receberam bônus de legado.`;
     }
-
-    //Comando que retorna as anotações do bot sobre você
-    async handleNotasCommand(sender){
-
-        const sqlQuery = `SELECT nome, anotacoes
-        FROM usuarios 
-        WHERE id_usuario = ?`;
-        
-        const messagesDb = await this.db.all(sqlQuery, [sender]);
-
-        if (!messagesDb || messagesDb.length === 0) {
-            throw new Error("USER_SELECT_ERROR")
-        }
-
-        return messagesDb.map(m => `${m.nome || 'Desconhecido'}: ${m.anotacoes}`).reverse().join('\n');
-    };
 
 
     //Retorna mensagens do banco de dados para um certo remetente (pessoa ou grupo) com um limite

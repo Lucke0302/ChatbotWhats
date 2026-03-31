@@ -537,6 +537,29 @@ class ParqueHandler {
         return finalMsg;
     }
 
+    async verMissoesGlobais(groupId, userTag) {
+        let legado = null;
+        try {
+            legado = await this.db.get("SELECT * FROM legado_grupos WHERE group_id = ?", [groupId]);
+        } catch (e) {
+            return `${userTag} ❌ O banco de dados ainda não foi atualizado. Aguarde o apocalipse.`;
+        }
+
+        if (!legado) return `${userTag} 🚧 As missões da comunidade só estarão ativas após o primeiro Wipe Oficial.`;
+
+        const nivel = legado.nivel_receita || 1;
+        const mult = (nivel / 24).toFixed(2);
+        
+        let msg = `${userTag}🎯 **MARCOS DA COMUNIDADE (Season ${legado.temporada_atual || 1})** 🎯\n\n`;
+        msg += `📈 **Nível de Receita do Parque:** ${nivel}/24\n`;
+        msg += `🎟️ **Lucro Atual da Bilheteria:** ${mult}x (Recebendo apenas ${Math.round(mult * 100)}%)\n\n`;
+        msg += `_O Bostoverso está em recessão! A InGen está monitorando o esforço coletivo para liberar a verba._\n`;
+        msg += `_Trabalhem juntos pescando, plantando, comprando melhorias e gastando no cassino para subir o nível de receita de volta aos 100%!_\n\n`;
+        msg += `_(A barra de progresso em tempo real das 24 conquistas está sendo instalada pelos engenheiros e chegará na próxima atualização!)_`;
+        
+        return msg;
+    }
+
     async savePlayerData(userId, data) {
         const jsonString = JSON.stringify(data);
         await this.db.run("UPDATE usuarios SET parque_data = ? WHERE id_usuario = ?", [jsonString, userId]);

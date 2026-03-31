@@ -643,6 +643,62 @@ async function initDatabase() {
     `);
     console.log("✅ Tabela 'parque_estoque' verificada.");
 
+    await db.exec(`
+        CREATE TABLE IF NOT EXISTS fazenda_inventario (
+            id_usuario TEXT PRIMARY KEY,
+            canteiros TEXT,
+            upgrades TEXT,
+            armazem TEXT DEFAULT '[]'
+        );
+    `);
+    
+    try {
+        await db.exec(`ALTER TABLE fazenda_inventario ADD COLUMN armazem TEXT DEFAULT '[]';`);
+    } catch (e) {}
+    console.log("✅ Tabela 'fazenda_inventario' verificada.");
+
+    try {
+        await db.exec(`ALTER TABLE fazenda_inventario ADD COLUMN trofeus TEXT DEFAULT '{}';`);
+        console.log("✅ Coluna 'trofeus' adicionada/verificada com sucesso!");
+    } catch (e) {
+        if (!e.message.includes("duplicate column name")) console.error(e.message);
+    }
+
+    try {
+        await db.exec(`ALTER TABLE usuarios ADD COLUMN cidade TEXT DEFAULT 'Santos';`);
+        console.log("✅ Coluna 'cidade' adicionada com sucesso!");
+    } catch (error) {
+        if (!error.message.includes("duplicate column name")) console.error(error.message);
+    }
+
+    await db.exec(`
+        CREATE TABLE IF NOT EXISTS clima_cache (
+            cidade TEXT PRIMARY KEY,
+            condicao TEXT,
+            emoji TEXT,
+            timestamp INTEGER
+        );
+    `);
+    console.log("✅ Tabela 'clima_cache' verificada.");
+
+    await db.exec(`
+        CREATE TABLE IF NOT EXISTS legado_grupos (
+            group_id TEXT PRIMARY KEY,
+            temporada_atual INTEGER DEFAULT 1,
+            nivel_receita INTEGER DEFAULT 1,
+            conquistas_json TEXT DEFAULT '{}'
+        );
+    `);
+
+    await db.exec(`
+        CREATE TABLE IF NOT EXISTS legado_usuarios (
+            id_usuario TEXT PRIMARY KEY,
+            desconto_fazenda REAL DEFAULT 0,
+            buff_sorte_pesca REAL DEFAULT 0,
+            historico_json TEXT DEFAULT '{}'
+        );
+    `);
+
     console.log('✅ Banco de dados SQLite inicializado e tabelas verificadas.');
 }
 
@@ -764,6 +820,12 @@ const botCommands = {
     '!unlink': {
         emoji: '⛓️‍💥'
     },
+    '!fazenda': {
+        emoji: '🚜'
+    },
+    '!cidade': {
+        emoji: '📍'
+    }
 };
 
 //Inicia a conexão com mo Whatsapp para fazer todas as operações

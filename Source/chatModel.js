@@ -13,8 +13,10 @@ const resenhaCommand = require('./resenhaCommand');
 const CasinoHandler = require('./casinoHandler');
 const PescariaHandler = require('./pescariaHandler');
 const ParqueHandler = require('./parqueHandler');
+const { FazendaHandler } = require('./fazendaHandler');
 const RIOT_API_KEY = process.env.RIOT_API_KEY;
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+const { getWeather, getNextDayForecast, getGameWeatherCondition } = require('./weatherCommand');
 
 class ChatModel {
     constructor(db, genAI) {
@@ -47,6 +49,10 @@ class ChatModel {
         this.pescariaHandler = new PescariaHandler(db, this.casinoHandler);
         this.parqueHandler = new ParqueHandler(db, this.casinoHandler, this.pescariaHandler);
         this.pescariaHandler.setParqueHandler(this.parqueHandler);
+        this.fazendaHandler = new FazendaHandler(db, this.casinoHandler, this.pescariaHandler);
+
+        this.fazendaHandler.parqueHandler = this.parqueHandler;
+        this.casinoHandler.parqueHandler = this.parqueHandler;
     }
 
     async init() {
@@ -113,6 +119,47 @@ class ChatModel {
                 if (ctx.sender !== "5513991008854@s.whatsapp.net") return "🔒 Privilégio de Admin.";
                 return await this.casinoHandler.handleExorcismo(ctx.sender, tag);
             },
+            '!admin': async (ctx) => {
+                const args = ctx.command.split(' ');
+                const subCommand = args[1] ? args[1].toLowerCase() : '';
+
+                if (!ctx.sender.includes('5513991008854')) {
+                    return "⚠️ Você não é o BostOuroboros para apagar universos. Volte para a roça!";
+                }
+
+                if (subCommand === 'wipe') {
+                    if (ctx.sock) {
+                        const grupos = await this.db.all("SELECT DISTINCT group_id FROM parque_dinossauros");
+                        
+                        for (const grupo of grupos) {
+                            try {
+                                await ctx.sock.sendMessage(grupo.group_id, { text: "⏳ Iniciando colapso temporal... O BostOuroboros está despertando." });
+                                await new Promise(resolve => setTimeout(resolve, 2000));
+                            } catch (e) {
+                                console.error(`Erro ao enviar aviso prévio de wipe para o grupo ${grupo.group_id}:`, e);
+                            }
+                        }
+                    }
+                    
+                    return await this.executarWipeGlobal(ctx.sock);
+                }
+
+                return "⚙️ **PAINEL DIVINO** ⚙️\n\nDisponível:\n*!admin wipe* - Reseta a temporada do Bostoverso.";
+            },
+            '!cidade': async (ctx) => {
+                const args = ctx.command.trim().split(/\s+/);
+                
+                if (args.length < 2) {
+                    const user = await this.db.get("SELECT cidade FROM usuarios WHERE id_usuario = ?", [ctx.sender]);
+                    const currentCity = user?.cidade || 'Santos';
+                    return `${ctx.name}, sua base de operações atual é: *${currentCity}*.\nPara mudar sua região e o clima, use: *!cidade [nome da cidade]*`;
+                }
+
+                const newCity = args.slice(1).join(' ');
+                await this.db.run("UPDATE usuarios SET cidade = ? WHERE id_usuario = ?", [newCity, ctx.sender]);
+                
+                return `🏙️ **BASE ATUALIZADA!**\nSua fazenda, frota de pesca e parque agora respondem ao clima de *${newCity}*.`;
+            },
             '!d': async (ctx) => await this.handleDiceCommand(ctx.command, ctx.sender),
             '!menu': async () => await this.handleMenuCommand(),
             '!tradutor': async (ctx) => {
@@ -156,22 +203,25 @@ class ChatModel {
                 const tag = await this.pokemonHandler.getUserTag(ctx.sender);
                 const args = ctx.command.trim().split(/\s+/);
                 const subCommand = args[1]?.toLowerCase();
+                
+                const groupId = ctx.from;
+                const sock = ctx.sock;
 
                 if (!subCommand || subCommand === 'saldo' || subCommand === 'ajuda') {
                     return await this.casinoHandler.showBalance(ctx.sender, tag);
                 }
                 if (!isNaN(subCommand)) {
                     const bet = parseInt(subCommand);
-                    return await this.casinoHandler.playSlots(ctx.sender, tag, bet);
+                    return await this.casinoHandler.playSlots(ctx.sender, tag, bet, groupId, sock);
                 }
                 if (subCommand === 'cara' || subCommand === 'coroa') {
                     const bet = parseInt(args[2]);
-                    return await this.casinoHandler.playCoinflip(ctx.sender, tag, subCommand, bet);
+                    return await this.casinoHandler.playCoinflip(ctx.sender, tag, subCommand, bet, groupId, sock);
                 }
                 if (subCommand === 'roleta') {
                     const color = args[2]?.toLowerCase();
                     const bet = parseInt(args[3]);
-                    return await this.casinoHandler.playRoulette(ctx.sender, tag, color, bet);
+                    return await this.casinoHandler.playRoulette(ctx.sender, tag, color, bet, groupId, sock);
                 }
 
                 if (subCommand === 'mega') {
@@ -181,7 +231,7 @@ class ChatModel {
                     
                     const number = parseInt(args[2]);
                     const bet = parseInt(args[3]);
-                    return await this.casinoHandler.playMega(ctx.sender, tag, number, bet);
+                    return await this.casinoHandler.playMega(ctx.sender, tag, number, bet, groupId, sock);
                 }
 
                 if (subCommand === 'bolao') {
@@ -191,14 +241,14 @@ class ChatModel {
 
                     const number = parseInt(args[2]);
                     const bet = parseInt(args[3]);
-                    return await this.casinoHandler.playBolao(ctx.sender, tag, number, bet);
+                    return await this.casinoHandler.playBolao(ctx.sender, tag, number, bet, groupId, sock);
                 }
 
                 return `${tag}🎰 **CASSINO E ECONOMIA DO BOSTOSSAURO** 🎰\n\n` +
-                       `*Apostas:* \n🎰 *!cassino [valor]* (Slots)\n🪙 *!cassino [cara/coroa] [valor]*\n🎡 *!cassino roleta [vermelho/preto/verde] [valor]*\n\n` +
-                       `*Loterias:*\n🎟️ *!cassino mega [1-100] [valor]*\n🤝 *!cassino bolao [1-20] [valor]*\n\n` +
-                       `*Faria Lima:*\n💼 *!trabalhar* (Emprego CLT)\n🛠️ *!bico* (Trampo rápido)\n📈 *!investir* (Bolsa de Valores)\n🏦 *!emprestimo* (Agiota)\n👑 *!titulo* (Cartório de Ostentação)\n\n` +
-                       `*Consultas:* \n💰 *!cassino saldo*`;
+                    `*Apostas:* \n🎰 *!cassino [valor]* (Slots)\n🪙 *!cassino [cara/coroa] [valor]*\n🎡 *!cassino roleta [vermelho/preto/verde] [valor]*\n\n` +
+                    `*Loterias:*\n🎟️ *!cassino mega [1-100] [valor]*\n🤝 *!cassino bolao [1-20] [valor]*\n\n` +
+                    `*Faria Lima:*\n💼 *!trabalhar* (Emprego CLT)\n🛠️ *!bico* (Trampo rápido)\n📈 *!investir* (Bolsa de Valores)\n🏦 *!emprestimo* (Agiota)\n👑 *!titulo* (Cartório de Ostentação)\n\n` +
+                    `*Consultas:* \n💰 *!cassino saldo*`;
             },
             '!givecoins': async (ctx) => {
                 const tag = await this.pokemonHandler.getUserTag(ctx.sender);
@@ -330,11 +380,15 @@ class ChatModel {
             },
             '!pescar': async (ctx) => {
                 const tag = await this.pokemonHandler.getUserTag(ctx.sender);
-                return await this.pescariaHandler.pescar(ctx.sender, tag, ctx.from);
+                const clima = await this.getClimaUsuario(ctx.sender); 
+                const netGroupId = await this.getNetGroupId(ctx.from); 
+                return await this.pescariaHandler.pescar(ctx.sender, tag, netGroupId, clima);
             },
             '!pesca': async (ctx) => {
                 const tag = await this.pokemonHandler.getUserTag(ctx.sender);
-                return await this.pescariaHandler.pescar(ctx.sender, tag, ctx.from);
+                const clima = await this.getClimaUsuario(ctx.sender); 
+                const netGroupId = await this.getNetGroupId(ctx.from); 
+                return await this.pescariaHandler.pescar(ctx.sender, tag, netGroupId, clima);
             },
             '!vip': async (ctx) => {
                 return await this.handleVipStore(ctx);
@@ -446,7 +500,7 @@ class ChatModel {
                 }
 
                 if (subCommand === 'mural' || subCommand === 'lista') {
-                    return await this.parqueHandler.verParqueGlobal(netGroupId, tag);
+                    return await this.parqueHandler.verParqueGlobal(netGroupId, tag, args[2], this.pokemonHandler);
                 }
 
                 if (subCommand === 'perfil') {
@@ -455,6 +509,10 @@ class ChatModel {
 
                 if (subCommand === 'mochila') {
                     return await this.parqueHandler.verMochila(ctx.sender, tag);
+                }
+
+                if (subCommand === 'missoes' || subCommand === 'missões' || subCommand === 'conquistas') {
+                    return await this.parqueHandler.verMissoesGlobais(netGroupId, tag);
                 }
 
                 if (subCommand === 'vender') {
@@ -492,25 +550,80 @@ class ChatModel {
 
                 return `${tag}🦖 **JURASSIC BOSTOPARK** 🦖\n\n` +
                        `⛏️ *!escavar* (Ache minérios ou Âmbar!)\n` +
-                       `🎒 *!parque mochila* (Veja suas pedras)\n` +
-                       `🤝 *!parque vender [numero/tudo]* (Venda os minérios)\n` +
-                       `🥩 *!parque despensa* (Veja seus peixes comestíveis)\n` +
-                       `🥩 *!parque despensa* (Veja sua comida pessoal)\n` +
-                       `🏢 *!parque reserva* (Veja o estoque do Grupo)\n` +
-                       `🚚 *!parque depositar [ID_Despensa] [tudo]* (Doe comida!)\n` +
                        `🍗 *!parque alimentar [ID] reserva* (Usa a comida coletiva)\n` +
-                       `🔪 *!parque porcionar [ID_Despensa] [Kg]* (Fatie a carne!)\n` +
-                       `🍗 *!parque alimentar [ID] [Nº_Comida]* (Alimente um dino)\n` +
+                       `🚚 *!parque depositar [ID_Despensa] [tudo]* (Doe comida!)\n` +
+                       `🥩 *!parque despensa* (Veja seus peixes comestíveis)\n` +
+                       `🎯 *!parque missoes* (Metas da Temporada!)\n` +
+                       `🎒 *!parque mochila* (Veja suas pedras)\n` +
                        `🖼️ *!parque mural* (Veja os dinossauros do grupo)\n` +
+                       `🏷️ *!parque nome [ID] [Nome]* (Batize seu dino!)\n`+
                        `🧬 *!parque perfil* (Sua coleção e ticket gerado)\n` +
+                       `🔪 *!parque porcionar [ID_Despensa] [Kg]* (Fatie a carne!)\n` +
+                       `🏢 *!parque reserva* (Veja o estoque do Grupo)\n` +
                        `👑 *!parque titulo [pai/mae/nazare] [ID]* (Guarda compartilhada!)\n` +
-                       `🧬 *!parque perfil* (Sua coleção de genéticas)\n` +
-                       `🏷️ *!parque nome [ID] [Nome]* (Batize seu dino!)\n`;
+                       `🤝 *!parque vender [numero/tudo]* (Venda os minérios)\n`;
 
             },
             '!escavar': async (ctx) => {
                 const tag = await this.pokemonHandler.getUserTag(ctx.sender);
-                return await this.parqueHandler.handleEscavar(ctx.sender, tag, ctx.name, ctx.from);
+                const netGroupId = await this.getNetGroupId(ctx.from); 
+                return await this.parqueHandler.handleEscavar(ctx.sender, tag, ctx.name, netGroupId);
+            },
+            '!fazenda': async (ctx) => {
+                const tag = await this.pokemonHandler.getUserTag(ctx.sender);
+                const args = ctx.command.trim().split(/\s+/);
+                const subCommand = args[1]?.toLowerCase();                
+                const clima = await this.getClimaUsuario(ctx.sender); 
+
+                const netGroupId = await this.getNetGroupId(ctx.from);
+
+                if (!subCommand || subCommand === 'perfil' || subCommand === 'ver') {
+                    return await this.fazendaHandler.verFazenda(ctx.sender, tag, args[2]);
+                }
+
+                if (subCommand === 'loja') {
+                    return await this.fazendaHandler.getLoja(ctx.sender, tag);
+                }
+                if (subCommand === 'plantar') {
+                    return await this.fazendaHandler.plantar(ctx.sender, tag, args[2], clima);
+                }
+                if (subCommand === 'regar' || subCommand === 'agua') {
+                    return await this.fazendaHandler.regar(ctx.sender, tag, args[2], clima);
+                }
+                if (subCommand === 'colher') {
+                    return await this.fazendaHandler.colher(ctx.sender, tag, args[2], netGroupId, clima);
+                }
+                if (subCommand === 'trofeus' || subCommand === 'recordes') {
+                    return await this.fazendaHandler.getTrofeusGrupo(netGroupId, tag);
+                }
+                if (subCommand === 'despensa' || subCommand === 'armazem') {
+                    return await this.fazendaHandler.verArmazem(ctx.sender, tag);
+                }
+                if (subCommand === 'vender') {
+                    return await this.fazendaHandler.vender(ctx.sender, tag, args[2]);
+                }
+                if (subCommand === 'comprar') {
+                    return await this.fazendaHandler.comprarUpgrade(ctx.sender, tag, args[2]);
+                }
+                if (subCommand === 'compostar' || subCommand === 'adubo') {
+                    const paramStr = args.slice(2).join(' ');
+                    return await this.fazendaHandler.compostar(ctx.sender, tag, paramStr);
+                }
+                if (subCommand === 'adubar') {
+                    return await this.fazendaHandler.adubar(ctx.sender, tag, args[2]);
+                }
+
+                return `${tag}🚜 **BOSTOFAZENDA** 🚜\n\n` +
+                       `💩 *!fazenda compostar [qtd]* (Moe 10kg de peixe = 1 Adubo)` +
+                       `🪴 *!fazenda adubar [canteiro]* (Gasta energia OU 1 adubo = +50% Peso)` +
+                       `🌱 *!fazenda plantar [semente]* (Planta no canteiro)\n` +
+                       `💧 *!fazenda regar [nº_canteiro]* (Gasta 1 Suprimento, adianta 25%)\n` +
+                       `🌾 *!fazenda colher [nº_canteiro]* (Colhe a safra final)\n` +
+                       `🛠️ *!fazenda comprar [enxada/trator]* (Melhore sua produção!)\n`+
+                       `🏪 *!fazenda loja* (Catálogo de sementes)\n` +
+                       `🎒 *!fazenda despensa* (Veja seus vegetais)\n` +
+                       `💰 *!fazenda vender [número/tudo]* (Venda e lucre!)\n` +
+                       `🚜 *!fazenda perfil* (Veja o status das suas plantas)\n`;
             },
         };
 
@@ -833,21 +946,170 @@ class ChatModel {
         return messagesDb.map(m => `${m.nome_remetente || 'Desconhecido'}: ${m.conteudo}`).reverse().join('\n');
     }
 
-    //Comando que retorna as anotações do bot sobre você
-    async handleNotasCommand(sender){
-
-        const sqlQuery = `SELECT nome, anotacoes
-        FROM usuarios 
-        WHERE id_usuario = ?`;
+    async executarWipeGlobal(sock) {
+        console.log("🚨 [WIPE] INICIANDO PROTOCOLO DE WIPE GLOBAL...");
         
-        const messagesDb = await this.db.all(sqlQuery, [sender]);
+        const usuarios = await this.db.all("SELECT * FROM usuarios");
+        let veteranosRecompensados = 0;
 
-        if (!messagesDb || messagesDb.length === 0) {
-            throw new Error("USER_SELECT_ERROR")
+        for (const u of usuarios) {
+            try {
+                console.log(`\n⏳ [WIPE] Processando usuário: ${u.nome || u.id_usuario}`);
+                
+                const pescaData = u.pescaria_data ? JSON.parse(u.pescaria_data) : {};
+                const fazendaData = await this.fazendaHandler.getFazendaData(u.id_usuario);
+                const financasData = await this.casinoHandler.processFinancas(u.id_usuario);
+                
+                let descontoFazenda = 0;
+                let buffPesca = 0;
+                let bonusBostocoins = 0;
+
+                if (fazendaData.canteiros && fazendaData.canteiros.length > 1) {
+                    descontoFazenda = (fazendaData.canteiros.length - 1) * 0.075;
+                }
+
+                if (pescaData.inventory && pescaData.inventory.vara && pescaData.inventory.vara !== 'bambu') {
+                    buffPesca = 0.05; 
+                }
+
+                const saldoAtual = u.bostocoins || 0;
+                bonusBostocoins = Math.floor(saldoAtual * 0.05); 
+                console.log(`   - 5% do Saldo de Bolso: 🪙 ${bonusBostocoins}`);
+                
+                let isoporLiquido = 0;
+                try {
+                    const { sellableArray } = await this.pescariaHandler.getSellableList(u.id_usuario);
+                    if (sellableArray && sellableArray.length > 0) {
+                        sellableArray.forEach(fish => isoporLiquido += fish.value);
+                    }
+                } catch (e) {
+                    console.error(`   ❌ Erro ao avaliar isopor:`, e);
+                }
+                const bIsopor = Math.floor(isoporLiquido * 0.05);
+                bonusBostocoins += bIsopor;
+                console.log(`   - 5% do Isopor (Valor Total ${isoporLiquido}): 🪙 ${bIsopor}`);
+
+                let valorArmazem = 0;
+                if (fazendaData.armazem && fazendaData.armazem.length > 0) {
+                    fazendaData.armazem.forEach(item => { 
+                        valorArmazem += (item.weight || 0) * 2; 
+                    });
+                }
+                const bArmazem = Math.floor(valorArmazem * 0.05);
+                bonusBostocoins += bArmazem;
+                console.log(`   - 5% do Armazém (Peso Total ${valorArmazem/2}kg): 🪙 ${bArmazem}`);
+
+                const canteirosOcupados = fazendaData.canteiros.filter(c => c.seedId !== null).length;
+                const bPlantas = canteirosOcupados * 50;
+                bonusBostocoins += bPlantas;
+                if (canteirosOcupados > 0) console.log(`   - Reembolso Plantação (${canteirosOcupados} ocupados): +🪙 ${bPlantas}`);
+
+                console.log(`   💰 TOTAL RESCISÃO: 🪙 ${bonusBostocoins}`);
+
+                const recordeSeason = {
+                    bostocoins_finais: saldoAtual,
+                    peso_pescado: pescaData.total_weight || 0,
+                    canteiros_finais: fazendaData.canteiros.length || 1,
+                    data_wipe: new Date().toISOString()
+                };
+
+                let legadoUser = await this.db.get("SELECT * FROM legado_usuarios WHERE id_usuario = ?", [u.id_usuario]);
+                let historicoCompleto = legadoUser ? JSON.parse(legadoUser.historico_json || '[]') : [];
+                historicoCompleto.push(recordeSeason);
+
+                await this.db.run(`
+                    INSERT INTO legado_usuarios (id_usuario, desconto_fazenda, buff_sorte_pesca, historico_json) 
+                    VALUES (?, ?, ?, ?)
+                    ON CONFLICT(id_usuario) DO UPDATE SET 
+                    desconto_fazenda = excluded.desconto_fazenda,
+                    buff_sorte_pesca = excluded.buff_sorte_pesca,
+                    historico_json = excluded.historico_json
+                `, [u.id_usuario, Math.min(descontoFazenda, 0.5), buffPesca, JSON.stringify(historicoCompleto)]);
+
+                const newPescaria = { suprimentos: 10, last_supply_regen: Math.floor(Date.now() / 1000), inventory: { vara: 'bambu', barco: null } };
+                const newFinancas = {
+                    investimento: { montante: 0, ultimo_rendimento: Math.floor(Date.now() / 1000) },
+                    emprestimo: { devedor: 0 },
+                    carreira: { nivel: 1, subnivel: 1, id_job: null },
+                    last_bico: 0,
+                    titulo: financasData.titulo || null 
+                };
+
+                await this.db.run(`
+                    UPDATE usuarios 
+                    SET bostocoins = ?, 
+                        pescaria_data = ?, 
+                        financas = ?,
+                        last_trabalho = 0,
+                        last_minhabosta = 0
+                    WHERE id_usuario = ?
+                `, [bonusBostocoins, JSON.stringify(newPescaria), JSON.stringify(newFinancas), u.id_usuario]);
+
+                const defaultCanteiros = [{ id: 1, seedId: null, plantTime: 0, harvestTime: 0, regas: 0, adubado: false }];
+                const defaultUpgrades = { enxada: 1, trator: 1, maxCanteiros: 1, adubos: 0 };
+                
+                await this.db.run(`
+                    UPDATE fazenda_inventario 
+                    SET canteiros = ?, upgrades = ?, armazem = '[]', trofeus = '{}'
+                    WHERE id_usuario = ?
+                `, [JSON.stringify(defaultCanteiros), JSON.stringify(defaultUpgrades), u.id_usuario]);
+
+                if (bonusBostocoins > 0) veteranosRecompensados++;
+                console.log(`✅ [WIPE] Usuário resetado com sucesso!`);
+
+            } catch (error) {
+                console.error(`❌ [WIPE FATAL] Erro ao limpar o usuario ${u.id_usuario}:`, error);
+            }
         }
 
-        return messagesDb.map(m => `${m.nome || 'Desconhecido'}: ${m.anotacoes}`).reverse().join('\n');
-    };
+        console.log("\n🦖 [WIPE] NERFANDO OS DINOSSAUROS...");
+        await this.db.run("UPDATE parque_dinossauros SET nivel = 1, xp_atual = 0, reserva_comida = 0");
+
+        console.log("🏛️ [WIPE] ATUALIZANDO AS CONQUISTAS DOS GRUPOS...");
+        const grupos = await this.db.all("SELECT DISTINCT group_id FROM parque_dinossauros");
+        for (const grupo of grupos) {
+            await this.db.run(`
+                INSERT INTO legado_grupos (group_id, temporada_atual, nivel_receita, conquistas_json)
+                VALUES (?, 2, 1, '{}')
+                ON CONFLICT(group_id) DO UPDATE SET temporada_atual = temporada_atual + 1, nivel_receita = 1, conquistas_json = '{}'
+            `, [grupo.group_id]);
+
+            const estoque = await this.db.get("SELECT carne, vegetal FROM parque_estoque WHERE group_id = ?", [grupo.group_id]);
+            if (estoque) {
+                const carneLegado = Math.floor((estoque.carne || 0) * 0.05);
+                const vegetalLegado = Math.floor((estoque.vegetal || 0) * 0.05);
+                await this.db.run("UPDATE parque_estoque SET carne = ?, vegetal = ? WHERE group_id = ?", [carneLegado, vegetalLegado, grupo.group_id]);
+            }
+        }
+
+        const msgApocalipse = `
+🌌 **O BOSTOUROBOROS DEVOROU O TEMPO!** 🌌
+_A Temporada acabou. Uma nova fenda temporal se abriu._
+
+O Bostoverso foi resetado! Suas fazendas viraram pó, seus barcos afundaram e o dinheiro evaporou... Mas a experiência fica!
+
+🏆 **O SEU LEGADO:**
+💰 Você manteve **5%** do seu patrimônio final (Bolsa + Armazéns) para não começar do zero!
+🚜 Se você tinha muitos canteiros, ganhou um **Desconto Permanente** na loja agrícola desta season!
+🎣 Suas varas passadas se tornaram instinto, te dando um **Buff Oculto de Sorte**!
+🦖 **O Parque Sobreviveu!** Mas a InGen cortou a verba e os dinos resetaram pro nível 1. A bilheteria está pagando o mínimo. 
+
+Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para restaurar o lucro! Boa sorte na nova temporada! ⏳`;
+
+        for (const grupo of grupos) {
+            try {
+                if (sock) {
+                    await sock.sendMessage(grupo.group_id, { text: msgApocalipse });
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                }
+            } catch (e) {
+                console.error(`Erro ao avisar o grupo ${grupo.group_id} sobre o Wipe:`, e);
+            }
+        }
+
+        console.log(`✅ [WIPE] PROCESSO CONCLUÍDO! ${veteranosRecompensados} jogadores reembolsados.`);
+        return `✅ Wipe finalizado. ${veteranosRecompensados} jogadores receberam bônus de legado.`;
+    }
 
 
     //Retorna mensagens do banco de dados para um certo remetente (pessoa ou grupo) com um limite
@@ -1109,6 +1371,50 @@ class ChatModel {
         }
     }
 
+    // BUSCADOR DE CLIMA COM CACHE DE 1 HORA
+    async getClimaUsuario(userId) {
+        const user = await this.db.get("SELECT cidade FROM usuarios WHERE id_usuario = ?", [userId]);
+        const cidade = user?.cidade || 'Santos';
+        const now = Math.floor(Date.now() / 1000);
+
+        const cache = await this.db.get("SELECT * FROM clima_cache WHERE cidade = ?", [cidade]);
+        
+        if (cache && (now - cache.timestamp < 3600)) {
+            return { condicao: cache.condicao, emoji: cache.emoji, cidade: cidade };
+        }
+
+        console.log(`[CLIMA] Cache expirado/inexistente. Buscando clima para: ${cidade}`);
+        const climaNovo = await getGameWeatherCondition(cidade);
+        
+        if (climaNovo.failed) {
+            console.log(`[CLIMA] ⚠️ Falha na API para ${cidade}. Acionando protocolo de emergência.`);
+            
+            if (cache) {
+                const quinzeMinutosCooldown = now - 2700; 
+                await this.db.run("UPDATE clima_cache SET timestamp = ? WHERE cidade = ?", [quinzeMinutosCooldown, cidade]);
+                
+                return { condicao: cache.condicao, emoji: cache.emoji, cidade: cidade };
+            } else {
+                const quinzeMinutosCooldown = now - 2700;
+                await this.db.run(`
+                    INSERT INTO clima_cache (cidade, condicao, emoji, timestamp) 
+                    VALUES (?, 'nublado', '☁️', ?)`,
+                    [cidade, quinzeMinutosCooldown]
+                );
+                return { condicao: 'nublado', emoji: '☁️', cidade: cidade };
+            }
+        }
+
+        await this.db.run(`
+            INSERT INTO clima_cache (cidade, condicao, emoji, timestamp) 
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(cidade) DO UPDATE SET condicao = ?, emoji = ?, timestamp = ?`,
+            [cidade, climaNovo.condicao, climaNovo.emoji, now, climaNovo.condicao, climaNovo.emoji, now]
+        );
+
+        return { condicao: climaNovo.condicao, emoji: climaNovo.emoji, cidade: cidade };
+    }
+
     // INTERRUPÇÃO ALEATÓRIA DO BOSTOSSAURO
     async handleBostossauroInterrupt(from, sender, name, texto) {
         if (Math.random() > 0.002) return null;
@@ -1337,10 +1643,12 @@ class ChatModel {
         🆘 !ajuda (ou !help)\n
         🗣️ !audio\n
         🎰 !cassino\n
+        📍 !cidade\n
         🌡️ !clima\n
         💵 !cotacao\n
         🎲 !d{número}\n
         🗣️ !falador\n
+        🚜 !fazenda (AGRONEGÓCIO BETA)\n
         🤖 !gpt {texto}\n
         🧠 !lembrar\n
         🎮 !lol\n
@@ -1397,19 +1705,27 @@ class ChatModel {
         return await this.getAiResponse(from, sender, name, isGroup, "!traduzir", prompt, "gemma-3-12b-it");
     }
 
-    async handleClimaCommand(text, sender){       
-        let cleanText = text.replace(/^!clima\s*/i, '').trim()
-        if (text.toLowerCase().endsWith('amanhã')) {
-                const city = cleanText.replace(/amanhã$/i, '').trim()
-                return await weatherCommandHandler.getNextDayForecast(city)
+    async handleClimaCommand(text, sender) {       
+        let cleanText = text.replace(/^!clima\s*/i, '').trim();
+        let targetCity = cleanText;
+        let isTomorrow = false;
+
+        if (cleanText.toLowerCase().endsWith('amanhã')) {
+            targetCity = cleanText.replace(/amanhã$/i, '').trim();
+            isTomorrow = true;
+        } else if (cleanText.toLowerCase().endsWith('hoje')) {
+            targetCity = cleanText.replace(/hoje$/i, '').trim();
         }
-        else if (text.toLowerCase().endsWith('hoje')){            
-            const city = cleanText.replace(/hoje$/i, '').trim
-            return await weatherCommandHandler.getWeather(city)
+
+        if (!targetCity) {
+            const user = await this.db.get("SELECT cidade FROM usuarios WHERE id_usuario = ?", [sender]);
+            targetCity = user?.cidade || 'Santos';
         }
-        else{             
-            const city = cleanText
-            return await weatherCommandHandler.getWeather(city)
+
+        if (isTomorrow) {
+            return await weatherCommandHandler.getNextDayForecast(targetCity);
+        } else {
+            return await weatherCommandHandler.getWeather(targetCity);
         }
     }
     

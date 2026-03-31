@@ -164,9 +164,28 @@ const RARITY_LABELS = {
     'lixo': '🟤 LIXO'
 };
 
-const MAX_BAITS = 10;
-const BAIT_REGEN_HOURS = 2;
-const BAIT_REGEN_SECONDS = BAIT_REGEN_HOURS * 3600;
+const CLIMA_PESCA = {
+    'sol': { 
+        ambar_mult: 1.5, peso_mult: 1.0, quebra_chance: 0.0, raridade_mult: 1.0, 
+        txt: '☀️ Água cristalina (+Chance de Âmbar/Loot)' 
+    },
+    'chuva': { 
+        ambar_mult: 1.0, peso_mult: 1.15, quebra_chance: 0.0, raridade_mult: 1.0, 
+        txt: '🌧️ Peixes na superfície (+Peso)' 
+    },
+    'trovoada': { 
+        ambar_mult: 1.0, peso_mult: 1.0, quebra_chance: 0.3, raridade_mult: 2.0, 
+        txt: '⛈️ Maré violenta (30% Risco de Quebra | 2x Míticos/Lendários)' 
+    },
+    'nublado': { 
+        ambar_mult: 1.0, peso_mult: 1.0, quebra_chance: 0.0, raridade_mult: 1.0, 
+        txt: '☁️ Clima ameno (Regras padrões)' 
+    }
+};
+
+const MAX_SUPPLIES = 10;
+const SUPPLY_REGEN_HOURS = 2;
+const SUPPLY_REGEN_SECONDS = SUPPLY_REGEN_HOURS * 3600;
 
 class PescariaHandler {
     constructor(db, casinoHandler) {
@@ -179,11 +198,7 @@ class PescariaHandler {
         let data = {};
         
         if (user && user.pescaria_data) {
-            try {
-                data = JSON.parse(user.pescaria_data);
-            } catch (e) {
-                data = {};
-            }
+            try { data = JSON.parse(user.pescaria_data); } catch (e) { data = {}; }
         }
 
         const now = Math.floor(Date.now() / 1000);
@@ -193,21 +208,40 @@ class PescariaHandler {
             records: data.records || {},
             inventory: data.inventory || { vara: 'bambu' },
             active_items: data.active_items || {},
-            fishBaits: data.fishBaits !== undefined ? data.fishBaits : MAX_BAITS,
-            last_bait_regen: data.last_bait_regen || now
+            
+            suprimentos: data.suprimentos !== undefined ? data.suprimentos : (data.fishBaits !== undefined ? data.fishBaits : MAX_SUPPLIES),
+            last_supply_regen: data.last_supply_regen || data.last_bait_regen || now
         };
 
-        if (player.fishBaits < MAX_BAITS) {
-            const timePassed = now - player.last_bait_regen;
-            const generatedBaits = Math.floor(timePassed / BAIT_REGEN_SECONDS);
+        if (player.suprimentos < MAX_SUPPLIES) {
+            const timePassed = now - player.last_supply_regen;
+            const generated = Math.floor(timePassed / SUPPLY_REGEN_SECONDS);
             
-            if (generatedBaits > 0) {
-                player.fishBaits = Math.min(MAX_BAITS, player.fishBaits + generatedBaits);
-                player.last_bait_regen += generatedBaits * BAIT_REGEN_SECONDS;
+            if (generated > 0) {
+                player.suprimentos = Math.min(MAX_SUPPLIES, player.suprimentos + generated);
+                player.last_supply_regen += generated * SUPPLY_REGEN_SECONDS;
             }
         } else {
-            player.last_bait_regen = now;
+            player.last_supply_regen = now;
         }
+
+        delete player.fishBaits;
+        delete player.last_bait_regen;
+
+        const userRodId = player.inventory.vara || 'bambu';
+        const userRod = ROD_CATALOG[userRodId] || ROD_CATALOG['bambu'];
+        const userBoatId = player.inventory.barco;
+        const userBoat = userBoatId ? BOAT_CATALOG[userBoatId] : { catches: 1 };
+
+        const boatPenalty = userBoat.catches; 
+
+        player.fishing_stats = {
+            rod_mult: userRod.mult,
+            luck: userRod.luck / boatPenalty,
+            anti_lixo: userRod.anti_lixo / boatPenalty,
+            ambar_chance: (userRod.ambar_chance || 0) / boatPenalty,
+            catches: userBoat.catches
+        };
 
         return player;
     }
@@ -221,49 +255,45 @@ class PescariaHandler {
         this.parqueHandler = parqueHandler;
     }
 
-    async pescar(userId, userTag, groupId) {
+    async pescar(userId, userTag, groupId, climaAtual) {
+        if (!climaAtual) climaAtual = { condicao: 'nublado', emoji: '☁️', cidade: 'Desconhecida' };
+        
+        const mods = CLIMA_PESCA[climaAtual.condicao] || CLIMA_PESCA['nublado'];
+
         let player = await this.getPlayerData(userId);
         const now = Math.floor(Date.now() / 1000);
 
-        if (player.fishBaits < 1) {
-            const nextBaitIn = BAIT_REGEN_SECONDS - (now - player.last_bait_regen);
-            const hours = Math.floor(nextBaitIn / 3600);
-            const mins = Math.floor((nextBaitIn % 3600) / 60);
-            return `${userTag}🪹 Seu balde de iscas está vazio!\nVocê recebe uma isca nova em **${hours}h e ${mins}m**.\n_(Máximo acumulado: ${MAX_BAITS})_`;
+        if (player.suprimentos < 1) {
+            const nextIn = SUPPLY_REGEN_SECONDS - (now - player.last_supply_regen);
+            const hours = Math.floor(nextIn / 3600);
+            const mins = Math.floor((nextIn % 3600) / 60);
+            return `${userTag}🪹 Você está sem suprimentos (Iscas/Água)!\nVocê recebe uma nova carga de energia em **${hours}h e ${mins}m**.\n_(Máximo acumulado: ${MAX_SUPPLIES})_`;
         }
 
-        player.fishBaits -= 1;
+        player.suprimentos -= 1;
         
-        if (player.fishBaits === (MAX_BAITS - 1) && now - player.last_bait_regen < 10) {
-            player.last_bait_regen = now;
+        if (player.suprimentos === (MAX_SUPPLIES - 1) && now - player.last_supply_regen < 10) {
+            player.last_supply_regen = now;
         }
 
-        let msg = `${userTag}🎣 **PESCARIA** 🎣\n_Iscas restantes: ${player.fishBaits}_\n\n`;
-
-        let catches = 1;
-        if (player.inventory.barco) {
-            catches = BOAT_CATALOG[player.inventory.barco].catches;
+        if (mods.quebra_chance > 0 && Math.random() < mods.quebra_chance) {
+            await this.savePlayerData(userId, player);
+            return `${userTag}🎣 **PESCARIA EM ${climaAtual.cidade.toUpperCase()}**\n_Clima: ${mods.txt}_\n_Suprimentos: ${player.suprimentos}_\n\n⛈️ **TEMPESTADE!** Uma onda gigante bateu, a linha tensionou e... **PAH!** Arrebentou tudo.\nVocê perdeu o suprimento e quase foi pro mar junto.`;
         }
 
+        let msg = `${userTag}🎣 **PESCARIA EM ${climaAtual.cidade.toUpperCase()}**\n_Clima: ${mods.txt}_\n_Suprimentos restantes: ${player.suprimentos}_\n\n`;
+        
+        let catches = player.fishing_stats.catches;
         let weightMultiplierBuff = 1.0;
         let canCatchTrash = true;
 
-        // O Anzol Duplo DOBRA o total de redes jogadas! (1 vira 2, 5 vira 10)
         if (player.active_items['anzol_duplo']) catches *= 2; 
         
         if (player.active_items['anzol_chumbo']) weightMultiplierBuff *= 1.30;
         if (player.active_items['isca_radioativa']) weightMultiplierBuff *= 1.50;
         if (player.active_items['repelente']) canCatchTrash = false;
 
-        const userRodId = player.inventory.vara || 'bambu';
-        const userRod = ROD_CATALOG[userRodId] || ROD_CATALOG['bambu'];
-        
-        const rodMultiplier = userRod.mult;
-        const rodLuck = userRod.luck;
-        const rodAntiLixo = userRod.anti_lixo; 
-        const rodAmbarBonus = userRod.ambar_chance || 0;
-        
-        weightMultiplierBuff *= rodMultiplier;
+        weightMultiplierBuff *= player.fishing_stats.rod_mult;
 
         const activeItemNames = Object.keys(player.active_items).map(id => ITEM_CATALOG.find(i => i.id === id)?.name).filter(Boolean);
         if (activeItemNames.length > 0) {
@@ -271,8 +301,10 @@ class PescariaHandler {
         }
 
         for (let i = 0; i < catches; i++) {
+
             
-            const ambarTotalChance = 0.05 + (rodAmbarBonus / 200);
+            const chanceAmbar = 0.05 * mods.ambar_mult;            
+            const ambarTotalChance = chanceAmbar + (player.fishing_stats.ambar_chance / 200);
 
             if (this.parqueHandler && Math.random() < ambarTotalChance) {
                 msg += `\n🎣 **ISSO NÃO É UM PEIXE!**\nVocê puxou um 🦟 **Âmbar Ancestral** do fundo do lago!\n\n`;
@@ -286,14 +318,16 @@ class PescariaHandler {
             }
 
             let roll = Math.random() * 100;
-            
-            roll = roll * (1 - (rodLuck / 100)); 
+            roll = roll * (1 - (player.fishing_stats.luck / 100));; 
+
+            const chanceMitico = 1 * mods.raridade_mult;
+            const chanceLendario = 5 * mods.raridade_mult; 
 
             let selectedRarity = 'comum';
             
             if (roll < 0.1) selectedRarity = 'secreto';
-            else if (roll < 1) selectedRarity = 'mitico';
-            else if (roll < 5) selectedRarity = 'lendario';
+            else if (roll < chanceMitico) selectedRarity = 'mitico';
+            else if (roll < chanceLendario) selectedRarity = 'lendario';
             else if (roll < 20) selectedRarity = 'muito_raro';
             else if (roll < 40) selectedRarity = 'raro';
             else if (roll < 60) selectedRarity = 'incomum';
@@ -304,7 +338,7 @@ class PescariaHandler {
             }
 
             if (selectedRarity === 'lixo') {
-                if (Math.random() * 100 < rodAntiLixo) {
+                if (Math.random() * 100 < player.fishing_stats.anti_lixo) {
                     selectedRarity = 'comum'; 
                 }
             }
@@ -317,7 +351,7 @@ class PescariaHandler {
             const caughtFish = possibleFishes[Math.floor(Math.random() * possibleFishes.length)];
 
             const baseMultiplier = 0.5 + Math.random(); 
-            const actualWeight = caughtFish.avgWeight * baseMultiplier * weightMultiplierBuff;
+            const actualWeight = caughtFish.avgWeight * baseMultiplier * weightMultiplierBuff * mods.peso_mult;
             const formattedWeight = actualWeight.toFixed(2);
 
             if (player.active_items['linha_podre'] && Math.random() < 0.25) {
@@ -343,6 +377,10 @@ class PescariaHandler {
                     instanceId: crypto.randomUUID()
                 });
 
+                if (this.parqueHandler && groupId && groupId.includes('@g.us')) {
+                    this.parqueHandler.registrarProgressoComunitario(groupId, 'pesca_kg', actualWeight, sock).catch(()=>{});
+                }
+
                 if (player.active_items['ima_coins']) {
                     const moedasAchadas = Math.floor(Math.random() * 41) + 10;
                     const profitResult = await this.casinoHandler.verifyProfit(userId, moedasAchadas);
@@ -360,10 +398,10 @@ class PescariaHandler {
             msg += `\n🎁 **ACHADO NO LAGO!** Você fisgou: ${droppedItem.emoji} *${droppedItem.name}*\n`;
             
             if (droppedItem.type === 'instant') {
-                player.fishBaits += droppedItem.effect;
+                player.suprimentos += droppedItem.effect;
                 msg += `_${droppedItem.desc}_\n`;
             } else if (droppedItem.type === 'instant_debuff') {
-                player.fishBaits = Math.max(0, player.fishBaits + droppedItem.effect);
+                player.suprimentos = Math.max(0, player.suprimentos + droppedItem.effect);
                 msg += `_${droppedItem.desc}_\n`;
             } else {
                 player.active_items[droppedItem.id] = droppedItem.duration;
@@ -449,13 +487,13 @@ class PescariaHandler {
         }
         msg += `\n`;
 
-        // Status das Iscas
-        msg += `🪣 *Iscas no Balde:* ${player.fishBaits}/${MAX_BAITS}\n`;
-        if (player.fishBaits < MAX_BAITS) {
-            const nextBaitIn = BAIT_REGEN_SECONDS - (now - player.last_bait_regen);
-            const hours = Math.floor(nextBaitIn / 3600);
-            const mins = Math.floor((nextBaitIn % 3600) / 60);
-            msg += `⏳ _Próxima isca em: ${hours}h e ${mins}m_\n`;
+        // Status dos Suprimentos
+        msg += `📦 *Suprimentos (Iscas/Água):* ${player.suprimentos}/${MAX_SUPPLIES}\n`;
+        if (player.suprimentos < MAX_SUPPLIES) {
+            const nextIn = SUPPLY_REGEN_SECONDS - (now - player.last_supply_regen);
+            const hours = Math.floor(nextIn / 3600);
+            const mins = Math.floor((nextIn % 3600) / 60);
+            msg += `⏳ _Próxima carga em: ${hours}h e ${mins}m_\n`;
         }
 
         // Efeitos/Itens Ativos
@@ -783,7 +821,7 @@ class PescariaHandler {
         await this.db.run("UPDATE usuarios SET bostocoins = bostocoins - ? WHERE id_usuario = ?", [item.price, userId]);
 
         if (item.type === 'instant') {
-            player.fishBaits += item.effect;
+            player.suprimentos += item.effect;
         } else if (item.type === 'buff') {
             player.active_items[item.id] = item.duration;
         }
@@ -795,7 +833,7 @@ class PescariaHandler {
         if (item.type === 'buff') {
             msg += `✨ O efeito já está ativo na sua próxima jogada! Confira em *!pescaria perfil*.`;
         } else {
-            msg += `🪣 Você agora tem **${player.fishBaits} iscas** no balde!`;
+            msg += `📦 Você agora tem **${player.suprimentos} Suprimentos** (Iscas/Água) no estoque!`;
         }
 
         return msg;
@@ -1192,8 +1230,8 @@ class PescariaHandler {
             try {
                 let data = JSON.parse(u.pescaria_data);
                 
-                if (data.fishBaits !== undefined && data.fishBaits < MAX_BAITS) {
-                    data.last_bait_regen -= SECONDS_TO_SUBTRACT;
+                if (data.suprimentos !== undefined && data.suprimentos < MAX_SUPPLIES) {
+                    data.last_supply_regen -= SECONDS_TO_SUBTRACT;
                     await this.savePlayerData(u.id_usuario, data);
                     count++;
                 }
@@ -1202,7 +1240,7 @@ class PescariaHandler {
             }
         }
         
-        return `⏳ O Ibama foi bonzinho e adiantou o relógio em 2 horas para **${count} pescadores**!\nSe alguém tava quase ganhando isca, o balde acabou de encher. Vão pescar!`;
+        return `⏳ O Ibama foi bonzinho e adiantou o relógio em 2 horas para **${count} pescadores**!\nSe alguém tava quase ganhando energia, o balde acabou de encher. Vão pescar e regar a roça!`;
     }
 }
 

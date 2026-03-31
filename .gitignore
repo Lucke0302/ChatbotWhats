@@ -6,4 +6,5 @@ npm-debug.log
 chat_history.db
 usage_stats.json
 login.js
+chat_backup.db
 

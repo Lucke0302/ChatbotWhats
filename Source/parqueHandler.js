@@ -239,6 +239,21 @@ class ParqueHandler {
             'ram_2_gb_ddr2', 'ram_2_gb_ddr3', 'ram_8_gb_ddr3', 'ram_8_gb_ddr4', 
             'ram_16_gb_ddr4', 'ram_16_gb_ddr5', 'ram_64_gb_ddr5'
         ];
+
+        this.HERBIVOROS = ['triceratops', 'stegosaurus', 'ankylosaurus', 'diplodocus', 
+            'brachiosaurus', 'apatosaurus', 'argentinosaurus', 'parasaurolophus', 
+            'iguanodon', 'corythosaurus', 'stygimoloch', 'pachycephalosaurus', 
+            'protoceratops', 'gallimimus', 'microceratus', 'dryosaurus', 'hypsilophodon', 
+            'psittacosaurus', 'stegoceratops', 'ankylodocus', 'iguano-coritho', 'para-kentro'];
+
+        this.MARCOS_SEASON = {
+            pesca_kg: { nome: "🎣 Pesca Oceânica", metas: [500, 2500, 10000, 50000], unidade: "kg" },
+            fazenda_kg: { nome: "🚜 Colheita Global", metas: [200, 1000, 5000, 20000], unidade: "kg" },
+            dino_lvl: { nome: "🦖 Nível dos Dinos", metas: [50, 150, 300, 600], unidade: " Lvl" },
+            upgrades: { nome: "🛠️ Tecnologia Ativa", metas: [10, 30, 60, 100], unidade: " un" },
+            vendas: { nome: "💰 Economia (Vendas)", metas: [10000, 50000, 250000, 1000000], unidade: " 🪙" },
+            cassino: { nome: "🎰 Vício em Apostas", metas: [10000, 50000, 250000, 1000000], unidade: " 🪙" }
+        };
     }
     
     async getPlayerData(userId) {
@@ -488,7 +503,7 @@ class ParqueHandler {
                         [d.nivel, d.xp_atual, d.reserva_comida, d.ultimo_level_up, d.id]);
                     
                     const novaClasse = this.getClasseDino(d.nivel);
-                    digestaoMsg += `🍖 O **${dinoInfo.name}** de ${d.descobridor_nome} devorou as sobras na madrugada e acordou no **Nível ${d.nivel} (${novaClasse})**!\n`;
+                    digestaoMsg += `🍖 Um **${dinoInfo.name}** devorou as sobras na madrugada e acordou no **Nível ${d.nivel} (${novaClasse})**!\n`;
                 } else {
                     d.xp_atual += d.reserva_comida;
                     d.reserva_comida = 0;
@@ -499,20 +514,29 @@ class ParqueHandler {
             }
 
             const valorDino = Math.floor(dinoInfo.ticket_value * d.nivel * (d.multiplicador_bilheteria || 1.0));
-            bilheteriaTotal += valorDino;
+            bilheteriaTotal += valorDino / 2;
         }
 
         if (bilheteriaTotal <= 0 && digestaoMsg === "") return "";
 
         const ativos = await this.db.all("SELECT DISTINCT id_usuario FROM ranking_ofensas WHERE id_conversa = ?", [groupId]);
         
-        let pagamentoMsg = "";
-        if (ativos.length > 0 && bilheteriaTotal > 0) {
-            const cota = Math.floor(bilheteriaTotal / ativos.length);
-            for (const ativo of ativos) {
-                await this.db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [cota, ativo.id_usuario]);
+        const donosSet = new Set();
+        dinos.forEach(d => {
+            if (d.descobridor_id) {
+                d.descobridor_id.split(',').forEach(id => donosSet.add(id.trim()));
             }
-            pagamentoMsg = `💰 A bilheteria arrecadou 🪙 **${bilheteriaTotal} Bostocoins**!\nOs lucros foram divididos: 🪙 **${cota}** para cada um dos ${ativos.length} membros ativos.\n`;
+        });
+
+        const acionistas = ativos.filter(a => donosSet.has(a.id_usuario));
+        
+        let pagamentoMsg = "";
+        if (acionistas.length > 0 && bilheteriaTotal > 0) {
+            const cota = Math.floor(bilheteriaTotal / acionistas.length);
+            for (const acionista of acionistas) {
+                await this.db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [cota, acionista.id_usuario]);
+            }
+            pagamentoMsg = `💰 A bilheteria arrecadou 🪙 **${bilheteriaTotal*2} Bostocoins**, mas a InGen comeu metade, restando 🪙 **${bilheteriaTotal}**!\nOs lucros foram divididos: 🪙 **${cota}** para cada um dos ${acionistas.length} investidores com dinos.\n`;
         }
 
         let finalMsg = `\n🎟️ **RELATÓRIO MATINAL DO BOSTOPARK** 🎟️\n`;
@@ -520,6 +544,100 @@ class ParqueHandler {
         if (pagamentoMsg) finalMsg += pagamentoMsg;
 
         return finalMsg;
+    }
+
+    async verMissoesGlobais(groupId, userTag) {
+        let legado = null;
+        try {
+            legado = await this.db.get("SELECT * FROM legado_grupos WHERE group_id = ?", [groupId]);
+        } catch (e) {
+            return `${userTag} ❌ O banco ainda não foi atualizado.`;
+        }
+
+        if (!legado) return `${userTag} 🚧 As missões só estarão ativas após o primeiro Wipe Oficial.`;
+
+        const conquistas = JSON.parse(legado.conquistas_json || '{}');
+        const nivel = legado.nivel_receita || 1;
+        const mult = (nivel / 24).toFixed(2);
+        
+        const dinoData = await this.db.get("SELECT SUM(nivel) as total_lvl FROM parque_dinossauros WHERE group_id = ?", [groupId]);
+        conquistas['dino_lvl'] = dinoData ? (dinoData.total_lvl || 0) : 0;
+        
+        let msg = `${userTag}🎯 **MARCOS DA COMUNIDADE (Season ${legado.temporada_atual || 1})** 🎯\n\n`;
+        msg += `📈 **Receita do Parque:** ${nivel}/24\n`;
+        msg += `🎟️ **Lucro da InGen:** ${mult}x (Recebendo ${Math.round(mult * 100)}%)\n\n`;
+
+        const drawBar = (current, max) => {
+            if (current >= max) return '🟩'.repeat(10);
+            const filled = Math.floor((current / max) * 10);
+            return '🟩'.repeat(filled) + '⬜'.repeat(10 - filled);
+        };
+
+        for (const [key, data] of Object.entries(this.MARCOS_SEASON)) {
+            const atual = conquistas[key] || 0;
+            let metaAtualIdx = data.metas.findIndex(m => atual < m);
+            if (metaAtualIdx === -1) metaAtualIdx = 3;
+            
+            const metaObj = data.metas[metaAtualIdx];
+            const isMax = atual >= data.metas[3];
+            
+            msg += `*${data.nome}* (Nvl ${isMax ? 4 : metaAtualIdx})\n`;
+            msg += `[${drawBar(atual, metaObj)}] ${isMax ? 'MAX' : `${Math.floor((atual/metaObj)*100)}%`}\n`;
+            msg += `Progresso: ${atual.toLocaleString('pt-BR')}${data.unidade} / ${metaObj.toLocaleString('pt-BR')}${data.unidade}\n\n`;
+        }
+
+        msg += `_Trabalhem juntos para bater as metas e subir o nível de receita do Parque!_`;
+        return msg;
+    }
+
+    async registrarProgressoComunitario(groupId, categoria, valorAdicional, sock) {
+        if (!groupId || !categoria || !valorAdicional) return;
+
+        if (categoria === 'dino_lvl') return; 
+
+        try {
+            const legado = await this.db.get("SELECT * FROM legado_grupos WHERE group_id = ?", [groupId]);
+            if (!legado) return;
+
+            let conquistas = JSON.parse(legado.conquistas_json || '{}');
+            const valorAntigo = conquistas[categoria] || 0;
+            const valorNovo = valorAntigo + valorAdicional;
+            conquistas[categoria] = valorNovo;
+
+            const metasDaCategoria = this.MARCOS_SEASON[categoria].metas;
+            let niveisAntigosAtingidos = metasDaCategoria.filter(m => valorAntigo >= m).length;
+            let niveisNovosAtingidos = metasDaCategoria.filter(m => valorNovo >= m).length;
+
+            const diferencaDeNivel = niveisNovosAtingidos - niveisAntigosAtingidos;
+
+            if (diferencaDeNivel > 0) {
+                const novoNivelReceita = Math.min(24, (legado.nivel_receita || 1) + diferencaDeNivel);
+                
+                await this.db.run(
+                    "UPDATE legado_grupos SET conquistas_json = ?, nivel_receita = ? WHERE group_id = ?", 
+                    [JSON.stringify(conquistas), novoNivelReceita, groupId]
+                );
+
+                if (sock) {
+                    const nomeCat = this.MARCOS_SEASON[categoria].nome;
+                    const msgUP = `
+🎉 **MARCO COMUNITÁRIO ATINGIDO!** 🎉
+
+O esforço do grupo deu resultado! Vocês acabaram de subir de nível na categoria:
+🌟 **${nomeCat}** (Nível ${niveisNovosAtingidos}/4)
+
+📈 A receita global do parque subiu para **${novoNivelReceita}/24**!
+A InGen liberou mais verba para a próxima bilheteria. Usem \`!parque missoes\` para ver o painel atualizado.`;
+                    
+                    await sock.sendMessage(groupId, { text: msgUP });
+                }
+            } else {
+                await this.db.run("UPDATE legado_grupos SET conquistas_json = ? WHERE group_id = ?", [JSON.stringify(conquistas), groupId]);
+            }
+
+        } catch (e) {
+            console.error("Erro ao registrar progresso comunitário:", e);
+        }
     }
 
     async savePlayerData(userId, data) {
@@ -757,8 +875,8 @@ class ParqueHandler {
         const now = Math.floor(Date.now() / 1000);
         await this.db.run(`
             INSERT INTO parque_dinossauros (group_id, especie_id, descobridor_nome, descobridor_id, nivel, xp_atual, data_descoberta, reserva_comida, ultimo_level_up, cor, multiplicador_bilheteria)
-            VALUES (?, ?, ?, ?, 1, 0, ?, 0, 0, ?, ?)`,
-            [groupId, dinoId, userName, userId, now, corString, multiplicadorTotal]
+            VALUES (?, ?, '', ?, 1, 0, ?, 0, 0, ?, ?)`,
+            [groupId, dinoId, userId, now, corString, multiplicadorTotal]
         );
 
         const profitResult = await this.casinoHandler.verifyProfit(userId, dinoInfo.ticket_value);
@@ -793,24 +911,25 @@ class ParqueHandler {
             if (temTodos) {
                 const pais = dinosNoParque.filter(d => hibridoInfo.receita.includes(d.especie_id));
                 
-                let descobridoresNomes = new Set();
                 let descobridoresIds = new Set();
-
                 pais.forEach(p => {
-                    descobridoresNomes.add(p.descobridor_nome);
-                    descobridoresIds.add(p.descobridor_id);
+                    if (p.descobridor_id) {
+                        p.descobridor_id.split(',').forEach(id => descobridoresIds.add(id.trim()));
+                    }
                 });
 
-                const nivelHibrido = 1;
-                const nomeAutores = Array.from(descobridoresNomes).join(" & ");
-                
-                let idsFormatados = [];
-                Array.from(descobridoresIds).forEach(id => {
-                    idsFormatados.push(...id.split(','));
-                });
-                idsFormatados = [...new Set(idsFormatados)];
+                let idsFormatados = Array.from(descobridoresIds).filter(id => id !== '');
                 const idSalvamento = idsFormatados.join(',');
 
+                let nomesAutoresArray = [];
+                for (const uid of idsFormatados) {
+                    const userDb = await this.db.get("SELECT nome FROM usuarios WHERE id_usuario = ?", [uid]);
+                    nomesAutoresArray.push(userDb ? userDb.nome : 'Alguém');
+                }
+                const nomeAutoresMsg = nomesAutoresArray.join(" & ");
+
+                const nivelHibrido = 1;
+                
                 let coresHibrido = [];
                 let coresMultiplicador = 0;
                 let coresTemp = [...DINO_COLORS];
@@ -825,8 +944,8 @@ class ParqueHandler {
                 const now = Math.floor(Date.now() / 1000);
                 await this.db.run(`
                     INSERT INTO parque_dinossauros (group_id, especie_id, descobridor_nome, descobridor_id, nivel, xp_atual, data_descoberta, reserva_comida, ultimo_level_up, cor, multiplicador_bilheteria)
-                    VALUES (?, ?, ?, ?, ?, 0, ?, 0, 0, ?, ?)`,
-                    [groupId, hibridoId, nomeAutores, idSalvamento, nivelHibrido, now, corString, coresMultiplicador]
+                    VALUES (?, ?, '', ?, ?, 0, ?, 0, 0, ?, ?)`,
+                    [groupId, hibridoId, idSalvamento, nivelHibrido, now, corString, coresMultiplicador]
                 );
 
                 const recompensaIndividual = Math.floor(hibridoInfo.ticket_value / idsFormatados.length);
@@ -838,7 +957,7 @@ class ParqueHandler {
                 msgHibrido += `O cruzamento de DNA no parque de vocês gerou uma mutação agressiva no laboratório!\n\n`;
                 msgHibrido += `🧬 **NOVO HÍBRIDO SINTETIZADO:** ${hibridoInfo.emoji} **${hibridoInfo.name}**\n`;
                 msgHibrido += `📈 **Poder Inicial:** Nível 1 _(Recém-saído da incubadora 🍼)_\n`;
-                msgHibrido += `👥 **Criadores:** ${nomeAutores}\n`;
+                msgHibrido += `👥 **Criadores:** ${nomeAutoresMsg}\n`;
                 msgHibrido += `💰 **Royalties InGen:** 🪙 ${recompensaIndividual} Bostocoins para cada criador!\n`;
                 
                 if (hibridoId === 'bostossauro') {
@@ -846,7 +965,7 @@ class ParqueHandler {
                 }
 
                 especiesNoParque.push(hibridoId);
-                dinosNoParque.push({ especie_id: hibridoId, nivel: nivelHibrido, descobridor_nome: nomeAutores, descobridor_id: idSalvamento });
+                dinosNoParque.push({ especie_id: hibridoId, nivel: nivelHibrido, descobridor_nome: '', descobridor_id: idSalvamento });
             }
         }
         return msgHibrido;
@@ -901,16 +1020,69 @@ class ParqueHandler {
     }
 
     // MURAL GLOBAL
-    async verParqueGlobal(groupId, userTag) {
+    async verParqueGlobal(groupId, userTag, paramStr, pokemonHandler) {
         const dinos = await this.db.all("SELECT * FROM parque_dinossauros WHERE group_id = ? ORDER BY id ASC", [groupId]);
         
         if (!dinos || dinos.length === 0) {
             return `${userTag} 🚧 O **Jurassic BostoPark** deste grupo ainda é só um terreno baldio com mato alto. Escave e ache um âmbar para começar!`;
         }
 
-        let msg = `🦖 **JURASSIC BOSTOPARK DO GRUPO** 🦕\n_A bilheteria agradece o turismo! Use o ID para alimentar._\n\n`;
+        const playerCercados = {}; 
+        const uniqueUsers = new Set();
 
         dinos.forEach(d => {
+            if (!d.descobridor_id) return;
+            const ids = d.descobridor_id.split(',').map(id => id.trim()).filter(id => id !== '');
+            
+            ids.forEach(id => {
+                if (!playerCercados[id]) playerCercados[id] = [];
+                playerCercados[id].push(d);
+                uniqueUsers.add(id);
+            });
+        });
+
+        const playerNames = {};
+        for (const id of uniqueUsers) {
+            let currentTag = id; 
+            if (pokemonHandler) {
+                currentTag = await pokemonHandler.getUserTag(id);
+                currentTag = currentTag.replace(/\n/g, '').trim(); 
+            }
+            playerNames[id] = currentTag;
+        }
+
+        const listaEquipes = Object.keys(playerCercados).map(id => {
+            return {
+                id: id,
+                nome: playerNames[id] || 'Desconhecido',
+                dinos: playerCercados[id]
+            };
+        }).sort((a, b) => b.dinos.length - a.dinos.length);
+
+        if (!paramStr || isNaN(parseInt(paramStr))) {
+            let msg = `${userTag}🦖 **JURASSIC BOSTOPARK DO GRUPO** 🦕\n_A bilheteria agradece o turismo!_\n\n`;
+            msg += `📋 **Cercados Individuais:**\n`;
+            
+            listaEquipes.forEach((eq, index) => {
+                msg += `*[ ${index + 1} ]* ${eq.nome} ➝ **${eq.dinos.length} dino(s)**\n`;
+            });
+            
+            msg += `\n🔍 Para visitar o cercado de alguém, use: *!parque mural [número]*\n`;
+            msg += `🍗 Para alimentar, use: *!parque alimentar [ID] [Nº_Comida]*`;
+            return msg;
+        }
+
+        const index = parseInt(paramStr) - 1;
+        if (index < 0 || index >= listaEquipes.length) {
+            return `${userTag} ⚠️ Cercado não encontrado! Digite apenas *!parque mural* para ver a lista válida.`;
+        }
+
+        const equipeSelecionada = listaEquipes[index];
+        let msg = `${userTag}🦖 **CERCADO:** ${equipeSelecionada.nome.toUpperCase()} 🦕\n_Dinossauros sob os cuidados deste tratador:_\n\n`;
+
+        const getShortName = (tag) => tag.replace(/^[^\w\s]+/, '').split('(')[0].trim();
+
+        equipeSelecionada.dinos.forEach(d => {
             const dinoInfo = DINO_CATALOG[d.especie_id];
             if (dinoInfo) {
                 const xpNecessario = 2 * d.nivel * dinoInfo.base_xp_req;
@@ -923,11 +1095,24 @@ class ParqueHandler {
                 
                 msg += `🆔 *[ ID: ${d.id} ]* ${dinoInfo.emoji} **${nomeExibicao}**\n`;
                 msg += `   🎨 Cor: ${d.cor} | 🧬 Lvl: ${d.nivel} [${classe}] (${porcentagem}% pro Nvl ${d.nivel + 1})\n`;
-                msg += `   🥩 Reserva: ${d.reserva_comida.toFixed(1)}kg | 👤 Por: ${d.descobridor_nome}\n\n`;
+                
+                const idsCriadores = d.descobridor_id.split(',').map(i => i.trim()).filter(i => i !== '');
+                
+                const reservaEmoji = this.HERBIVOROS.includes(d.especie_id) ? '🍃' : '🥩';
+
+                if (idsCriadores.length > 1) {
+                    const parceiros = idsCriadores
+                        .filter(i => i !== equipeSelecionada.id)
+                        .map(i => playerNames[i] ? getShortName(playerNames[i]) : 'Alguém')
+                        .join(', ');
+                    msg += `   ${reservaEmoji} Reserva: ${d.reserva_comida.toFixed(1)}kg | 🤝 _Co-criado com: ${parceiros}_\n\n`;
+                } else {
+                    msg += `   ${reservaEmoji} Reserva: ${d.reserva_comida.toFixed(1)}kg\n\n`;
+                }
             }
         });
 
-        msg += `🍗 Para alimentar um dino: *!parque alimentar [ID] [Nº Comida]*`;
+        msg += `🍗 Para alimentar: *!parque alimentar [ID_do_Dino] [Nº_Comida]*`;
         return msg;
     }
 
@@ -960,8 +1145,7 @@ class ParqueHandler {
 
             const estoque = await this.db.get("SELECT carne, vegetal FROM parque_estoque WHERE group_id = ?",[groupId]) || { carne: 0, vegetal: 0 };
             
-            const herbivoros = ['triceratops', 'stegosaurus', 'ankylosaurus', 'diplodocus', 'brachiosaurus', 'apatosaurus', 'argentinosaurus', 'parasaurolophus', 'iguanodon', 'corythosaurus', 'stygimoloch', 'pachycephalosaurus', 'protoceratops', 'gallimimus', 'microceratus', 'dryosaurus', 'hypsilophodon', 'psittacosaurus', 'stegoceratops', 'ankylodocus', 'iguano-coritho', 'para-kentro'];
-            const dieta = herbivoros.includes(dino.especie_id) ? 'vegetal' : 'carne';
+            const dieta = this.HERBIVOROS.includes(dino.especie_id) ? 'vegetal' : 'carne';
             
             let disponivel = estoque[dieta];
             if (disponivel <= 0) return `${userTag} 🪹 A câmara frigorífica de **${dieta === 'carne' ? 'Carne 🥩' : 'Vegetais 🥬'}** está vazia! O grupo precisa depositar comida.`;

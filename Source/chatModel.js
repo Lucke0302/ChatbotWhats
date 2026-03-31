@@ -960,6 +960,10 @@ class ChatModel {
                 const fazendaData = await this.fazendaHandler.getFazendaData(u.id_usuario);
                 const financasData = await this.casinoHandler.processFinancas(u.id_usuario);
                 
+                let parqueData = await this.getPlayerData(u.id_usuario);
+                if (!parqueData) parqueData = { inventory: {} };
+                if (!parqueData.inventory) parqueData.inventory = {};
+                
                 let descontoFazenda = 0;
                 let buffPesca = 0;
                 let bonusBostocoins = 0;
@@ -999,6 +1003,17 @@ class ChatModel {
                 bonusBostocoins += bArmazem;
                 console.log(`   - 5% do Armazém (Peso Total ${valorArmazem/2}kg): 🪙 ${bArmazem}`);
 
+                let valorMinerios = 0;
+                for (const [minId, qtd] of Object.entries(parqueData.inventory)) {
+                    const mineralInfo = MINERAL_CATALOG.find(m => m.id === minId);
+                    if (mineralInfo) {
+                        valorMinerios += (mineralInfo.value * qtd);
+                    }
+                }
+                const bMinerios = Math.floor(valorMinerios * 0.05);
+                bonusBostocoins += bMinerios;
+                if (valorMinerios > 0) console.log(`   - 5% das Minas (Valor Total ${valorMinerios}): 🪙 ${bMinerios}`);
+
                 const canteirosOcupados = fazendaData.canteiros.filter(c => c.seedId !== null).length;
                 const bPlantas = canteirosOcupados * 50;
                 bonusBostocoins += bPlantas;
@@ -1025,6 +1040,9 @@ class ChatModel {
                     buff_sorte_pesca = excluded.buff_sorte_pesca,
                     historico_json = excluded.historico_json
                 `, [u.id_usuario, Math.min(descontoFazenda, 0.5), buffPesca, JSON.stringify(historicoCompleto)]);
+
+                parqueData.inventory = {};
+                await this.savePlayerData(u.id_usuario, parqueData);
 
                 const newPescaria = { suprimentos: 10, last_supply_regen: Math.floor(Date.now() / 1000), inventory: { vara: 'bambu', barco: null } };
                 const newFinancas = {
@@ -1089,7 +1107,7 @@ _A Temporada acabou. Uma nova fenda temporal se abriu._
 O Bostoverso foi resetado! Suas fazendas viraram pó, seus barcos afundaram e o dinheiro evaporou... Mas a experiência fica!
 
 🏆 **O SEU LEGADO:**
-💰 Você manteve **5%** do seu patrimônio final (Bolsa + Armazéns) para não começar do zero!
+💰 Você manteve **5%** do seu patrimônio final (Bolsa + Armazéns + Minérios) para não começar do zero!
 🚜 Se você tinha muitos canteiros, ganhou um **Desconto Permanente** na loja agrícola desta season!
 🎣 Suas varas passadas se tornaram instinto, te dando um **Buff Oculto de Sorte**!
 🦖 **O Parque Sobreviveu!** Mas a InGen cortou a verba e os dinos resetaram pro nível 1. A bilheteria está pagando o mínimo. 

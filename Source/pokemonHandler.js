@@ -408,7 +408,7 @@ class PokemonHandler {
 
             // No método init()
         try {
-            // Adiciona coluna de Amizade nos Pokémons do usuário (0 a 255)
+            // Adiciona coluna de Amizade nos Pokémon do usuário (0 a 255)
             await this.db.exec(`ALTER TABLE user_pokemons ADD COLUMN friendship INTEGER DEFAULT 70;`);
             console.log("✅ Coluna 'friendship' adicionada.");
         } catch (e) {}

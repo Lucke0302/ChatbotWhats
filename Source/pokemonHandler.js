@@ -2631,7 +2631,7 @@ class PokemonHandler {
                `⚠️ Taxa de retirada: 200 coins por nível subido.`;
     }
 
-    async handleTradeCommand(from, sender, command, sock) {
+    async handleTradeCommand(from, sender, command, sock, receiver) {
         const tag = await this.getUserTag(sender);
         const args = command.split(' ');
         const subAction = args[2] ? args[2].toLowerCase() : '';
@@ -2643,16 +2643,27 @@ class PokemonHandler {
 
         // --- INICIAR TROCA (!poke trocar @usuario) ---
         if (subAction.startsWith('@') || subAction === 'iniciar') {
-            const mentionedJid = args[2].replace('@', '').replace(/[^0-9]/g, '') + "@s.whatsapp.net";
+            let mentionedJid = '';
             
-            if (mentionedJid === sender) return `${tag}🚫 Você não pode trocar consigo mesmo (esquizofrenia tem tratamento).`;
+            // Prioriza a menção nativa do WhatsApp
+            if (mentions && mentions.length > 0) {
+                mentionedJid = receiver;
+            } else {
+                const extractNumber = args[2].replace(/[^0-9]/g, '');
+                if (extractNumber.length < 10) {
+                    return `${tag} ⚠️ Você precisa marcar a pessoa clicando no @ do WhatsApp ou digitar o número completo dela.`;
+                }
+                mentionedJid = extractNumber + "@s.whatsapp.net";
+            }
+            
+            if (mentionedJid === sender) return `${tag} 🚫 Você não pode trocar consigo mesmo (esquizofrenia tem tratamento).`;
             
             const targetHasPoke = await this.checkIfUserHasPokemon(mentionedJid);
-            if (!targetHasPoke) return `${tag}🚫 O usuário mencionado não é um treinador Pokémon.`;
+            if (!targetHasPoke) return `${tag} 🚫 O usuário mencionado não é um treinador Pokémon.`;
 
             const sessionKey = [sender, mentionedJid].sort().join('_');
             
-            if (this.tradeSessions.has(sessionKey)) return `${tag}⚠️ Já existe uma negociação ativa entre vocês. Terminem ou cancelem (Use *!poke trocar cancelar*).`;
+            if (this.tradeSessions.has(sessionKey)) return `${tag} ⚠️ Já existe uma negociação ativa entre vocês. Terminem ou cancelem (Use *!poke trocar cancelar*).`;
 
             this.tradeSessions.set(sessionKey, {
                 userA: sender,
@@ -2665,7 +2676,7 @@ class PokemonHandler {
                 startedAt: Date.now()
             });
 
-            return `${tag}🤝 **PEDIDO DE TROCA ENVIADO!**\n\n@${mentionedJid.split('@')[0]}, digite:\n👉 *!poke trocar aceitar* para iniciar a negociação.`;
+            return `${tag} 🤝 **PEDIDO DE TROCA ENVIADO!**\n\n@${mentionedJid.split('@')[0]}, digite:\n👉 *!poke trocar aceitar* para iniciar a negociação.`;
         }
 
         let sessionKey = null;
@@ -2812,7 +2823,7 @@ class PokemonHandler {
         return log;
     }
 
-    async handleCommand(from, sender, command, sock) {
+    async handleCommand(from, sender, command, sock, receiver) {
         const args = command.trim().split(' ');
         const action = args[1] ? args[1].toLowerCase() : 'ajuda';
         const param = args.slice(2).join(' ');
@@ -2918,7 +2929,7 @@ class PokemonHandler {
 
             case 'troca':
             case 'trade':
-                return await this.handleTradeCommand(from, sender, command, sock);
+                return await this.handleTradeCommand(from, sender, command, sock, receiver);
 
             case 'trocar':
             case 'switch':

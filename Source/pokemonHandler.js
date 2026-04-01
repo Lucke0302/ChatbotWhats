@@ -2648,7 +2648,7 @@ class PokemonHandler {
             
             // Prioriza a menção nativa do WhatsApp
             if (receiver) {
-                mentionedJid = receiver;
+                mentionedJid = receiver[0];
             } else {
                 const extractNumber = args[2].replace(/[^0-9]/g, '');
                 if (extractNumber.length < 10) {

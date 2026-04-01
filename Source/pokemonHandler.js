@@ -2641,7 +2641,7 @@ class PokemonHandler {
             if (now - session.startedAt > 300000) this.tradeSessions.delete(key);
         }
 
-        // --- INICIAR TROCA (!poke trocar @usuario) ---
+        // --- INICIAR TROCA (!poke troca @usuario) ---
         if (subAction.startsWith('@') || subAction === 'iniciar') {
             let mentionedJid = '';
             console.log("Poke troca receiver: "+mentions[0])
@@ -2664,7 +2664,7 @@ class PokemonHandler {
 
             const sessionKey = [sender, mentionedJid].sort().join('_');
             
-            if (this.tradeSessions.has(sessionKey)) return `${tag} ⚠️ Já existe uma negociação ativa entre vocês. Terminem ou cancelem (Use *!poke trocar cancelar*).`;
+            if (this.tradeSessions.has(sessionKey)) return `${tag} ⚠️ Já existe uma negociação ativa entre vocês. Terminem ou cancelem (Use *!poke troca cancelar*).`;
 
             this.tradeSessions.set(sessionKey, {
                 userA: sender,
@@ -2677,7 +2677,7 @@ class PokemonHandler {
                 startedAt: Date.now()
             });
 
-            return `${tag} 🤝 **PEDIDO DE TROCA ENVIADO!**\n\n@${mentionedJid.split('@')[0]}, digite:\n👉 *!poke trocar aceitar* para iniciar a negociação.`;
+            return `${tag} 🤝 **PEDIDO DE TROCA ENVIADO!**\n\n@${mentionedJid.split('@')[0]}, digite:\n👉 *!poke troca aceitar* para iniciar a negociação.`;
         }
 
         let sessionKey = null;
@@ -2691,33 +2691,33 @@ class PokemonHandler {
         }
 
         if (!session && subAction !== 'ajuda') {
-            return `${tag}🤷 Nenhuma troca ativa encontrada.\nUse: *!poke trocar @usuario* para começar.`;
+            return `${tag}🤷 Nenhuma troca ativa encontrada.\nUse: *!poke troca @usuario* para começar.`;
         }
 
         const isUserA = session && session.userA === sender;
         const otherUser = session ? (isUserA ? session.userB : session.userA) : null;
 
-        // --- ACEITAR (!poke trocar aceitar) ---
+        // --- ACEITAR (!poke troca aceitar) ---
         if (subAction === 'aceitar') {
             if (session.status !== 'PENDING') return `${tag}A troca já está ativa!`;
             if (session.userB !== sender) return `${tag}🚫 Só o desafiado pode aceitar.`;
 
             session.status = 'ACTIVE';
-            return `🤝 **TROCA INICIADA!**\n\nAgora escolham seus Pokémon:\nUse: *!poke trocar ofertar [slot_time]*\nEx: _!poke trocar ofertar 1_`;
+            return `🤝 **TROCA INICIADA!**\n\nAgora escolham seus Pokémon:\nUse: *!poke troca ofertar [slot_time]*\nEx: _!poke troca ofertar 1_`;
         }
 
-        // --- CANCELAR (!poke trocar cancelar) ---
+        // --- CANCELAR (!poke troca cancelar) ---
         if (subAction === 'cancelar') {
             this.tradeSessions.delete(sessionKey);
             return `🗑️ A troca foi cancelada.`;
         }
 
-        // --- OFERTAR (!poke trocar ofertar X) ---
+        // --- OFERTAR (!poke troca ofertar X) ---
         if (subAction === 'ofertar' || subAction === 'offer') {
             if (session.status !== 'ACTIVE') return `${tag}Aceite a troca primeiro!`;
 
             const slot = parseInt(args[3]);
-            if (isNaN(slot)) return `${tag}Use o número do slot. Ex: *!poke trocar ofertar 1*`;
+            if (isNaN(slot)) return `${tag}Use o número do slot. Ex: *!poke troca ofertar 1*`;
 
             const poke = await this.db.get(`
                 SELECT up.*, p.name, p.evolve_method, p.evolve_condition 
@@ -2747,14 +2747,14 @@ class PokemonHandler {
                 msg += `\n\n🔄 **RESUMO DA TROCA:**\n`;
                 msg += `👤 ${session.userA.split('@')[0]}: ${session.offerA.name} (Lvl ${session.offerA.level})\n`;
                 msg += `👤 ${session.userB.split('@')[0]}: ${session.offerB.name} (Lvl ${session.offerB.level})\n`;
-                msg += `\n⚠️ Confiram os dados! Se estiverem de acordo, ambos digitem:\n👉 *!poke trocar confirmar*`;
+                msg += `\n⚠️ Confiram os dados! Se estiverem de acordo, ambos digitem:\n👉 *!poke troca confirmar*`;
             } else {
                 msg += `\n⏳ Aguardando a oferta do outro jogador...`;
             }
             return msg;
         }
 
-        // --- CONFIRMAR (!poke trocar confirmar) ---
+        // --- CONFIRMAR (!poke troca confirmar) ---
         if (subAction === 'confirmar' || subAction === 'ok') {
             if (!session.offerA || !session.offerB) return `${tag}🚫 Ambos precisam ofertar um Pokémon antes.`;
 
@@ -2769,7 +2769,7 @@ class PokemonHandler {
             return `${tag}✅ Você confirmou! Aguardando o outro jogador...`;
         }
 
-        return `${tag}ℹ️ Comandos de Troca:\n!poke trocar @user\n!poke trocar aceitar\n!poke trocar ofertar [slot]\n!poke trocar confirmar\n!poke trocar cancelar`;
+        return `${tag}ℹ️ Comandos de Troca:\n!poke troca @user\n!poke troca aceitar\n!poke troca ofertar [slot]\n!poke troca confirmar\n!poke troca cancelar`;
     }
 
     // Recalcula HP Máximo e ajusta HP Atual 
@@ -3019,7 +3019,7 @@ class PokemonHandler {
                 return `🦕 *POKÉMON - GUIA RÁPIDO*\n\n` +
                        `🌿 *!poke explorar* ⚔️ *!poke atacar*\n` +
                        `🔴 *!poke capturar* 🏃 *!poke fugir*\n` +
-                       `🏥 *!poke curar* 🔄 *!poke trocar*\n` +
+                       `🏥 *!poke curar* 🔄 *!poke troca*\n` +
                        `🎒 *!poke time* 💻 *!poke pc*\n` +
                        `📊 *!poke mostrar* 👤 *!poke perfil*\n` +
                        `🏛️ *!poke ginasio* 🏪 *!poke loja*\n\n` +

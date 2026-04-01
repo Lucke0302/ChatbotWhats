@@ -2641,17 +2641,10 @@ class PokemonHandler {
             if (now - session.startedAt > 300000) this.tradeSessions.delete(key);
         }
 
-        let nomeAlvo = mentionedJid.split('@')[0];
-        try {
-            const targetDb = await this.db.get("SELECT nome FROM usuarios WHERE id_usuario = ?", [mentionedJid]);
-            if (targetDb && targetDb.nome) {
-                nomeAlvo = targetDb.nome;
-            }
-        } catch (e) {}
-
         // --- INICIAR TROCA (!poke troca @usuario) ---
         if (subAction.startsWith('@') || subAction === 'iniciar') {
             let mentionedJid = '';
+
             console.log("Poke troca receiver: "+mentions[0])
             
             // Prioriza a menção nativa do WhatsApp
@@ -2664,6 +2657,15 @@ class PokemonHandler {
                 }
                 mentionedJid = extractNumber + "@s.whatsapp.net";
             }
+
+            let nomeAlvo = mentionedJid.split('@')[0];
+            try {
+                const targetDb = await this.db.get("SELECT nome FROM usuarios WHERE id_usuario = ?", [mentionedJid]);
+                if (targetDb && targetDb.nome) {
+                    nomeAlvo = targetDb.nome;
+                }
+            } catch (e) {}
+
             
             if (mentionedJid === sender) return `${tag} 🚫 Você não pode trocar consigo mesmo (esquizofrenia tem tratamento).`;
             

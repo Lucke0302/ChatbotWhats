@@ -2641,6 +2641,14 @@ class PokemonHandler {
             if (now - session.startedAt > 300000) this.tradeSessions.delete(key);
         }
 
+        let nomeAlvo = mentionedJid.split('@')[0];
+        try {
+            const targetDb = await this.db.get("SELECT nome FROM usuarios WHERE id_usuario = ?", [mentionedJid]);
+            if (targetDb && targetDb.nome) {
+                nomeAlvo = targetDb.nome;
+            }
+        } catch (e) {}
+
         // --- INICIAR TROCA (!poke troca @usuario) ---
         if (subAction.startsWith('@') || subAction === 'iniciar') {
             let mentionedJid = '';
@@ -2677,7 +2685,7 @@ class PokemonHandler {
                 startedAt: Date.now()
             });
 
-            return `${tag} 🤝 **PEDIDO DE TROCA ENVIADO!**\n\n@${mentionedJid.split('@')[0]}, digite:\n👉 *!poke troca aceitar* para iniciar a negociação.`;
+            return `${tag} 🤝 **PEDIDO DE TROCA ENVIADO!**\n\n@${nomeAlvo}, digite:\n👉 *!poke troca aceitar* para iniciar a negociação.`;
         }
 
         let sessionKey = null;

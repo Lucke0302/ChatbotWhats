@@ -2631,7 +2631,7 @@ class PokemonHandler {
                `⚠️ Taxa de retirada: 200 coins por nível subido.`;
     }
 
-    async handleTradeCommand(from, sender, command, sock, msg, receiver) {
+    async handleTradeCommand(sender, command, mentions) {
         const tag = await this.getUserTag(sender);
         const args = command.split(' ');
         const subAction = args[2] ? args[2].toLowerCase() : '';
@@ -2644,11 +2644,11 @@ class PokemonHandler {
         // --- INICIAR TROCA (!poke trocar @usuario) ---
         if (subAction.startsWith('@') || subAction === 'iniciar') {
             let mentionedJid = '';
-            console.log("Poke troca receiver: "+receiver)
+            console.log("Poke troca receiver: "+mentions[0])
             
             // Prioriza a menção nativa do WhatsApp
-            if (receiver) {
-                mentionedJid = receiver[0];
+            if (mentions) {
+                mentionedJid = mentions[0];
             } else {
                 const extractNumber = args[2].replace(/[^0-9]/g, '');
                 if (extractNumber.length < 10) {
@@ -2824,7 +2824,7 @@ class PokemonHandler {
         return log;
     }
 
-    async handleCommand(from, sender, command, sock, receiver) {
+    async handleCommand(from, sender, command, sock, mentions) {
         const args = command.trim().split(' ');
         const action = args[1] ? args[1].toLowerCase() : 'ajuda';
         const param = args.slice(2).join(' ');
@@ -2930,7 +2930,7 @@ class PokemonHandler {
 
             case 'troca':
             case 'trade':
-                return await this.handleTradeCommand(from, sender, command, sock, receiver);
+                return await this.handleTradeCommand(sender, command, mentions);
 
             case 'trocar':
             case 'switch':

@@ -2644,6 +2644,7 @@ class PokemonHandler {
         // --- INICIAR TROCA (!poke trocar @usuario) ---
         if (subAction.startsWith('@') || subAction === 'iniciar') {
             let mentionedJid = '';
+            console.log("Poke troca receiver: "+receiver)
             
             // Prioriza a menção nativa do WhatsApp
             if (receiver) {

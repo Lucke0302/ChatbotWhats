@@ -2631,7 +2631,7 @@ class PokemonHandler {
                `⚠️ Taxa de retirada: 200 coins por nível subido.`;
     }
 
-    async handleTradeCommand(from, sender, command, sock, receiver) {
+    async handleTradeCommand(from, sender, command, sock, msg, receiver) {
         const tag = await this.getUserTag(sender);
         const args = command.split(' ');
         const subAction = args[2] ? args[2].toLowerCase() : '';

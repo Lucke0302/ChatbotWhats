@@ -63,7 +63,7 @@ class ChatModel {
         }
     }
 
-    async registerMetric(type, commandName = null) {
+    async registerMetric(type, commandName = null, extraData = "") {
         const today = new Date().toISOString().split('T')[0];
         
         await this.db.run(`
@@ -1444,6 +1444,8 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
             console.log(`Mensagem gerada usando o ${modelName}`);
 
             let fullText = response.text || (response.response ? response.response.text() : "");
+            
+            this.registerMetric('ai_response').catch(()=>{});
 
             // Lógica de corte do separador
             if (fullText.includes(separator)) {
@@ -1458,8 +1460,6 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
 
                 return replyText;
             }
-
-            this.registerMetric('ai_response').catch(()=>{});
 
             return fullText
 

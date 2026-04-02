@@ -742,7 +742,14 @@ constructor(db) {
                     count++;
                 }
 
-                let msg = `${senderTag}🚁 **MAMATA ESTATAL (SILVIO SANTOS JURÁSSICO)** 🚁\nO Banco Central imprimiu e distribuiu 🪙 **${amount} Bostocoins** para ${count} membros do grupo!`;
+                let msgValor = ``;
+                if (amount > 0){
+                    msgValor = `**MAMATA ESTATAL (SILVIO SANTOS JURÁSSICO)** 🚁\nO Banco Central imprimiu e distribuiu`
+                } else{
+                    msgValor = `**PLANO COLLOR** 💰\nO Banco Central confiscou`
+                }
+
+                let msg = `${senderTag}🚁 ${msgValor} 🪙 **${Math.abs(amount)} Bostocoins** para ${count} membros do grupo!`;
                 if (ignorados > 0) msg += `\n\n🚫 _Atenção: ${ignorados} pessoa(s) sofreram sanções do governo!_`;
                 return msg;
 
@@ -756,7 +763,14 @@ constructor(db) {
             await this.db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [amount, targetId]);
             
             const cleanNum = targetId.split('@')[0];
-            return `${senderTag}💰 **INJEÇÃO DE CAPITAL** 💰\nO Banco Central transferiu 🪙 **${amount} Bostocoins** para @${cleanNum}.`;
+            let msg = ``;
+            if (amount > 0){
+                msg = `**INJEÇÃO DE CAPITAL** 💰\nO Banco Central transferiu`
+            } else{
+                msg = `**PLANO COLLOR** 💰\nO Banco Central confiscou`
+            }
+
+            return `${senderTag}💰 ${msg} 🪙 **${Math.abs(amount)} Bostocoins** para @${cleanNum}.`;
         }
     }
 

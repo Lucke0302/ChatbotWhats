@@ -530,7 +530,7 @@ class ParqueHandler {
 
         if (valorBrutoTotal <= 0 && digestaoMsg === "") return "";
 
-        const metadeInGen = Math.floor(valorBrutoTotal / 2);
+        const metadeInGen = Math.floor(valorBrutoTotal / 4);
         const baseDoGrupo = valorBrutoTotal - metadeInGen;
         
         const lucroFinalGrupo = Math.floor(baseDoGrupo * multReceita);

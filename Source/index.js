@@ -902,16 +902,51 @@ async function connectToWhatsApp() {
     const chatbot = new ChatModel(db, genAI)
     await chatbot.updateOnlineStatus();
 
+    // ==========================================
+    //  SERVIDOR EXPRESS E WEBSOCKET 
+    // ==========================================
+    const http = require('http');
+    const { Server } = require('socket.io');
+
     const app = express();
     app.use(cors());
+
+    const server = http.createServer(app);
+
+    const io = new Server(server, {
+        cors: { origin: "*" }
+    });
 
     app.get('/api/dashboard', async (req, res) => {
         const data = await chatbot.getDashboardDataAPI();
         res.json(data);
     });
 
-    app.listen(3000, () => {
-        console.log('📈 [API] Dashboard rodando na porta 3000/api/dashboard');
+    io.on('connection', (socket) => {
+        console.log(`🟢 [DASHBOARD] Novo espião conectado: ${socket.id}`);
+        
+        chatbot.getDashboardDataAPI().then(data => {
+            socket.emit('dashboard_update', data);
+        });
+
+        socket.on('disconnect', () => {
+            console.log(`🔴 [DASHBOARD] Espião desconectado: ${socket.id}`);
+        });
+    });
+
+    setInterval(async () => {
+        if (io.engine.clientsCount > 0) { 
+            try {
+                const data = await chatbot.getDashboardDataAPI();
+                io.emit('dashboard_update', data);
+            } catch (e) {
+                console.error("Erro no loop do WebSocket:", e);
+            }
+        }
+    }, 3000);
+
+    server.listen(3000, '0.0.0.0', () => {
+        console.log('📈 [API/WS] Dashboard rodando na porta 3000');
     });
     
     //Envia figurinha

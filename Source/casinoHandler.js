@@ -694,14 +694,14 @@ constructor(db) {
         }
     }
 
-// INJEÇÃO NA ECONOMIA
+    // INJEÇÃO NA ECONOMIA
     async handleGiveCoins(senderId, senderTag, targetId, amountStr, groupId, sock, exceptions = []) {
         if (senderId !== "5513991008854@s.whatsapp.net") {
             return `${senderTag}🚫 Negativo! Só o Presidente do Banco Central tem a chave da impressora de dinheiro.`;
         }
 
         const amount = parseInt(amountStr);
-        if (isNaN(amount) || amount <= 0) {
+        if (isNaN(amount)) {
             return `${senderTag}⚠️ Digite um valor válido para injetar na economia.`;
         }
 

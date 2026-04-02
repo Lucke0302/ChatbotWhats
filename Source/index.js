@@ -901,6 +901,18 @@ async function connectToWhatsApp() {
     //Instancia o chatbot
     const chatbot = new ChatModel(db, genAI)
     await chatbot.updateOnlineStatus();
+
+    const app = express();
+    app.use(cors());
+
+    app.get('/api/dashboard', async (req, res) => {
+        const data = await chatbot.getDashboardDataAPI();
+        res.json(data);
+    });
+
+    app.listen(3000, () => {
+        console.log('📈 [API] Dashboard rodando na porta 3000/api/dashboard');
+    });
     
     //Envia figurinha
     const sendSticker = async (sock, db, from, msg, mentions, command) => {
@@ -1704,17 +1716,3 @@ async function connectToWhatsApp() {
 }
 
 connectToWhatsApp();
-
-
-const chatbot = new ChatModel(db, genAI)
-const app = express();
-app.use(cors());
-
-app.get('/api/dashboard', async (req, res) => {
-    const data = await chatbot.getDashboardDataAPI();
-    res.json(data);
-});
-
-app.listen(3000, () => {
-    console.log('📈 [API] InGen Dashboard rodando na porta 3000/api/dashboard');
-});

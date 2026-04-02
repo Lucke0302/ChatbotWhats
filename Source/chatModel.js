@@ -201,10 +201,9 @@ class ChatModel {
             },
             '!cassino': async (ctx) => {
                 const tag = await this.pokemonHandler.getUserTag(ctx.sender);
+                const netGroupId = await this.getNetGroupId(ctx.from);
                 const args = ctx.command.trim().split(/\s+/);
                 const subCommand = args[1]?.toLowerCase();
-                
-                const groupId = ctx.from;
                 const sock = ctx.sock;
 
                 if (!subCommand || subCommand === 'saldo' || subCommand === 'ajuda') {
@@ -212,16 +211,16 @@ class ChatModel {
                 }
                 if (!isNaN(subCommand)) {
                     const bet = parseInt(subCommand);
-                    return await this.casinoHandler.playSlots(ctx.sender, tag, bet, groupId, sock);
+                    return await this.casinoHandler.playSlots(ctx.sender, tag, bet, netGroupId, sock);
                 }
                 if (subCommand === 'cara' || subCommand === 'coroa') {
                     const bet = parseInt(args[2]);
-                    return await this.casinoHandler.playCoinflip(ctx.sender, tag, subCommand, bet, groupId, sock);
+                    return await this.casinoHandler.playCoinflip(ctx.sender, tag, subCommand, bet, netGroupId, sock);
                 }
                 if (subCommand === 'roleta') {
                     const color = args[2]?.toLowerCase();
                     const bet = parseInt(args[3]);
-                    return await this.casinoHandler.playRoulette(ctx.sender, tag, color, bet, groupId, sock);
+                    return await this.casinoHandler.playRoulette(ctx.sender, tag, color, bet, netGroupId, sock);
                 }
 
                 if (subCommand === 'mega') {
@@ -231,7 +230,7 @@ class ChatModel {
                     
                     const number = parseInt(args[2]);
                     const bet = parseInt(args[3]);
-                    return await this.casinoHandler.playMega(ctx.sender, tag, number, bet, groupId, sock);
+                    return await this.casinoHandler.playMega(ctx.sender, tag, number, bet, netGroupId, sock);
                 }
 
                 if (subCommand === 'bolao') {
@@ -241,7 +240,7 @@ class ChatModel {
 
                     const number = parseInt(args[2]);
                     const bet = parseInt(args[3]);
-                    return await this.casinoHandler.playBolao(ctx.sender, tag, number, bet, groupId, sock);
+                    return await this.casinoHandler.playBolao(ctx.sender, tag, number, bet, netGroupId, sock);
                 }
 
                 return `${tag}🎰 **CASSINO E ECONOMIA DO BOSTOSSAURO** 🎰\n\n` +
@@ -418,15 +417,15 @@ class ChatModel {
                 
                 if (subCommand === 'vender') {
                     if (args[2]?.toLowerCase() === 'lixo') {
-                        return await this.pescariaHandler.handleVenderLixo(ctx.sender, tag);
+                        return await this.pescariaHandler.handleVenderLixo(ctx.sender, tag, netGroupId, ctx.sock);
                     }
                     
                     if (args[2]?.toLowerCase() === 'repetidos' || args[2]?.toLowerCase() === 'repetido') {
-                        return await this.pescariaHandler.handleRepetidos(ctx.sender, tag, 'vender');
+                        return await this.pescariaHandler.handleRepetidos(ctx.sender, tag, 'vender', netGroupId, ctx.sock);
                     }
                     
                     const itemCodes = args.slice(2).join(' ');
-                    return await this.pescariaHandler.handleVender(ctx.sender, tag, itemCodes);
+                    return await this.pescariaHandler.handleVender(ctx.sender, tag, itemCodes, netGroupId, ctx.sock);
                 }
 
                 if (subCommand === 'valor' || subCommand === 'avaliar' || subCommand === 'patrimonio') {

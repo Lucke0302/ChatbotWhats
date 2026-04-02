@@ -2818,12 +2818,35 @@ class PokemonHandler {
 
         const { userA, userB, offerA, offerB } = session;
 
-        await this.db.run("UPDATE user_pokemons SET user_id = ?, friendship = 70, team_slot = -1 WHERE id = ?", [userB, offerA.id]);
-        await this.db.run("UPDATE user_pokemons SET user_id = ?, friendship = 70, team_slot = -1 WHERE id = ?", [userA, offerB.id]);
+        const getFirstEmptySlot = async (userId) => {
+            const slots = await this.db.all(
+                "SELECT team_slot FROM user_pokemons WHERE user_id = ? AND team_slot > 0 ORDER BY team_slot ASC", 
+                [userId]
+            );
+            const occupied = slots.map(s => s.team_slot);
+            let targetSlot = 1;
+            while (occupied.includes(targetSlot)) {
+                targetSlot++;
+            }
+            return targetSlot;
+        };
+
+        const slotForUserB = await getFirstEmptySlot(userB);
+        const slotForUserA = await getFirstEmptySlot(userA);
+
+        await this.db.run(
+            "UPDATE user_pokemons SET user_id = ?, friendship = 70, team_slot = ? WHERE id = ?", 
+            [userB, slotForUserB, offerA.id]
+        );
+        
+        await this.db.run(
+            "UPDATE user_pokemons SET user_id = ?, friendship = 70, team_slot = ? WHERE id = ?", 
+            [userA, slotForUserA, offerB.id]
+        );
         
         this.tradeSessions.delete(sessionKey);
 
-        let log = `🎉 **TROCA REALIZADA COM SUCESSO!**\n_Os pokémon foram enviados para o PC dos novos donos._\n\n`;
+        let log = `🎉 **TROCA REALIZADA COM SUCESSO!**\n_Os pokémon foram enviados para o primeiro espaço livre dos novos donos._\n\n`;
         
         const adviceA = await this.getEvolutionAdvice(offerA.id);
         if (adviceA) log += `👉 @${userB.split('@')[0]}: ${adviceA}\n`;

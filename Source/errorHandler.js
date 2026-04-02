@@ -28,7 +28,13 @@ const ERROR_DICTIONARY = {
     "NO_USER_TO_TIMEOUT": "❌ Usuário inválido",
     "SEND_MESSAGE_ERROR": "❌ Deu algum ruim na hora de enviar a figurinha ou a mensagem. O WhatsApp me sabotou.",
     "EMPTY_DAYCARE": "🏡 **DAY CARE POKÉMON** 🏡\nO Day Care está vazio.\nUse: *!poke daycare [slot]* para deixar alguém treinando.\n\n💰 *Custo:* 200 coins por nível subido.",
-    "DAYCARE_DB_ERROR": "❌ Deu algum erro maluco na hora de abrir o Daycare. O Sr. Pokémon deve ter tropeçado nos cabos do servidor."
+    "DAYCARE_DB_ERROR": "❌ Deu algum erro maluco na hora de abrir o Daycare. O Sr. Pokémon deve ter tropeçado nos cabos do servidor.",
+    "POKE_WIP_ROUTE": "🚧 Calma aí, apressadinho! Os engenheiros ainda estão construindo essa rota na V2.",
+    "POKE_NO_MONS": "🚫 Você ainda não é um treinador! Digite *!poke2 comecar* para pegar seu primeiro parceiro.",
+    "POKE_FAINTED": "🚑 Seus Pokémon estão todos desmaiados! Use *!poke2 curar* antes de arrumar confusão.",
+    "POKE_NO_BATTLE": "🤷 Você não está em nenhuma batalha no momento.",
+    "POKE_INVALID_SLOT": "⚠️ Slot inválido! Digite um número de 1 a 6.",
+    "POKE_FULL_TEAM": "📦 Seu time está cheio! Esse Pokémon foi enviado direto para o seu PC."
 };
 
 // Mensagem padrão para erros não mapeados (bugs reais)

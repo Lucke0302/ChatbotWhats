@@ -71,8 +71,24 @@ constructor(db) {
     async updateBalance(userId, amount, groupId = null, sock = null, bet = 0) {
         const valorParaMissao = bet > 0 ? bet : (amount < 0 ? Math.abs(amount) : 0);
         
-        if (valorParaMissao > 0 && this.parqueHandler && groupId && groupId.includes('@g.us')) {
-            this.parqueHandler.registrarProgressoComunitario(groupId, 'cassino', valorParaMissao, sock).catch(()=>{});
+        if (valorParaMissao > 0) {
+            if (this.parqueHandler && groupId && groupId.includes('@g.us')) {
+                this.parqueHandler.registrarProgressoComunitario(groupId, 'cassino', valorParaMissao, sock).catch(()=>{});
+            }
+            
+            try {
+                await this.db.run(`
+                    UPDATE usuarios 
+                    SET financas = json_set(
+                        COALESCE(financas, '{}'), 
+                        '$.total_apostado', 
+                        COALESCE(json_extract(financas, '$.total_apostado'), 0) + ?
+                    )
+                    WHERE id_usuario = ?
+                `, [valorParaMissao, userId]);
+            } catch (e) {
+                console.error("Erro ao salvar histórico de apostas:", e);
+            }
         }
         
         await this.db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [amount, userId]);

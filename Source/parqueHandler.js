@@ -544,19 +544,19 @@ class ParqueHandler {
             }
         });
 
-        const acionistas = ativos.filter(a => donosSet.has(a.id_usuario));
+        const acionistasIds = Array.from(donosSet); 
         
         let pagamentoMsg = "";
-        if (acionistas.length > 0 && lucroFinalGrupo > 0) {
-            const cota = Math.floor(lucroFinalGrupo / acionistas.length);
-            for (const acionista of acionistas) {
-                await this.db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [cota, acionista.id_usuario]);
+        if (acionistasIds.length > 0 && lucroFinalGrupo > 0) {
+            const cota = Math.floor(lucroFinalGrupo / acionistasIds.length);
+            for (const acionistaId of acionistasIds) {
+                await this.db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [cota, acionistaId]);
             }
             
             pagamentoMsg = `💰 A bilheteria arrecadou 🪙 **${valorBrutoTotal} Bostocoins** brutos!\n`;
             pagamentoMsg += `🏢 A InGen confiscou 50% (🪙 **${metadeInGen}**).\n`;
-            pagamentoMsg += `📉 Dos 50% restantes (🪙 **${baseDoGrupo}**), vocês recuperaram apenas **${Math.round(multReceita * 100)}%** devido à política atualizada da InGen.\n`;
-            pagamentoMsg += `💸 **Lucro Líquido:** 🪙 **${lucroFinalGrupo}** (Cota de 🪙 **${cota}** para os ${acionistas.length} investidores).\n`;
+            pagamentoMsg += `📉 Dos 50% restantes (🪙 **${baseDoGrupo}**), vocês recuperaram apenas **${Math.round(multReceita * 100)}%** devido à punição da Temporada.\n`;
+            pagamentoMsg += `💸 **Lucro Líquido:** 🪙 **${lucroFinalGrupo}** (Cota de 🪙 **${cota}** para os ${acionistasIds.length} investidores).\n`;
 
         } else if (lucroFinalGrupo <= 0 && valorBrutoTotal > 0) {
             pagamentoMsg = `💰 A bilheteria arrecadou 🪙 **${valorBrutoTotal}**, mas a InGen levou 50% e limitou o resto. Vocês não lucraram NADA!\n`;

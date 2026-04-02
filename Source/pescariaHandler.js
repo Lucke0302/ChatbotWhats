@@ -879,7 +879,7 @@ class PescariaHandler {
     }
 
     // MERCADO DE PEIXES
-    async handleVender(userId, userTag, itemIndicesStr) {
+    async handleVender(userId, userTag, itemIndicesStr, groupId = null, sock = null) {
         const { sellableArray, player } = await this.getSellableList(userId);
 
         if (sellableArray.length === 0) {
@@ -939,6 +939,23 @@ class PescariaHandler {
         const profitResult = await this.casinoHandler.verifyProfit(userId, totalValue);
         await this.db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [profitResult.finalProfit, userId]);
 
+        if (this.parqueHandler && groupId && groupId.includes('@g.us') && profitResult.finalProfit > 0) {
+            this.parqueHandler.registrarProgressoComunitario(groupId, 'vendas', profitResult.finalProfit, sock).catch(()=>{});
+            try {
+                await this.db.run(`
+                    UPDATE usuarios 
+                    SET pescaria_data = json_set(
+                        COALESCE(pescaria_data, '{}'), 
+                        '$.total_vendas_coins', 
+                        COALESCE(json_extract(pescaria_data, '$.total_vendas_coins'), 0) + ?
+                    )
+                    WHERE id_usuario = ?
+                `, [profitResult.finalProfit, userId]);
+            } catch (e) {
+                console.error("Erro ao salvar histórico de vendas de peixe:", e);
+            }
+        }
+
         let msg = `${userTag}🤝 **VENDA EM LOTE CONCLUÍDA!**\n\nVocê vendeu:\n`;
         
         soldFishes.reverse().forEach(f => {
@@ -951,7 +968,7 @@ class PescariaHandler {
     }
 
     // ♻️ VENDA AUTOMÁTICA DE LIXO
-    async handleVenderLixo(userId, userTag) {
+    async handleVenderLixo(userId, userTag, groupId = null, sock = null) { 
         const player = await this.getPlayerData(userId);
         
         if (!player.records || !Array.isArray(player.records) || player.records.length === 0) {
@@ -986,12 +1003,29 @@ class PescariaHandler {
 
         const profitResult = await this.casinoHandler.verifyProfit(userId, totalValue);
         await this.db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [profitResult.finalProfit, userId]);
+        
+        if (this.parqueHandler && groupId && groupId.includes('@g.us') && profitResult.finalProfit > 0) {
+            this.parqueHandler.registrarProgressoComunitario(groupId, 'vendas', profitResult.finalProfit, sock).catch(()=>{});
+            try {
+                await this.db.run(`
+                    UPDATE usuarios 
+                    SET pescaria_data = json_set(
+                        COALESCE(pescaria_data, '{}'), 
+                        '$.total_vendas_coins', 
+                        COALESCE(json_extract(pescaria_data, '$.total_vendas_coins'), 0) + ?
+                    )
+                    WHERE id_usuario = ?
+                `, [profitResult.finalProfit, userId]);
+            } catch (e) {
+                console.error("Erro ao salvar histórico de vendas de peixe:", e);
+            }
+        }
 
         return `${userTag}♻️ **COLETA SELETIVA CONCLUÍDA!**\n\nVocê reciclou **${trashCount} itens de lixo** (Botas, pneus, calotas...) e ganhou 🪙 **${totalValue} Bostocoins** pelo serviço ambiental!${profitResult.msg}`;
     }
 
     // PROCESSA PEIXES REPETIDOS
-    async handleRepetidos(userId, userTag, action = 'vender', groupId = null) {
+    async handleRepetidos(userId, userTag, action = 'vender', groupId = null, sock = null) {
         const player = await this.getPlayerData(userId);
         
         if (!player.records || !Array.isArray(player.records) || player.records.length === 0) {
@@ -1051,8 +1085,26 @@ class PescariaHandler {
         if (action === 'vender') {
             const profitResult = await this.casinoHandler.verifyProfit(userId, totalValue);
             await this.db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [profitResult.finalProfit, userId]);
+            
+            if (this.parqueHandler && groupId && groupId.includes('@g.us') && profitResult.finalProfit > 0) {
+                this.parqueHandler.registrarProgressoComunitario(groupId, 'vendas', profitResult.finalProfit, sock).catch(()=>{});
+                try {
+                    await this.db.run(`
+                        UPDATE usuarios 
+                        SET pescaria_data = json_set(
+                            COALESCE(pescaria_data, '{}'), 
+                            '$.total_vendas_coins', 
+                            COALESCE(json_extract(pescaria_data, '$.total_vendas_coins'), 0) + ?
+                        )
+                        WHERE id_usuario = ?
+                    `, [profitResult.finalProfit, userId]);
+                } catch (e) {
+                    console.error("Erro ao salvar histórico de vendas de peixe:", e);
+                }
+            }
 
             return `${userTag}📦 **LIMPEZA DE REPETIDOS CONCLUÍDA!**\n\nVocê vendeu **${soldCount} peixes duplicados** (mantendo apenas o seu recorde absoluto de cada espécie) e lucrou 🪙 **${totalValue} Bostocoins** no mercadão!${profitResult.msg}`;
+            
         } 
         else if (action === 'depositar') {
             if (!groupId) return `${userTag} ❌ Erro: ID do grupo não fornecido para o depósito.`;

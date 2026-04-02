@@ -232,7 +232,7 @@ class ChatModel {
             '!lol': async (ctx) => await lolCommandHandler.handleLolCommand(ctx.command),
             '!notas': async (ctx) => {                
                 const tag = await this.pokemonHandler.getUserTag(ctx.sender);
-                await this.handleNotas(ctx.sender, tag)
+                return await this.handleNotas(ctx.sender, tag)
             },
             '!clima': async (ctx) => await this.handleClimaCommand(ctx.command, ctx.sender),
             '!cotacao': async (ctx) => await currencyCommandHandler.convertCurrency(ctx.command),

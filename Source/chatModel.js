@@ -8,6 +8,7 @@ const ToxicHandler = require('./toxicHandler');
 const lolCommandHandler = require('./lolCommand');
 const ttsCommandHandler = require('./ttsCommand');
 const PokemonHandler = require('./pokemonHandler');
+const PokeRouter = require('./Poke/index');
 const migrationCommandHandler = require('./migrarCommand');
 const resenhaCommand = require('./resenhaCommand');
 const CasinoHandler = require('./casinoHandler');
@@ -43,6 +44,7 @@ class ChatModel {
         this.toxicHandler = new ToxicHandler(db);
         this.pokemonHandler = new PokemonHandler(db);
         this.pokemonHandler.init();
+        this.pokeRouter = new PokeRouter(db);
         this.initializeCommandHandlers();
         this.resenhaHandler = new resenhaCommand(db, genAI);
         this.casinoHandler = new CasinoHandler(db);
@@ -185,6 +187,20 @@ class ChatModel {
             },
             '!poke': async (ctx) => {
                 return await this.pokemonHandler.handleCommand(ctx.from, ctx.sender, ctx.command, ctx.sock, ctx.mentions);
+            },
+            '!poke2': async (ctx) => {
+                const replyFunction = async (content) => {
+                    if (!ctx.sock) return content; 
+                    if (typeof content === 'string') {
+                        await ctx.sock.sendMessage(ctx.from, { text: content });
+                    } 
+                    else {
+                        await ctx.sock.sendMessage(ctx.from, content);
+                    }
+                };
+                await this.pokeRouter.handle(ctx.from, ctx.sender, ctx.command, ctx.sock, ctx.mentions, replyFunction);
+                
+                return null;
             },
             '!id': async (ctx) => `${ctx.from}`,
             '!migrar': async (ctx) => {

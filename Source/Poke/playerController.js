@@ -18,7 +18,7 @@ class PlayerController {
         const hasPokemon = await this.db.getCountUserPokemons(userId);
         
         if (hasPokemon > 0) {
-            throw new Error("🚫 Você já iniciou sua jornada! Cuide bem dos seus Pokémon.");
+            throw new Error("ALREADY_HAVE_MON");
         }
 
         if (!param) {
@@ -42,10 +42,10 @@ class PlayerController {
         else if (choice.includes('tree')) dexId = 252;
         else if (choice.includes('torch')) dexId = 255;
         else if (choice.includes('mud')) dexId = 258;
-        else throw new Error("❌ Inicial inválido! Escolha um da lista. Ex: !poke2 escolher squirtle");
+        else throw new Error("INVALID_INITIAL");
 
         const pk = await this.db.getPokedexById(dexId);
-        if (!pk) throw new Error("⚠️ Erro na Pokédex. O Professor Carvalho derrubou os dados.");
+        if (!pk) throw new Error("DEX_ERROR");
 
         const level = 5;
         const natureKey = this.getRandomNature();
@@ -91,7 +91,7 @@ class PlayerController {
     async healTeam(userId, replyFunction) {
         const encounter = await this.db.getActiveEncounter(userId);
         if (encounter) {
-            throw new Error("🚫 Você não pode curar seus Pokémon no meio de uma batalha! Fuja ou termine a luta primeiro.");
+            throw new Error("POKE_HEAL_BATTLE");
         }
 
         await this.db.healEntireTeam(userId);
@@ -139,7 +139,7 @@ class PlayerController {
             if (isNaN(slot) || slot < 1 || slot > 6) throw new Error("POKE_INVALID_SLOT");
 
             const poke = await this.db.getPokemonBySlot(userId, slot);
-            if (!poke) throw new Error(`🚫 Não tem ninguém no slot ${slot} do seu time.`);
+            if (!poke) throw new Error("POKE_SLOT_EMPTY");
 
             const caption = `📊 *FICHA: ${poke.nickname}* (Lvl ${poke.level})\n❤️ HP: ${poke.current_hp}/${poke.max_hp}\n🌱 Nature: ${poke.nature}`;
             

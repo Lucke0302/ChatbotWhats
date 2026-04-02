@@ -63,6 +63,34 @@ class ChatModel {
         }
     }
 
+    async registerMetric(type, commandName = null) {
+        const today = new Date().toISOString().split('T')[0];
+        
+        await this.db.run(`
+            INSERT OR IGNORE INTO metricas_diarias (data, comandos_totais, respostas_ia, mensagens_lidas, comando_mais_usado)
+            VALUES (?, 0, 0, 0, '{}')
+        `, [today]);
+
+        if (type === 'message') {
+            await this.db.run(`UPDATE metricas_diarias SET mensagens_lidas = mensagens_lidas + 1 WHERE data = ?`, [today]);
+        } else if (type === 'ai_response') {
+            await this.db.run(`UPDATE metricas_diarias SET respostas_ia = respostas_ia + 1 WHERE data = ?`, [today]);
+        } else if (type === 'command' && commandName) {
+            const row = await this.db.get("SELECT comandos_totais, comando_mais_usado FROM metricas_diarias WHERE data = ?", [today]);
+            if (row) {
+                let cmdStats = JSON.parse(row.comando_mais_usado || '{}');
+                cmdStats[commandName] = (cmdStats[commandName] || 0) + 1;
+                
+                await this.db.run(`
+                    UPDATE metricas_diarias 
+                    SET comandos_totais = comandos_totais + 1,
+                        comando_mais_usado = ?
+                    WHERE data = ?
+                `, [JSON.stringify(cmdStats), today]);
+            }
+        }
+    }
+
     getTodayDateString() {
         return new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
     }
@@ -146,7 +174,40 @@ class ChatModel {
                     return await this.executarWipeGlobal(ctx.sock);
                 }
 
-                return "⚙️ **PAINEL DIVINO** ⚙️\n\nDisponível:\n*!admin wipe* - Reseta a temporada do Bostoverso.";
+                // CÓDIGO DA CENTRAL DE DADOS
+                if (subCommand === 'painel' || subCommand === 'dashboard') {
+                    const today = new Date().toISOString().split('T')[0];
+                    const metrics = await this.db.get("SELECT * FROM metricas_diarias WHERE data = ?", [today]);
+                    
+                    if (!metrics) return "📊 A central ainda não captou nenhuma atividade suspeita hoje.";
+
+                    // Achar o comando mais usado
+                    const cmdStats = JSON.parse(metrics.comando_mais_usado || '{}');
+                    let topCmd = 'Nenhum';
+                    let topCount = 0;
+                    
+                    for (const [cmd, count] of Object.entries(cmdStats)) {
+                        if (count > topCount) {
+                            topCount = count;
+                            topCmd = cmd;
+                        }
+                    }
+
+                    // Calcular o PIB do servidor (Soma de todos os Bostocoins)
+                    const pibInfo = await this.db.get("SELECT SUM(bostocoins) as pib FROM usuarios");
+                    const pib = pibInfo && pibInfo.pib ? pibInfo.pib : 0;
+
+                    let msg = `📈 **BOSTODASH - INGEN CORP** 📈\n_Monitoramento do dia: ${today}_\n\n`;
+                    msg += `👁️ **Mensagens Lidas:** ${metrics.mensagens_lidas}\n`;
+                    msg += `⚡ **Comandos Invocados:** ${metrics.comandos_totais}\n`;
+                    msg += `🤖 **Respostas da IA:** ${metrics.respostas_ia}\n`;
+                    msg += `🏆 **Comando Favorito:** ${topCmd} (${topCount}x)\n\n`;
+                    msg += `💰 **PIB do Bostoverso:** 🪙 ${pib.toLocaleString('pt-BR')} Bostocoins\n`;
+
+                    return msg;
+                }
+
+                return "⚙️ **PAINEL DIVINO** ⚙️\n\nDisponível:\n*!admin wipe* - Reseta a temporada do Bostoverso.\n*!admin dashboard* - Mostra o dashboard do dia atual.";
             },
             '!cidade': async (ctx) => {
                 const args = ctx.command.trim().split(/\s+/);
@@ -1395,6 +1456,8 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
                 return replyText;
             }
 
+            this.registerMetric('ai_response').catch(()=>{});
+
             return fullText
 
         } catch (error) {
@@ -1791,6 +1854,8 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
         const handler = this.commandHandlers[rootCommand];
 
         if (handler) {
+            this.registerMetric('command', rootCommand).catch(()=>{});
+
             const ctx = {
                 msg, sender, from, isGroup, command, quotedMessage, sock, name, user, mentions
             };

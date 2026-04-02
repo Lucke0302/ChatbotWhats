@@ -699,6 +699,16 @@ async function initDatabase() {
         );
     `);
 
+    await db.exec(`
+        CREATE TABLE IF NOT EXISTS metricas_diarias (
+            data TEXT PRIMARY KEY,
+            comandos_totais INTEGER DEFAULT 0,
+            respostas_ia INTEGER DEFAULT 0,
+            mensagens_lidas INTEGER DEFAULT 0,
+            comando_mais_usado TEXT DEFAULT '{}'
+        )
+    `);
+
     console.log('✅ Banco de dados SQLite inicializado e tabelas verificadas.');
 }
 
@@ -1126,6 +1136,9 @@ async function connectToWhatsApp() {
         const msg = m.messages[0];
 
         if (!msg.message || msg.key.fromMe) return;
+
+        // Interceptador: Conta mensagens lidas
+        chatbot.registerMetric('message').catch(()=>{});
 
         // Pega de quem é a mensagem e verifica se é de um grupo
         const from = msg.key.remoteJid;        

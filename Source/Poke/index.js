@@ -1,13 +1,13 @@
 const { handleBotError } = require('../errorHandler');
-// const Database = require('./database'); 
-// const BattleEngine = require('./battleEngine');
-// const PlayerController = require('./playerController');
+const Database = require('./database'); 
+const BattleEngine = require('./battleEngine');
+const PlayerController = require('./playerController');
 
 class PokeRouter {
     constructor(dbConnection) {
-        // this.db = new Database(dbConnection);
-        // this.player = new PlayerController(this.db);
-        // this.battle = new BattleEngine(this.db);
+        this.db = new Database(dbConnection);
+        this.player = new PlayerController(this.db);
+        this.battle = new BattleEngine(this.db);
     }
 
     async handleCommand(from, sender, command, sock, mentions, replyFunction) {
@@ -22,19 +22,18 @@ class PokeRouter {
         };
 
         try {
-            // Roteamento puro. Nenhuma regra de negócio fica aqui.
             switch (action) {
                 // --- INÍCIO E PERFIL ---
                 case 'comecar':
                 case 'start':
                 case 'escolher':
-                    // await this.player.handleStarter(sender, param, replyFunction);
+                    await this.player.handleStarter(sender, param, replyFunction);
                     throw new Error("POKE_WIP_ROUTE"); 
 
                 case 'perfil':
                 case 'time':
                 case 'mostrar':
-                    // await this.player.getProfileDetails(sender, action, param, sock, from, replyFunction);
+                    await this.player.getProfileDetails(sender, action, param, sock, from, replyFunction);
                     throw new Error("POKE_WIP_ROUTE");
 
                 // --- COMBATE ---
@@ -48,11 +47,10 @@ class PokeRouter {
                 case 'atacar':
                 case 'capturar':
                 case 'fugir':
-                    // Exemplo de validação prévia que joga o erro pro Middleware
                     if (action === 'atacar' && param && isNaN(parseInt(param))) {
                         throw new Error("NOT_A_NUMBER");
                     }
-                    // await this.battle.processTurn(from, sender, action, param, sock, replyFunction);
+                    await this.battle.processTurn(from, sender, action, param, sock, replyFunction);
                     throw new Error("POKE_WIP_ROUTE");
 
                 // --- SISTEMAS EXTRAS ---
@@ -60,12 +58,12 @@ class PokeRouter {
                 case 'box':
                 case 'trocar':
                 case 'switch':
-                    // await this.player.manageTeam(sender, action, param, replyFunction);
+                    await this.player.manageTeam(sender, action, param, replyFunction);
                     throw new Error("POKE_WIP_ROUTE");
 
                 case 'curar':
                 case 'heal':
-                    // await this.player.healTeam(sender, replyFunction);
+                    await this.player.healTeam(sender, replyFunction);
                     throw new Error("POKE_WIP_ROUTE");
 
                 case 'ajuda':

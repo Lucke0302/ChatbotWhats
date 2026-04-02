@@ -1705,6 +1705,8 @@ async function connectToWhatsApp() {
 
 connectToWhatsApp();
 
+
+const chatbot = new ChatModel(db, genAI)
 const app = express();
 app.use(cors());
 

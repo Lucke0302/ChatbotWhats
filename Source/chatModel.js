@@ -198,7 +198,7 @@ class ChatModel {
                         await ctx.sock.sendMessage(ctx.from, content);
                     }
                 };
-                await this.pokeRouter.handle(ctx.from, ctx.sender, ctx.command, ctx.sock, ctx.mentions, replyFunction);
+                await this.pokeRouter.handleCommand(ctx.from, ctx.sender, ctx.command, ctx.sock, ctx.mentions, replyFunction);
                 
                 return null;
             },

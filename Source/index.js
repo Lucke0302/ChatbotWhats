@@ -835,6 +835,9 @@ const botCommands = {
     },
     '!cidade': {
         emoji: '📍'
+    },
+    '!admin': {
+        emoji: '🔐'
     }
 };
 

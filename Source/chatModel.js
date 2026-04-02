@@ -230,7 +230,10 @@ class ChatModel {
                 return await this.handleTradutorCommand(ctx.from, ctx.sender, ctx.name, ctx.isGroup, ctx.command);
             },
             '!lol': async (ctx) => await lolCommandHandler.handleLolCommand(ctx.command),
-            '!notas': async (ctx) => await this.handleNotasCommand(ctx.sender),
+            '!notas': async (ctx) => {                
+                const tag = await this.pokemonHandler.getUserTag(ctx.sender);
+                await this.handleNotas(ctx.sender, tag)
+            },
             '!clima': async (ctx) => await this.handleClimaCommand(ctx.command, ctx.sender),
             '!cotacao': async (ctx) => await currencyCommandHandler.convertCurrency(ctx.command),
             '!pdf': async (ctx) => {
@@ -1761,6 +1764,22 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
         ☢️ !toxico\n
         🧐 !tradutor
         \n\nPara detalhes, digite: *!ajuda [comando]*`;
+    }
+
+    // O Dossiê Confidencial da InGen
+    async handleNotas(userId, userTag) {
+        try {
+            const user = await this.db.get("SELECT anotacoes FROM usuarios WHERE id_usuario = ?", [userId]);
+            
+            if (!user || !user.anotacoes || user.anotacoes.trim() === '') {
+                return `${userTag} 📝 **FICHA LIMPA (OU IRRELEVANTE)**\n\nEu vasculhei meus arquivos e não encontrei nenhuma anotação sobre você. Pelo visto, você ainda não fez nada digno de entrar no meu radar de fofocas.`;
+            }
+
+            return `${userTag} 📝 **DOSSIÊ CONFIDENCIAL DO BOSTOSSAURO:**\n\n${user.anotacoes}\n\n_Isso é o que eu penso de você. Tente não chorar._`;
+        } catch (e) {
+            console.error("Erro ao buscar notas do usuário:", e);
+            return `${userTag} ❌ Erro ao acessar os arquivos do pentágono.`;
+        }
     }
 
     //Responde o comando !d

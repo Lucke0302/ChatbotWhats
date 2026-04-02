@@ -1,4 +1,6 @@
 require('dotenv').config();
+const express = require('express');
+const cors = require('cors');
 
 process.on('uncaughtException', (err) => {
     console.error('🚨 [CRASH EVITADO] Exceção não tratada:', err);
@@ -1702,3 +1704,15 @@ async function connectToWhatsApp() {
 }
 
 connectToWhatsApp();
+
+const app = express();
+app.use(cors());
+
+app.get('/api/dashboard', async (req, res) => {
+    const data = await chatbot.getDashboardDataAPI();
+    res.json(data);
+});
+
+app.listen(3000, () => {
+    console.log('📈 [API] InGen Dashboard rodando na porta 3000/api/dashboard');
+});

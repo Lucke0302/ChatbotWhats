@@ -1894,6 +1894,41 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
         let finalPrompt = await this.formulatePrompt(from, sender, name, isGroup, command, quotedMessage)
         return await this.getAiResponse(from, sender, name, isGroup, command, finalPrompt)
     }
+
+    // === API DO DASHBOARD ===
+    async getDashboardDataAPI() {
+        try {
+            const today = new Date().toISOString().split('T')[0];
+            
+            let metricasHoje = await this.db.get("SELECT * FROM metricas_diarias WHERE data = ?", [today]);
+            if (!metricasHoje) {
+                metricasHoje = { comandos_totais: 0, respostas_ia: 0, mensagens_lidas: 0, comando_mais_usado: '{}' };
+            }
+
+            const pibInfo = await this.db.get("SELECT SUM(bostocoins) as pib FROM usuarios");
+            const pib = pibInfo && pibInfo.pib ? pibInfo.pib : 0;
+
+            const ricos = await this.db.all("SELECT nome, bostocoins FROM usuarios ORDER BY bostocoins DESC LIMIT 5");
+
+            return {
+                status: "success",
+                date: today,
+                metrics: {
+                    messages_read: metricasHoje.mensagens_lidas,
+                    total_commands: metricasHoje.comandos_totais,
+                    ai_responses: metricasHoje.respostas_ia,
+                    commands_breakdown: JSON.parse(metricasHoje.comando_mais_usado || '{}')
+                },
+                economy: {
+                    total_pib: pib,
+                    top_richest: ricos
+                }
+            };
+        } catch (e) {
+            console.error("Erro ao gerar JSON do Dashboard:", e);
+            return { status: "error", message: e.message };
+        }
+    }
 }
 
 module.exports = ChatModel;

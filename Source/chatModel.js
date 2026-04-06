@@ -217,16 +217,18 @@ class ChatModel {
                 }
                 
                 if (ctx.sock) {
-                    await ctx.sock.sendMessage(ctx.from, { text: "⏳ Rodando 20 simulações de humor do Bostossauro... aguenta aí." });
+                    await ctx.sock.sendMessage(ctx.from, { text: "⏳ Rodando 20 simulações de humor do Bostossauro... aguenta aí que o bicho tá pensando." });
                 }
                 
                 let result = "*🔥 TESTE DE HUMOR DO BOSTOSSAURO (20x) 🔥*\n\n";
                 
                 for (let i = 1; i <= 20; i++) {
-                    const frase = await this.generateBomDia();
+                    const seedId = `${i}-${Date.now()}`;
+                    const frase = await this.generateBomDia(seedId);
+                    
                     result += `*[ ${i} ]* ${frase}\n`;
                     
-                    await new Promise(r => setTimeout(r, 1000));
+                    await new Promise(r => setTimeout(r, 1200)); 
                 }
                 
                 return result;

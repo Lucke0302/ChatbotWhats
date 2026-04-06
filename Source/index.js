@@ -1025,10 +1025,12 @@ async function connectToWhatsApp() {
 
                     const ROTAS_SILENCIOSAS = ["120363426917338477@g.us", "120363410458341287@g.us"];
 
+                    const humorMatinal = await chatbot.generateBomDia(`bomdia-${Date.now()}`);
+
                     const weatherComplement = await weatherCommandHandler.getWeather(targetCity);
                     const weatherForecastComplement = await weatherCommandHandler.getNextDayForecast(targetCity);
                     
-                    let baseMessage = "Bom dia, grupo! 🦖 O Bostossauro acordou e escolheu a violência.\n" + 
+                    let baseMessage = `${humorMatinal}\n` + 
                                       "Se quiser usar alguma das minhas funções, dá um !ajuda (ou !help).\n\n" + 
                                       weatherComplement + "\n\n" + 
                                       weatherForecastComplement;

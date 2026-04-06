@@ -1727,7 +1727,7 @@ async function connectToWhatsApp() {
         //e reage com emoji de olho
         if (isInteractWithBot && chatbot.isOnline) {
 
-            const ROTAS_SILENCIOSAS = ["ID_GRUPO_MOD@g.us", "ID_GRUPO_OFICIAL@g.us"];
+            const ROTAS_SILENCIOSAS = ["120363426917338477@g.us", "120363410458341287@g.us"];
             const isStreamGroup = ROTAS_SILENCIOSAS.includes(from);
 
             if (isStreamGroup && !command.startsWith('!')) {

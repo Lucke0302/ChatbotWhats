@@ -126,12 +126,12 @@ const STORE_CATALOG = {
 
 const ROD_CATALOG = {
         'bambu': { id: 'bambu', name: 'Vara de Bambu', mult: 1.0, luck: 0, anti_lixo: 0, ambar_chance: 0, emoji: '🎋', price: 0, next: 'fibra' },
-        'fibra': { id: 'fibra', name: 'Vara de Fibra de Vidro', mult: 1.10, luck: 5, anti_lixo: 10, ambar_chance: 1, emoji: '🎣', price: 800, next: 'grafite' },
-        'grafite': { id: 'grafite', name: 'Vara de Grafite Pro', mult: 1.20, luck: 10, anti_lixo: 20, ambar_chance: 2, emoji: '✒️', price: 1250, next: 'carbono' },
-        'carbono': { id: 'carbono', name: 'Vara de Carbono', mult: 1.30, luck: 15, anti_lixo: 40, ambar_chance: 3, emoji: '💎', price: 2000, next: 'aco' },    
-        'aco': { id: 'aco', name: 'Vara de Aço Temperado', mult: 1.40, luck: 20, anti_lixo: 60, ambar_chance: 4, emoji: '🔩', price: 3000, next: 'grafeno' },
-        'grafeno': { id: 'grafeno', name: 'Vara de Grafeno', mult: 1.50, luck: 25, anti_lixo: 80, ambar_chance: 5, emoji: '💎', price: 5000, next: 'adamantium' },
-        'adamantium': { id: 'adamantium', name: 'Vara de Adamantium', mult: 1.60, luck: 30, anti_lixo: 100, ambar_chance: 6, emoji: '🌌', price: 8000, next: null }
+        'fibra': { id: 'fibra', name: 'Vara de Fibra de Vidro', mult: 1.10, luck: 5, anti_lixo: 10, ambar_chance: 0.5, emoji: '🎣', price: 800, next: 'grafite' },
+        'grafite': { id: 'grafite', name: 'Vara de Grafite Pro', mult: 1.20, luck: 7.5, anti_lixo: 20, ambar_chance: 1, emoji: '✒️', price: 1250, next: 'carbono' },
+        'carbono': { id: 'carbono', name: 'Vara de Carbono', mult: 1.30, luck: 10, anti_lixo: 30, ambar_chance: 1.5, emoji: '💎', price: 2000, next: 'aco' },    
+        'aco': { id: 'aco', name: 'Vara de Aço Temperado', mult: 1.40, luck: 12.5, anti_lixo: 40, ambar_chance: 2, emoji: '🔩', price: 3000, next: 'grafeno' },
+        'grafeno': { id: 'grafeno', name: 'Vara de Grafeno', mult: 1.50, luck: 15, anti_lixo: 50, ambar_chance: 2.5, emoji: '💎', price: 5000, next: 'adamantium' },
+        'adamantium': { id: 'adamantium', name: 'Vara de Adamantium', mult: 1.60, luck: 20, anti_lixo: 60, ambar_chance: 3, emoji: '🌌', price: 8000, next: null }
 };
 
 const BOAT_CATALOG = {

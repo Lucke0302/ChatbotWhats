@@ -76,6 +76,55 @@ class StreamHandler {
         return result.changes > 0 ? "🗑️ Moderador removido." : "⚠️ Usuário não era mod deste grupo.";
     }
 
+    async handleListMods(ctx) {
+        const { sock, from, sender } = ctx;
+        const id_pai = await this.getNetGroupId(from);
+
+        if (!(await this.isMod(sender, id_pai))) {
+            return "🚫 Acesso negado. A lista da equipe é confidencial.";
+        }
+
+        try {
+            const modsDb = await this.db.all(`
+                SELECT sm.id_usuario, u.nome 
+                FROM stream_mods sm
+                LEFT JOIN usuarios u ON sm.id_usuario = u.id_usuario
+                WHERE sm.id_pai = ?
+            `, [id_pai]);
+
+            if (!modsDb || modsDb.length === 0) {
+                return "⚠️ Nenhum moderador registrado nesta Ilha ainda.";
+            }
+
+            const groupMetadata = await sock.groupMetadata(id_pai);
+            const participants = groupMetadata.participants;
+
+            let msg = "🛡️ *MODERADORES DA ILHA* 🛡️\n\n";
+
+            modsDb.forEach((mod, index) => {
+                const inGroup = participants.find(p => p.id === mod.id_usuario);
+                
+                const numeroLimpo = mod.id_usuario.replace('@s.whatsapp.net', '');
+                
+                let displayName = mod.nome && mod.nome !== 'Desconhecido' ? mod.nome : `+${numeroLimpo}`;
+                
+                if (mod.id_usuario === this.OWNER) {
+                    displayName = `👑 ${displayName} (Arquiteto)`;
+                }
+
+                const statusTag = inGroup ? "" : " _(Fora do grupo)_";
+
+                msg += `*[ ${index + 1} ]* ${displayName}${statusTag}\n`;
+            });
+
+            return msg;
+
+        } catch (error) {
+            console.error("Erro ao listar mods:", error);
+            return "❌ Erro ao acessar os arquivos. O RH deve estar de folga.";
+        }
+    }
+
     parseTargetUser(args, mentions) {
         if (mentions && mentions.length > 0) return mentions[0];
         const numberArg = args.find(a => /\d/.test(a) && !a.startsWith('!'));

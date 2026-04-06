@@ -855,6 +855,12 @@ const botCommands = {
     },
     '!removemod': {
         emoji: '❌'
+    },
+    '!listmods': {
+        emoji: '📝'
+    },
+    '!mods': {
+        emoji: '📝'
     }
 };
 

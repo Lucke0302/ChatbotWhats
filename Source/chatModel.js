@@ -226,6 +226,12 @@ class ChatModel {
             '!removemod': async (ctx) => {
                 return await this.streamHandler.handleRemoveMod(ctx);
             },
+            '!mods': async (ctx) => {
+                return await this.streamHandler.handleListMods(ctx);
+            },
+            '!listmods': async (ctx) => {
+                return await this.streamHandler.handleListMods(ctx);
+            },
             '!cidade': async (ctx) => {
                 const args = ctx.command.trim().split(/\s+/);
                 

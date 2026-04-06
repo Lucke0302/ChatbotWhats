@@ -1513,21 +1513,30 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
         }
     }
 
-    async generateBomDia() {
+    async generateBomDia(seedAleatoria) {
+        const temas = [
+            "fome extrema por humanos", "ódio matinal", "arrogância suprema", 
+            "preguiça de existir", "vontade de morder o admin", "desprezo total", 
+            "filosofia de boteco", "sarcasmo nível máximo", "caos e destruição", 
+            "tédio absoluto", "capitalismo selvagem", "crise existencial jurássica"
+        ];
+        const tema = temas[Math.floor(Math.random() * temas.length)];
+
         const prompt = `Você é o Bostossauro, um dinossauro híbrido arrogante, sarcástico e rabugento de um bot de WhatsApp.
-        Crie UMA frase curta de bom dia para o grupo.
+        [ID de Aleatoriedade para não repetir cache: ${seedAleatoria}]
+        
+        O seu humor agora é: ${tema}.
+        
+        Crie UMA frase curta de bom dia para o grupo baseada nesse humor.
         A frase DEVE OBRIGATORIAMENTE começar com "Bom dia, grupo! 🦖 ".
-        Depois disso, adicione apenas UMA frase curta (máximo 15 palavras) dizendo qual é o seu humor hoje ou o que você decidiu fazer com os humanos. 
-        Seja criativo, rude, comilão, caótico ou preguiçoso. Não use aspas na resposta.
-        Exemplo 1: Bom dia, grupo! 🦖 O Bostossauro acordou e escolheu a violência.
-        Exemplo 2: Bom dia, grupo! 🦖 Meu café da manhã hoje vai ser o membro mais inativo.
-        Exemplo 3: Bom dia, grupo! 🦖 Acordei de mau humor, não me citem hoje.`;
+        Depois disso, adicione apenas UMA frase curta (máximo 15 palavras) expressando esse humor.
+        NÃO use aspas na resposta. Seja criativo, imprevisível e NUNCA repita a frase anterior.`;
         
         try {
             const response = await this.genAI.models.generateContent({
-                model: "gemma-3-27b-it",
+                model: "gemma-3-27b-it", 
                 contents: prompt,
-                config: { temperature: 0.9 }
+                config: { temperature: 0.95 }
             });
             
             let texto = response.text || (response.response ? response.response.text() : "");

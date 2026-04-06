@@ -849,6 +849,12 @@ const botCommands = {
     },
     '!liveoff': {
         emoji: '🔴'
+    },
+    '!addmod': {
+        emoji: '✅'
+    },
+    '!removemod': {
+        emoji: '❌'
     }
 };
 

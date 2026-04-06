@@ -84,6 +84,20 @@ class StreamHandler {
             return "🚫 Acesso negado. A lista da equipe é confidencial.";
         }
 
+        const matchJid = (jid1, jid2) => {
+            const n1 = jid1.split('@')[0];
+            const n2 = jid2.split('@')[0];
+            
+            if (n1 === n2) return true;
+            
+            if (n1.startsWith('55') && n2.startsWith('55')) {
+                const base1 = n1.length === 13 ? n1.slice(0, 4) + n1.slice(5) : n1;
+                const base2 = n2.length === 13 ? n2.slice(0, 4) + n2.slice(5) : n2;
+                return base1 === base2;
+            }
+            return false;
+        };
+
         try {
             const modsDb = await this.db.all(`
                 SELECT sm.id_usuario, u.nome 
@@ -102,10 +116,9 @@ class StreamHandler {
             let msg = "🛡️ *MODERADORES DA ILHA* 🛡️\n\n";
 
             modsDb.forEach((mod, index) => {
-                const inGroup = participants.find(p => p.id === mod.id_usuario);
+                const inGroup = participants.find(p => matchJid(p.id, mod.id_usuario));
                 
                 const numeroLimpo = mod.id_usuario.replace('@s.whatsapp.net', '');
-                
                 let displayName = mod.nome && mod.nome !== 'Desconhecido' ? mod.nome : `+${numeroLimpo}`;
                 
                 if (mod.id_usuario === this.OWNER) {

@@ -840,6 +840,15 @@ const botCommands = {
     },
     '!admin': {
         emoji: '🔐'
+    },
+    '!anuncio': {
+        emoji: '📢'
+    },
+    '!liveon': {
+        emoji: '🟢'
+    },
+    '!liveoff': {
+        emoji: '🔴'
     }
 };
 
@@ -1708,7 +1717,7 @@ async function connectToWhatsApp() {
 
             const ROTAS_SILENCIOSAS = ["ID_GRUPO_MOD@g.us", "ID_GRUPO_OFICIAL@g.us"];
             const isStreamGroup = ROTAS_SILENCIOSAS.includes(from);
-            
+
             if (isStreamGroup && !command.startsWith('!')) {
                 console.log("🔇 Quote ignorado no grupo da Stream (Rota Silenciosa).");
                 return;

@@ -116,9 +116,9 @@ const ITEM_CATALOG = [
 ];
 
 const STORE_CATALOG = {
-    '1': { id: 'isca_simples', name: 'Isca de Pão', emoji: '🍞', type: 'instant', effect: 1, price: 125, desc: 'Dá +1 isca na hora. Baratinha pros falidos.' },
-    '2': { id: 'balde_iscas', name: 'Balde de Iscas', emoji: '🪣', type: 'instant', effect: 4, price: 400, desc: 'Dá +4 iscas na hora (Pequeno desconto).' },
-    '3': { id: 'caminhao_iscas', name: 'Caminhão de Iscas', emoji: '🚚', type: 'instant', effect: 10, price: 900, desc: 'Dá +10 iscas na hora (descontão).' },
+    '1': { id: 'isca_simples', name: 'Isca de Pão', emoji: '🍞', type: 'instant', effect: 1, price: 250, desc: 'Dá +1 isca na hora. Baratinha pros falidos.' },
+    '2': { id: 'balde_iscas', name: 'Balde de Iscas', emoji: '🪣', type: 'instant', effect: 4, price: 800, desc: 'Dá +4 iscas na hora (Pequeno desconto).' },
+    '3': { id: 'caminhao_iscas', name: 'Caminhão de Iscas', emoji: '🚚', type: 'instant', effect: 10, price: 1800, desc: 'Dá +10 iscas na hora (descontão).' },
     '4': { id: 'repelente', name: 'Repelente de Bota', emoji: '🧴', type: 'buff', duration: 4, price: 200, desc: 'Zera a chance de pescar lixo por 4 rodadas.' },
     '5': { id: 'anzol_chumbo', name: 'Anzol de Chumbo', emoji: '⚓', type: 'buff', duration: 5, price: 200, desc: 'Aumenta o peso dos peixes em 30% por 5 rodadas.' },
     '6': { id: 'ima_coins', name: 'Ímã de Bostocoins', emoji: '🧲', type: 'buff', duration: 3, price: 200, desc: 'Garante achar Bostocoins no fundo do lago por 3 rodadas.' }

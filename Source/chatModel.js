@@ -220,6 +220,12 @@ class ChatModel {
             '!liveoff': async (ctx) => {
                 return await this.streamHandler.handleLiveStatus(ctx, 'off');
             },
+            '!addmod': async (ctx) => {
+                return await this.streamHandler.handleAddMod(ctx);
+            },
+            '!removemod': async (ctx) => {
+                return await this.streamHandler.handleRemoveMod(ctx);
+            },
             '!cidade': async (ctx) => {
                 const args = ctx.command.trim().split(/\s+/);
                 

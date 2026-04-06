@@ -1000,7 +1000,7 @@ A InGen liberou mais verba para a próxima bilheteria. Usem \`!parque missoes\` 
         }
 
         if (especiesDisponiveis.length === 0) {
-            const recompensa = 1000;
+            const recompensa = 250;
             const profitResult = await this.casinoHandler.verifyProfit(userId, recompensa);
             await this.db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [profitResult.finalProfit, userId]);
             return `🦟 Você achou um Âmbar! Porém, a InGen informou que o DNA dentro dele já estava 100% mapeado por você.\nEles confiscaram a pedra e te pagaram 🪙 **${recompensa} Bostocoins** pela exclusividade!${profitResult.msg}`;

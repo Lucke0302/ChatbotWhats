@@ -1002,6 +1002,8 @@ async function connectToWhatsApp() {
                 try {
                     console.log("⏰ Iniciando rotina de Bom Dia...");
 
+                    const ROTAS_SILENCIOSAS = ["120363426917338477@g.us", "120363410458341287@g.us"];
+
                     const weatherComplement = await weatherCommandHandler.getWeather(targetCity);
                     const weatherForecastComplement = await weatherCommandHandler.getNextDayForecast(targetCity);
                     
@@ -1068,6 +1070,12 @@ async function connectToWhatsApp() {
                     }
 
                     for (const groupId of groupIds) {
+
+                        if (ROTAS_SILENCIOSAS.includes(groupId)) {
+                            console.log(`🔇 Pulando Bom Dia na Rota Silenciosa: ${groupId}`);
+                            continue;
+                        }
+
                         let toxicReport = "";
                         let divisor = "";
 
@@ -1697,6 +1705,15 @@ async function connectToWhatsApp() {
         //Se é um quote para o bot e ele está online, responde
         //e reage com emoji de olho
         if (isInteractWithBot && chatbot.isOnline) {
+
+            const ROTAS_SILENCIOSAS = ["ID_GRUPO_MOD@g.us", "ID_GRUPO_OFICIAL@g.us"];
+            const isStreamGroup = ROTAS_SILENCIOSAS.includes(from);
+            
+            if (isStreamGroup && !command.startsWith('!')) {
+                console.log("🔇 Quote ignorado no grupo da Stream (Rota Silenciosa).");
+                return;
+            }
+
             const sender = getSenderJid(msg);
 
             console.log("✅ INTERAÇÃO DETECTADA! Respondendo...");

@@ -15,6 +15,7 @@ const CasinoHandler = require('./casinoHandler');
 const PescariaHandler = require('./pescariaHandler');
 const ParqueHandler = require('./parqueHandler');
 const { FazendaHandler } = require('./fazendaHandler');
+const StreamHandler = require('./streamHandler');
 const RIOT_API_KEY = process.env.RIOT_API_KEY;
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const { getWeather, getNextDayForecast, getGameWeatherCondition } = require('./weatherCommand');
@@ -55,6 +56,7 @@ class ChatModel {
 
         this.fazendaHandler.parqueHandler = this.parqueHandler;
         this.casinoHandler.parqueHandler = this.parqueHandler;
+        this.streamHandler = new StreamHandler(db);
     }
 
     async init() {
@@ -208,6 +210,15 @@ class ChatModel {
                 }
 
                 return "⚙️ **PAINEL DIVINO** ⚙️\n\nDisponível:\n*!admin wipe* - Reseta a temporada do Bostoverso.\n*!admin dashboard* - Mostra o dashboard do dia atual.";
+            },
+            '!anuncio': async (ctx) => {
+                return await this.streamHandler.handleAnuncio(ctx);
+            },
+            '!liveon': async (ctx) => {
+                return await this.streamHandler.handleLiveStatus(ctx, 'on');
+            },
+            '!liveoff': async (ctx) => {
+                return await this.streamHandler.handleLiveStatus(ctx, 'off');
             },
             '!cidade': async (ctx) => {
                 const args = ctx.command.trim().split(/\s+/);

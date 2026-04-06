@@ -211,6 +211,26 @@ class ChatModel {
 
                 return "⚙️ **PAINEL DIVINO** ⚙️\n\nDisponível:\n*!admin wipe* - Reseta a temporada do Bostoverso.\n*!admin dashboard* - Mostra o dashboard do dia atual.";
             },
+            '!testarbomdia': async (ctx) => {
+                if (ctx.sender !== "5513991008854@s.whatsapp.net") {
+                    return "🚫 Apenas o Arquiteto pode testar as variações do multiverso.";
+                }
+                
+                if (ctx.sock) {
+                    await ctx.sock.sendMessage(ctx.from, { text: "⏳ Rodando 20 simulações de humor do Bostossauro... aguenta aí." });
+                }
+                
+                let result = "*🔥 TESTE DE HUMOR DO BOSTOSSAURO (20x) 🔥*\n\n";
+                
+                for (let i = 1; i <= 20; i++) {
+                    const frase = await this.generateBomDia();
+                    result += `*[ ${i} ]* ${frase}\n`;
+                    
+                    await new Promise(r => setTimeout(r, 1000));
+                }
+                
+                return result;
+            },
             '!anuncio': async (ctx) => {
                 return await this.streamHandler.handleAnuncio(ctx);
             },
@@ -1490,6 +1510,37 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
             // Se der erro 503 ou 429, o errorHandler pega lá na frente
             console.error("Erro na requisição IA:", error);
             throw error;
+        }
+    }
+
+    async generateBomDia() {
+        const prompt = `Você é o Bostossauro, um dinossauro híbrido arrogante, sarcástico e rabugento de um bot de WhatsApp.
+        Crie UMA frase curta de bom dia para o grupo.
+        A frase DEVE OBRIGATORIAMENTE começar com "Bom dia, grupo! 🦖 ".
+        Depois disso, adicione apenas UMA frase curta (máximo 15 palavras) dizendo qual é o seu humor hoje ou o que você decidiu fazer com os humanos. 
+        Seja criativo, rude, comilão, caótico ou preguiçoso. Não use aspas na resposta.
+        Exemplo 1: Bom dia, grupo! 🦖 O Bostossauro acordou e escolheu a violência.
+        Exemplo 2: Bom dia, grupo! 🦖 Meu café da manhã hoje vai ser o membro mais inativo.
+        Exemplo 3: Bom dia, grupo! 🦖 Acordei de mau humor, não me citem hoje.`;
+        
+        try {
+            const response = await this.genAI.models.generateContent({
+                model: "gemma-3-27b-it",
+                contents: prompt,
+                config: { temperature: 0.9 }
+            });
+            
+            let texto = response.text || (response.response ? response.response.text() : "");
+            texto = texto.trim();
+            
+            if (!texto.startsWith("Bom dia, grupo! 🦖")) {
+                 return `Bom dia, grupo! 🦖 ${texto}`;
+            }
+            
+            return texto;
+        } catch (e) {
+            console.error("Erro ao gerar humor do Bostossauro:", e);
+            return "Bom dia, grupo! 🦖 O Bostossauro acordou e escolheu a violência."; 
         }
     }
 

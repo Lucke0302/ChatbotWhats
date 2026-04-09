@@ -27,9 +27,12 @@ class ChatModel {
         this.isOnline = true;
         this.isTesting = true;
         this.modelLimits = {
+            "gemini-3.1-flash-lite-preview": 500,
+            "gemini-2.5-pro": 15,
             "gemini-2.5-flash": 20,
             "gemini-2.5-flash-lite": 20,
             "gemini-3-flash-preview": 20,
+            "gemma-4-31b-it": 5000,
             "gemma-3-27b-it": 5000,
             "gemma-3-12b-it": 5000,
             "gemma-3-4b-it": 9999,            
@@ -1307,13 +1310,13 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
             if (forceModel === "gemini-2.5-flash") candidates.push("gemini-3-flash-preview", "gemini-2.5-flash");
         } 
         else if (command.startsWith("!resumo")){            
-            candidates = ["gemini-2.5-flash", "gemini-3-flash-preview", "gemini-2.5-flash-lite", "gemma-3-27b-it","gemma-3-12b-it"]; 
+            candidates = ["gemini-2.5-pro", "gemini-2.5-flash", "gemma-4-31b-it", "gemma-3-27b-it"]; 
         }
-        else if (command.startsWith("!gpt")){            
-            candidates = ["gemini-2.5-flash", "gemini-3-flash-preview", "gemini-2.5-flash-lite", "gemma-3-27b-it", "gemma-3-12b-it", "gemma-3-4b-it"]; 
+        else if (command.startsWith("!gpt")){
+            candidates = ["gemini-3.1-flash-lite-preview", "gemini-2.5-flash", "gemma-4-31b-it", "gemma-3-12b-it"]; 
         }
         else if (command.startsWith("!lembrar")) {
-            candidates = ["gemma-3-27b-it", "gemini-2.5-flash", "gemini-3-flash-preview"]; 
+            candidates = ["gemini-2.5-pro", "gemini-2.5-flash", "gemma-3-27b-it"]; 
         }
         else if (command.startsWith("!ouvir")){
             candidates = ["gemini-2.5-flash-preview-tts"];
@@ -1322,7 +1325,7 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
             candidates = ["gemma-3-1b-it", "gemma-3n-e2b-it"];
         }
         else {
-            candidates = ["gemini-2.5-flash", "gemini-3-flash-preview", "gemini-2.5-flash-lite", "gemma-3-12b-it", "gemma-3-4b-it"];
+            candidates = ["gemini-3.1-flash-lite-preview", "gemini-2.5-flash", "gemma-3-12b-it"];
         }
 
         const currentUsage = await this.getModelUsage();

@@ -288,8 +288,8 @@ class ChatModel {
             '!clima': async (ctx) => await this.handleClimaCommand(ctx.command, ctx.sender),
             '!cotacao': async (ctx) => await currencyCommandHandler.convertCurrency(ctx.command),
             '!pdf': async (ctx) => {
-                    return await pdfCommandHandler.handlePdfCommand(ctx);
-                },
+                return await pdfCommandHandler.handlePdfCommand(ctx);
+            },
             '!toxico': async (ctx) => {
                 let groupId;
                 if (ctx.isGroup && ctx.from != "120363422821336011@g.us") groupId = ctx.from;
@@ -329,7 +329,9 @@ class ChatModel {
             },
             '!help': async (ctx) => this.handleHelp(ctx),
             '!ajuda': async (ctx) => this.handleHelp(ctx),
-            '!resenha': async (ctx) => this.resenhaHandler.execute(ctx),
+            '!resenha': async (ctx) => {
+                return await this.resenhaCommand.execute(ctx);
+            },
             '!cota': async (ctx) => {
                 return await this.handleCotaCommand(ctx);
             },
@@ -1967,37 +1969,33 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
         const handler = this.commandHandlers[rootCommand];
 
        if (handler) {
+            // CONTEXTO UNIVERSAL
             const ctx = {
-                platform: 'whatsapp',
+                platform: msg.platform || 'whatsapp',
                 msg, sender, from, isGroup, command, quotedMessage, sock, name, user, mentions,
                 
-                reply: async (texto) => {
+                reply: msg.reply || (async (texto) => {
                     if (sock) await sock.sendMessage(from, { text: texto });
-                },
-                
-                replyImage: async (url, caption = "") => {
+                }),
+                replyImage: msg.replyImage || (async (url, caption = "") => {
                     if (sock) await sock.sendMessage(from, { image: { url: url }, caption: caption });
-                },
-
-                sendTo: async (targetId, texto) => {
-                    if (sock) await sock.sendMessage(targetId, { text: texto });
-                },
-
-                replyDocument: async (caminhoArquivo, nomeArquivo, legenda = "") => {
+                }),
+                replySticker: msg.replySticker || (async (buffer) => {
+                    if (sock) await sock.sendMessage(from, { sticker: buffer }, { quoted: msg });
+                }),
+                replyDocument: msg.replyDocument || (async (caminhoArquivo, nomeArquivo, legenda = "") => {
                     const fs = require('fs');
                     if (sock) {
                         await sock.sendMessage(from, { 
-                            document: fs.readFileSync(caminhoArquivo), 
-                            mimetype: 'application/pdf', 
-                            fileName: nomeArquivo,
-                            caption: legenda
+                            document: fs.readFileSync(caminhoArquivo), mimetype: 'application/pdf', fileName: nomeArquivo, caption: legenda
                         }, { quoted: msg });
-                    } else if (platform === 'discord') {
-                        console.log(`[DISCORD SIMULADO] Enviou o arquivo: ${nomeArquivo}`);
                     }
-                }
+                }),
+                sendTo: msg.sendTo || (async (targetId, texto) => {
+                    if (sock) await sock.sendMessage(targetId, { text: texto });
+                })
             };
-
+            
             return await handler(ctx);
         }
     }

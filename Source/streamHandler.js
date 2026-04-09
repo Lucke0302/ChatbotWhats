@@ -34,54 +34,67 @@ class StreamHandler {
     }
 
     async handleAddMod(ctx) {
-        const { sender, from, command, mentions } = ctx;
+        const { sender, from, command, mentions, reply } = ctx;
         const id_pai = await this.getNetGroupId(from);
         
         if (!(await this.isMod(sender, id_pai))) {
-            return "";
+            return null;
         }
 
         const targetUser = this.parseTargetUser(command.trim().split(/\s+/), mentions);
-        if (!targetUser) return "⚠️ Use: *!addmod @usuario* ou *!addmod numero (sem espaços ou caracteres especiais)*";
+        if (!targetUser) {
+            await reply("⚠️ Use: *!addmod @usuario* ou *!addmod numero (sem espaços ou caracteres especiais)*");
+            return null;
+        }
 
         try {
             await this.db.run(
                 "INSERT INTO stream_mods (id_usuario, id_pai) VALUES (?, ?)", 
                 [targetUser, id_pai]
             );
-            return `✅ Usuário promovido a Moderador!`;
+            await reply(`✅ Usuário promovido a Moderador!`);
         } catch (e) {
-            return "⚠️ Este usuário já é moderador por aqui.";
+            await reply("⚠️ Este usuário já é moderador por aqui.");
         }
+        return null;
     }
 
     async handleRemoveMod(ctx) {
-        const { sender, from, command, mentions } = ctx;
+        const { sender, from, command, mentions, reply } = ctx;
         const id_pai = await this.getNetGroupId(from);
         
         if (!(await this.isMod(sender, id_pai))) {
-            return "🚫 Acesso negado.";
+            await reply("🚫 Acesso negado.");
+            return null;
         }
 
         const targetUser = this.parseTargetUser(command.trim().split(/\s+/), mentions);
-        if (!targetUser) return "⚠️ Use: *!removemod @usuario*";
+        if (!targetUser) {
+            await reply("⚠️ Use: *!removemod @usuario*");
+            return null;
+        }
         
-        if (targetUser === this.OWNER) return "🚫 Boa tentativa.";
+        if (targetUser === this.OWNER) {
+            await reply("🚫 Boa tentativa.");
+            return null;
+        }
 
         const result = await this.db.run(
             "DELETE FROM stream_mods WHERE id_usuario = ? AND id_pai = ?", 
             [targetUser, id_pai]
         );
         
-        return result.changes > 0 ? "🗑️ Moderador removido." : "⚠️ Usuário não era mod deste grupo.";
+        await reply(result.changes > 0 ? "🗑️ Moderador removido." : "⚠️ Usuário não era mod deste grupo.");
+        return null;
     }
 
     async handleListMods(ctx) {
-        const { sock, from, sender } = ctx;
+        const { sock, from, sender, reply, platform } = ctx;
         const id_pai = await this.getNetGroupId(from);
 
         if (!(await this.isMod(sender, id_pai))) {
-            return "🚫 Acesso negado. A lista da equipe é confidencial.";
+            await reply("🚫 Acesso negado. A lista da equipe é confidencial.");
+            return null;
         }
 
         const matchJid = (jid1, jid2) => {
@@ -107,16 +120,24 @@ class StreamHandler {
             `, [id_pai]);
 
             if (!modsDb || modsDb.length === 0) {
-                return "⚠️ Nenhum moderador registrado nesta Ilha ainda.";
+                await reply("⚠️ Nenhum moderador registrado nesta Ilha ainda.");
+                return null;
             }
 
-            const groupMetadata = await sock.groupMetadata(id_pai);
-            const participants = groupMetadata.participants;
+            let participants = [];
+            if (platform === 'whatsapp' && sock) {
+                try {
+                    const groupMetadata = await sock.groupMetadata(id_pai);
+                    participants = groupMetadata.participants;
+                } catch (e) {
+                    console.error("Erro ao buscar metadata do grupo:", e);
+                }
+            }
 
             let msg = "🛡️ *MODERADORES DA ILHA* 🛡️\n\n";
 
             modsDb.forEach((mod, index) => {
-                const inGroup = participants.find(p => matchJid(p.id, mod.id_usuario));
+                const inGroup = participants.length > 0 ? participants.find(p => matchJid(p.id, mod.id_usuario)) : true;
                 
                 const numeroLimpo = mod.id_usuario.replace('@s.whatsapp.net', '');
                 let displayName = mod.nome && mod.nome !== 'Desconhecido' ? mod.nome : `+${numeroLimpo}`;
@@ -125,16 +146,18 @@ class StreamHandler {
                     displayName = `👑 ${displayName} (Arquiteto)`;
                 }
 
-                const statusTag = inGroup ? "" : " _(Fora do grupo)_";
+                const statusTag = (platform === 'whatsapp' && !inGroup) ? " _(Fora do grupo)_" : "";
 
                 msg += `*[ ${index + 1} ]* ${displayName}${statusTag}\n`;
             });
 
-            return msg;
+            await reply(msg);
+            return null;
 
         } catch (error) {
             console.error("Erro ao listar mods:", error);
-            return "❌ Erro ao acessar os arquivos. O RH deve estar de folga.";
+            await reply("❌ Erro ao acessar os arquivos. O RH deve estar de folga.");
+            return null;
         }
     }
 
@@ -148,21 +171,35 @@ class StreamHandler {
     }
 
     async handleAnuncio(ctx) {
-        const { sock, from, quotedMessage, name, sender } = ctx;
+        const { sock, from, quotedMessage, name, sender, reply, command } = ctx;
         const id_pai = await this.getNetGroupId(from);
         
         if (!(await this.isMod(sender, id_pai))) {
-            return "";
+            return null;
         }
 
-        if (!quotedMessage || quotedMessage === "[Midia/Sticker sem texto]") {
-            return "⚠️ Você precisa responder a uma mensagem de texto com *!anuncio* para eu disparar.";
+        let textoAnuncio = quotedMessage;
+        if (!textoAnuncio || textoAnuncio === "[Midia/Sticker sem texto]") {
+            const args = command.trim().split(/\s+/);
+            args.shift();
+            if (args.length > 0) {
+                textoAnuncio = args.join(" ");
+            } else {
+                await reply("⚠️ Você precisa responder a uma mensagem ou digitar o texto do anúncio logo após o comando.");
+                return null;
+            }
         }
 
         const targetGroupId = await this.getNetGroupId(from);
 
-        if (targetGroupId === from) {
-            return "⚠️ A moderação não está linkada a nenhum grupo oficial. Use *!link [ID_DO_GRUPO]* aqui primeiro.";
+        if (targetGroupId === from && ctx.platform === 'whatsapp') {
+            await reply("⚠️ A moderação não está linkada a nenhum grupo oficial. Use *!link [ID_DO_GRUPO]* aqui primeiro.");
+            return null;
+        }
+
+        if (!sock) {
+            await reply("❌ O módulo do WhatsApp não está conectado no momento para enviar o anúncio.");
+            return null;
         }
 
         try {
@@ -170,26 +207,32 @@ class StreamHandler {
             const participants = groupMetadata.participants;
             const allMentions = participants.map(p => p.id);
 
-            const anuncioText = `📢 *ANÚNCIO DA ILHA* 📢\n_Por: ${name}_\n\n${quotedMessage}`;
+            const anuncioText = `📢 *ANÚNCIO DA ILHA* 📢\n_Por: ${name} (Via ${ctx.platform === 'twitch' ? 'Twitch 🟪' : 'WhatsApp 🟩'})_\n\n${textoAnuncio}`;
 
             await sock.sendMessage(targetGroupId, {
                 text: anuncioText,
                 mentions: allMentions
             });
 
-            return "✅ Anúncio disparado com sucesso no grupo principal!";
+            await reply("✅ Anúncio disparado com sucesso no grupo principal!");
         } catch (error) {
             console.error("Erro no !anuncio:", error);
-            return "❌ Deu erro ao enviar. O Bostossauro é Admin no grupo principal?";
+            await reply("❌ Deu erro ao enviar. O Bostossauro é Admin no grupo principal e o ID do grupo é válido?");
         }
+        return null;
     }
 
     async handleLiveStatus(ctx, status) {
-        const { sock, from, sender } = ctx;
+        const { sock, from, sender, reply } = ctx;
         const targetGroupId = await this.getNetGroupId(from);
 
-        if (!this.isMod(sender)) {
-            return;
+        if (!(await this.isMod(sender, targetGroupId))) {
+            return null;
+        }
+
+        if (!sock) {
+            await reply("❌ O módulo do WhatsApp não está conectado para alterar o título.");
+            return null;
         }
 
         const novoNome = status === 'on'
@@ -197,13 +240,13 @@ class StreamHandler {
             : "Ilha do CAPS!! | Live OFF🔴";
 
         try {
-            // Altera o nome do grupo Pai
             await sock.groupUpdateSubject(targetGroupId, novoNome);
-            return `✅ Título da Ilha atualizado para: *${novoNome}*`;
+            await reply(`✅ Título da Ilha atualizado para: *${novoNome}*`);
         } catch (error) {
             console.error("Erro ao mudar título do grupo:", error);
-            return "❌ Erro ao mudar o título. Confere se eu tenho permissão de Admin no grupo principal!";
+            await reply("❌ Erro ao mudar o título. Confere se eu tenho permissão de Admin no grupo principal!");
         }
+        return null;
     }
 }
 

@@ -26,6 +26,7 @@ const sqlite3 = require('sqlite3');
 const pino = require('pino'); 
 const ChatModel = require('./chatModel');
 const { handleBotError } = require('./errorHandler');
+const { startTwitch } = require('./Twitch/twitchConnector');
 const fs = require('fs');
 const { Sticker, StickerTypes } = require('wa-sticker-formatter');
 //const sharp = require('sharp');
@@ -922,6 +923,8 @@ async function connectToWhatsApp() {
     //Instancia o chatbot
     const chatbot = new ChatModel(db, genAI)
     await chatbot.updateOnlineStatus();
+
+    startTwitch(chatbot, sock);
 
     // ==========================================
     //  SERVIDOR EXPRESS E WEBSOCKET 

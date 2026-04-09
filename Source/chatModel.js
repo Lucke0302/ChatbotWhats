@@ -171,7 +171,7 @@ class ChatModel {
                         
                         for (const grupo of grupos) {
                             try {
-                                await ctx.sock.sendMessage(grupo.group_id, { text: "⏳ Iniciando colapso temporal... O BostOuroboros está despertando." });
+                                await ctx.sendTo(grupo.group_id, "⏳ Iniciando colapso temporal... O BostOuroboros está despertando.");
                                 await new Promise(resolve => setTimeout(resolve, 2000));
                             } catch (e) {
                                 console.error(`Erro ao enviar aviso prévio de wipe para o grupo ${grupo.group_id}:`, e);
@@ -223,7 +223,7 @@ class ChatModel {
                 }
                 
                 if (ctx.sock) {
-                    await ctx.sock.sendMessage(ctx.from, { text: "⏳ Rodando 20 simulações de humor do Bostossauro... aguenta aí que o bicho tá pensando." });
+                    await ctx.reply("⏳ Rodando 20 simulações de humor do Bostossauro... aguenta aí que o bicho tá pensando.");
                 }
                 
                 let result = "*🔥 TESTE DE HUMOR DO BOSTOSSAURO (20x) 🔥*\n\n";
@@ -307,10 +307,10 @@ class ChatModel {
                 const replyFunction = async (content) => {
                     if (!ctx.sock) return content; 
                     if (typeof content === 'string') {
-                        await ctx.sock.sendMessage(ctx.from, { text: content });
+                        await ctx.reply(content);
                     } 
                     else {
-                        await ctx.sock.sendMessage(ctx.from, content);
+                        await ctx.replyImage(content.image.url, content.caption);
                     }
                 };
                 await this.pokeRouter.handleCommand(ctx.from, ctx.sender, ctx.command, ctx.sock, ctx.mentions, replyFunction);
@@ -1250,7 +1250,7 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
         for (const grupo of grupos) {
             try {
                 if (sock) {
-                    await sock.sendMessage(grupo.group_id, { text: msgApocalipse });
+                    await ctx.sendTo(grupo.group_id, msgApocalipse);
                     await new Promise(resolve => setTimeout(resolve, 2000));
                 }
             } catch (e) {
@@ -1970,17 +1970,17 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
             const ctx = {
                 platform: 'whatsapp',
                 msg, sender, from, isGroup, command, quotedMessage, sock, name, user, mentions,
+                
                 reply: async (texto) => {
-                    if (sock) {
-                        await sock.sendMessage(from, { text: texto });
-                    } else {
-                        console.log(`[SIMULAÇÃO WHATSAPP] Resposta: ${texto}`);
-                    }
+                    if (sock) await sock.sendMessage(from, { text: texto });
                 },
+                
                 replyImage: async (url, caption = "") => {
-                    if (sock) {
-                        await sock.sendMessage(from, { image: { url: url }, caption: caption });
-                    }
+                    if (sock) await sock.sendMessage(from, { image: { url: url }, caption: caption });
+                },
+
+                sendTo: async (targetId, texto) => {
+                    if (sock) await sock.sendMessage(targetId, { text: texto });
                 }
             };
 

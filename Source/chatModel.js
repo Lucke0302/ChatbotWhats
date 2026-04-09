@@ -27,17 +27,20 @@ class ChatModel {
         this.isOnline = true;
         this.isTesting = true;
         this.modelLimits = {
-            "gemini-3.1-flash-lite-preview": 500,
-            "gemini-2.5-pro": 15,
+            // Linha de Frente (
+            "gemini-3.1-flash-lite-preview": 500, 
+            
+            // Limitados
             "gemini-2.5-flash": 20,
-            "gemini-2.5-flash-lite": 20,
             "gemini-3-flash-preview": 20,
-            "gemma-4-31b-it": 5000,
-            "gemma-3-27b-it": 5000,
-            "gemma-3-12b-it": 5000,
-            "gemma-3-4b-it": 9999,            
-            "gemma-3n-e2b-it": 9999,
-            "gemma-3-1b-it": 9999
+            "gemini-2.5-flash-preview-tts": 10,
+            
+            // Fallbacks Pesados
+            "gemma-4-31b-it": 1500,
+            "gemma-3-27b-it": 14400,
+            "gemma-3-12b-it": 14400,
+            "gemma-3-4b-it": 14400,
+            "gemma-3-1b-it": 14400
         };
         this.updateOnlineStatus();
         lolCommandHandler.init();
@@ -314,7 +317,10 @@ class ChatModel {
                 
                 return null;
             },
-            '!id': async (ctx) => `${ctx.from}`,
+            '!id': async (ctx) => {
+                await ctx.reply(`🆔 O ID desta dimensão é: ${ctx.from}`);
+                return null;
+            },
             '!migrar': async (ctx) => {
                 if (ctx.sender !== "5513991008854@s.whatsapp.net") {
                     return "🔒 *Acesso Negado.* Só o chefe pode fazer o êxodo.";
@@ -1310,13 +1316,13 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
             if (forceModel === "gemini-2.5-flash") candidates.push("gemini-3-flash-preview", "gemini-2.5-flash");
         } 
         else if (command.startsWith("!resumo")){            
-            candidates = ["gemini-2.5-pro", "gemini-2.5-flash", "gemma-4-31b-it", "gemma-3-27b-it"]; 
+            candidates = ["gemini-2.5-flash", "gemma-4-31b-it", "gemma-3-27b-it"]; 
         }
         else if (command.startsWith("!gpt")){
             candidates = ["gemini-3.1-flash-lite-preview", "gemini-2.5-flash", "gemma-4-31b-it", "gemma-3-12b-it"]; 
         }
         else if (command.startsWith("!lembrar")) {
-            candidates = ["gemini-2.5-pro", "gemini-2.5-flash", "gemma-3-27b-it"]; 
+            candidates = [ "gemini-2.5-flash", "gemma-4-31b-it", "gemma-3-27b-it"]; 
         }
         else if (command.startsWith("!ouvir")){
             candidates = ["gemini-2.5-flash-preview-tts"];
@@ -1960,11 +1966,22 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
 
         const handler = this.commandHandlers[rootCommand];
 
-        if (handler) {
-            this.registerMetric('command', rootCommand).catch(()=>{});
-
+       if (handler) {
             const ctx = {
-                msg, sender, from, isGroup, command, quotedMessage, sock, name, user, mentions
+                platform: 'whatsapp',
+                msg, sender, from, isGroup, command, quotedMessage, sock, name, user, mentions,
+                reply: async (texto) => {
+                    if (sock) {
+                        await sock.sendMessage(from, { text: texto });
+                    } else {
+                        console.log(`[SIMULAÇÃO WHATSAPP] Resposta: ${texto}`);
+                    }
+                },
+                replyImage: async (url, caption = "") => {
+                    if (sock) {
+                        await sock.sendMessage(from, { image: { url: url }, caption: caption });
+                    }
+                }
             };
 
             return await handler(ctx);

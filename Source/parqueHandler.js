@@ -1473,22 +1473,29 @@ class ParqueHandler {
     }
 
     // FIX GLOBAL DE HÍBRIDOS RETROATIVOS 
-    async fixHibridosGlobais(userTag, sock) {
+    async fixHibridosGlobais(ctx, userTag) {
         const grupos = await this.db.all("SELECT DISTINCT group_id FROM parque_dinossauros");
         let gruposAfetados = 0;
 
         for (const grupo of grupos) {
-            const hibridosNovos = await this.verificarHibridos(grupo.group_id);
+            
+            let targetGroup = grupo.group_id;
+            try {
+                const link = await this.db.get("SELECT id_pai FROM grupos_linkados WHERE id_filho = ?", [grupo.group_id]);
+                if (link) targetGroup = link.id_pai;
+            } catch (e) {}
+
+            const hibridosNovos = await this.verificarHibridos(targetGroup);
 
             if (hibridosNovos && hibridosNovos.trim() !== "") {
                 gruposAfetados++;
                 
-                if (sock) {
+                if (ctx && ctx.sendTo) {
                     try {
-                        await sock.sendMessage(grupo.group_id, { text: hibridosNovos });
+                        await ctx.sendTo(targetGroup, hibridosNovos);
                         await new Promise(resolve => setTimeout(resolve, 1500)); 
                     } catch(e) {
-                        console.error("Erro ao avisar grupo sobre o fix de híbrido:", e);
+                        console.error(`Erro ao avisar grupo ${targetGroup} sobre o fix de híbrido:`, e);
                     }
                 }
             }

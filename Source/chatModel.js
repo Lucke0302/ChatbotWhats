@@ -617,7 +617,7 @@ class ChatModel {
                     if (ctx.sender !== "5513991008854@s.whatsapp.net") {
                         return "🚫 Apenas o Dr. Henry Wu pode forçar a evolução da espécie.";
                     }
-                    return await this.parqueHandler.fixHibridosGlobais(tag, ctx.sock);
+                    return await this.parqueHandler.fixHibridosGlobais(ctz, tag);
                 }
 
                 if (subCommand === 'titulo' || subCommand === 'titulos') {
@@ -1981,6 +1981,20 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
 
                 sendTo: async (targetId, texto) => {
                     if (sock) await sock.sendMessage(targetId, { text: texto });
+                },
+
+                replyDocument: async (caminhoArquivo, nomeArquivo, legenda = "") => {
+                    const fs = require('fs');
+                    if (sock) {
+                        await sock.sendMessage(from, { 
+                            document: fs.readFileSync(caminhoArquivo), 
+                            mimetype: 'application/pdf', 
+                            fileName: nomeArquivo,
+                            caption: legenda
+                        }, { quoted: msg });
+                    } else if (platform === 'discord') {
+                        console.log(`[DISCORD SIMULADO] Enviou o arquivo: ${nomeArquivo}`);
+                    }
                 }
             };
 

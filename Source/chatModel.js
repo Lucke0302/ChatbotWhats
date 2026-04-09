@@ -301,7 +301,7 @@ class ChatModel {
                 await ttsCommandHandler.handleAudioCommand(ctx.sock, ctx.from, ctx.command, ctx.msg);
             },
             '!poke': async (ctx) => {
-                return await this.pokemonHandler.handleCommand(ctx.from, ctx.sender, ctx.command, ctx.sock, ctx.mentions);
+                return await this.pokemonHandler.handleCommand(ctx.from, ctx.sender, ctx.command, ctx, ctx.mentions);
             },
             '!poke2': async (ctx) => {
                 const replyFunction = async (content) => {

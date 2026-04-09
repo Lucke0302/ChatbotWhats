@@ -288,8 +288,8 @@ class ChatModel {
             '!clima': async (ctx) => await this.handleClimaCommand(ctx.command, ctx.sender),
             '!cotacao': async (ctx) => await currencyCommandHandler.convertCurrency(ctx.command),
             '!pdf': async (ctx) => {
-                await pdfCommandHandler.handlePdfCommand(ctx.sock, ctx.msg, ctx.from);
-            },
+                    return await pdfCommandHandler.handlePdfCommand(ctx);
+                },
             '!toxico': async (ctx) => {
                 let groupId;
                 if (ctx.isGroup && ctx.from != "120363422821336011@g.us") groupId = ctx.from;

@@ -543,7 +543,7 @@ class FazendaHandler {
     }
 
     // COLHER 
-    async colher(userId, userTag, canteiroIdStr, groupId, climaAtual, sock) {
+    async colher(userId, userTag, canteiroIdStr, groupId, climaAtual, sock, ctx) {
         const cId = parseInt(canteiroIdStr);
         if (isNaN(cId)) return `${userTag} ⚠️ Informe o canteiro. Ex: *!fazenda colher 1*`;
 
@@ -569,7 +569,7 @@ class FazendaHandler {
         const roll = Math.random() * 100;
 
         if (this.parqueHandler && groupId && groupId.includes('@g.us')) {
-            this.parqueHandler.registrarProgressoComunitario(groupId, 'fazenda_kg', finalKilos, sock).catch(()=>{});
+            this.parqueHandler.registrarProgressoComunitario(groupId, 'fazenda_kg', finalKilos, ctx).catch(()=>{});
         }
 
         if (climaAtual.condicao == "trovoada" && Math.random() < 0.15){

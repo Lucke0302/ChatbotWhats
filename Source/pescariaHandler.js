@@ -256,7 +256,7 @@ class PescariaHandler {
         this.parqueHandler = parqueHandler;
     }
 
-    async pescar(userId, userTag, groupId, climaAtual, sock) {
+    async pescar(userId, userTag, groupId, climaAtual, sock, ctx) {
         if (!climaAtual) climaAtual = { condicao: 'nublado', emoji: '☁️', cidade: 'Desconhecida' };
         
         const mods = CLIMA_PESCA[climaAtual.condicao] || CLIMA_PESCA['nublado'];
@@ -379,7 +379,7 @@ class PescariaHandler {
                 });
 
                 if (this.parqueHandler && groupId && groupId.includes('@g.us')) {
-                    this.parqueHandler.registrarProgressoComunitario(groupId, 'pesca_kg', actualWeight, sock).catch(()=>{});
+                    this.parqueHandler.registrarProgressoComunitario(groupId, 'pesca_kg', actualWeight, ctx).catch(()=>{});
                 }
 
                 if (player.active_items['ima_coins']) {
@@ -880,7 +880,7 @@ class PescariaHandler {
     }
 
     // MERCADO DE PEIXES
-    async handleVender(userId, userTag, itemIndicesStr, groupId = null, sock = null) {
+    async handleVender(userId, userTag, itemIndicesStr, groupId = null, sock = null, ctx) {
         const { sellableArray, player } = await this.getSellableList(userId);
 
         if (sellableArray.length === 0) {
@@ -941,7 +941,7 @@ class PescariaHandler {
         await this.db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [profitResult.finalProfit, userId]);
 
         if (this.parqueHandler && groupId && groupId.includes('@g.us') && profitResult.finalProfit > 0) {
-            this.parqueHandler.registrarProgressoComunitario(groupId, 'vendas', profitResult.finalProfit, sock).catch(()=>{});
+            this.parqueHandler.registrarProgressoComunitario(groupId, 'vendas', profitResult.finalProfit, ctx).catch(()=>{});
             try {
                 await this.db.run(`
                     UPDATE usuarios 
@@ -969,7 +969,7 @@ class PescariaHandler {
     }
 
     // ♻️ VENDA AUTOMÁTICA DE LIXO
-    async handleVenderLixo(userId, userTag, groupId = null, sock = null) { 
+    async handleVenderLixo(userId, userTag, groupId = null, sock = null, ctx) { 
         const player = await this.getPlayerData(userId);
         
         if (!player.records || !Array.isArray(player.records) || player.records.length === 0) {
@@ -1006,7 +1006,7 @@ class PescariaHandler {
         await this.db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [profitResult.finalProfit, userId]);
         
         if (this.parqueHandler && groupId && groupId.includes('@g.us') && profitResult.finalProfit > 0) {
-            this.parqueHandler.registrarProgressoComunitario(groupId, 'vendas', profitResult.finalProfit, sock).catch(()=>{});
+            this.parqueHandler.registrarProgressoComunitario(groupId, 'vendas', profitResult.finalProfit, ctx).catch(()=>{});
             try {
                 await this.db.run(`
                     UPDATE usuarios 
@@ -1026,7 +1026,7 @@ class PescariaHandler {
     }
 
     // PROCESSA PEIXES REPETIDOS
-    async handleRepetidos(userId, userTag, action = 'vender', groupId = null, sock = null) {
+    async handleRepetidos(userId, userTag, action = 'vender', groupId = null, sock = null, ctx) {
         const player = await this.getPlayerData(userId);
         
         if (!player.records || !Array.isArray(player.records) || player.records.length === 0) {
@@ -1088,7 +1088,7 @@ class PescariaHandler {
             await this.db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [profitResult.finalProfit, userId]);
             
             if (this.parqueHandler && groupId && groupId.includes('@g.us') && profitResult.finalProfit > 0) {
-                this.parqueHandler.registrarProgressoComunitario(groupId, 'vendas', profitResult.finalProfit, sock).catch(()=>{});
+                this.parqueHandler.registrarProgressoComunitario(groupId, 'vendas', profitResult.finalProfit, ctx).catch(()=>{});
                 try {
                     await this.db.run(`
                         UPDATE usuarios 

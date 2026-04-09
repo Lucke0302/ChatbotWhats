@@ -745,13 +745,20 @@ class ParqueHandler {
         }
     }
 
-    async registrarProgressoComunitario(groupId, categoria, valorAdicional, sock) {
+    async registrarProgressoComunitario(groupId, categoria, valorAdicional, ctx) {
         if (!groupId || !categoria || !valorAdicional) return;
 
         if (categoria === 'dino_lvl') return; 
 
         try {
-            const legado = await this.db.get("SELECT * FROM legado_grupos WHERE group_id = ?", [groupId]);
+            let targetGroup = groupId;
+            try {
+                const link = await this.db.get("SELECT id_pai FROM grupos_linkados WHERE id_filho = ?", [groupId]);
+                if (link) targetGroup = link.id_pai;
+            } catch (e) {
+            }
+
+            const legado = await this.db.get("SELECT * FROM legado_grupos WHERE group_id = ?", [targetGroup]);
             if (!legado) return;
 
             let conquistas = JSON.parse(legado.conquistas_json || '{}');
@@ -770,24 +777,17 @@ class ParqueHandler {
                 
                 await this.db.run(
                     "UPDATE legado_grupos SET conquistas_json = ?, nivel_receita = ? WHERE group_id = ?", 
-                    [JSON.stringify(conquistas), novoNivelReceita, groupId]
+                    [JSON.stringify(conquistas), novoNivelReceita, targetGroup]
                 );
 
-                if (sock) {
+                if (ctx && ctx.sendTo) {
                     const nomeCat = this.MARCOS_SEASON[categoria].nome;
-                    const msgUP = `
-🎉 **MARCO COMUNITÁRIO ATINGIDO!** 🎉
-
-O esforço do grupo deu resultado! Vocês acabaram de subir de nível na categoria:
-🌟 **${nomeCat}** (Nível ${niveisNovosAtingidos}/4)
-
-📈 A receita global do parque subiu para **${novoNivelReceita}/24**!
-A InGen liberou mais verba para a próxima bilheteria. Usem \`!parque missoes\` para ver o painel atualizado.`;
+                    const msgUP = `🎉 **MARCO COMUNITÁRIO ATINGIDO!** 🎉\n\nO esforço do grupo deu resultado! Vocês acabaram de subir de nível na categoria:\n🌟 **${nomeCat}** (Nível ${niveisNovosAtingidos}/4)\n\n📈 A receita global do parque subiu para **${novoNivelReceita}/24**!\nA InGen liberou mais verba para a próxima bilheteria. Usem \`!parque missoes\` para ver o painel atualizado.`;
                     
-                    await sock.sendMessage(groupId, { text: msgUP });
+                    await ctx.sendTo(targetGroup, msgUP);
                 }
             } else {
-                await this.db.run("UPDATE legado_grupos SET conquistas_json = ? WHERE group_id = ?", [JSON.stringify(conquistas), groupId]);
+                await this.db.run("UPDATE legado_grupos SET conquistas_json = ? WHERE group_id = ?", [JSON.stringify(conquistas), targetGroup]);
             }
 
         } catch (e) {

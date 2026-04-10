@@ -5,7 +5,7 @@ let isTwitchConnected = false;
 function startTwitch(chatbot, sock) {
     if (isTwitchConnected) return; 
     
-    const canalTwitch = 'lucke0302';
+    const canaisTwitch = ['lucke0302', 'nithrar'];
 
     const client = new tmi.Client({
         options: { debug: false },
@@ -17,12 +17,12 @@ function startTwitch(chatbot, sock) {
             username: process.env.TWITCH_USERNAME, 
             password: process.env.TWITCH_OAUTH 
         },
-        channels: [ canalTwitch ]
+        channels: canaisTwitch
     });
 
     client.connect().then(() => {
         isTwitchConnected = true;
-        console.log(`🟪 [TWITCH] Conectado e vigiando o chat de: ${canalTwitch}`);
+        console.log(`🟪 [TWITCH] Conectado e vigiando os chats: ${canaisTwitch.join(', ')}`);
     }).catch(console.error);
 
     client.on('message', async (channel, tags, message, self) => {
@@ -33,7 +33,8 @@ function startTwitch(chatbot, sock) {
         const command = message.trim();
         const sender = `${tags.username}@twitch.net`;
         const name = tags['display-name'];
-        const from = '120363422821336011@g.us'; 
+        
+        const from = channel; 
 
         const fakeMsg = {
             pushName: name,
@@ -59,7 +60,6 @@ function startTwitch(chatbot, sock) {
         };
 
         try {
-            
             const response = await chatbot.handleCommand(
                 fakeMsg, sender, from, true, command, "", sock, []
             );

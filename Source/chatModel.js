@@ -131,21 +131,34 @@ class ChatModel {
                 return await this.handleTimeoutCommand(ctx.name, ctx.command, ctx.sender, ctx.isGroup, ctx.mentions);
             },
             '!link': async (ctx) => {
-                if (ctx.sender !== "5513991008854@s.whatsapp.net") return "🚫 Apenas o arquiteto da Matrix pode unir dimensões.";
+                const admins = ["5513991008854@s.whatsapp.net", "lucke0302@twitch.net"];
+                if (!admins.includes(ctx.sender)) return "🚫 Apenas o arquiteto da Matrix pode unir dimensões.";
+                
                 const args = ctx.command.trim().split(/\s+/);
                 if (args.length < 2) return "⚠️ Uso: *!link [id_do_grupo_pai]*\n_(Use !id no grupo principal para pegar o código)_";
                 
                 const parentId = args[1];
-                if (!ctx.isGroup) return "⚠️ Este comando deve ser usado dentro do grupo que será o *filho*.";
-                if (parentId === ctx.from) return "⚠️ Você não pode linkar o grupo nele mesmo, gênio.";
+                
+                if (!ctx.isGroup && ctx.platform !== 'twitch') return "⚠️ Este comando deve ser usado dentro do grupo (ou live) que será o *filho*.";
+                
+                if (parentId === ctx.from) return "⚠️ Você não pode linkar o lugar nele mesmo, gênio.";
 
                 await this.db.run("INSERT OR REPLACE INTO grupos_linkados (id_filho, id_pai) VALUES (?, ?)", [ctx.from, parentId]);
-                return `🔗 **LINK DIMENSIONAL ESTABELECIDO!**\nEste grupo agora é uma filial do grupo oficial (\`${parentId}\`).\nA IA, o Parque e a Pescaria agora compartilham a mesma linha do tempo!`;
+                
+                const nomeFilial = ctx.platform === 'twitch' ? 'Esta live' : 'Este grupo';
+                return `🔗 **LINK DIMENSIONAL ESTABELECIDO!**\n${nomeFilial} agora é uma filial da matriz (\`${parentId}\`).\nA IA, o Cassino, o Parque e a moderação agora compartilham a mesma linha do tempo!`;
             },
+
             '!unlink': async (ctx) => {
-                if (ctx.sender !== "5513991008854@s.whatsapp.net") return "🚫 Acesso negado.";
-                await this.db.run("DELETE FROM grupos_linkados WHERE id_filho = ?", [ctx.from]);
-                return "💔 **LINK QUEBRADO.** Este grupo voltou a ser independente e isolado.";
+                const admins = ["5513991008854@s.whatsapp.net", "lucke0302@twitch.net"];
+                if (!admins.includes(ctx.sender)) return "🚫 Acesso negado.";
+                
+                const result = await this.db.run("DELETE FROM grupos_linkados WHERE id_filho = ?", [ctx.from]);
+                
+                if (result.changes === 0) return "⚠️ Nenhuma conexão encontrada. Este lugar já estava isolado.";
+
+                const nomeFilial = ctx.platform === 'twitch' ? 'Esta live' : 'Este grupo';
+                return `💔 **LINK QUEBRADO.** ${nomeFilial} voltou a ser independente e isolado.`;
             },
             '!debug_grupo': async (ctx) => {
                 const tag = await this.pokemonHandler.getUserTag(ctx.sender);

@@ -36,15 +36,17 @@ function startTwitch(chatbot, sock) {
         
         const from = channel; 
 
+        let quotedMsg = "";
+        if (tags['reply-parent-msg-body']) {
+            quotedMsg = tags['reply-parent-msg-body'].replace(/\\s/g, ' ');
+        }
+
         const fakeMsg = {
             pushName: name,
             platform: 'twitch',
             reply: async (texto) => {
                 const textoLimpo = texto.replace(/\n/g, ' | '); 
-                
-                client.say(channel, `@${tags.username} ${textoLimpo}`).catch(err => {
-                    console.error("❌ ERRO AO ENVIAR MENSAGEM NA TWITCH:", err);
-                });
+                client.say(channel, `@${tags.username} ${textoLimpo}`).catch(console.error);
             },
             replyImage: async (url, caption = "") => {
                 const capLimpa = caption.replace(/\n/g, ' | ');
@@ -61,7 +63,7 @@ function startTwitch(chatbot, sock) {
 
         try {
             const response = await chatbot.handleCommand(
-                fakeMsg, sender, from, true, command, "", sock, []
+                fakeMsg, sender, from, true, command, quotedMsg, sock, []
             );
 
             if (response && typeof response === 'string') {

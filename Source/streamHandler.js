@@ -25,7 +25,8 @@ class StreamHandler {
     }
 
     async isMod(sender, id_pai) {
-        if (sender === this.OWNER) return true;
+        if (sender === this.OWNER || sender === 'lucke0302@twitch.net') return true;
+        
         const row = await this.db.get(
             "SELECT id_usuario FROM stream_mods WHERE id_usuario = ? AND id_pai = ?", 
             [sender, id_pai]
@@ -192,8 +193,8 @@ class StreamHandler {
 
         const targetGroupId = await this.getNetGroupId(from);
 
-        if (targetGroupId === from && ctx.platform === 'whatsapp') {
-            await reply("⚠️ A moderação não está linkada a nenhum grupo oficial. Use *!link [ID_DO_GRUPO]* aqui primeiro.");
+        if (!targetGroupId.endsWith('@g.us')) {
+            await reply("⚠️ A moderação não está linkada a nenhum grupo oficial do WhatsApp. Use *!link [ID_DO_GRUPO]* aqui primeiro.");
             return null;
         }
 

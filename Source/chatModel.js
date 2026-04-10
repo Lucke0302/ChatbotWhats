@@ -258,7 +258,7 @@ class ChatModel {
                 const token = Math.random().toString(36).substring(2, 7).toUpperCase();
                 const expira = Date.now() + (10 * 60 * 1000); 
                 
-                await db.run(
+                await this.db.run(
                     "INSERT OR REPLACE INTO tokens_vinculo (token, id_whatsapp, expira_em) VALUES (?, ?, ?)",
                     [token, ctx.sender, expira]
                 );
@@ -273,15 +273,15 @@ class ChatModel {
                 const tokenDigitado = args[1]?.toUpperCase();
                 if (!tokenDigitado) return "⚠️ Cadê o token? Use: !vincular ABC12";
 
-                const registro = await db.get("SELECT * FROM tokens_vinculo WHERE token = ?", [tokenDigitado]);
+                const registro = await this.db.get("SELECT * FROM tokens_vinculo WHERE token = ?", [tokenDigitado]);
                 if (!registro) return "❌ Token inválido ou não encontrado.";
                 if (Date.now() > registro.expira_em) return "⏳ Esse token expirou! Gere outro no Zap.";
 
-                await db.run(
+                await this.db.run(
                     "INSERT OR REPLACE INTO contas_linkadas (id_twitch, id_whatsapp) VALUES (?, ?)",
                     [ctx.sender, registro.id_whatsapp]
                 );
-                await db.run("DELETE FROM tokens_vinculo WHERE token = ?", [tokenDigitado]);
+                await this.db.run("DELETE FROM tokens_vinculo WHERE token = ?", [tokenDigitado]);
 
                 return "✅ SUCESSO! Sua conta da Twitch agora está conectada ao seu WhatsApp. Suas conquistas e permissões foram sincronizadas!";
             },

@@ -1,6 +1,10 @@
 const tmi = require('tmi.js');
 
+let isTwitchConnected = false;
+
 function startTwitch(chatbot, sock) {
+    if (isTwitchConnected) return; 
+    
     const canalTwitch = 'lucke0302';
 
     const client = new tmi.Client({
@@ -17,6 +21,7 @@ function startTwitch(chatbot, sock) {
     });
 
     client.connect().then(() => {
+        isTwitchConnected = true;
         console.log(`🟪 [TWITCH] Conectado e vigiando o chat de: ${canalTwitch}`);
     }).catch(console.error);
 
@@ -24,8 +29,6 @@ function startTwitch(chatbot, sock) {
         if (self) return;
 
         if (!message.startsWith('!')) return;
-
-        console.log(`🚀 [TWITCH COMANDO] ${tags.username} mandou: ${message}`);
 
         const command = message.trim();
         const sender = `${tags.username}@twitch.net`;
@@ -37,15 +40,14 @@ function startTwitch(chatbot, sock) {
             platform: 'twitch',
             reply: async (texto) => {
                 const textoLimpo = texto.replace(/\n/g, ' | '); 
-                console.log(`🗣️ [TWITCH RESPONDENDO]: ${textoLimpo.substring(0, 50)}...`);
                 
                 client.say(channel, `@${tags.username} ${textoLimpo}`).catch(err => {
                     console.error("❌ ERRO AO ENVIAR MENSAGEM NA TWITCH:", err);
                 });
             },
             replyImage: async (url, caption = "") => {
-                console.log(`🖼️ [TWITCH RESPONDENDO IMAGEM]`);
-                client.say(channel, `@${tags.username} 🖼️ [Imagem] ${caption} - Link: ${url}`).catch(console.error);
+                const capLimpa = caption.replace(/\n/g, ' | ');
+                client.say(channel, `@${tags.username} 🖼️ [Imagem] ${capLimpa} - Link: ${url}`).catch(console.error);
             },
             replySticker: async (buffer) => { },
             replyDocument: async (path, filename, caption) => {
@@ -57,7 +59,6 @@ function startTwitch(chatbot, sock) {
         };
 
         try {
-            console.log(`🧠 [TWITCH] Enviando para o ChatModel...`);
             
             const response = await chatbot.handleCommand(
                 fakeMsg, sender, from, true, command, "", sock, []
@@ -65,7 +66,6 @@ function startTwitch(chatbot, sock) {
 
             if (response && typeof response === 'string') {
                 const responseLimpo = response.replace(/\n/g, ' | ');
-                console.log(`🗣️ [TWITCH RESPONDENDO RETURN]: ${responseLimpo.substring(0, 50)}...`);
                 client.say(channel, `@${tags.username} ${responseLimpo}`).catch(console.error);
             }
         } catch (error) {

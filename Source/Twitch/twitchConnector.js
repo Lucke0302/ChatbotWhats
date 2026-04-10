@@ -36,9 +36,10 @@ function startTwitch(chatbot, sock) {
             pushName: name,
             platform: 'twitch',
             reply: async (texto) => {
-                console.log(`🗣️ [TWITCH RESPONDENDO]: ${texto.substring(0, 50)}...`);
+                const textoLimpo = texto.replace(/\n/g, ' | '); 
+                console.log(`🗣️ [TWITCH RESPONDENDO]: ${textoLimpo.substring(0, 50)}...`);
                 
-                client.say(channel, `@${tags.username} ${texto}`).catch(err => {
+                client.say(channel, `@${tags.username} ${textoLimpo}`).catch(err => {
                     console.error("❌ ERRO AO ENVIAR MENSAGEM NA TWITCH:", err);
                 });
             },
@@ -63,8 +64,9 @@ function startTwitch(chatbot, sock) {
             );
 
             if (response && typeof response === 'string') {
-                console.log(`🗣️ [TWITCH RESPONDENDO RETURN]: ${response.substring(0, 50)}...`);
-                client.say(channel, `@${tags.username} ${response}`).catch(console.error);
+                const responseLimpo = response.replace(/\n/g, ' | ');
+                console.log(`🗣️ [TWITCH RESPONDENDO RETURN]: ${responseLimpo.substring(0, 50)}...`);
+                client.say(channel, `@${tags.username} ${responseLimpo}`).catch(console.error);
             }
         } catch (error) {
             console.error("❌ Erro ao processar comando da Twitch:", error);

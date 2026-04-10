@@ -29,7 +29,7 @@ const { handleBotError } = require('./errorHandler');
 const { startTwitch } = require('./Twitch/twitchConnector');
 const fs = require('fs');
 const { Sticker, StickerTypes } = require('wa-sticker-formatter');
-//const sharp = require('sharp');
+const sharp = require('sharp');
 const crypto = require('crypto');
 
 const DriveBackup = require('./handleDriveBackup');

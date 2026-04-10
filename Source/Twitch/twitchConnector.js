@@ -4,6 +4,15 @@ function startTwitch(chatbot, sock) {
     const canalTwitch = 'Lucke0302';
 
     const client = new tmi.Client({
+        options: { debug: false },
+        connection: {
+            reconnect: true,
+            secure: true
+        },
+        identity: {
+            username: process.env.TWITCH_USERNAME, 
+            password: process.env.TWITCH_OAUTH 
+        },
         channels: [ canalTwitch ]
     });
 

@@ -21,27 +21,34 @@ function startTwitch(chatbot, sock) {
     }).catch(console.error);
 
     client.on('message', async (channel, tags, message, self) => {
-        if (self || !message.startsWith('!')) return;
+        if (self) return;
+
+        if (!message.startsWith('!')) return;
+
+        console.log(`🚀 [TWITCH COMANDO] ${tags.username} mandou: ${message}`);
 
         const command = message.trim();
         const sender = `${tags.username}@twitch.net`;
         const name = tags['display-name'];
-        
         const from = '120363422821336011@g.us'; 
 
         const fakeMsg = {
             pushName: name,
             platform: 'twitch',
             reply: async (texto) => {
-                client.say(channel, `@${tags.username} ${texto}`);
+                console.log(`🗣️ [TWITCH RESPONDENDO]: ${texto.substring(0, 50)}...`);
+                
+                client.say(channel, `@${tags.username} ${texto}`).catch(err => {
+                    console.error("❌ ERRO AO ENVIAR MENSAGEM NA TWITCH:", err);
+                });
             },
-            replyImage: async (url, caption) => {
-                client.say(channel, `@${tags.username} 🖼️ [Imagem] ${caption} - Link: ${url}`);
+            replyImage: async (url, caption = "") => {
+                console.log(`🖼️ [TWITCH RESPONDENDO IMAGEM]`);
+                client.say(channel, `@${tags.username} 🖼️ [Imagem] ${caption} - Link: ${url}`).catch(console.error);
             },
-            replySticker: async (buffer) => {
-            },
+            replySticker: async (buffer) => { },
             replyDocument: async (path, filename, caption) => {
-                client.say(channel, `@${tags.username} 📄 Não consigo enviar PDFs por aqui. Tenta pelo Zap!`);
+                client.say(channel, `@${tags.username} 📄 Não consigo enviar PDFs por aqui. Tenta pelo Zap!`).catch(console.error);
             },
             sendTo: async (targetId, texto) => {
                 if (sock) await sock.sendMessage(targetId, { text: texto });
@@ -49,12 +56,15 @@ function startTwitch(chatbot, sock) {
         };
 
         try {
+            console.log(`🧠 [TWITCH] Enviando para o ChatModel...`);
+            
             const response = await chatbot.handleCommand(
                 fakeMsg, sender, from, true, command, "", sock, []
             );
 
             if (response && typeof response === 'string') {
-                client.say(channel, `@${tags.username} ${response}`);
+                console.log(`🗣️ [TWITCH RESPONDENDO RETURN]: ${response.substring(0, 50)}...`);
+                client.say(channel, `@${tags.username} ${response}`).catch(console.error);
             }
         } catch (error) {
             console.error("❌ Erro ao processar comando da Twitch:", error);

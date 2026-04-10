@@ -31,10 +31,20 @@ function startTwitch(chatbot, sock) {
         if (!message.startsWith('!')) return;
 
         const command = message.trim();
-        const sender = `${tags.username}@twitch.net`;
+        const senderTwitch = `${tags.username}@twitch.net`;
         const name = tags['display-name'];
         
         const from = channel; 
+
+        let sender = senderTwitch; 
+        try {
+            const link = await chatbot.db.get("SELECT id_whatsapp FROM contas_linkadas WHERE id_twitch = ?", [senderTwitch]);
+            if (link && link.id_whatsapp) {
+                sender = link.id_whatsapp; 
+            }
+        } catch (err) {
+            console.error("Erro ao checar link de contas:", err);
+        }
 
         let quotedMsg = "";
         if (tags['reply-parent-msg-body']) {

@@ -12,9 +12,17 @@ class StreamHandler {
                 id_pai TEXT,
                 PRIMARY KEY (id_usuario, id_pai)
             );
+            CREATE TABLE IF NOT EXISTS contas_linkadas (
+                id_twitch TEXT PRIMARY KEY,
+                id_whatsapp TEXT
+            );
+            CREATE TABLE IF NOT EXISTS tokens_vinculo (
+                token TEXT PRIMARY KEY,
+                id_whatsapp TEXT,
+                expira_em INTEGER
+            );
         `);
     }
-
     async getNetGroupId(groupId) {
         try {
             const link = await this.db.get("SELECT id_pai FROM grupos_linkados WHERE id_filho = ?", [groupId]);
@@ -24,9 +32,11 @@ class StreamHandler {
         }
     }
 
-    async isMod(sender, id_pai) {
+    async isMod(sender, id_pai, ctx) {
         if (sender === this.OWNER || sender === 'lucke0302@twitch.net') return true;
         
+        if (ctx && ctx.platform === 'twitch' && ctx.isTwitchMod) return true;
+
         const row = await this.db.get(
             "SELECT id_usuario FROM stream_mods WHERE id_usuario = ? AND id_pai = ?", 
             [sender, id_pai]
@@ -38,7 +48,7 @@ class StreamHandler {
         const { sender, from, command, mentions, reply } = ctx;
         const id_pai = await this.getNetGroupId(from);
         
-        if (!(await this.isMod(sender, id_pai))) {
+        if (!(await this.isMod(sender, id_pai, ctx))) {
             return null;
         }
 
@@ -64,7 +74,7 @@ class StreamHandler {
         const { sender, from, command, mentions, reply } = ctx;
         const id_pai = await this.getNetGroupId(from);
         
-        if (!(await this.isMod(sender, id_pai))) {
+        if (!(await this.isMod(sender, id_pai, ctx))) {
             await reply("🚫 Acesso negado.");
             return null;
         }
@@ -93,7 +103,7 @@ class StreamHandler {
         const { sock, from, sender, reply, platform } = ctx;
         const id_pai = await this.getNetGroupId(from);
 
-        if (!(await this.isMod(sender, id_pai))) {
+        if (!(await this.isMod(sender, id_pai, ctx))) {
             await reply("🚫 Acesso negado. A lista da equipe é confidencial.");
             return null;
         }
@@ -175,7 +185,7 @@ class StreamHandler {
         const { sock, from, quotedMessage, name, sender, reply, command } = ctx;
         const id_pai = await this.getNetGroupId(from);
         
-        if (!(await this.isMod(sender, id_pai))) {
+        if (!(await this.isMod(sender, id_pai, ctx))) {
             return null;
         }
 
@@ -227,7 +237,7 @@ class StreamHandler {
         const { sock, from, sender, reply } = ctx;
         const targetGroupId = await this.getNetGroupId(from);
 
-        if (!(await this.isMod(sender, targetGroupId))) {
+        if (!(await this.isMod(sender, targetGroupId, ctx))) {
             return null;
         }
 

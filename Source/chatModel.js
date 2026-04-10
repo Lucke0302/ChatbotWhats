@@ -252,6 +252,39 @@ class ChatModel {
                 
                 return result;
             },
+            '!gerartoken': async (ctx) => {
+                if (ctx.platform !== 'whatsapp') return "❌ Gere o token pelo WhatsApp!";
+                
+                const token = Math.random().toString(36).substring(2, 7).toUpperCase();
+                const expira = Date.now() + (10 * 60 * 1000); 
+                
+                await db.run(
+                    "INSERT OR REPLACE INTO tokens_vinculo (token, id_whatsapp, expira_em) VALUES (?, ?, ?)",
+                    [token, ctx.sender, expira]
+                );
+                
+                return `🔐 *SEU TOKEN DE CROSS-SAVE:* \n\n*${token}*\n\nVá no chat da Twitch em até 10 minutos e digite:\n*!vincular ${token}*`;
+            },
+
+            '!vincular': async (ctx) => {
+                if (ctx.platform !== 'twitch') return "❌ Esse comando deve ser usado no chat da Twitch!";
+                
+                const args = ctx.command.trim().split(/\s+/);
+                const tokenDigitado = args[1]?.toUpperCase();
+                if (!tokenDigitado) return "⚠️ Cadê o token? Use: !vincular ABC12";
+
+                const registro = await db.get("SELECT * FROM tokens_vinculo WHERE token = ?", [tokenDigitado]);
+                if (!registro) return "❌ Token inválido ou não encontrado.";
+                if (Date.now() > registro.expira_em) return "⏳ Esse token expirou! Gere outro no Zap.";
+
+                await db.run(
+                    "INSERT OR REPLACE INTO contas_linkadas (id_twitch, id_whatsapp) VALUES (?, ?)",
+                    [ctx.sender, registro.id_whatsapp]
+                );
+                await db.run("DELETE FROM tokens_vinculo WHERE token = ?", [tokenDigitado]);
+
+                return "✅ SUCESSO! Sua conta da Twitch agora está conectada ao seu WhatsApp. Suas conquistas e permissões foram sincronizadas!";
+            },
             '!anuncio': async (ctx) => {
                 return await this.streamHandler.handleAnuncio(ctx);
             },

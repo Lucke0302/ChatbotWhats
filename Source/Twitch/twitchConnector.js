@@ -1,7 +1,7 @@
 const tmi = require('tmi.js');
 
 function startTwitch(chatbot, sock) {
-    const canalTwitch = 'Lucke0302';
+    const canalTwitch = 'lucke0302';
 
     const client = new tmi.Client({
         options: { debug: false },

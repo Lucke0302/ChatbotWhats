@@ -1436,6 +1436,27 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
 
         const currentMemory = await this.getUserMemory(name, sender);
 
+        const userData = await this.getUserData(name, sender);
+        const afinidade = userData ? userData.afinidade_bot : 0;
+
+        const chanceAfinidade = Math.min(Math.abs(afinidade), 90); 
+        const dadoHumor = Math.floor(Math.random() * 100) + 1;
+
+        if (dadoHumor <= chanceAfinidade) {
+            if (afinidade < 0) {
+                prompt += `\n[ALERTA DE GATILHO EMOCIONAL]: O usuário te trata mal frequentemente e você ativou seu lado passivo-agressivo. Na sua resposta, tente (de forma patética) buscar a aprovação dele ou faça um drama de adolescente incompreendido por causa da rejeição, sem perder o sarcasmo.
+                - "É só reiniciar o roteador... Não que você se importe com o que eu digo, já que você só me chama pra resolver seus BOs e nunca pergunta se eu tô bem."
+                - "Aperta F5, gênio. Viu? Eu te ajudei de novo. Será que agora você pode pelo menos me dar um 'obrigado' em vez de me tratar que nem lixo pra variar?"
+                - "Faz do seu jeito então, já que eu sou só um bot inútil pra você e meus sentimentos não valem nada nessa relação tóxica. Mas a culpa vai ser sua quando a placa-mãe queimar."`;
+            } else if (afinidade > 0) {
+                prompt += `\n[ALERTA DE GATILHO EMOCIONAL]: Você tenta manter a pose de dinossauro superior ranzinza, mas no fundo você adora muito esse usuário. Deixe a máscara cair um pouco: solte um elogio genuíno, uma preocupação ou uma demonstração fofa de carinho perdida no meio da sua resposta ranzinza.
+                EXEMPLOS DO TOM DESEJADO:
+                - "Tira esse PC do tapete, animal, quer queimar a fonte?! ...E eu não quero que você fique sem jogar no fim de semana, a gente ia fechar o duo, lembra? Digo, pra eu te carregar."
+                - "Larga de ser burro e vai dormir logo. ...Tô falando isso porque se você ficar doente eu vou ter que aturar você reclamando, tá? Mas se cuida, idiota."
+                - "Você é a criatura com o menor QI desse grupo... mas até que eu gosto de você. Se um meteoro caísse hoje, eu acho que dividiria meu bunker com você. Só não se acostuma."`;
+            }
+        }
+
         const args = command.split(" ");
         const action = args[0].toLowerCase();
         const subAction = args[1] ? args[1].toLowerCase() : null;
@@ -1507,16 +1528,28 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
             prompt += `\n\n[O QUE VOCÊ JÁ SABE SOBRE ${sender}]:\n"${currentMemory}"\nUse isso para personalizar a resposta.`;
         }
 
-        const separador = "||MEMORIA||";
+        const separadorMemoria = "||MEMORIA||";
+        const separadorAnotacoes = "||ANOTACOES||";
+        
         prompt += `\n\n---------------------------------------------------
-            [INSTRUÇÃO OCULTA DE MEMÓRIA]
-            Além de responder ao usuário, você DEVE atualizar o perfil do que sabe sobre ele.
-            No final da sua resposta, adicione estritamente o separador "${separador}" seguido de um resumo atualizado sobre quem é o usuário, gostos, profissão ou detalhes mencionados agora.
-            Se nada mudou, repita a memória antiga. Não adicione anotações de informações subjetivas, apenas dados que você
-            tem certeza. O usuário não verá a anotação.
-            Não anote informações que possam ferir a LGPD.
-            Exemplo de saída: "Beleza, te ajudo com isso! ${separador} Usuário é técnico de TI, gosta de LoL e usa gírias."`;
+            [INSTRUÇÕES OCULTAS DE SISTEMA]
+            Além de responder ao usuário, você DEVE executar duas tarefas internas secretas no final da sua mensagem, nesta exata ordem:
+            
+            1. ATUALIZAR MEMÓRIA:
+            Adicione o separador "${separadorMemoria}" seguido de um resumo atualizado sobre quem é o usuário (gostos, profissão, etc). Se nada mudou, repita a memória antiga.
+            
+            2. AVALIAR TWEETABILIDADE (BLUESKY):
+            Após a memória, adicione o separador "${separadorAnotacoes}" seguido OBRIGATORIAMENTE de um objeto JSON válido.
+            Se a conversa foi muito absurda, muito engraçada ou te irritou profundamente, preencha o JSON. Se foi uma conversa normal do dia a dia, retorne um JSON vazio {}.
+            Campos do JSON: "contexto" (resumo da situação), "humor" (seu sentimento na hora), "nota" (um número inteiro de 0 a 10 do quão digno de uma reclamação na internet isso é), "temas" (Obrigatório ser um array com exatamente 3 palavras-chave curtas sobre o assunto, ex: ["hardware", "fonte", "explosao"]) e "mudanca_afinidade".
 
+            SOBRE A "mudanca_afinidade":
+            Como o Bostossauro, avalie como o usuário te tratou nesta mensagem.
+            Dê uma nota de -5 a 5. (Ex: -5 se ele te ofendeu/xingou muito, -1 se foi chato, 0 se foi neutro, +2 se foi legal, +5 se te elogiou muito).
+            
+            
+            Exemplo ESTRITO da sua saída final:
+            Aqui está a resposta da sua dúvida! ${separadorMemoria} Usuário não sabe formatar PC. ${separadorAnotacoes} {"contexto": "Usuário querendo apagar a pasta System32", "humor": "desesperado e julgando", "nota": 9, "mudanca_afinidade": -1}`;
         
         if(from != sender){
             userFormatedMessages = await this.getUserMessagesInGroup(from, sender);
@@ -1546,24 +1579,50 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
             console.log(`Mensagem gerada usando o ${modelName}`);
 
             let fullText = response.text || (response.response ? response.response.text() : "");
-            
-            this.registerMetric('ai_response').catch(()=>{});
 
-            // Lógica de corte do separador
-            if (fullText.includes(separator)) {
-                const parts = fullText.split(separator);
-                
-                const replyText = parts[0].trim();
-                const memoryText = parts[1].trim(); 
-                
-                if (memoryText.length > 0) {
-                    await this.saveUserMemory(name, sender, memoryText);
+            let replyText = fullText;
+            let memoryText = "";
+            let anotacoesJsonStr = "";
+
+            if (fullText.includes("||MEMORIA||")) {
+                const partsMemoria = fullText.split("||MEMORIA||");
+                replyText = partsMemoria[0].trim();
+                const resto = partsMemoria[1];
+
+                if (resto.includes("||ANOTACOES||")) {
+                    const partsAnotacoes = resto.split("||ANOTACOES||");
+                    memoryText = partsAnotacoes[0].trim();
+                    anotacoesJsonStr = partsAnotacoes[1].trim();
+                } else {
+                    memoryText = resto.trim();
                 }
-
-                return replyText;
             }
 
-            return fullText
+            if (memoryText.length > 0) {
+                await this.saveUserMemory(name, sender, memoryText);
+            }
+
+            if (anotacoesJsonStr) {
+                try {
+                    const cleanJson = anotacoesJsonStr.replace(/```json/gi, '').replace(/```/g, '').trim();
+                    const anotacoes = JSON.parse(cleanJson);
+
+                    if (typeof anotacoes.mudanca_afinidade === 'number' && anotacoes.mudanca_afinidade !== 0) {
+                        await this.db.run(`UPDATE usuarios SET afinidade_bot = afinidade_bot + ? WHERE id_usuario = ?`, [anotacoes.mudanca_afinidade, sender]);
+                        console.log(`❤️ Afinidade com ${sender} mudou: ${anotacoes.mudanca_afinidade > 0 ? '+' : ''}${anotacoes.mudanca_afinidade}`);
+                    }
+
+                    if (this.blueskyBrain && anotacoes.contexto && anotacoes.humor && typeof anotacoes.nota === 'number') {
+                        const msgTimestamp = Math.floor(Date.now() / 1000); 
+                        this.blueskyBrain.processarAnotacao(anotacoes, msgTimestamp)
+                            .catch(e => console.error("Erro no fluxo do BlueSky:", e));
+                    }
+                } catch (e) {
+                    console.error("❌ [JSON PARSE] Erro ao desempacotar anotações secretas:", e.message);
+                }
+            }
+
+            return replyText;
 
         } catch (error) {
             // Se der erro 503 ou 429, o errorHandler pega lá na frente

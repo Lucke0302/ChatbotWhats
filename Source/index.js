@@ -31,6 +31,7 @@ const fs = require('fs');
 const { Sticker, StickerTypes } = require('wa-sticker-formatter');
 const sharp = require('sharp');
 const crypto = require('crypto');
+const BlueskyBrain = require('./Bluesky/blueskyBrain');
 
 const DriveBackup = require('./handleDriveBackup');
 const driveService = new DriveBackup();
@@ -712,6 +713,35 @@ async function initDatabase() {
         )
     `);
 
+    await db.exec(`
+        CREATE TABLE IF NOT EXISTS pensamentos_bot (
+            id TEXT PRIMARY KEY,
+            contexto TEXT,
+            humor_origem TEXT,
+            nota_tweet INTEGER DEFAULT NULL,
+            status TEXT DEFAULT 'pendente',
+            timestamp_evento INTEGER,
+            temas TEXT DEFAULT '[]'
+        )
+    `);
+    console.log("✅ Tabela 'pensamentos_bot' verificada.");
+
+    await db.exec(`
+        CREATE TABLE IF NOT EXISTS historico_bluesky (
+            id TEXT PRIMARY KEY,
+            temas TEXT,
+            post_texto TEXT,
+            timestamp INTEGER
+        )
+    `);
+
+    try {
+        await db.exec(`ALTER TABLE usuarios ADD COLUMN afinidade_bot INTEGER DEFAULT 0;`);
+        console.log("✅ Coluna 'afinidade_bot' adicionada com sucesso!");
+    } catch (error) {
+        if (!error.message.includes("duplicate column name")) console.error(error.message);
+    }
+
     console.log('✅ Banco de dados SQLite inicializado e tabelas verificadas.');
 }
 
@@ -923,6 +953,10 @@ async function connectToWhatsApp() {
     //Instancia o chatbot
     const chatbot = new ChatModel(db, genAI)
     await chatbot.updateOnlineStatus();
+
+    const blueskyBrain = new BlueskyBrain(db, chatbot);
+    blueskyBrain.iniciarRotina();
+    chatbot.blueskyBrain = blueskyBrain;
 
     startTwitch(chatbot, sock);
 
@@ -1353,12 +1387,37 @@ async function connectToWhatsApp() {
         }*/
         
         //Pega o texto da mensagem
-        const texto = msg.message.conversation || 
+        let texto = msg.message.conversation || 
               msg.message.extendedTextMessage?.text || 
               msg.message.imageMessage?.caption ||
               msg.message.videoMessage?.caption ||
               msg.message.documentMessage?.caption ||
               '';
+
+        const rawMentions = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
+        const textLids = rawMentions.filter(jid => jid.includes('@lid'));
+
+        if (textLids.length > 0 && from.endsWith('@g.us')) {
+            try {
+                const groupMetadata = await sock.groupMetadata(from);
+                const participants = groupMetadata.participants || [];
+
+                textLids.forEach(targetLid => {
+                    const found = participants.find(p => p.id === targetLid || p.lid === targetLid);
+                    if (found) {
+                        const realNumber = found.phoneNumber || found.id;
+                        if (realNumber && realNumber.includes('@s.whatsapp.net')) {
+                            const rawLidNum = targetLid.split('@')[0];
+                            const realNum = realNumber.split('@')[0];
+                            const regex = new RegExp(`@${rawLidNum}`, 'g');
+                            texto = texto.replace(regex, `@${realNum}`);
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error("❌ Erro ao limpar LID do texto:", error);
+            }
+        }
 
         //Joga o comando todo para letras minúsculas para evitar problemas com case-sensitive
         const command = texto.trim().toLowerCase();
@@ -1662,7 +1721,16 @@ async function connectToWhatsApp() {
                 
                 //Verifica se recebeu alguma resposta
                 if (response) {
-                    await sendAndSave(sock, db, from, finalResponse, null, [sender]);
+                    const numerosMencionados = finalResponse.match(/@\d+/g) || [];
+                    const jidsMencionados = numerosMencionados.map(num => num.replace('@', '') + '@s.whatsapp.net');
+
+                    const todasMencoes = [...new Set([
+                        sender,
+                        ...normalizedMentions,
+                        ...jidsMencionados
+                    ])];
+
+                    await sendAndSave(sock, db, from, finalResponse, null, todasMencoes);
                 }
             } catch (error) {
                 await handleBotError(error, replyToUser, contextObj);
@@ -1769,8 +1837,17 @@ async function connectToWhatsApp() {
             
             try {                
                 response = await chatbot.handleMessageWithoutCommand(msg, sender, from, isGroup, command, quotedMessageText)
-                if (response && typeof response === 'string') {
-                    await sendAndSave(sock, db, from, response, msg, [sender]); 
+                if (response) {
+                    const numerosMencionados = finalResponse.match(/@\d+/g) || [];
+                    const jidsMencionados = numerosMencionados.map(num => num.replace('@', '') + '@s.whatsapp.net');
+
+                    const todasMencoes = [...new Set([
+                        sender,
+                        ...normalizedMentions,
+                        ...jidsMencionados
+                    ])];
+
+                    await sendAndSave(sock, db, from, finalResponse, null, todasMencoes);
                 }
             } catch (error) {
                 await handleBotError(error, replyToUser, contextObj);

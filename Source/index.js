@@ -1848,7 +1848,7 @@ async function connectToWhatsApp() {
                         ...jidsMencionados
                     ])];
 
-                    await sendAndSave(sock, db, from, finalResponse, null, todasMencoes);
+                    await sendAndSave(sock, db, from, response, null, todasMencoes);
                 }
             } catch (error) {
                 await handleBotError(error, replyToUser, contextObj);

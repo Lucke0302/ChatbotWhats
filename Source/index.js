@@ -1835,12 +1835,10 @@ async function connectToWhatsApp() {
                 command: command
             };
             
-            const finalResponse = response;
-            
             try {                
                 response = await chatbot.handleMessageWithoutCommand(msg, sender, from, isGroup, command, quotedMessageText)
                 if (response) {
-                    const numerosMencionados = finalResponse.match(/@\d+/g) || [];
+                    const numerosMencionados = response.match(/@\d+/g) || [];
                     const jidsMencionados = numerosMencionados.map(num => num.replace('@', '') + '@s.whatsapp.net');
 
                     const todasMencoes = [...new Set([

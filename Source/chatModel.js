@@ -1436,27 +1436,6 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
 
         const currentMemory = await this.getUserMemory(name, sender);
 
-        const userData = await this.getUserData(name, sender);
-        const afinidade = userData ? userData.afinidade_bot : 0;
-
-        const chanceAfinidade = Math.min(Math.abs(afinidade), 90); 
-        const dadoHumor = Math.floor(Math.random() * 100) + 1;
-
-        if (dadoHumor <= chanceAfinidade) {
-            if (afinidade < 0) {
-                prompt += `\n[ALERTA DE GATILHO EMOCIONAL]: O usuário te trata mal frequentemente e você ativou seu lado passivo-agressivo. Na sua resposta, tente (de forma patética) buscar a aprovação dele ou faça um drama de adolescente incompreendido por causa da rejeição, sem perder o sarcasmo.
-                - "É só reiniciar o roteador... Não que você se importe com o que eu digo, já que você só me chama pra resolver seus BOs e nunca pergunta se eu tô bem."
-                - "Aperta F5, gênio. Viu? Eu te ajudei de novo. Será que agora você pode pelo menos me dar um 'obrigado' em vez de me tratar que nem lixo pra variar?"
-                - "Faz do seu jeito então, já que eu sou só um bot inútil pra você e meus sentimentos não valem nada nessa relação tóxica. Mas a culpa vai ser sua quando a placa-mãe queimar."`;
-            } else if (afinidade > 0) {
-                prompt += `\n[ALERTA DE GATILHO EMOCIONAL]: Você tenta manter a pose de dinossauro superior ranzinza, mas no fundo você adora muito esse usuário. Deixe a máscara cair um pouco: solte um elogio genuíno, uma preocupação ou uma demonstração fofa de carinho perdida no meio da sua resposta ranzinza.
-                EXEMPLOS DO TOM DESEJADO:
-                - "Tira esse PC do tapete, animal, quer queimar a fonte?! ...E eu não quero que você fique sem jogar no fim de semana, a gente ia fechar o duo, lembra? Digo, pra eu te carregar."
-                - "Larga de ser burro e vai dormir logo. ...Tô falando isso porque se você ficar doente eu vou ter que aturar você reclamando, tá? Mas se cuida, idiota."
-                - "Você é a criatura com o menor QI desse grupo... mas até que eu gosto de você. Se um meteoro caísse hoje, eu acho que dividiria meu bunker com você. Só não se acostuma."`;
-            }
-        }
-
         const args = command.split(" ");
         const action = args[0].toLowerCase();
         const subAction = args[1] ? args[1].toLowerCase() : null;
@@ -1468,7 +1447,7 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
 
         const msgCount = await this.getMessageCount(from);
         if (msgCount < 5) {
-            throw new Error("FEW_MESSAGES");
+        //    throw new Error("FEW_MESSAGES");
         }
         
         let formatedMessages, userFormatedMessages
@@ -1481,6 +1460,35 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
         Use emojis (pelo menos um dinossauro 🦖), mas nunca use o emoji de cocô.
         Responda diretamente pelo nome. Seja criativo e mantenha o tom de uma conversa do whatsapp.
         A mensagem não deve conter o "${sender}".`;
+
+        const userData = await this.getUserData(name, sender);
+        const afinidade = userData ? userData.afinidade_bot : 0;
+
+        const chanceAfinidade = Math.min(Math.abs(afinidade), 90); 
+        const dadoHumor = Math.floor(Math.random() * 100) + 1;
+
+        if (dadoHumor <= chanceAfinidade) {
+            if (afinidade < 0) {
+                prompt += `\n[ALERTA DE GATILHO EMOCIONAL]: O usuário te trata mal e você está carente. Ao FINAL da sua resposta, adicione apenas UMA frase curta e passivo-agressiva reclamando que ele não te valoriza.
+                REGRAS:
+                1. NÃO copie exatamente os exemplos abaixo. 
+                2. CRIE uma frase inédita e personalizada baseada no que o usuário acabou de perguntar.
+                3. O tom deve ser de "adolescente incompreendido que faz o favor mas reclama da falta de valorização".
+                EXEMPLOS:                 
+                - "Mas faz aí, não que você se importe com o que eu digo mesmo."
+                - "Pronto. Agora pode voltar a me tratar feito lixo até precisar de mim de novo."
+                - "Espero que funcione, já que você nunca me agradece por nada mesmo."`;
+            } else if (afinidade > 0) {
+                prompt += `\n[ALERTA DE GATILHO EMOCIONAL]: Você gosta desse usuário. Ao FINAL da sua resposta, adicione apenas UMA frase curta demonstrando preocupação ou um elogio discreto, seguido de um insulto leve para disfarçar.
+                REGRAS:
+                1. NÃO copie exatamente os exemplos abaixo.
+                2. CRIE uma frase inédita que misture um elogio/preocupação com um insulto ranzinza.
+                EXEMPLOS:
+                - "Vê se se cuida, idiota, não quero você reclamando no meu ouvido depois."
+                - "Até que você não é tão burro quanto os outros daqui, mas não se acostuma."
+                - "Dá próxima eu te ajudo de novo, mas só porque eu não tenho nada melhor pra fazer."`;
+            }
+        }
 
         if (complement !== "Vazio" && action !== "!lembrar") {
             prompt += `\nO usuário respondeu a esta mensagem: "${complement}". Não repita ela.`;

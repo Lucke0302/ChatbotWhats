@@ -1835,8 +1835,7 @@ async function connectToWhatsApp() {
                 command: command
             };
             
-            const intro = commandIntros[commandName] || commandIntros['undefined'];
-            const finalResponse = `${intro}${response}`;
+            const finalResponse = response;
             
             try {                
                 response = await chatbot.handleMessageWithoutCommand(msg, sender, from, isGroup, command, quotedMessageText)

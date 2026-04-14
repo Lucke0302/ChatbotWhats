@@ -53,7 +53,7 @@ class ChatModel {
         this.pokemonHandler.init();
         this.pokeRouter = new PokeRouter(db);
         this.initializeCommandHandlers();
-        this.resenhaHandler = new resenhaCommand(db, genAI);
+        this.resenhaCommand = new ResenhaCommand(this.db, this.genAI);
         this.casinoHandler = new CasinoHandler(db);
         this.pescariaHandler = new PescariaHandler(db, this.casinoHandler);
         this.parqueHandler = new ParqueHandler(db, this.casinoHandler, this.pescariaHandler);

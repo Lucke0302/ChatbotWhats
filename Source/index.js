@@ -1838,7 +1838,8 @@ async function connectToWhatsApp() {
             try {                
                 response = await chatbot.handleMessageWithoutCommand(msg, sender, from, isGroup, command, quotedMessageText)
                 if (response) {
-                    const numerosMencionados = finalResponse.match(/@\d+/g) || [];
+                    const normalizedMentions = await getNormalizedMentions(sock, from, msg);
+                    const numerosMencionados = response.match(/@\d+/g) || [];
                     const jidsMencionados = numerosMencionados.map(num => num.replace('@', '') + '@s.whatsapp.net');
 
                     const todasMencoes = [...new Set([
@@ -1847,7 +1848,7 @@ async function connectToWhatsApp() {
                         ...jidsMencionados
                     ])];
 
-                    await sendAndSave(sock, db, from, finalResponse, null, todasMencoes);
+                    await sendAndSave(sock, db, from, response, null, todasMencoes);
                 }
             } catch (error) {
                 await handleBotError(error, replyToUser, contextObj);

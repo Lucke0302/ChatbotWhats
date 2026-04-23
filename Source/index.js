@@ -736,6 +736,13 @@ async function initDatabase() {
     `);
 
     try {
+        await db.exec(`ALTER TABLE usuarios ADD COLUMN is_teammatch BOOLEAN DEFAULT 0;`);
+        console.log("✅ Coluna 'is_teammatch' adicionada com sucesso!");
+    } catch (error) {
+        if (!error.message.includes("duplicate column name")) console.error(error.message);
+    }
+
+    try {
         await db.exec(`ALTER TABLE usuarios ADD COLUMN afinidade_bot INTEGER DEFAULT 0;`);
         console.log("✅ Coluna 'afinidade_bot' adicionada com sucesso!");
     } catch (error) {
@@ -969,10 +976,48 @@ async function connectToWhatsApp() {
     const app = express();
     app.use(cors());
 
+    app.use(express.json());
+
+    const mfaService = require('./mfaService');
+
     const server = http.createServer(app);
 
     const io = new Server(server, {
         cors: { origin: "*" }
+    });
+
+    app.post('/api/send-code', async (req, res) => {
+        try {
+            const { phone } = req.body;
+            if (!phone) return res.status(400).json({ RequestStatus: 400, Error: "Telefone ausente." });
+
+            const pureNumbers = phone.toString().replace(/\D/g, '');
+            
+            const jid = pureNumbers + '@s.whatsapp.net';
+
+            const code = mfaService.generateCode();
+            const message = `TeamMatch: Seu código de segurança é ${code}`;
+
+            await db.run(
+                `INSERT OR IGNORE INTO usuarios (id_usuario, nome, banido_ate, uso_ia_diario, data_ultimo_uso, anotacoes, is_teammatch) 
+                 VALUES (?, 'Usuário TeamMatch', 0, 0, '', '', 1)`,
+                [jid]
+            );
+
+            await sock.sendMessage(jid, { text: message });
+            
+            console.log(`🔐 [MFA] Enviado para: ${pureNumbers}`);
+
+            return res.json({
+                RequestStatus: 200,
+                VerificationCode: code,
+                UserPhone: pureNumbers
+            });
+
+        } catch (error) {
+            console.error("❌ Erro no MFA:", error);
+            res.status(500).json({ RequestStatus: 500 });
+        }
     });
 
     app.get('/api/dashboard', async (req, res) => {
@@ -1426,6 +1471,12 @@ async function connectToWhatsApp() {
         const name = msg.pushName || '';
 
         const sender = getSenderJid(msg);
+
+        const userDbInfo = await db.get("SELECT is_teammatch FROM usuarios WHERE id_usuario = ?", [sender]);
+        if (userDbInfo && userDbInfo.is_teammatch === 1) {
+            console.log(`🔇 Mensagem ignorada (Usuário TeamMatch): ${sender}`);
+            return; 
+        }
 
         if (!command.startsWith("!poke")) {
             chatbot.countMessage(name, sender, from);

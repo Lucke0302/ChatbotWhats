@@ -3,6 +3,17 @@ const fs = require('fs');
 
 let isDiscordConnected = false;
 
+const discordCommandEmojis = {
+    '!d': '🎲', '!menu': '📄', '!resumo': '🛎️', '!gpt': '🤖', '!lembrar': '🧠',
+    '!sticker': '🪄', '!s': '🪄', '!lol': '🎮', '!timeout': '✅', '!notas': '✏️',
+    '!clima': '🌡️', '!tradutor': '🧐', '!cotacao': '💵', '!investir': '📈', 
+    '!ajuda': '🆘', '!help': '🆘', '!pdf': '⚙️', '!burro': '🤓', '!toxico': '☢️', 
+    '!falador': '🗣️', '!audio': '🗣️', '!poke': '🎮', '!resenha': '🧐',
+    '!cassino': '🎰', '!pix': '💸', '!minhabosta': '🪙', '!trabalhar': '💼',
+    '!pescar': '🎣', '!pescaria': '🎣', '!parque': '🦖', '!escavar': '⛏️', 
+    '!fazenda': '🚜', '!cidade': '📍', '!admin': '🔐'
+};
+
 function startDiscord(chatbot, sock) {
     if (isDiscordConnected) return;
 
@@ -97,8 +108,25 @@ function startDiscord(chatbot, sock) {
                         await sock.sendMessage(targetId, { text: texto });
                     }
                 }
-            }
+            },
+
+            react: async (emoji) => {
+                try {
+                    await message.react(emoji);
+                } catch (e) {
+                    console.error("❌ Erro ao reagir no Discord:", e.message);
+                }
+            },
         };
+
+        const baseCommand = command.split(' ')[0].toLowerCase();
+        const emojiToReact = discordCommandEmojis[baseCommand];
+
+        if (emojiToReact) {
+            await fakeMsg.react(emojiToReact);
+        } else {
+            await fakeMsg.react('🤨');
+        }
 
         try {
             const response = await chatbot.handleCommand(

@@ -990,7 +990,10 @@ class ParqueHandler {
     }
 
     async acharAmbar(userId, userName, groupId) {
-        const dinosDescobertos = await this.db.all("SELECT especie_id FROM parque_dinossauros WHERE descobridor_id = ?", [userId]);
+        const dinosDescobertos = await this.db.all(
+            "SELECT especie_id FROM parque_dinossauros WHERE descobridor_id = ? AND is_morto = 0", 
+            [userId]
+        );
         const idsDescobertos = dinosDescobertos.map(d => d.especie_id);
 
         let roll = Math.random() * 100;

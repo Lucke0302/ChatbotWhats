@@ -391,6 +391,40 @@ class ChatModel {
             '!cota': async (ctx) => {
                 return await this.handleCotaCommand(ctx);
             },
+            '!bluesky': async (ctx) => {
+                if (ctx.sender !== "5513991008854@s.whatsapp.net") return "🚫 Só o dono do zoológico vê os pensamentos do dino.";
+                
+                const args = ctx.command.split(' ');
+                const subCommand = args[1]?.toLowerCase();
+
+                if (!subCommand || subCommand === 'status' || subCommand === 'lista') {
+                    const pensamentos = await this.db.all("SELECT * FROM pensamentos_bot WHERE status = 'avaliado' ORDER BY nota_tweet DESC");
+                    
+                    if (pensamentos.length === 0) return "🧊 **GELADEIRA VAZIA.** O Bostossauro não pensou em nada relevante (Nota > 6) ultimamente.";
+
+                    let msg = `🦋 **PENSAMENTOS NA FILA (GELADEIRA)** 🦋\n\n`;
+                    pensamentos.forEach((p, i) => {
+                        msg += `*[ ${i + 1} ]* **Nota:** ${p.nota_tweet} | **ID:** \`${p.id.substring(0,8)}\`\n`;
+                        msg += `💭 _"${p.contexto.substring(0, 100)}..."_\n\n`;
+                    });
+                    msg += `💡 Use \`!bluesky postar [id]\` para forçar um surto instantâneo.`;
+                    return msg;
+                }
+
+                if (subCommand === 'postar' || subCommand === 'force') {
+                    const idParcial = args[2];
+                    const pensamento = await this.db.get("SELECT * FROM pensamentos_bot WHERE id LIKE ?", [`${idParcial}%`]);
+
+                    if (!pensamento) return "❌ Pensamento não encontrado.";
+
+                    await ctx.reply("🚀 Forçando postagem no BlueSky... aguenta aí.");
+                    const temas = JSON.parse(pensamento.temas || '[]');
+                    await this.blueskyBrain.gerarEPostar(pensamento.contexto, pensamento.humor_origem, pensamento.timestamp_evento, temas);
+                    
+                    await this.db.run("DELETE FROM pensamentos_bot WHERE id = ?", [pensamento.id]);
+                    return "✅ Postado e removido da geladeira!";
+                }
+            },
             '!cassino': async (ctx) => {
                 const tag = await this.pokemonHandler.getUserTag(ctx.sender);
                 const netGroupId = await this.getNetGroupId(ctx.from);

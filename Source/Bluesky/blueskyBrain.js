@@ -54,17 +54,16 @@ class BlueskyBrain {
         const eleito = await this.db.get(`SELECT * FROM pensamentos_bot WHERE status = 'avaliado' ORDER BY nota_tweet DESC LIMIT 1`);
         
         if (!eleito) {
-            console.log("🥱 [BLUESKY] Geladeira vazia ou pensamentos ruins. Sem post agora.");
-            await this.db.run(`DELETE FROM pensamentos_bot WHERE status = 'avaliado' OR status = 'postado'`);
-            return;
+            console.log("🥱 [BLUESKY] Geladeira vazia. Sem post agora.");
+            return; 
         }
 
-        console.log(`🕒 [BLUESKY] Turno de postagem! Tirando da geladeira (Nota: ${eleito.nota_tweet})...`);
+        console.log(`🕒 [BLUESKY] Turno de postagem! Postando: ${eleito.id}`);
         const temasEleito = JSON.parse(eleito.temas || '[]'); 
 
         await this.gerarEPostar(eleito.contexto, eleito.humor_origem, eleito.timestamp_evento, temasEleito);
         
-        await this.db.run(`DELETE FROM pensamentos_bot WHERE status = 'avaliado' OR status = 'postado'`);
+        await this.db.run(`DELETE FROM pensamentos_bot WHERE id = ?`, [eleito.id]);
     }
 
     async gerarEPostar(contexto, humor, timestampEvento, temasAtuais = []) {

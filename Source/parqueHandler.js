@@ -266,11 +266,11 @@ const ESC_COOLDOWN_DANO = 3600;
 
 const PICKAXE_CATALOG = {
     'madeira': { id: 'madeira', name: 'Picareta de Madeira', emoji: '🪵', durabilidade: 6, sorte: 0, drops: 1, max_camada: 2, req_coins: 0, req_item: null, req_qtd: 0, next: 'pedra', prev: null },
-    'pedra': { id: 'pedra', name: 'Picareta de Pedra', emoji: '🪨', durabilidade: 24, sorte: 5, drops: 1, max_camada: 2, req_coins: 500, req_item: 'pedregulho', req_qtd: 20, next: 'cobre', prev: 'madeira' },
-    'cobre': { id: 'cobre', name: 'Picareta de Cobre', emoji: '🟠', durabilidade: 36, sorte: 10, drops: 1, max_camada: 3, req_coins: 1200, req_item: 'cobre', req_qtd: 15, next: 'ferro', prev: 'pedra' },
-    'ferro': { id: 'ferro', name: 'Picareta de Ferro', emoji: '🩶', durabilidade: 48, sorte: 20, drops: 2, max_camada: 4, req_coins: 5000, req_item: 'ferro', req_qtd: 10, next: 'titanio', prev: 'cobre' },
-    'titanio': { id: 'titanio', name: 'Picareta de Titânio', emoji: '🛡️', durabilidade: 96, sorte: 35, drops: 2, max_camada: 5, req_coins: 15000, req_item: 'titanio', req_qtd: 8, next: 'diamante', prev: 'ferro' },
-    'diamante': { id: 'diamante', name: 'Picareta de Diamante', emoji: '💎', durabilidade: 192, sorte: 50, drops: 3, max_camada: 5, req_coins: 50000, req_item: 'diamante', req_qtd: 5, next: 'adamantium', prev: 'titanio' },
+    'pedra': { id: 'pedra', name: 'Picareta de Pedra', emoji: '🪨', durabilidade: 24, sorte: 5, drops: 1, max_camada: 2, req_coins: 500, req_item: 'pedregulho', req_qtd: 10, next: 'cobre', prev: 'madeira' },
+    'cobre': { id: 'cobre', name: 'Picareta de Cobre', emoji: '🟠', durabilidade: 36, sorte: 10, drops: 1, max_camada: 3, req_coins: 1200, req_item: 'cobre', req_qtd: 8, next: 'ferro', prev: 'pedra' },
+    'ferro': { id: 'ferro', name: 'Picareta de Ferro', emoji: '🩶', durabilidade: 48, sorte: 20, drops: 2, max_camada: 4, req_coins: 5000, req_item: 'ferro', req_qtd: 6, next: 'titanio', prev: 'cobre' },
+    'titanio': { id: 'titanio', name: 'Picareta de Titânio', emoji: '🛡️', durabilidade: 96, sorte: 35, drops: 2, max_camada: 5, req_coins: 15000, req_item: 'titanio', req_qtd: 4, next: 'diamante', prev: 'ferro' },
+    'diamante': { id: 'diamante', name: 'Picareta de Diamante', emoji: '💎', durabilidade: 192, sorte: 50, drops: 3, max_camada: 5, req_coins: 50000, req_item: 'diamante', req_qtd: 3, next: 'adamantium', prev: 'titanio' },
     'adamantium': { id: 'adamantium', name: 'Picareta de Adamantium', emoji: '🌌', durabilidade: 384, sorte: 75, drops: 3, max_camada: 5, req_coins: 150000, req_item: 'adamantium', req_qtd: 2, next: null, prev: 'diamante' }
 };
 
@@ -466,6 +466,35 @@ class ParqueHandler {
 
         msg += `\n💰 **Valor Estimado Total:** 🪙 ${totalEstimado}\n`;
         msg += `🛒 Para vender, use: *!parque vender [numero]* ou *!parque vender tudo*`;
+        return msg;
+    }
+
+    async listarMateriaisPorCamada(userTag) {
+        let msg = `${userTag} 📜 **GUIA GEOLÓGICO DO ABISMO** 📜\n\n`;
+
+        const camadas = [
+            { n: 0, nome: "Superfície", risco: "4%", ambar: "1%", raridades: ['lixo', 'comum'] },
+            { n: 1, nome: "Crosta", risco: "10%", ambar: "2%", raridades: ['incomum', 'raro'] },
+            { n: 2, nome: "Profundezas", risco: "16%", ambar: "4%", raridades: ['muito_raro'] },
+            { n: 3, nome: "Manto", risco: "22%", ambar: "8%", raridades: ['lendario'] },
+            { n: 4, nome: "Núcleo Externo", risco: "28%", ambar: "16%", raridades: ['mitico'] },
+            { n: 5, nome: "Abismo Final", risco: "34%", ambar: "32%", raridades: [] }
+        ];
+
+        camadas.forEach(c => {
+            msg += `⛏️ **Camada ${c.n}: ${c.nome}**\n`;
+            msg += `⚠️ Risco: ${c.risco} | 🦟 Âmbar: ${c.ambar}\n`;
+            
+            const itens = MINERAL_CATALOG.filter(m => c.raridades.includes(m.rarity));
+            if (itens.length > 0) {
+                msg += `💎 Itens: ${itens.map(i => i.emoji).join(' ')}\n`;
+            } else if (c.n === 5) {
+                msg += `💎 Itens: Todos os anteriores + Multiplicador de Sorte!\n`;
+            }
+            msg += `\n`;
+        });
+
+        msg += `💡 _Dica: Itens de camadas superficiais continuam aparecendo nas profundezas._`;
         return msg;
     }
 
@@ -993,6 +1022,10 @@ class ParqueHandler {
 
         let player = await this.getPlayerData(userId);
         const picaretaAtual = PICKAXE_CATALOG[player.ferramentas.picareta] || PICKAXE_CATALOG['madeira'];
+
+        if (action === 'materiais' || action === 'camadas' || action === 'guia' || action === 'help' || action === 'ajuda') {
+            return await this.listarMateriaisPorCamada(userTag);
+        }
 
         if (action === 'consertar' || action === 'sucatear' || action === 'upar' || action === 'loja') {
             return await this.gerenciarPicareta(userId, userTag, player, action, picaretaAtual);

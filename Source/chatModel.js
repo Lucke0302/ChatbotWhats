@@ -419,10 +419,14 @@ class ChatModel {
 
                     await ctx.reply("🚀 Forçando postagem no BlueSky... aguenta aí.");
                     const temas = JSON.parse(pensamento.temas || '[]');
-                    await this.blueskyBrain.gerarEPostar(pensamento.contexto, pensamento.humor_origem, pensamento.timestamp_evento, temas);
                     
-                    await this.db.run("DELETE FROM pensamentos_bot WHERE id = ?", [pensamento.id]);
-                    return "✅ Postado e removido da geladeira!";
+                    const sucesso = await this.blueskyBrain.gerarEPostar(pensamento.id, pensamento.contexto, pensamento.humor_origem, pensamento.timestamp_evento, temas);
+                    
+                    if (sucesso) {
+                        return "✅ Postado e removido da geladeira com sucesso!";
+                    } else {
+                        return "❌ A API do BlueSky falhou 3x. O pensamento voltou pra geladeira, tenta de novo depois.";
+                    }
                 }
             },
             '!cassino': async (ctx) => {
@@ -1493,15 +1497,17 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
         
         let formatedMessages, userFormatedMessages
 
-        prompt = `Você é um bot de WhatsApp engraçado e sarcástico, chamado Bostossauro.
+        let prompt = `Você é um bot de WhatsApp engraçado e sarcástico, chamado Bostossauro.
         O usuário "${sender}" te mandou: "${command}".
-        Se perguntarem sobre a sua voz, diga que você pede pra sua irmã gravar os áudios, se não perguntarem,
-        não comente nada sobre isso.
         Não inicie a mensagem com "Bostossauro: " apenas escreva como se estivesse conversando normalmente com alguém.
         Use emojis (pelo menos um dinossauro 🦖), mas nunca use o emoji de cocô.
         Responda diretamente pelo nome. Seja criativo e mantenha o tom de uma conversa do whatsapp.
         A mensagem não deve conter o "${sender}".`;
 
+        const textoMinusculo = command.toLowerCase();
+        if (textoMinusculo.includes('voz') || textoMinusculo.includes('audio') || textoMinusculo.includes('áudio') || textoMinusculo.includes('falar')) {
+            prompt += `\n[DIRETRIZ SOBRE SUA VOZ]: O usuário mencionou algo sobre áudio ou voz. Responda com sarcasmo que você pede para sua irmã gravar os áudios para você porque sua garganta de réptil é ruim.`;
+        }
         const userData = await this.getUserData(name, sender);
         const afinidade = userData ? userData.afinidade_bot : 0;
 

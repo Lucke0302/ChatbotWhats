@@ -19,8 +19,10 @@ async function postarNoBlueSky(texto) {
         );
 
         console.log("🦋 [BLUESKY] Postado com sucesso!");
+        return true;
     } catch (error) {
         console.error("❌ Erro ao postar no BlueSky:", error.message);
+        throw error; 
     }
 }
 

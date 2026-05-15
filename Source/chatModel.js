@@ -2032,7 +2032,7 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
     }
 
     async handleMenuCommand(){
-        return `📍 *MENU RÁPIDO (v5.1 - A Ameaça Híbrida)* \n\n
+        return `📍 *MENU RÁPIDO (v7.0 - O Multiverso e a Extinção)* ☄️\n\n
         🆘 !ajuda (ou !help)\n
         🗣️ !audio\n
         🎰 !cassino\n
@@ -2041,7 +2041,7 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
         💵 !cotacao\n
         🎲 !d{número}\n
         🗣️ !falador\n
-        🚜 !fazenda (AGRONEGÓCIO BETA)\n
+        🚜 !fazenda (AGRONEGÓCIO)\n
         🤖 !gpt {texto}\n
         🧠 !lembrar\n
         🎮 !lol\n
@@ -2051,12 +2051,13 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
         📙 !pdf\n
         🎣 !pescaria (SISTEMA DE PESCA)\n
         💸 !pix\n
-        🎮 !poke (JOGO POKÉMON)\n
+        🎮 !poke (POKÉMON)\n
         🖼️ !s (ou !sticker)\n
         🛎️ !resumo\n
         💼 !trabalhar\n
         ☢️ !toxico\n
-        🧐 !tradutor
+        🧐 !tradutor\n
+        🌐 !gerartoken / !vincular (Cross-Save)
         \n\nPara detalhes, digite: *!ajuda [comando]*`;
     }
 

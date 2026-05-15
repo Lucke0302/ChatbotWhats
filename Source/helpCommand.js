@@ -1,11 +1,15 @@
 const helpDictionary = {
-    'default': `🦖 *BOSTOSSAURO OS* v6.0 - O Colapso Temporal ⏳
+    'default': `🦖 *BOSTOSSAURO OS* v7.0 - O Multiverso e a Extinção ☄️
 
 Ô humano, tá perdido ou só quer me alugar?
 Eu tô aqui processando bit igual um condenado e você pedindo ajuda... Tá, toma aí o que eu sei fazer (quando não tô fritando):
 
 Pra saber os detalhes de um comando, digita:
 👉 *!ajuda (ou !help) [nome_do_comando]* (Ex: _!ajuda pescaria_)
+
+🌐 *O MULTIVERSO (Cross-Save)*
+• *!gerartoken* ➝ (No Zap) Gera o código pra espelhar sua conta.
+• *!vincular [token]* ➝ (No Discord/Twitch) Puxa seu dinheiro, itens e dinossauros pra outra plataforma!
 
 🔴 *POKÉMON*
 • *!poke* ➝ O comando principal para ser um mestre Pokémon.
@@ -22,13 +26,13 @@ Pra saber os detalhes de um comando, digita:
 • *!pescaria* ➝ Sistema completo de pesca, frota naval e mercado! 
 • *!fazenda* ➝ Plantações, colheitas e agronegócio (Beta).
 
-🦖 *JURASSIC BOSTOPARK (NOVO!)*
-• *!escavar* ➝ Ache minérios e Âmbar com DNA de dinossauro.
-• *!parque* ➝ Administre os dinossauros do grupo, alimente-os com peixes e receba a bilheteria diária!
+🦖 *JURASSIC BOSTOPARK*
+• *!escavar* ➝ Ache minérios e o raríssimo Âmbar com DNA de dinossauro.
+• *!parque* ➝ Administre os dinossauros do grupo, alimente-os e receba a bilheteria diária!
 
 🎨 *MÍDIA & UTILITÁRIOS*
 • *!sticker (!s)* ➝ Faço figurinha. Se sua foto for feia, a culpa não é minha.
-• *!audio* ➝ Transformo texto em áudio (Google).
+• *!audio* ➝ Transformo texto em áudio.
 • *!pdf* ➝ Converto imagens/docs em PDF.
 • *!tradutor* ➝ Traduzo gringo pra português.
 
@@ -103,16 +107,8 @@ Minha irmã mais nova lê a sua mensagem em voz alta (ou a que você respondeu)
 !audio [língua (abreviação)] [conteúdo (limite de 200 caracteres, se quiser mais, patrocina o dev)]
 
 *Línguagens suportadas - abreviações:*
-Português - pt
-Inglês - en
-Espanhol - es
-Japonês - ja
-Francês - fr
-Alemão - de
-Italiano - it
-Russo - ru
-Coreano - ko
-Chinês - zh`,
+Português - pt | Inglês - en | Espanhol - es | Japonês - ja | Francês - fr
+Alemão - de | Italiano - it | Russo - ru | Coreano - ko | Chinês - zh`,
 
     'cotacao': `💸 *COMANDO: !cotacao*
 Calculadora de depressão. Vê quanto seu dinheiro não vale nada.
@@ -161,7 +157,7 @@ Preguiça de ler 500 mensagens de "bom dia"? Eu leio e te conto o que presta.
 • _!resumo curto_ (Curto e grosso)
 • _!resumo completo 100_ (Leio 100 msgs. Haja paciência...)`,
 
-        'cassino': `🎰 *COMANDO: !cassino*
+    'cassino': `🎰 *COMANDO: !cassino*
 Bem-vindo ao antro da perdição e do capitalismo selvagem!
 
 *Jogos Rápidos:*
@@ -183,38 +179,38 @@ Bem-vindo ao antro da perdição e do capitalismo selvagem!
 • \`!cassino bolao apostadores\` ➝ Lista quem tá no Bolão.
 • \`!cassino saldo\` ➝ Mostra o que sobrou na sua carteira.`,
 
-        'parque': `🦖 *COMANDO: !parque*
+    'parque': `🦖 *COMANDO: !parque*
 O Jurassic BostoPark é um ecossistema cooperativo. Escave, clone e alimente!
 
 *Missões da Temporada:*
-🎯 *!parque missoes* ➝ Veja as metas da comunidade para restaurar o lucro da bilheteria cortada pela InGen após o Wipe!
+🎯 *!parque missoes* ➝ Veja as metas da comunidade para restaurar o lucro da bilheteria!
 
 *Mineração & DNA:*
-⛏️ *!escavar* ➝ Gasta a mesma energia do *!bico*. Pode achar pedras preciosas ou o lendário Âmbar!
+⛏️ *!escavar* ➝ Gasta a energia do *!bico*. Ache minérios ou o cobiçado Âmbar (Apenas 5% de chance)!
 🎒 *!parque mochila* ➝ Veja seus minérios escavados.
 🤝 *!parque vender [numero/tudo]* ➝ Venda as pedras no mercado negro.
 
 *Zoológico & Estoque comunitário:*
 🖼️ *!parque mural* ➝ Veja os dinossauros vivos do grupo (Seus níveis, cores e ID).
-🥩 *!parque despensa* ➝ Abre seu inventário para escolher um lanchinho (peixes e vegetais).
+🥩 *!parque despensa* ➝ Abre seu inventário para escolher um lanchinho.
 🏢 *!parque reserva* ➝ Veja o estoque coletivo de comida do grupo.
-🚚 *!parque depositar [ID_Despensa] [tudo]* ➝ Doe sua comida para a reserva do parque.
-🔪 *!parque porcionar [ID_Despensa] [Kg]* ➝ Fatie peças grandes de carne em pedaços menores.
-🍗 *!parque alimentar [ID] [Nº_Comida/reserva]* ➝ Alimente o dinossauro com a sua comida ou com a reserva coletiva!
+🚚 *!parque depositar [ID] [tudo]* ➝ Doe sua comida para a reserva do parque.
+🔪 *!parque porcionar [ID] [Kg]* ➝ Fatie peças grandes de carne em pedaços menores.
+🍗 *!parque alimentar [ID] [Nº_Comida/reserva]* ➝ Alimente o dinossauro com a sua comida ou com a reserva!
 🧬 *!parque perfil* ➝ Veja suas métricas, bônus de ticket injetado no grupo e seus Top 5 clones.
 
 *Híbridos & Guarda:*
 🏷️ *!parque nome [ID] [Nome]* ➝ Batize um dinossauro que você descobriu.
-👑 *!parque titulo [pai/mae/nazare] [id_do_dino]* ➝ Assuma a guarda legal de um dinossauro e use como título global!
-🧪 _Híbridos (Ex: Indominus Rex) são gerados automaticamente se o grupo possuir os dinossauros originais._`,
+👑 *!parque titulo [pai/mae/nazare] [ID]* ➝ Assuma a guarda legal da fera!
+🧪 _Híbridos são gerados passivamente se o grupo possuir as matrizes._`,
 
-    'fazenda': `🚜 *COMANDO: !fazenda* (BETA)
+    'fazenda': `🚜 *COMANDO: !fazenda*
 Bem-vindo ao Agronegócio Jurássico! Divida seus suprimentos entre a pesca e a lavoura.
 
 *Ações de Trabalho:*
 🌱 *!fazenda plantar [semente]* ➝ Compra e planta (Ex: !fazenda plantar trigo).
 💧 *!fazenda regar [canteiro]* ➝ Gasta 1 Suprimento para adiantar o crescimento em 25%.
-🌾 *!fazenda colher [canteiro]* ➝ Tenta a colheita. Cuidado com secas (10%) ou gafanhotos (5%).
+🌾 *!fazenda colher [canteiro]* ➝ Tenta a colheita. Cuidado com secas ou gafanhotos.
 
 *Gerenciamento:*
 🚜 *!fazenda perfil* ➝ Veja todos os canteiros e o tempo de crescimento.
@@ -223,18 +219,17 @@ Bem-vindo ao Agronegócio Jurássico! Divida seus suprimentos entre a pesca e a 
 💰 *!fazenda vender [numero/tudo]* ➝ Venda pro Ceasa e ganhe Bostocoins.`,
 
     'pix': `💸 *COMANDO: !pix*
-O Banco Central do Bostossauro permite agiotagem e doações.
+O Banco Central do Bostossauro permite agiotagem e doações entre WhatsApp, Twitch e Discord!
 
 *Como usar:* !pix @usuario [valor]
 *Exemplo:* _!pix @João 50_`,
 
     'trabalhar': `💼 *COMANDO: !trabalhar*
 Assine a CLT virtual! Agora você tem uma carreira oficial (The Sims style).
-Seu salário é fixo (mais ou menos) e baseado no seu nível profissional.
+Seu salário é fixo e baseado no seu nível profissional.
 
 *Como usar:* !trabalhar
-*Cooldown:* 8 horas.
-*Dica:* Fique de olho, em breve você poderá !estudar para ser promovido.`,
+*Cooldown:* 8 horas.`,
 
     'bico': `🛠️ *COMANDO: !bico*
 Precisa de grana rápida? Vá fazer um trampo duvidoso.
@@ -244,7 +239,7 @@ Paga entre 15 e 90 Bostocoins dependendo do seu esforço.
 *Cooldown:* 2 horas.`,
 
     'minhabosta': `🪙 *COMANDO: !minhabosta*
-O famoso "Minha Bosta Minha Vida". Auxílio emergencial do governo jurássico para quem perdeu tudo na roleta.
+O famoso "Minha Bosta Minha Vida". Auxílio emergencial do governo jurássico.
 
 *Regras:* Seu saldo precisa ser menor que 50 Bostocoins. Só pode pedir a cada 48 horas.
 *Como usar:* !minhabosta`,
@@ -259,39 +254,36 @@ Rola dados de RPG. Se cair 1, a culpa é sua.
 • _!d100_ (Exagero)`,
 
     'lembrar': `🧠 *COMANDO: !lembrar*
-Eu tenho memória de elefante... digo, de T-Rex.
-Eu busco no banco de dados algo que falaram no passado.
+Eu busco no banco de dados algo que falaram no passado usando a Inteligência do Gemini para ler o SQL.
 
 *Como usar:* !lembrar [o que você quer buscar]
 *Exemplo:* _!lembrar o que o João falou ontem_`,
 
     'notas': `📝 *COMANDO: !notas*
-Mostra o que eu, em minha infinita sabedoria, anotei sobre você.
-Se tiver escrito que você é chato, não reclama.`,
+Mostra o que eu, em minha infinita sabedoria, anotei sobre você na minha memória de longo prazo.`,
 
     'pdf' : `📙 *Comando: !pdf*
 Transforma a imagem/documento que você enviou pra mim em um pdf.
 
-*Como usar:* Envia a imagem/documento com !pdf na mensagem ou 
-responde ela com o !pdf.
-`,
+*Como usar:* Envia a imagem/documento com !pdf na mensagem ou responde ela com o !pdf.`,
 
     'pescaria': `🎣 *COMANDO: !pescaria*
-Bem-vindo ao Lago do Bostossauro! Pegue sua vara e vá pro sol.
+Bem-vindo ao Lago do Bostossauro!
 Você regenera 1 isca a cada 2 horas (Máximo 10).
 
 *Ação:*
 🎣 *!pescar* (ou !pesca) ➝ Joga a isca na água e tenta a sorte.
 
 *Mercado, Loja & Forja:*
-🏪 *!pescaria loja* ➝ Gaste seus Bostocoins em iscas, buffs ou para forjar uma VARA MELHOR.
+🏪 *!pescaria loja* ➝ Compre Iscas, Buffs ou FORJE UMA VARA MELHOR.
 🛍️ *!pescaria comprar [número_ou_vara]* ➝ Compra o item da loja.
-⚖️ *!pescaria vender* ➝ Veja o preço dos seus troféus. Venda vários de uma vez (ex: !pescaria vender 1 2 5).
-♻️ *!pescaria vender lixo* ➝ Limpa o oceano reciclando botas e pneus automaticamente.
+⚖️ *!pescaria vender* ➝ Veja o preço dos seus troféus e venda (ex: !pescaria vender 1 2 5).
+♻️ *!pescaria vender lixo* ➝ Limpa o oceano reciclando botas e pneus.
+📦 *!pescaria vender repetidos* ➝ Vende todas as duplicatas mantendo apenas o seu recorde absoluto de cada espécie.
 📊 *!pescaria avaliar* ➝ Calcula a fortuna acumulada no seu isopor.
 
 *Inventário & Ostentação:*
-🎒 *!pescaria perfil* ➝ Veja suas iscas, efeitos ativos e seus top 5 peixes.
+🎒 *!pescaria perfil* ➝ Veja suas iscas, frota, efeitos ativos e seus top 5 peixes.
 👑 *!pescaria titulo* ➝ Ostente seu império de peixes e ganhe títulos de nobreza da pesca.
 
 *Competição e Rankings:*
@@ -300,22 +292,15 @@ Você regenera 1 isca a cada 2 horas (Máximo 10).
 🌍 *!pescaria topgrupo* ➝ A elite do grupo: Peixes mais perfeitos por raridade.
 🏅 *!pescaria toppessoal* ➝ Seus troféus absolutos por raridade.`,
 
-
     'admin': `🔌 *COMANDOS RESTRITOS (Só Admin)*
 As chaves do servidor.
 
-• *!cota listar* ➝ Vê o uso de cada modelo no SQLite.
-• *!cota exaurir [N]* ➝ Frita o fusível de um modelo.
+• *!cota listar / exaurir [N]* ➝ Manipula a cota de uso das LLMs.
 • *!timeout @usuario [minutos]* ➝ Silencia um bagunceiro no banco de dados.
-• *!link [ID_DO_GRUPO_PAI]* ➝ Conecta o grupo atual ao grupo principal. (Compartilha parque, pescaria e memória).
-• *!unlink* ➝ Quebra a conexão de rede.`
-
+• *!link [ID] / !unlink* ➝ Conecta/desconecta as redes interdimensionais.
+• *!parque meteoro [ID_GRUPO]* ➝ Aciona a 7ª Extinção em Massa. Mata todos os dinos e manda eles pro Céu dos Dinos.`
 };
 
-/**
- * Busca a ajuda correspondente no dicionário
- * @param {string} args - O argumento enviado após !ajuda (ex: "sticker")
- */
 function getHelp(args) {
     const command = args ? args.trim().toLowerCase().replace('!', '') : 'default';
 

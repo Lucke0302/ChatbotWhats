@@ -1,7 +1,11 @@
-# 🦖 Bostossauro Bot v6.0 - O Colapso Temporal
-> *"Eu sabo... mas às vezes o universo precisa ser resetado."*
+# 🦖 Bostossauro Bot v7.0 - O Multiverso e a Extinção ☄️
+> *"A vida não encontrou um meio. Eu encontrei."*
 
-Bem-vindo ao repositório oficial do **Bostossauro**, o bot de WhatsApp mais sarcástico, sincero e levemente instável do hemisfério sul. Este projeto nasceu da vontade de automatizar respostas, jogar RPG de mesa via texto e, principalmente, julgar as conversas dos seus grupos com o poder da Inteligência Artificial.
+Bem-vindo ao repositório oficial do **Bostossauro**, o bot de WhatsApp (e agora Twitch e Discord) mais sarcástico, sincero e levemente instável do hemisfério sul. Este projeto nasceu da vontade de automatizar respostas, jogar RPG de mesa via texto e, principalmente, julgar as conversas dos seus grupos com o poder da Inteligência Artificial.
+
+## 🌐 Novidade da v7.0: O Multiverso (Cross-Save)
+O Bostossauro quebrou a barreira das plataformas! Através de uma arquitetura Adapter, o cérebro central (`chatModel.js`) agora conversa nativamente com o WhatsApp, **Discord** e **Twitch**. 
+Com o comando `!gerartoken` no WhatsApp e `!vincular` nas outras redes, os usuários unificam suas contas. Se você ganha 500 Bostocoins no Discord, você gasta eles no WhatsApp. É a hegemonia da InGen em todas as telas!
 
 ## 🧠 O Que Ele Faz? (Funcionalidades)
 O Bostossauro não é apenas um bot, é um estilo de vida. Aqui estão as skills atuais:
@@ -29,12 +33,15 @@ O Bostossauro não é apenas um bot, é um estilo de vida. Aqui estão as skills
     * `!s baixa`: Qualidade duvidosa.
     * `!s podi`: Modo *deep fried*, destrói a imagem até virar arte abstrata.
 
+* **🦕 BlueSky Integrado (O Cérebro Julgador):** O Bot avalia suas conversas em background. Se a burrice (ou genialidade) for alta o suficiente, ele aciona o `BlueskyBrain`, formata um Tweet raivoso e publica sozinho na rede social. Conta com sistema de resiliência e retentativas!
+
 * **🦖 Jurassic BostoPark (v5.1 - A Ameaça Híbrida):** Um ecossistema massivo de "Tamagotchi Comunitário" interligado à economia.
     * `!escavar`: Divide a estamina com o bico. Minere pedras preciosas ou ache Âmbar com DNA!
     * `!parque alimentar`: Os dinossauros agora se alimentam dos peixes do seu isopor (`!parque despensa`). Possuem fase de crescimento (Filhote a Ancião) e geram **Bilheteria Diária** dividida com os membros ativos!
     * **🧬 Laboratório de Híbridos (Endgame):** Se o grupo reunir os DNAs corretos (Ex: T-Rex + Velociraptor), o bot sintetiza passivamente aberrações como o **Indominus Rex** e o temido **Bostossauro**, pagando royalties aos criadores originais!
     * **👑 Cartório Genético:** Use `!parque titulo pai t_rex` para ostentar a guarda da fera no seu nome global.
     * **🤖 Despertar do Rei:** Se o grupo sintetizar o Supremo Bostossauro, a IA acorda e tem 0.2% de chance de interromper organicamente as conversas do WhatsApp (usando o Gemma 3 27B) para dar pitacos ou reclamar de fome.
+    * **☄️ O Meteoro (Soft-Delete):** Administradores podem acionar a Sétima Extinção. Os dinossauros não são apagados, eles são enviados para o "Céu dos Dinos" no banco de dados como fósseis eternos de antigas eras.
 
 * **💸 Sistema Econômico Completo (Capitalismo Selvagem):** Uma economia viva rodando no banco de dados com a moeda oficial *Bostocoins*.
     * `!pix @amigo [valor]`: Transferência instantânea entre membros do grupo.

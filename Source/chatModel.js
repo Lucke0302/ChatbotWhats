@@ -260,7 +260,6 @@ class ChatModel {
                 
                 return `🔐 *SEU TOKEN DE CROSS-SAVE:* \n\n*${token}*\n\nVá no chat da Twitch em até 10 minutos e digite:\n*!vincular ${token}*`;
             },
-
             '!vincular': async (ctx) => {
                 if (ctx.platform !== 'twitch' && ctx.platform !== 'discord') {
                     return "❌ Esse comando deve ser usado no chat da Twitch ou no Discord!";
@@ -274,21 +273,27 @@ class ChatModel {
                 if (!registro) return "❌ Token inválido ou não encontrado.";
                 if (Date.now() > registro.expira_em) return "⏳ Esse token expirou! Gere outro no Zap.";
 
-                if (ctx.platform === 'twitch') {
+                try {
+                    let vinculo = await this.db.get("SELECT * FROM contas_linkadas WHERE id_whatsapp = ?", [registro.id_whatsapp]);
+                    
+                    let id_twitch = vinculo ? vinculo.id_twitch : null;
+                    let id_discord = vinculo ? vinculo.id_discord : null;
+
+                    if (ctx.platform === 'twitch') id_twitch = ctx.sender;
+                    if (ctx.platform === 'discord') id_discord = ctx.sender;
+
                     await this.db.run(
-                        "INSERT INTO contas_linkadas (id_whatsapp, id_twitch) VALUES (?, ?) ON CONFLICT(id_whatsapp) DO UPDATE SET id_twitch = excluded.id_twitch",
-                        [registro.id_whatsapp, ctx.sender]
+                        "INSERT OR REPLACE INTO contas_linkadas (id_whatsapp, id_twitch, id_discord) VALUES (?, ?, ?)",
+                        [registro.id_whatsapp, id_twitch, id_discord]
                     );
-                } else if (ctx.platform === 'discord') {
-                    await this.db.run(
-                        "INSERT INTO contas_linkadas (id_whatsapp, id_discord) VALUES (?, ?) ON CONFLICT(id_whatsapp) DO UPDATE SET id_discord = excluded.id_discord",
-                        [registro.id_whatsapp, ctx.sender]
-                    );
+
+                    await this.db.run("DELETE FROM tokens_vinculo WHERE token = ?", [tokenDigitado]);
+                    return `✅ **CROSS-SAVE ATIVADO!** Sua conta do ${ctx.platform.toUpperCase()} foi vinculada ao WhatsApp.`;
+
+                } catch (e) {
+                    console.error("Erro no vínculo:", e);
+                    return "❌ Erro interno ao salvar seu vínculo. Avise o admin.";
                 }
-
-                await this.db.run("DELETE FROM tokens_vinculo WHERE token = ?", [tokenDigitado]);
-
-                return `✅ SUCESSO! Sua conta do **${ctx.platform.toUpperCase()}** agora está conectada ao seu WhatsApp. Suas conquistas foram sincronizadas!`;
             },
             '!anuncio': async (ctx) => {
                 return await this.streamHandler.handleAnuncio(ctx);

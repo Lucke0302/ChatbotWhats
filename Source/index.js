@@ -760,14 +760,8 @@ async function initDatabase() {
 
     try {
         await db.exec(`ALTER TABLE contas_linkadas ADD COLUMN id_discord TEXT;`);
-        
-        await db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_contas_linkadas_discord ON contas_linkadas (id_discord);`);
-        
-        console.log("✅ Coluna 'id_discord' e índice de unicidade criados!");
-    } catch (error) {
-        if (!error.message.includes("duplicate column name")) {
-            console.error("⚠️ Erro na migração do Discord:", error.message);
-        }
+        await db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_discord ON contas_linkadas (id_discord);`);
+    } catch (e) {
     }
 
     console.log('✅ Banco de dados SQLite inicializado e tabelas verificadas.');

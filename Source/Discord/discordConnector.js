@@ -14,7 +14,7 @@ function startDiscord(chatbot, sock) {
         ],
     });
 
-    client.once('ready', () => {
+    client.once('clientReady', () => {
         isDiscordConnected = true;
         console.log(`🔵 [DISCORD] Conectado e vigiando como: ${client.user.tag}`);
     });

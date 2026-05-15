@@ -25,14 +25,15 @@ class ChatModel {
         this.isOnline = true;
         this.isTesting = true;
         this.modelLimits = {
+            "gemma-4-31b-it": 1400,
+            "gemma-4-26b-a4b-it": 1400,
+
+            "gemini-3.1-flash-lite-preview": 450,
+
             "gemini-2.5-flash": 20,
-            "gemini-2.5-flash-lite": 20,
             "gemini-3-flash-preview": 20,
-            "gemma-3-27b-it": 5000,
-            "gemma-3-12b-it": 5000,
-            "gemma-3-4b-it": 9999,            
-            "gemma-3n-e2b-it": 9999,
-            "gemma-3-1b-it": 9999
+            "gemini-2.5-flash-lite": 20,
+            "gemini-flash-latest": 20
         };
         this.updateOnlineStatus();
         lolCommandHandler.init();
@@ -1162,25 +1163,21 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
 
         if (forceModel) {
             candidates.push(forceModel);
-            if (forceModel === "gemini-2.5-flash") candidates.push("gemini-3-flash-preview", "gemini-2.5-flash");
         } 
-        else if (command.startsWith("!resumo")){            
-            candidates = ["gemini-2.5-flash", "gemini-3-flash-preview", "gemini-2.5-flash-lite", "gemma-3-27b-it","gemma-3-12b-it"]; 
-        }
-        else if (command.startsWith("!gpt")){            
-            candidates = ["gemini-2.5-flash", "gemini-3-flash-preview", "gemini-2.5-flash-lite", "gemma-3-27b-it", "gemma-3-12b-it", "gemma-3-4b-it"]; 
+        else if (command.startsWith("!resumo")){
+            candidates = ["gemma-4-31b-it", "gemma-4-26b-a4b-it", "gemini-3.1-flash-lite-preview"]; 
         }
         else if (command.startsWith("!lembrar")) {
-            candidates = ["gemma-3-27b-it", "gemini-2.5-flash", "gemini-3-flash-preview"]; 
+            candidates = ["gemma-4-31b-it", "gemini-3.1-flash-lite-preview", "gemini-2.5-flash"]; 
         }
-        else if (command.startsWith("!ouvir")){
-            candidates = ["gemini-2.5-flash-preview-tts"];
+        else if (command.startsWith("!gpt")){
+            candidates = ["gemini-3.1-flash-lite-preview", "gemma-4-31b-it", "gemma-4-26b-a4b-it", "gemini-2.5-flash"]; 
         }
         else if (command.startsWith("!burro")){
-            candidates = ["gemma-3-1b-it", "gemma-3n-e2b-it"];
+            candidates = ["gemma-4-26b-a4b-it", "gemini-2.5-flash-lite"];
         }
         else {
-            candidates = ["gemini-2.5-flash", "gemini-3-flash-preview", "gemini-2.5-flash-lite", "gemma-3-12b-it", "gemma-3-4b-it"];
+            candidates = ["gemini-3.1-flash-lite-preview", "gemma-4-31b-it", "gemini-2.5-flash"];
         }
 
         const currentUsage = await this.getModelUsage();
@@ -1190,9 +1187,10 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
             const used = currentUsage[model] || 0;
 
             if (used < limit) {
+                console.log(`🧠 [Roteador AI] Modelo escolhido: ${model} (${used}/${limit})`);
                 return model;
             }            
-            console.log(`[QUOTA] Sem cota para ${model}, tentando próximo...`);
+            console.log(`⚠️ [QUOTA] Limite diário atingido para ${model}, tentando próximo da lista...`);
         }
 
         if (command.startsWith("!lembrar")) {
@@ -1601,7 +1599,6 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
         }
     }
 
-    //Responde o comando !lembrar
     async handleLembrarCommand(from, sender, name, isGroup, command, complement){
             const netId = await this.getNetGroupId(from);
             const condition = netId !== from ? `id_conversa IN ('${from}', '${netId}')` : `id_conversa = '${from}'`;
@@ -1618,7 +1615,7 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
 
             Pergunta do usuário: ${pergunta}`
 
-            let sqlQuery = await this.getAiResponse(from, sender, name, isGroup, command, selectPrompt, "gemini-2.5-flash")
+            let sqlQuery = await this.getAiResponse(from, sender, name, isGroup, command, selectPrompt, "gemini-3.1-flash-lite-preview")
 
             sqlQuery = sqlQuery.replace(/```sql/gi, '').replace(/```/g, '').trim(); 
             
@@ -1635,7 +1632,7 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
 
             let finalPrompt = await this.formulatePrompt(from, sender, name, isGroup, command, selectedMessages)
             
-            return await this.getAiResponse(from, sender, name, isGroup, "any", finalPrompt)
+            return await this.getAiResponse(from, sender, name, isGroup, command, finalPrompt)
     }
 
     async handleMenuCommand(){

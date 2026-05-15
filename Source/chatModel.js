@@ -713,7 +713,13 @@ class ChatModel {
                     if (ctx.sender !== "5513991008854@s.whatsapp.net") {
                         return "🚫 Apenas a própria Força da Natureza pode conjurar um meteoro.";
                     }
-                    return await this.parqueHandler.eventoMeteoroLocal(netGroupId, tag);
+                    
+                    const alvoGroupId = args[2];
+                    if (!alvoGroupId) {
+                        return `${tag} ⚠️ Você precisa especificar as coordenadas do impacto! Use: *!parque meteoro [id_do_grupo]*\n_(Dica: Vá no grupo e digite !id para pegar o código)_`;
+                    }
+
+                    return await this.parqueHandler.eventoMeteoroLocal(alvoGroupId, tag);
                 }
 
                 if (subCommand === 'fixhibridos') {
@@ -1187,7 +1193,7 @@ class ChatModel {
         
         await this.db.run("UPDATE parque_estoque SET carne = 0, vegetal = 0 WHERE group_id = ?", [groupId]);
 
-        return `${userTag} ☄️ **EXTINÇÃO EM MASSA!** ☄️\n\nUm meteoro flamejante rasgou o céu e atingiu em cheio o Jurassic BostoPark deste grupo!\n\n🦴 Todos os dinossauros viraram fósseis.\n🔥 A câmara frigorífica virou cinzas.\n\n_"A vida... não encontrou um meio."_`;
+        return `☄️ **EXTINÇÃO EM MASSA!** ☄️\n\nUm meteoro flamejante rasgou o céu e atingiu em cheio o Jurassic BostoPark deste grupo!\n\n🦴 Todos os dinossauros viraram fósseis.\n🔥 A câmara frigorífica virou cinzas.\n\n_"A vida... não encontrou um meio."_`;
     }
 
     async executarWipeGlobal(sock) {

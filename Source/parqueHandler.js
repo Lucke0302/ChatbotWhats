@@ -482,7 +482,7 @@ class ParqueHandler {
         // Auditoria fiscal antes de fechar o caixa!
         await this.sincronizarMissoesLazy(groupId);
 
-        const dinos = await this.db.all("SELECT * FROM parque_dinossauros WHERE group_id = ?", [groupId]);
+        const dinos = await this.db.all("SELECT * FROM parque_dinossauros WHERE group_id = ? AND is_morto = 0", [groupId]);
         if (!dinos || dinos.length === 0) return "";
 
         let multReceita = 1 / 24; 
@@ -943,7 +943,7 @@ class ParqueHandler {
 
         let msgHeader = `${userTag}⛏️ **ESCAVAÇÃO JURÁSSICA** ⛏️\n_Você pegou a picareta e foi bater pedra..._\n\n`;
         
-        const isAmbar = Math.random() < 0.10;
+        const isAmbar = Math.random() < 0.05;
 
         if (isAmbar) {
             return msgHeader + await this.acharAmbar(userId, userName, groupId);
@@ -1176,7 +1176,7 @@ class ParqueHandler {
 
     // MURAL GLOBAL
     async verParqueGlobal(groupId, userTag, paramStr, pokemonHandler) {
-        const dinos = await this.db.all("SELECT * FROM parque_dinossauros WHERE group_id = ? ORDER BY id ASC", [groupId]);
+        const dinos = await this.db.all("SELECT * FROM parque_dinossauros WHERE group_id = ? AND is_morto = 0 ORDER BY id ASC", [groupId]);
         
         if (!dinos || dinos.length === 0) {
             return `${userTag} 🚧 O **Jurassic BostoPark** deste grupo ainda é só um terreno baldio com mato alto. Escave e ache um âmbar para começar!`;
@@ -1278,7 +1278,7 @@ class ParqueHandler {
             return `${userTag} ⚠️ Formato incorreto! Use: *!parque alimentar [id_do_dino] [numero_da_comida]* OU *!parque alimentar [id_do_dino] reserva*`;
         }
 
-        const dino = await this.db.get("SELECT * FROM parque_dinossauros WHERE id = ? AND group_id = ?", [dinoId, groupId]);
+        const dino = await this.db.get("SELECT * FROM parque_dinossauros WHERE id = ? AND group_id = ? AND is_morto = 0", [dinoId, groupId]);
         if (!dino) return `${userTag} ❌ Dinossauro não encontrado neste parque. Tem certeza que anotou o ID certo?`;
 
         const dinoInfo = DINO_CATALOG[dino.especie_id];

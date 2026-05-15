@@ -1189,11 +1189,11 @@ class ChatModel {
     }
 
     async eventoMeteoroLocal(groupId, userTag) {
-        const dinosExcluidos = await this.db.run("DELETE FROM parque_dinossauros WHERE group_id = ?", [groupId]);
+        await this.db.run("UPDATE parque_dinossauros SET is_morto = 1 WHERE group_id = ?", [groupId]);
         
         await this.db.run("UPDATE parque_estoque SET carne = 0, vegetal = 0 WHERE group_id = ?", [groupId]);
 
-        return `☄️ **EXTINÇÃO EM MASSA!** ☄️\n\nUm meteoro flamejante rasgou o céu e atingiu em cheio o Jurassic BostoPark deste grupo!\n\n🦴 Todos os dinossauros viraram fósseis.\n🔥 A câmara frigorífica virou cinzas.\n\n_"A vida... não encontrou um meio."_`;
+        return `${userTag} ☄️ **EXTINÇÃO EM MASSA!** ☄️\n\nUm meteoro flamejante rasgou o céu e atingiu em cheio o Jurassic BostoPark!\n\n🦴 Todos os dinossauros viraram fósseis (Eles foram para o Céu dos Dinos).\n🔥 A câmara frigorífica virou cinzas.\n\n_"A vida... não encontrou um meio."_`;
     }
 
     async executarWipeGlobal(sock) {

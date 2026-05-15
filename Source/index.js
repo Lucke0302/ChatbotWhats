@@ -764,6 +764,13 @@ async function initDatabase() {
     } catch (e) {
     }
 
+    try {
+        await db.exec(`ALTER TABLE parque_dinossauros ADD COLUMN is_morto BOOLEAN DEFAULT 0;`);
+        console.log("✅ Coluna 'is_morto' adicionada com sucesso!");
+    } catch (error) {
+        if (!error.message.includes("duplicate column name")) console.error(error.message);
+    }
+
     console.log('✅ Banco de dados SQLite inicializado e tabelas verificadas.');
 }
 

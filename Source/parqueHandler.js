@@ -1043,15 +1043,16 @@ class ParqueHandler {
             return await finalizarSessao('fuga');
         }
 
-        if (action === 'fundo' || action === '') {
+        if (action === 'fundo' || action === 'lado' || action === '') {
             if (action === '') {
-                if (sessao) return `${userTag} 🔦 Você já está no abismo (Camada ${sessao.camada})! O que você faz?\n👉 *!escavar fundo* ou *!escavar guardar*.`;
+                if (sessao) return `${userTag} 🔦 Você já está no abismo (Camada ${sessao.camada})! O que você faz?\n👉 *!escavar fundo*, *!escavar lado* ou *!escavar guardar*.`;
                 sessao = { camada: 0, turnos: 1, loot: {} };
                 this.escavacoesAtivas.set(userId, sessao);
             } else {
                 if (!sessao) return `${userTag} ❓ Você não está escavando! Comece com *!escavar*.`;
                 sessao.turnos += 1;
-                if (sessao.camada < picaretaAtual.max_camada) {
+                
+                if (action === 'fundo' && sessao.camada < picaretaAtual.max_camada) {
                     sessao.camada += 1;
                 }
             }
@@ -1073,7 +1074,8 @@ class ParqueHandler {
                 }
                 await this.savePlayerData(userId, player);
                 
-                return `${userTag} 🪨💥 **DESMORONAMENTO!!!** 💥🪨\n\nO teto cedeu na Camada ${sessao.camada}! Você perdeu **TODO O LOOT** desta descida e foi resgatado de maca pela InGen.\nVocê ficará 1 hora no hospital para se recuperar.${quebrouMsg}`;
+                const acaoAtual = action === 'lado' ? "cavava para os lados" : "explorava";
+                return `${userTag} 🪨💥 **DESMORONAMENTO!!!** 💥🪨\n\nO teto cedeu na Camada ${sessao.camada} enquanto você ${acaoAtual}! Você perdeu **TODO O LOOT** desta descida e foi resgatado de maca pela InGen.\nVocê ficará 1 hora no hospital para se recuperar.${quebrouMsg}`;
             }
 
             const lootTurno = await this.gerarLootCamada(sessao.camada, picaretaAtual);
@@ -1153,14 +1155,16 @@ class ParqueHandler {
         msg += `🎒 **Sua Sacola Temporária:** (${Object.keys(sessao.loot).length} tipos de itens | ${ambarCount} Âmbares)\n\n`;
         
         if (sessao.camada < picareta.max_camada) {
-            msg += `⚠️ Risco de Desmoronar na Próxima Camada: **${(chanceDesmoronarFutura * 100).toFixed(1)}%**\n\n`;
+            msg += `⚠️ Risco (Cavar p/ Lados): **${(chanceDesmoronarAtual * 100).toFixed(1)}%**\n`;
+            msg += `⚠️ Risco (Descer Fundo): **${(chanceDesmoronarFutura * 100).toFixed(1)}%**\n\n`;
             msg += `👉 O que você faz?\n`;
-            msg += `*!escavar fundo* (Arrisca descer mais)\n`;
+            msg += `*!escavar fundo* (Descer p/ próxima camada)\n`;
+            msg += `*!escavar lado* (Arriscar manter a camada atual)\n`;
             msg += `*!escavar guardar* (Foge com o loot)`;
         } else {
-            msg += `⚠️ Risco de Desmoronar cavando pros lados: **${(chanceDesmoronarAtual * 100).toFixed(1)}%**\n\n`;
+            msg += `⚠️ Risco (Cavar p/ Lados): **${(chanceDesmoronarAtual * 100).toFixed(1)}%**\n\n`;
             msg += `🛑 O material da sua Picareta não aguenta descer mais!\n👉 O que você faz?\n`;
-            msg += `*!escavar fundo* (Cava pros lados nesta camada)\n`;
+            msg += `*!escavar lado* (Cava pros lados nesta camada)\n`;
             msg += `*!escavar guardar* (Foge com o loot)`;
         }
         return msg;

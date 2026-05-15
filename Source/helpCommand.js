@@ -222,6 +222,7 @@ Bem-vindo ao minigame de Risco e Recompensa! Quanto mais fundo você for, melhor
 
 *Ações na Caverna:*
 • *!escavar* ➝ Entra na caverna (Camada 0).
+• *!escavar lado* ➝ Continua batendo na mesma camada. O risco de desmoronar não aumenta, mas você gasta turno.
 • *!escavar fundo* ➝ Arrisca descer mais fundo (ou cavar pros lados). Aumenta o risco de desmoronar!
 • *!escavar guardar* ➝ Foge da caverna e guarda o loot na mochila.
 

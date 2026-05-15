@@ -267,7 +267,9 @@ class ChatModel {
             },
 
             '!vincular': async (ctx) => {
-                if (ctx.platform !== 'twitch') return "❌ Esse comando deve ser usado no chat da Twitch!";
+                if (ctx.platform !== 'twitch' && ctx.platform !== 'discord') {
+                    return "❌ Esse comando deve ser usado no chat da Twitch ou no Discord!";
+                }
                 
                 const args = ctx.command.trim().split(/\s+/);
                 const tokenDigitado = args[1]?.toUpperCase();
@@ -277,13 +279,21 @@ class ChatModel {
                 if (!registro) return "❌ Token inválido ou não encontrado.";
                 if (Date.now() > registro.expira_em) return "⏳ Esse token expirou! Gere outro no Zap.";
 
-                await this.db.run(
-                    "INSERT OR REPLACE INTO contas_linkadas (id_twitch, id_whatsapp) VALUES (?, ?)",
-                    [ctx.sender, registro.id_whatsapp]
-                );
+                if (ctx.platform === 'twitch') {
+                    await this.db.run(
+                        "INSERT INTO contas_linkadas (id_whatsapp, id_twitch) VALUES (?, ?) ON CONFLICT(id_whatsapp) DO UPDATE SET id_twitch = excluded.id_twitch",
+                        [registro.id_whatsapp, ctx.sender]
+                    );
+                } else if (ctx.platform === 'discord') {
+                    await this.db.run(
+                        "INSERT INTO contas_linkadas (id_whatsapp, id_discord) VALUES (?, ?) ON CONFLICT(id_whatsapp) DO UPDATE SET id_discord = excluded.id_discord",
+                        [registro.id_whatsapp, ctx.sender]
+                    );
+                }
+
                 await this.db.run("DELETE FROM tokens_vinculo WHERE token = ?", [tokenDigitado]);
 
-                return "✅ SUCESSO! Sua conta da Twitch agora está conectada ao seu WhatsApp. Suas conquistas e permissões foram sincronizadas!";
+                return `✅ SUCESSO! Sua conta do **${ctx.platform.toUpperCase()}** agora está conectada ao seu WhatsApp. Suas conquistas foram sincronizadas!`;
             },
             '!anuncio': async (ctx) => {
                 return await this.streamHandler.handleAnuncio(ctx);

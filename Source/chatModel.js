@@ -2112,7 +2112,12 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
                 }),
                 sendTo: msg.sendTo || (async (targetId, texto) => {
                     if (sock) await sock.sendMessage(targetId, { text: texto });
-                })
+                }),
+                react: msg.react || (async (emoji) => {
+                    if (sock && msg.key) {
+                        await sock.sendMessage(from, { react: { text: emoji, key: msg.key } });
+                    }
+                }),
             };
             
             return await handler(ctx);

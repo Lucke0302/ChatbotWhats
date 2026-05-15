@@ -709,6 +709,13 @@ class ChatModel {
                     return await this.parqueHandler.fixColorMultipliers(tag);
                 }
 
+                if (subCommand === 'meteoro') {
+                    if (ctx.sender !== "5513991008854@s.whatsapp.net") {
+                        return "🚫 Apenas a própria Força da Natureza pode conjurar um meteoro.";
+                    }
+                    return await this.parqueHandler.eventoMeteoroLocal(netGroupId, tag);
+                }
+
                 if (subCommand === 'fixhibridos') {
                     if (ctx.sender !== "5513991008854@s.whatsapp.net") {
                         return "🚫 Apenas o Dr. Henry Wu pode forçar a evolução da espécie.";
@@ -1175,6 +1182,14 @@ class ChatModel {
         return messagesDb.map(m => `${m.nome_remetente || 'Desconhecido'}: ${m.conteudo}`).reverse().join('\n');
     }
 
+    async eventoMeteoroLocal(groupId, userTag) {
+        const dinosExcluidos = await this.db.run("DELETE FROM parque_dinossauros WHERE group_id = ?", [groupId]);
+        
+        await this.db.run("UPDATE parque_estoque SET carne = 0, vegetal = 0 WHERE group_id = ?", [groupId]);
+
+        return `${userTag} ☄️ **EXTINÇÃO EM MASSA!** ☄️\n\nUm meteoro flamejante rasgou o céu e atingiu em cheio o Jurassic BostoPark deste grupo!\n\n🦴 Todos os dinossauros viraram fósseis.\n🔥 A câmara frigorífica virou cinzas.\n\n_"A vida... não encontrou um meio."_`;
+    }
+
     async executarWipeGlobal(sock) {
         console.log("🚨 [WIPE] INICIANDO PROTOCOLO DE WIPE GLOBAL...");
         
@@ -1315,11 +1330,27 @@ class ChatModel {
         console.log("🏛️ [WIPE] ATUALIZANDO AS CONQUISTAS DOS GRUPOS...");
         const grupos = await this.db.all("SELECT DISTINCT group_id FROM parque_dinossauros");
         for (const grupo of grupos) {
+            
+            let legadoGrupo = await this.db.get("SELECT * FROM legado_grupos WHERE group_id = ?", [grupo.group_id]);
+            let historicoMissoes = legadoGrupo && legadoGrupo.historico_missoes ? JSON.parse(legadoGrupo.historico_missoes) : [];
+            
+            if (legadoGrupo && legadoGrupo.conquistas_json) {
+                historicoMissoes.push({
+                    temporada: legadoGrupo.temporada_atual || 1,
+                    conquistas: JSON.parse(legadoGrupo.conquistas_json),
+                    nivel_final: legadoGrupo.nivel_receita || 1
+                });
+            }
+
             await this.db.run(`
-                INSERT INTO legado_grupos (group_id, temporada_atual, nivel_receita, conquistas_json)
-                VALUES (?, 2, 1, '{}')
-                ON CONFLICT(group_id) DO UPDATE SET temporada_atual = temporada_atual + 1, nivel_receita = 1, conquistas_json = '{}'
-            `, [grupo.group_id]);
+                INSERT INTO legado_grupos (group_id, temporada_atual, nivel_receita, conquistas_json, historico_missoes)
+                VALUES (?, 2, 1, '{}', ?)
+                ON CONFLICT(group_id) DO UPDATE SET 
+                temporada_atual = temporada_atual + 1, 
+                nivel_receita = 1, 
+                conquistas_json = '{}',
+                historico_missoes = excluded.historico_missoes
+            `, [grupo.group_id, JSON.stringify(historicoMissoes)]);
 
             const estoque = await this.db.get("SELECT carne, vegetal FROM parque_estoque WHERE group_id = ?", [grupo.group_id]);
             if (estoque) {
@@ -1452,7 +1483,7 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
         let limit = 200;
 
         if(command.startsWith("!burro")){
-            prompt = `Você agora é uma IA extremamente burra, confusa e que fala com muita confiança sobre coisas erradas.
+            prompt += `Você agora é uma IA extremamente burra, confusa e que fala com muita confiança sobre coisas erradas.
              
              IMPORTANTE: Comece a sua resposta DIRETAMENTE, sem cumprimentos e sem repetir a pergunta.
 
@@ -1497,7 +1528,7 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
         
         let formatedMessages, userFormatedMessages
 
-        let prompt = `Você é um bot de WhatsApp engraçado e sarcástico, chamado Bostossauro.
+        prompt += `Você é um bot de WhatsApp engraçado e sarcástico, chamado Bostossauro.
         O usuário "${sender}" te mandou: "${command}".
         Não inicie a mensagem com "Bostossauro: " apenas escreva como se estivesse conversando normalmente com alguém.
         Use emojis (pelo menos um dinossauro 🦖), mas nunca use o emoji de cocô.

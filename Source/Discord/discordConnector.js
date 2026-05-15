@@ -40,7 +40,7 @@ function startDiscord(chatbot, sock) {
             }
         } catch (err) {
             console.error("Erro ao checar link de contas no Discord:", err);
-}
+        }
         let quotedMsg = "";
         if (message.reference) {
             try {

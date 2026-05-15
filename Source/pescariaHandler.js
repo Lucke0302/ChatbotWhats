@@ -284,6 +284,7 @@ class PescariaHandler {
 
         let msg = `${userTag}🎣 **PESCARIA EM ${climaAtual.cidade.toUpperCase()}**\n_Clima: ${mods.txt}_\n_Suprimentos restantes: ${player.suprimentos}_\n\n`;
         
+        let achouAmbarNestaPesca = false;
         let catches = player.fishing_stats.catches;
         let weightMultiplierBuff = 1.0;
         let canCatchTrash = true;
@@ -302,12 +303,12 @@ class PescariaHandler {
         }
 
         for (let i = 0; i < catches; i++) {
-
             
-            const chanceAmbar = 0.05 * mods.ambar_mult;            
+            const chanceAmbar = 0.02 * mods.ambar_mult;            
             const ambarTotalChance = chanceAmbar + (player.fishing_stats.ambar_chance / 200);
 
-            if (this.parqueHandler && Math.random() < ambarTotalChance) {
+            if (!achouAmbarNestaPesca && this.parqueHandler && Math.random() < ambarTotalChance) {
+                achouAmbarNestaPesca = true; 
                 msg += `\n🎣 **ISSO NÃO É UM PEIXE!**\nVocê puxou um 🦟 **Âmbar Ancestral** do fundo do lago!\n\n`;
                 msg += await this.parqueHandler.acharAmbar(userId, userTag, groupId);
                 continue; 

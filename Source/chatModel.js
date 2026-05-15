@@ -260,9 +260,10 @@ class ChatModel {
                 
                 return `🔐 *SEU TOKEN DE CROSS-SAVE:* \n\n*${token}*\n\nVá no chat da Twitch em até 10 minutos e digite:\n*!vincular ${token}*`;
             },
-
             '!vincular': async (ctx) => {
-                if (ctx.platform !== 'twitch') return "❌ Esse comando deve ser usado no chat da Twitch!";
+                if (ctx.platform !== 'twitch' && ctx.platform !== 'discord') {
+                    return "❌ Esse comando deve ser usado no chat da Twitch ou no Discord!";
+                }
                 
                 const args = ctx.command.trim().split(/\s+/);
                 const tokenDigitado = args[1]?.toUpperCase();
@@ -272,13 +273,27 @@ class ChatModel {
                 if (!registro) return "❌ Token inválido ou não encontrado.";
                 if (Date.now() > registro.expira_em) return "⏳ Esse token expirou! Gere outro no Zap.";
 
-                await this.db.run(
-                    "INSERT OR REPLACE INTO contas_linkadas (id_twitch, id_whatsapp) VALUES (?, ?)",
-                    [ctx.sender, registro.id_whatsapp]
-                );
-                await this.db.run("DELETE FROM tokens_vinculo WHERE token = ?", [tokenDigitado]);
+                try {
+                    let vinculo = await this.db.get("SELECT * FROM contas_linkadas WHERE id_whatsapp = ?", [registro.id_whatsapp]);
+                    
+                    let id_twitch = vinculo ? vinculo.id_twitch : null;
+                    let id_discord = vinculo ? vinculo.id_discord : null;
 
-                return "✅ SUCESSO! Sua conta da Twitch agora está conectada ao seu WhatsApp. Suas conquistas e permissões foram sincronizadas!";
+                    if (ctx.platform === 'twitch') id_twitch = ctx.sender;
+                    if (ctx.platform === 'discord') id_discord = ctx.sender;
+
+                    await this.db.run(
+                        "INSERT OR REPLACE INTO contas_linkadas (id_whatsapp, id_twitch, id_discord) VALUES (?, ?, ?)",
+                        [registro.id_whatsapp, id_twitch, id_discord]
+                    );
+
+                    await this.db.run("DELETE FROM tokens_vinculo WHERE token = ?", [tokenDigitado]);
+                    return `✅ **CROSS-SAVE ATIVADO!** Sua conta do ${ctx.platform.toUpperCase()} foi vinculada ao WhatsApp.`;
+
+                } catch (e) {
+                    console.error("Erro no vínculo:", e);
+                    return "❌ Erro interno ao salvar seu vínculo. Avise o admin.";
+                }
             },
             '!anuncio': async (ctx) => {
                 return await this.streamHandler.handleAnuncio(ctx);
@@ -375,6 +390,44 @@ class ChatModel {
             },
             '!cota': async (ctx) => {
                 return await this.handleCotaCommand(ctx);
+            },
+            '!bluesky': async (ctx) => {
+                if (ctx.sender !== "5513991008854@s.whatsapp.net") return "🚫 Só o dono do zoológico vê os pensamentos do dino.";
+                
+                const args = ctx.command.split(' ');
+                const subCommand = args[1]?.toLowerCase();
+
+                if (!subCommand || subCommand === 'status' || subCommand === 'lista') {
+                    const pensamentos = await this.db.all("SELECT * FROM pensamentos_bot WHERE status = 'avaliado' ORDER BY nota_tweet DESC");
+                    
+                    if (pensamentos.length === 0) return "🧊 **GELADEIRA VAZIA.** O Bostossauro não pensou em nada relevante (Nota > 6) ultimamente.";
+
+                    let msg = `🦋 **PENSAMENTOS NA FILA (GELADEIRA)** 🦋\n\n`;
+                    pensamentos.forEach((p, i) => {
+                        msg += `*[ ${i + 1} ]* **Nota:** ${p.nota_tweet} | **ID:** \`${p.id.substring(0,8)}\`\n`;
+                        msg += `💭 _"${p.contexto.substring(0, 100)}..."_\n\n`;
+                    });
+                    msg += `💡 Use \`!bluesky postar [id]\` para forçar um surto instantâneo.`;
+                    return msg;
+                }
+
+                if (subCommand === 'postar' || subCommand === 'force') {
+                    const idParcial = args[2];
+                    const pensamento = await this.db.get("SELECT * FROM pensamentos_bot WHERE id LIKE ?", [`${idParcial}%`]);
+
+                    if (!pensamento) return "❌ Pensamento não encontrado.";
+
+                    await ctx.reply("🚀 Forçando postagem no BlueSky... aguenta aí.");
+                    const temas = JSON.parse(pensamento.temas || '[]');
+                    
+                    const sucesso = await this.blueskyBrain.gerarEPostar(pensamento.id, pensamento.contexto, pensamento.humor_origem, pensamento.timestamp_evento, temas);
+                    
+                    if (sucesso) {
+                        return "✅ Postado e removido da geladeira com sucesso!";
+                    } else {
+                        return "❌ A API do BlueSky falhou 3x. O pensamento voltou pra geladeira, tenta de novo depois.";
+                    }
+                }
             },
             '!cassino': async (ctx) => {
                 const tag = await this.pokemonHandler.getUserTag(ctx.sender);
@@ -654,6 +707,19 @@ class ChatModel {
                         return "🚫 Apenas o Dr. Henry Wu pode brincar de Deus e reescrever o DNA.";
                     }
                     return await this.parqueHandler.fixColorMultipliers(tag);
+                }
+
+                if (subCommand === 'meteoro') {
+                    if (ctx.sender !== "5513991008854@s.whatsapp.net") {
+                        return "🚫 Apenas a própria Força da Natureza pode conjurar um meteoro.";
+                    }
+                    
+                    const alvoGroupId = args[2];
+                    if (!alvoGroupId) {
+                        return `${tag} ⚠️ Você precisa especificar as coordenadas do impacto! Use: *!parque meteoro [id_do_grupo]*\n_(Dica: Vá no grupo e digite !id para pegar o código)_`;
+                    }
+
+                    return await this.parqueHandler.eventoMeteoroLocal(alvoGroupId, tag);
                 }
 
                 if (subCommand === 'fixhibridos') {
@@ -1122,6 +1188,14 @@ class ChatModel {
         return messagesDb.map(m => `${m.nome_remetente || 'Desconhecido'}: ${m.conteudo}`).reverse().join('\n');
     }
 
+    async eventoMeteoroLocal(groupId, userTag) {
+        await this.db.run("UPDATE parque_dinossauros SET is_morto = 1 WHERE group_id = ?", [groupId]);
+        
+        await this.db.run("UPDATE parque_estoque SET carne = 0, vegetal = 0 WHERE group_id = ?", [groupId]);
+
+        return `${userTag} ☄️ **EXTINÇÃO EM MASSA!** ☄️\n\nUm meteoro flamejante rasgou o céu e atingiu em cheio o Jurassic BostoPark!\n\n🦴 Todos os dinossauros viraram fósseis (Eles foram para o Céu dos Dinos).\n🔥 A câmara frigorífica virou cinzas.\n\n_"A vida... não encontrou um meio."_`;
+    }
+
     async executarWipeGlobal(sock) {
         console.log("🚨 [WIPE] INICIANDO PROTOCOLO DE WIPE GLOBAL...");
         
@@ -1262,11 +1336,27 @@ class ChatModel {
         console.log("🏛️ [WIPE] ATUALIZANDO AS CONQUISTAS DOS GRUPOS...");
         const grupos = await this.db.all("SELECT DISTINCT group_id FROM parque_dinossauros");
         for (const grupo of grupos) {
+            
+            let legadoGrupo = await this.db.get("SELECT * FROM legado_grupos WHERE group_id = ?", [grupo.group_id]);
+            let historicoMissoes = legadoGrupo && legadoGrupo.historico_missoes ? JSON.parse(legadoGrupo.historico_missoes) : [];
+            
+            if (legadoGrupo && legadoGrupo.conquistas_json) {
+                historicoMissoes.push({
+                    temporada: legadoGrupo.temporada_atual || 1,
+                    conquistas: JSON.parse(legadoGrupo.conquistas_json),
+                    nivel_final: legadoGrupo.nivel_receita || 1
+                });
+            }
+
             await this.db.run(`
-                INSERT INTO legado_grupos (group_id, temporada_atual, nivel_receita, conquistas_json)
-                VALUES (?, 2, 1, '{}')
-                ON CONFLICT(group_id) DO UPDATE SET temporada_atual = temporada_atual + 1, nivel_receita = 1, conquistas_json = '{}'
-            `, [grupo.group_id]);
+                INSERT INTO legado_grupos (group_id, temporada_atual, nivel_receita, conquistas_json, historico_missoes)
+                VALUES (?, 2, 1, '{}', ?)
+                ON CONFLICT(group_id) DO UPDATE SET 
+                temporada_atual = temporada_atual + 1, 
+                nivel_receita = 1, 
+                conquistas_json = '{}',
+                historico_missoes = excluded.historico_missoes
+            `, [grupo.group_id, JSON.stringify(historicoMissoes)]);
 
             const estoque = await this.db.get("SELECT carne, vegetal FROM parque_estoque WHERE group_id = ?", [grupo.group_id]);
             if (estoque) {
@@ -1399,7 +1489,7 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
         let limit = 200;
 
         if(command.startsWith("!burro")){
-            prompt = `Você agora é uma IA extremamente burra, confusa e que fala com muita confiança sobre coisas erradas.
+            prompt += `Você agora é uma IA extremamente burra, confusa e que fala com muita confiança sobre coisas erradas.
              
              IMPORTANTE: Comece a sua resposta DIRETAMENTE, sem cumprimentos e sem repetir a pergunta.
 
@@ -1444,15 +1534,17 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
         
         let formatedMessages, userFormatedMessages
 
-        prompt = `Você é um bot de WhatsApp engraçado e sarcástico, chamado Bostossauro.
+        prompt += `Você é um bot de WhatsApp engraçado e sarcástico, chamado Bostossauro.
         O usuário "${sender}" te mandou: "${command}".
-        Se perguntarem sobre a sua voz, diga que você pede pra sua irmã gravar os áudios, se não perguntarem,
-        não comente nada sobre isso.
         Não inicie a mensagem com "Bostossauro: " apenas escreva como se estivesse conversando normalmente com alguém.
         Use emojis (pelo menos um dinossauro 🦖), mas nunca use o emoji de cocô.
         Responda diretamente pelo nome. Seja criativo e mantenha o tom de uma conversa do whatsapp.
         A mensagem não deve conter o "${sender}".`;
 
+        const textoMinusculo = command.toLowerCase();
+        if (textoMinusculo.includes('voz') || textoMinusculo.includes('audio') || textoMinusculo.includes('áudio') || textoMinusculo.includes('falar')) {
+            prompt += `\n[DIRETRIZ SOBRE SUA VOZ]: O usuário mencionou algo sobre áudio ou voz. Responda com sarcasmo que você pede para sua irmã gravar os áudios para você porque sua garganta de réptil é ruim.`;
+        }
         const userData = await this.getUserData(name, sender);
         const afinidade = userData ? userData.afinidade_bot : 0;
 
@@ -1539,9 +1631,11 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
             Adicione o separador "${separadorMemoria}" seguido de um resumo atualizado sobre quem é o usuário (gostos, profissão, etc). Se nada mudou, repita a memória antiga.
             
             2. AVALIAR TWEETABILIDADE (BLUESKY):
-            Após a memória, adicione o separador "${separadorAnotacoes}" seguido OBRIGATORIAMENTE de um objeto JSON válido.
-            Se a conversa foi muito absurda, muito engraçada ou te irritou profundamente, preencha o JSON. Se foi uma conversa normal do dia a dia, retorne um JSON vazio {}.
-            Campos do JSON: "contexto" (resumo da situação), "humor" (seu sentimento na hora), "nota" (um número inteiro de 0 a 10 do quão digno de uma reclamação na internet isso é), "temas" (Obrigatório ser um array com exatamente 3 palavras-chave curtas sobre o assunto, ex: ["hardware", "fonte", "explosao"]) e "mudanca_afinidade".
+            No campo "nota", use a seguinte régua de sarcasmo jurássico:
+            0-5: Conversa produtiva, dúvidas de código normais ou papo furado.
+            6-7: O usuário foi levemente burro ou chato. (Vai para a geladeira).
+            8-9: O nível de estupidez humana me deu vontade de morder o monitor. (Postagem prioritária).
+            10: O usuário superou os limites da biologia; é um evento apocalíptico de burrice ou ironia. (Surto Instantâneo).
 
             SOBRE A "mudanca_afinidade":
             Como o Bostossauro, avalie como o usuário te tratou nesta mensagem.
@@ -1938,7 +2032,7 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
     }
 
     async handleMenuCommand(){
-        return `📍 *MENU RÁPIDO (v5.1 - A Ameaça Híbrida)* \n\n
+        return `📍 *MENU RÁPIDO (v7.0 - O Multiverso e a Extinção)* ☄️\n\n
         🆘 !ajuda (ou !help)\n
         🗣️ !audio\n
         🎰 !cassino\n
@@ -1947,7 +2041,7 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
         💵 !cotacao\n
         🎲 !d{número}\n
         🗣️ !falador\n
-        🚜 !fazenda (AGRONEGÓCIO BETA)\n
+        🚜 !fazenda (AGRONEGÓCIO)\n
         🤖 !gpt {texto}\n
         🧠 !lembrar\n
         🎮 !lol\n
@@ -1957,12 +2051,13 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
         📙 !pdf\n
         🎣 !pescaria (SISTEMA DE PESCA)\n
         💸 !pix\n
-        🎮 !poke (JOGO POKÉMON)\n
+        🎮 !poke (POKÉMON)\n
         🖼️ !s (ou !sticker)\n
         🛎️ !resumo\n
         💼 !trabalhar\n
         ☢️ !toxico\n
-        🧐 !tradutor
+        🧐 !tradutor\n
+        🌐 !gerartoken / !vincular (Cross-Save)
         \n\nPara detalhes, digite: *!ajuda [comando]*`;
     }
 
@@ -2097,7 +2192,12 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
                 }),
                 sendTo: msg.sendTo || (async (targetId, texto) => {
                     if (sock) await sock.sendMessage(targetId, { text: texto });
-                })
+                }),
+                react: msg.react || (async (emoji) => {
+                    if (sock && msg.key) {
+                        await sock.sendMessage(from, { react: { text: emoji, key: msg.key } });
+                    }
+                }),
             };
             
             return await handler(ctx);

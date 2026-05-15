@@ -36,6 +36,8 @@ const BlueskyBrain = require('./Bluesky/blueskyBrain');
 const DriveBackup = require('./handleDriveBackup');
 const driveService = new DriveBackup();
 
+const { startDiscord } = require('./Discord/discordConnector');
+
 const pollCache = new Map();
 
 const DB_PATH = 'chat_history.db'; 
@@ -748,6 +750,26 @@ async function initDatabase() {
     } catch (error) {
         if (!error.message.includes("duplicate column name")) console.error(error.message);
     }
+    await db.exec(`
+        CREATE TABLE IF NOT EXISTS contas_linkadas (
+            id_whatsapp TEXT PRIMARY KEY,
+            id_twitch TEXT UNIQUE,
+            id_discord TEXT UNIQUE
+        );
+    `);
+
+    try {
+        await db.exec(`ALTER TABLE contas_linkadas ADD COLUMN id_discord TEXT;`);
+        await db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_discord ON contas_linkadas (id_discord);`);
+    } catch (e) {
+    }
+
+    try {
+        await db.exec(`ALTER TABLE parque_dinossauros ADD COLUMN is_morto BOOLEAN DEFAULT 0;`);
+        console.log("✅ Coluna 'is_morto' adicionada com sucesso!");
+    } catch (error) {
+        if (!error.message.includes("duplicate column name")) console.error(error.message);
+    }
 
     console.log('✅ Banco de dados SQLite inicializado e tabelas verificadas.');
 }
@@ -966,6 +988,7 @@ async function connectToWhatsApp() {
     chatbot.blueskyBrain = blueskyBrain;
 
     startTwitch(chatbot, sock);
+    startDiscord(chatbot, sock);
 
     // ==========================================
     //  SERVIDOR EXPRESS E WEBSOCKET 

@@ -920,6 +920,15 @@ class ParqueHandler {
 
         return `${userTag} 🚚 **DOAÇÃO RECEBIDA!**\n\nVocê transferiu **${qtd}x** ${group.emoji} ${group.name} para a câmara frigorífica do grupo.\nTotal doado: 🥩 **${pesoTotalDepositado.toFixed(2)} kg de Carne**!\nO John Hammond saúda o seu comunismo jurássico.`;
     }
+    
+    async eventoMeteoroLocal(groupId, userTag) {
+        await this.db.run("UPDATE parque_dinossauros SET is_morto = 1 WHERE group_id = ?", [groupId]);
+        
+        await this.db.run("UPDATE parque_estoque SET carne = 0, vegetal = 0 WHERE group_id = ?", [groupId]);
+
+        return `${userTag} ☄️ **EXTINÇÃO EM MASSA!** ☄️\n\nUm meteoro flamejante rasgou o céu e atingiu em cheio o Jurassic BostoPark!\n\n🦴 Todos os dinossauros viraram fósseis (Eles foram para o Céu dos Dinos).\n🔥 A câmara frigorífica virou cinzas.\n\n_"A vida... não encontrou um meio."_`;
+    }
+
 
     async handleEscavar(userId, userTag, userName, groupId) {
         let financas = await this.casinoHandler.processFinancas(userId);

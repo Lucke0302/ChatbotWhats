@@ -27,7 +27,6 @@ Pra saber os detalhes de um comando, digita:
 • *!fazenda* ➝ Plantações, colheitas e agronegócio (Beta).
 
 🦖 *JURASSIC BOSTOPARK*
-• *!escavar* ➝ Ache minérios e o raríssimo Âmbar com DNA de dinossauro.
 • *!parque* ➝ Administre os dinossauros do grupo, alimente-os e receba a bilheteria diária!
 
 🎨 *MÍDIA & UTILITÁRIOS*
@@ -186,7 +185,7 @@ O Jurassic BostoPark é um ecossistema cooperativo. Escave, clone e alimente!
 🎯 *!parque missoes* ➝ Veja as metas da comunidade para restaurar o lucro da bilheteria!
 
 *Mineração & DNA:*
-⛏️ *!escavar* ➝ Gasta a energia do *!bico*. Ache minérios ou o cobiçado Âmbar (Apenas 5% de chance)!
+⛏️ *!escavar* ➝ Explore o Abismo! Um minigame de sobrevivência para achar minérios e Âmbar. Use *!ajuda escavar* para ver o tutorial e as regras de desmoronamento.
 🎒 *!parque mochila* ➝ Veja seus minérios escavados.
 🤝 *!parque vender [numero/tudo]* ➝ Venda as pedras no mercado negro.
 
@@ -217,6 +216,23 @@ Bem-vindo ao Agronegócio Jurássico! Divida seus suprimentos entre a pesca e a 
 🏪 *!fazenda loja* ➝ Veja o catálogo de sementes e preços.
 🎒 *!fazenda despensa* ➝ Veja as toneladas de comida colhidas.
 💰 *!fazenda vender [numero/tudo]* ➝ Venda pro Ceasa e ganhe Bostocoins.`,
+
+'escavar': `⛏️ *COMANDO: !escavar (O ABISMO)* ⛏️
+Bem-vindo ao minigame de Risco e Recompensa! Quanto mais fundo você for, melhores os minérios, mas se o teto cair, você perde tudo e vai pro hospital.
+
+*Ações na Caverna:*
+• *!escavar* ➝ Entra na caverna (Camada 0).
+• *!escavar fundo* ➝ Arrisca descer mais fundo (ou cavar pros lados). Aumenta o risco de desmoronar!
+• *!escavar guardar* ➝ Foge da caverna e guarda o loot na mochila.
+
+*Gerenciamento da Picareta:*
+_Cada turno na caverna gasta 1 de durabilidade. Se chegar a 0, ela fica cega._
+• *!escavar loja* ➝ Mostra o catálogo de picaretas e preços.
+• *!escavar consertar* ➝ Paga 25% do valor da picareta para restaurar o HP dela.
+• *!escavar sucatear* ➝ Quebrou e tá sem dinheiro? Volte para a picareta anterior de graça.
+• *!escavar upar* ➝ Forja a próxima picareta usando Bostocoins e Minérios da sua mochila.
+
+⚠️ *DICA DE SOBREVIVÊNCIA:* Se você desmoronar, você perde todo o loot da descida atual, fica de molho no hospital por 1 hora e tem 35% de chance da sua picareta perder todo o HP na hora!`,
 
     'pix': `💸 *COMANDO: !pix*
 O Banco Central do Bostossauro permite agiotagem e doações entre WhatsApp, Twitch e Discord!

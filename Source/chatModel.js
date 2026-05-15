@@ -809,7 +809,8 @@ class ChatModel {
             '!escavar': async (ctx) => {
                 const tag = await this.pokemonHandler.getUserTag(ctx.sender);
                 const netGroupId = await this.getNetGroupId(ctx.from); 
-                return await this.parqueHandler.handleEscavar(ctx.sender, tag, ctx.name, netGroupId);
+                const escavarAction = args.slice(1).join(' ').trim(); 
+                return await this.parqueHandler.handleEscavar(ctx.sender, tag, name, netGroupId, escavarAction);
             },
             '!fazenda': async (ctx) => {
                 const tag = await this.pokemonHandler.getUserTag(ctx.sender);

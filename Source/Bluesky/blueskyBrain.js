@@ -13,16 +13,16 @@ class BlueskyBrain {
         const id = crypto.randomUUID();
         const temasStr = JSON.stringify(temas || []);
 
-        if (nota <= 6) return;
+        if (nota <= 5) return;
 
         try {
             const query = `INSERT INTO pensamentos_bot (id, contexto, humor_origem, nota_tweet, status, timestamp_evento, temas) VALUES (?, ?, ?, ?, ?, ?, ?)`;
             
-            if (nota >= 7 && nota <= 8) {
+            if (nota >= 6 && nota <= 7) {
                 await this.db.run(query, [id, contexto, humor, nota, 'avaliado', timestampOriginal, temasStr]);
             }
             
-            if (nota >= 9) {
+            if (nota >= 8) {
                 await this.db.run(query, [id, contexto, humor, nota, 'postado', timestampOriginal, temasStr]);
                 this.surtoInstantaneo(contexto, humor, timestampOriginal, temas).catch(e => console.error(e));
             }

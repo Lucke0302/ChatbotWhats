@@ -807,10 +807,14 @@ class ChatModel {
 
             },
             '!escavar': async (ctx) => {
+                const textoMensagem = ctx.msg.text || ctx.msg.body || ctx.msg.message?.conversation || ctx.msg.message?.extendedTextMessage?.text || "";
+                const args = textoMensagem.trim().split(/\s+/);
+                const escavarAction = args.slice(1).join(' ').trim(); 
+                
                 const tag = await this.pokemonHandler.getUserTag(ctx.sender);
                 const netGroupId = await this.getNetGroupId(ctx.from); 
-                const escavarAction = args.slice(1).join(' ').trim(); 
-                return await this.parqueHandler.handleEscavar(ctx.sender, tag, name, netGroupId, escavarAction);
+                
+                return await this.parqueHandler.handleEscavar(ctx.sender, tag, ctx.name, netGroupId, escavarAction);
             },
             '!fazenda': async (ctx) => {
                 const tag = await this.pokemonHandler.getUserTag(ctx.sender);

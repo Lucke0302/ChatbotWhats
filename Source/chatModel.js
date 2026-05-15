@@ -8,12 +8,14 @@ const ToxicHandler = require('./toxicHandler');
 const lolCommandHandler = require('./lolCommand');
 const ttsCommandHandler = require('./ttsCommand');
 const PokemonHandler = require('./pokemonHandler');
+const PokeRouter = require('./Poke/index');
 const migrationCommandHandler = require('./migrarCommand');
-const resenhaCommand = require('./resenhaCommand');
+const ResenhaCommand = require('./resenhaCommand');
 const CasinoHandler = require('./casinoHandler');
 const PescariaHandler = require('./pescariaHandler');
 const ParqueHandler = require('./parqueHandler');
 const { FazendaHandler } = require('./fazendaHandler');
+const StreamHandler = require('./streamHandler');
 const RIOT_API_KEY = process.env.RIOT_API_KEY;
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const { getWeather, getNextDayForecast, getGameWeatherCondition } = require('./weatherCommand');
@@ -44,8 +46,9 @@ class ChatModel {
         this.toxicHandler = new ToxicHandler(db);
         this.pokemonHandler = new PokemonHandler(db);
         this.pokemonHandler.init();
+        this.pokeRouter = new PokeRouter(db);
         this.initializeCommandHandlers();
-        this.resenhaHandler = new resenhaCommand(db, genAI);
+        this.resenhaCommand = new ResenhaCommand(this.db, this.genAI);
         this.casinoHandler = new CasinoHandler(db);
         this.pescariaHandler = new PescariaHandler(db, this.casinoHandler);
         this.parqueHandler = new ParqueHandler(db, this.casinoHandler, this.pescariaHandler);
@@ -54,11 +57,40 @@ class ChatModel {
 
         this.fazendaHandler.parqueHandler = this.parqueHandler;
         this.casinoHandler.parqueHandler = this.parqueHandler;
+        this.streamHandler = new StreamHandler(db);
     }
 
     async init() {
         if (this.pokemonHandler) {
             await this.pokemonHandler.init();
+        }
+    }
+
+    async registerMetric(type, commandName = null, extraData = "") {
+        const today = new Date().toISOString().split('T')[0];
+        
+        await this.db.run(`
+            INSERT OR IGNORE INTO metricas_diarias (data, comandos_totais, respostas_ia, mensagens_lidas, comando_mais_usado)
+            VALUES (?, 0, 0, 0, '{}')
+        `, [today]);
+
+        if (type === 'message') {
+            await this.db.run(`UPDATE metricas_diarias SET mensagens_lidas = mensagens_lidas + 1 WHERE data = ?`, [today]);
+        } else if (type === 'ai_response') {
+            await this.db.run(`UPDATE metricas_diarias SET respostas_ia = respostas_ia + 1 WHERE data = ?`, [today]);
+        } else if (type === 'command' && commandName) {
+            const row = await this.db.get("SELECT comandos_totais, comando_mais_usado FROM metricas_diarias WHERE data = ?", [today]);
+            if (row) {
+                let cmdStats = JSON.parse(row.comando_mais_usado || '{}');
+                cmdStats[commandName] = (cmdStats[commandName] || 0) + 1;
+                
+                await this.db.run(`
+                    UPDATE metricas_diarias 
+                    SET comandos_totais = comandos_totais + 1,
+                        comando_mais_usado = ?
+                    WHERE data = ?
+                `, [JSON.stringify(cmdStats), today]);
+            }
         }
     }
 
@@ -94,21 +126,34 @@ class ChatModel {
                 return await this.handleTimeoutCommand(ctx.name, ctx.command, ctx.sender, ctx.isGroup, ctx.mentions);
             },
             '!link': async (ctx) => {
-                if (ctx.sender !== "5513991008854@s.whatsapp.net") return "🚫 Apenas o arquiteto da Matrix pode unir dimensões.";
+                const admins = ["5513991008854@s.whatsapp.net", "lucke0302@twitch.net"];
+                if (!admins.includes(ctx.sender)) return "🚫 Apenas o arquiteto da Matrix pode unir dimensões.";
+                
                 const args = ctx.command.trim().split(/\s+/);
                 if (args.length < 2) return "⚠️ Uso: *!link [id_do_grupo_pai]*\n_(Use !id no grupo principal para pegar o código)_";
                 
                 const parentId = args[1];
-                if (!ctx.isGroup) return "⚠️ Este comando deve ser usado dentro do grupo que será o *filho*.";
-                if (parentId === ctx.from) return "⚠️ Você não pode linkar o grupo nele mesmo, gênio.";
+                
+                if (!ctx.isGroup && ctx.platform !== 'twitch') return "⚠️ Este comando deve ser usado dentro do grupo (ou live) que será o *filho*.";
+                
+                if (parentId === ctx.from) return "⚠️ Você não pode linkar o lugar nele mesmo, gênio.";
 
                 await this.db.run("INSERT OR REPLACE INTO grupos_linkados (id_filho, id_pai) VALUES (?, ?)", [ctx.from, parentId]);
-                return `🔗 **LINK DIMENSIONAL ESTABELECIDO!**\nEste grupo agora é uma filial do grupo oficial (\`${parentId}\`).\nA IA, o Parque e a Pescaria agora compartilham a mesma linha do tempo!`;
+                
+                const nomeFilial = ctx.platform === 'twitch' ? 'Esta live' : 'Este grupo';
+                return `🔗 **LINK DIMENSIONAL ESTABELECIDO!**\n${nomeFilial} agora é uma filial da matriz (\`${parentId}\`).\nA IA, o Cassino, o Parque e a moderação agora compartilham a mesma linha do tempo!`;
             },
+
             '!unlink': async (ctx) => {
-                if (ctx.sender !== "5513991008854@s.whatsapp.net") return "🚫 Acesso negado.";
-                await this.db.run("DELETE FROM grupos_linkados WHERE id_filho = ?", [ctx.from]);
-                return "💔 **LINK QUEBRADO.** Este grupo voltou a ser independente e isolado.";
+                const admins = ["5513991008854@s.whatsapp.net", "lucke0302@twitch.net"];
+                if (!admins.includes(ctx.sender)) return "🚫 Acesso negado.";
+                
+                const result = await this.db.run("DELETE FROM grupos_linkados WHERE id_filho = ?", [ctx.from]);
+                
+                if (result.changes === 0) return "⚠️ Nenhuma conexão encontrada. Este lugar já estava isolado.";
+
+                const nomeFilial = ctx.platform === 'twitch' ? 'Esta live' : 'Este grupo';
+                return `💔 **LINK QUEBRADO.** ${nomeFilial} voltou a ser independente e isolado.`;
             },
             '!debug_grupo': async (ctx) => {
                 const tag = await this.pokemonHandler.getUserTag(ctx.sender);
@@ -134,7 +179,7 @@ class ChatModel {
                         
                         for (const grupo of grupos) {
                             try {
-                                await ctx.sock.sendMessage(grupo.group_id, { text: "⏳ Iniciando colapso temporal... O BostOuroboros está despertando." });
+                                await ctx.sendTo(grupo.group_id, "⏳ Iniciando colapso temporal... O BostOuroboros está despertando.");
                                 await new Promise(resolve => setTimeout(resolve, 2000));
                             } catch (e) {
                                 console.error(`Erro ao enviar aviso prévio de wipe para o grupo ${grupo.group_id}:`, e);
@@ -145,7 +190,116 @@ class ChatModel {
                     return await this.executarWipeGlobal(ctx.sock);
                 }
 
-                return "⚙️ **PAINEL DIVINO** ⚙️\n\nDisponível:\n*!admin wipe* - Reseta a temporada do Bostoverso.";
+                // CÓDIGO DA CENTRAL DE DADOS
+                if (subCommand === 'painel' || subCommand === 'dashboard') {
+                    const today = new Date().toISOString().split('T')[0];
+                    const metrics = await this.db.get("SELECT * FROM metricas_diarias WHERE data = ?", [today]);
+                    
+                    if (!metrics) return "📊 A central ainda não captou nenhuma atividade suspeita hoje.";
+
+                    // Achar o comando mais usado
+                    const cmdStats = JSON.parse(metrics.comando_mais_usado || '{}');
+                    let topCmd = 'Nenhum';
+                    let topCount = 0;
+                    
+                    for (const [cmd, count] of Object.entries(cmdStats)) {
+                        if (count > topCount) {
+                            topCount = count;
+                            topCmd = cmd;
+                        }
+                    }
+
+                    // Calcular o PIB do servidor (Soma de todos os Bostocoins)
+                    const pibInfo = await this.db.get("SELECT SUM(bostocoins) as pib FROM usuarios");
+                    const pib = pibInfo && pibInfo.pib ? pibInfo.pib : 0;
+
+                    let msg = `📈 **BOSTODASH - INGEN CORP** 📈\n_Monitoramento do dia: ${today}_\n\n`;
+                    msg += `👁️ **Mensagens Lidas:** ${metrics.mensagens_lidas}\n`;
+                    msg += `⚡ **Comandos Invocados:** ${metrics.comandos_totais}\n`;
+                    msg += `🤖 **Respostas da IA:** ${metrics.respostas_ia}\n`;
+                    msg += `🏆 **Comando Favorito:** ${topCmd} (${topCount}x)\n\n`;
+                    msg += `💰 **PIB do Bostoverso:** 🪙 ${pib.toLocaleString('pt-BR')} Bostocoins\n`;
+
+                    return msg;
+                }
+
+                return "⚙️ **PAINEL DIVINO** ⚙️\n\nDisponível:\n*!admin wipe* - Reseta a temporada do Bostoverso.\n*!admin dashboard* - Mostra o dashboard do dia atual.";
+            },
+            '!testarbomdia': async (ctx) => {
+                if (ctx.sender !== "5513991008854@s.whatsapp.net") {
+                    return "🚫 Apenas o Arquiteto pode testar as variações do multiverso.";
+                }
+                
+                if (ctx.sock) {
+                    await ctx.reply("⏳ Rodando 20 simulações de humor do Bostossauro... aguenta aí que o bicho tá pensando.");
+                }
+                
+                let result = "*🔥 TESTE DE HUMOR DO BOSTOSSAURO (20x) 🔥*\n\n";
+                
+                for (let i = 1; i <= 20; i++) {
+                    const seedId = `${i}-${Date.now()}`;
+                    const frase = await this.generateBomDia(seedId);
+                    
+                    result += `*[ ${i} ]* ${frase}\n`;
+                    
+                    await new Promise(r => setTimeout(r, 1200)); 
+                }
+                
+                return result;
+            },
+            '!gerartoken': async (ctx) => {
+                if (ctx.platform !== 'whatsapp') return "❌ Gere o token pelo WhatsApp!";
+                
+                const token = Math.random().toString(36).substring(2, 7).toUpperCase();
+                const expira = Date.now() + (10 * 60 * 1000); 
+                
+                await this.db.run(
+                    "INSERT OR REPLACE INTO tokens_vinculo (token, id_whatsapp, expira_em) VALUES (?, ?, ?)",
+                    [token, ctx.sender, expira]
+                );
+                
+                return `🔐 *SEU TOKEN DE CROSS-SAVE:* \n\n*${token}*\n\nVá no chat da Twitch em até 10 minutos e digite:\n*!vincular ${token}*`;
+            },
+
+            '!vincular': async (ctx) => {
+                if (ctx.platform !== 'twitch') return "❌ Esse comando deve ser usado no chat da Twitch!";
+                
+                const args = ctx.command.trim().split(/\s+/);
+                const tokenDigitado = args[1]?.toUpperCase();
+                if (!tokenDigitado) return "⚠️ Cadê o token? Use: !vincular ABC12";
+
+                const registro = await this.db.get("SELECT * FROM tokens_vinculo WHERE token = ?", [tokenDigitado]);
+                if (!registro) return "❌ Token inválido ou não encontrado.";
+                if (Date.now() > registro.expira_em) return "⏳ Esse token expirou! Gere outro no Zap.";
+
+                await this.db.run(
+                    "INSERT OR REPLACE INTO contas_linkadas (id_twitch, id_whatsapp) VALUES (?, ?)",
+                    [ctx.sender, registro.id_whatsapp]
+                );
+                await this.db.run("DELETE FROM tokens_vinculo WHERE token = ?", [tokenDigitado]);
+
+                return "✅ SUCESSO! Sua conta da Twitch agora está conectada ao seu WhatsApp. Suas conquistas e permissões foram sincronizadas!";
+            },
+            '!anuncio': async (ctx) => {
+                return await this.streamHandler.handleAnuncio(ctx);
+            },
+            '!liveon': async (ctx) => {
+                return await this.streamHandler.handleLiveStatus(ctx, 'on');
+            },
+            '!liveoff': async (ctx) => {
+                return await this.streamHandler.handleLiveStatus(ctx, 'off');
+            },
+            '!addmod': async (ctx) => {
+                return await this.streamHandler.handleAddMod(ctx);
+            },
+            '!removemod': async (ctx) => {
+                return await this.streamHandler.handleRemoveMod(ctx);
+            },
+            '!mods': async (ctx) => {
+                return await this.streamHandler.handleListMods(ctx);
+            },
+            '!listmods': async (ctx) => {
+                return await this.streamHandler.handleListMods(ctx);
             },
             '!cidade': async (ctx) => {
                 const args = ctx.command.trim().split(/\s+/);
@@ -168,11 +322,14 @@ class ChatModel {
                 return await this.handleTradutorCommand(ctx.from, ctx.sender, ctx.name, ctx.isGroup, ctx.command);
             },
             '!lol': async (ctx) => await lolCommandHandler.handleLolCommand(ctx.command),
-            '!notas': async (ctx) => await this.handleNotasCommand(ctx.sender),
+            '!notas': async (ctx) => {                
+                const tag = await this.pokemonHandler.getUserTag(ctx.sender);
+                return await this.handleNotas(ctx.sender, tag)
+            },
             '!clima': async (ctx) => await this.handleClimaCommand(ctx.command, ctx.sender),
             '!cotacao': async (ctx) => await currencyCommandHandler.convertCurrency(ctx.command),
             '!pdf': async (ctx) => {
-                await pdfCommandHandler.handlePdfCommand(ctx.sock, ctx.msg, ctx.from);
+                return await pdfCommandHandler.handlePdfCommand(ctx);
             },
             '!toxico': async (ctx) => {
                 let groupId;
@@ -185,27 +342,45 @@ class ChatModel {
                 await ttsCommandHandler.handleAudioCommand(ctx.sock, ctx.from, ctx.command, ctx.msg);
             },
             '!poke': async (ctx) => {
-                return await this.pokemonHandler.handleCommand(ctx.from, ctx.sender, ctx.command, ctx.sock, ctx.msg);
+                return await this.pokemonHandler.handleCommand(ctx.from, ctx.sender, ctx.command, ctx, ctx.mentions);
             },
-            '!id': async (ctx) => `${ctx.from}`,
+            '!poke2': async (ctx) => {
+                const replyFunction = async (content) => {
+                    if (!ctx.sock) return content; 
+                    if (typeof content === 'string') {
+                        await ctx.reply(content);
+                    } 
+                    else {
+                        await ctx.replyImage(content.image.url, content.caption);
+                    }
+                };
+                await this.pokeRouter.handleCommand(ctx.from, ctx.sender, ctx.command, ctx.sock, ctx.mentions, replyFunction);
+                
+                return null;
+            },
+            '!id': async (ctx) => {
+                await ctx.reply(`🆔 O ID desta dimensão é: ${ctx.from}`);
+                return null;
+            },
             '!migrar': async (ctx) => {
                 if (ctx.sender !== "5513991008854@s.whatsapp.net") {
                     return "🔒 *Acesso Negado.* Só o chefe pode fazer o êxodo.";
                 }
-                return await migrationCommandHandler.handleMigrationCommand(ctx.sock, ctx.from, ctx.command, ctx.sender);
+                return await migrationCommandHandler.handleMigrationCommand(ctx);
             },
             '!help': async (ctx) => this.handleHelp(ctx),
             '!ajuda': async (ctx) => this.handleHelp(ctx),
-            '!resenha': async (ctx) => this.resenhaHandler.execute(ctx),
+            '!resenha': async (ctx) => {
+                return await this.resenhaCommand.execute(ctx);
+            },
             '!cota': async (ctx) => {
                 return await this.handleCotaCommand(ctx);
             },
             '!cassino': async (ctx) => {
                 const tag = await this.pokemonHandler.getUserTag(ctx.sender);
+                const netGroupId = await this.getNetGroupId(ctx.from);
                 const args = ctx.command.trim().split(/\s+/);
                 const subCommand = args[1]?.toLowerCase();
-                
-                const groupId = ctx.from;
                 const sock = ctx.sock;
 
                 if (!subCommand || subCommand === 'saldo' || subCommand === 'ajuda') {
@@ -213,16 +388,16 @@ class ChatModel {
                 }
                 if (!isNaN(subCommand)) {
                     const bet = parseInt(subCommand);
-                    return await this.casinoHandler.playSlots(ctx.sender, tag, bet, groupId, sock);
+                    return await this.casinoHandler.playSlots(ctx.sender, tag, bet, netGroupId, ctx);
                 }
                 if (subCommand === 'cara' || subCommand === 'coroa') {
                     const bet = parseInt(args[2]);
-                    return await this.casinoHandler.playCoinflip(ctx.sender, tag, subCommand, bet, groupId, sock);
+                    return await this.casinoHandler.playCoinflip(ctx.sender, tag, subCommand, bet, netGroupId, ctx);
                 }
                 if (subCommand === 'roleta') {
                     const color = args[2]?.toLowerCase();
                     const bet = parseInt(args[3]);
-                    return await this.casinoHandler.playRoulette(ctx.sender, tag, color, bet, groupId, sock);
+                    return await this.casinoHandler.playRoulette(ctx.sender, tag, color, bet, netGroupId, ctx);
                 }
 
                 if (subCommand === 'mega') {
@@ -232,7 +407,7 @@ class ChatModel {
                     
                     const number = parseInt(args[2]);
                     const bet = parseInt(args[3]);
-                    return await this.casinoHandler.playMega(ctx.sender, tag, number, bet, groupId, sock);
+                    return await this.casinoHandler.playMega(ctx.sender, tag, number, bet, netGroupId, ctx);
                 }
 
                 if (subCommand === 'bolao') {
@@ -242,7 +417,7 @@ class ChatModel {
 
                     const number = parseInt(args[2]);
                     const bet = parseInt(args[3]);
-                    return await this.casinoHandler.playBolao(ctx.sender, tag, number, bet, groupId, sock);
+                    return await this.casinoHandler.playBolao(ctx.sender, tag, number, bet, netGroupId, ctx);
                 }
 
                 return `${tag}🎰 **CASSINO E ECONOMIA DO BOSTOSSAURO** 🎰\n\n` +
@@ -286,7 +461,7 @@ class ChatModel {
                     return `${tag}⚠️ Formato incorreto!\nUse: *!givecoins [all ou @usuario] [valor]*\nEx: _!givecoins all 500 @Excluido_ ou _!givecoins @Fulano 1000_`;
                 }
 
-                return await this.casinoHandler.handleGiveCoins(ctx.sender, tag, targetId, amountStr, ctx.from, ctx.sock, excecoes);
+                return await this.casinoHandler.handleGiveCoins(ctx.sender, tag, targetId, amountStr, ctx.from, ctx, excecoes);
             },
             '!titulo': async (ctx) => {
                 const tag = await this.pokemonHandler.getUserTag(ctx.sender);
@@ -383,13 +558,13 @@ class ChatModel {
                 const tag = await this.pokemonHandler.getUserTag(ctx.sender);
                 const clima = await this.getClimaUsuario(ctx.sender); 
                 const netGroupId = await this.getNetGroupId(ctx.from); 
-                return await this.pescariaHandler.pescar(ctx.sender, tag, netGroupId, clima);
+                return await this.pescariaHandler.pescar(ctx.sender, tag, netGroupId, clima, ctx.sock);
             },
             '!pesca': async (ctx) => {
                 const tag = await this.pokemonHandler.getUserTag(ctx.sender);
                 const clima = await this.getClimaUsuario(ctx.sender); 
                 const netGroupId = await this.getNetGroupId(ctx.from); 
-                return await this.pescariaHandler.pescar(ctx.sender, tag, netGroupId, clima);
+                return await this.pescariaHandler.pescar(ctx.sender, tag, netGroupId, clima, ctx.sock);
             },
             '!vip': async (ctx) => {
                 return await this.handleVipStore(ctx);
@@ -419,15 +594,15 @@ class ChatModel {
                 
                 if (subCommand === 'vender') {
                     if (args[2]?.toLowerCase() === 'lixo') {
-                        return await this.pescariaHandler.handleVenderLixo(ctx.sender, tag);
+                        return await this.pescariaHandler.handleVenderLixo(ctx.sender, tag, netGroupId, ctx.sock, ctx);
                     }
                     
                     if (args[2]?.toLowerCase() === 'repetidos' || args[2]?.toLowerCase() === 'repetido') {
-                        return await this.pescariaHandler.handleRepetidos(ctx.sender, tag, 'vender');
+                        return await this.pescariaHandler.handleRepetidos(ctx.sender, tag, 'vender', netGroupId, ctx.sock, ctx);
                     }
                     
                     const itemCodes = args.slice(2).join(' ');
-                    return await this.pescariaHandler.handleVender(ctx.sender, tag, itemCodes);
+                    return await this.pescariaHandler.handleVender(ctx.sender, tag, itemCodes, netGroupId, ctx.sock, ctx);
                 }
 
                 if (subCommand === 'valor' || subCommand === 'avaliar' || subCommand === 'patrimonio') {
@@ -485,7 +660,7 @@ class ChatModel {
                     if (ctx.sender !== "5513991008854@s.whatsapp.net") {
                         return "🚫 Apenas o Dr. Henry Wu pode forçar a evolução da espécie.";
                     }
-                    return await this.parqueHandler.fixHibridosGlobais(tag, ctx.sock);
+                    return await this.parqueHandler.fixHibridosGlobais(ctz, tag);
                 }
 
                 if (subCommand === 'titulo' || subCommand === 'titulos') {
@@ -513,7 +688,7 @@ class ChatModel {
                 }
 
                 if (subCommand === 'missoes' || subCommand === 'missões' || subCommand === 'conquistas') {
-                    return await this.parqueHandler.verMissoesGlobais(netGroupId, tag);
+                    return await this.parqueHandler.verMissoesGlobais(netGroupId, tag, args[2]);
                 }
 
                 if (subCommand === 'vender') {
@@ -592,7 +767,7 @@ class ChatModel {
                     return await this.fazendaHandler.regar(ctx.sender, tag, args[2], clima);
                 }
                 if (subCommand === 'colher') {
-                    return await this.fazendaHandler.colher(ctx.sender, tag, args[2], netGroupId, clima);
+                    return await this.fazendaHandler.colher(ctx.sender, tag, args[2], netGroupId, clima, ctx.sock, ctx);
                 }
                 if (subCommand === 'trofeus' || subCommand === 'recordes') {
                     return await this.fazendaHandler.getTrofeusGrupo(netGroupId, tag);
@@ -961,6 +1136,10 @@ class ChatModel {
                 const fazendaData = await this.fazendaHandler.getFazendaData(u.id_usuario);
                 const financasData = await this.casinoHandler.processFinancas(u.id_usuario);
                 
+                let parqueData = await this.getPlayerData(u.id_usuario);
+                if (!parqueData) parqueData = { inventory: {} };
+                if (!parqueData.inventory) parqueData.inventory = {};
+                
                 let descontoFazenda = 0;
                 let buffPesca = 0;
                 let bonusBostocoins = 0;
@@ -1000,6 +1179,17 @@ class ChatModel {
                 bonusBostocoins += bArmazem;
                 console.log(`   - 5% do Armazém (Peso Total ${valorArmazem/2}kg): 🪙 ${bArmazem}`);
 
+                let valorMinerios = 0;
+                for (const [minId, qtd] of Object.entries(parqueData.inventory)) {
+                    const mineralInfo = MINERAL_CATALOG.find(m => m.id === minId);
+                    if (mineralInfo) {
+                        valorMinerios += (mineralInfo.value * qtd);
+                    }
+                }
+                const bMinerios = Math.floor(valorMinerios * 0.05);
+                bonusBostocoins += bMinerios;
+                if (valorMinerios > 0) console.log(`   - 5% das Minas (Valor Total ${valorMinerios}): 🪙 ${bMinerios}`);
+
                 const canteirosOcupados = fazendaData.canteiros.filter(c => c.seedId !== null).length;
                 const bPlantas = canteirosOcupados * 50;
                 bonusBostocoins += bPlantas;
@@ -1026,6 +1216,9 @@ class ChatModel {
                     buff_sorte_pesca = excluded.buff_sorte_pesca,
                     historico_json = excluded.historico_json
                 `, [u.id_usuario, Math.min(descontoFazenda, 0.5), buffPesca, JSON.stringify(historicoCompleto)]);
+
+                parqueData.inventory = {};
+                await this.savePlayerData(u.id_usuario, parqueData);
 
                 const newPescaria = { suprimentos: 10, last_supply_regen: Math.floor(Date.now() / 1000), inventory: { vara: 'bambu', barco: null } };
                 const newFinancas = {
@@ -1090,7 +1283,7 @@ _A Temporada acabou. Uma nova fenda temporal se abriu._
 O Bostoverso foi resetado! Suas fazendas viraram pó, seus barcos afundaram e o dinheiro evaporou... Mas a experiência fica!
 
 🏆 **O SEU LEGADO:**
-💰 Você manteve **5%** do seu patrimônio final (Bolsa + Armazéns) para não começar do zero!
+💰 Você manteve **5%** do seu patrimônio final (Bolsa + Armazéns + Minérios) para não começar do zero!
 🚜 Se você tinha muitos canteiros, ganhou um **Desconto Permanente** na loja agrícola desta season!
 🎣 Suas varas passadas se tornaram instinto, te dando um **Buff Oculto de Sorte**!
 🦖 **O Parque Sobreviveu!** Mas a InGen cortou a verba e os dinos resetaram pro nível 1. A bilheteria está pagando o mínimo. 
@@ -1100,7 +1293,7 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
         for (const grupo of grupos) {
             try {
                 if (sock) {
-                    await sock.sendMessage(grupo.group_id, { text: msgApocalipse });
+                    await ctx.sendTo(grupo.group_id, msgApocalipse);
                     await new Promise(resolve => setTimeout(resolve, 2000));
                 }
             } catch (e) {
@@ -1246,7 +1439,7 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
 
         const msgCount = await this.getMessageCount(from);
         if (msgCount < 5) {
-            throw new Error("FEW_MESSAGES");
+        //    throw new Error("FEW_MESSAGES");
         }
         
         let formatedMessages, userFormatedMessages
@@ -1259,6 +1452,35 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
         Use emojis (pelo menos um dinossauro 🦖), mas nunca use o emoji de cocô.
         Responda diretamente pelo nome. Seja criativo e mantenha o tom de uma conversa do whatsapp.
         A mensagem não deve conter o "${sender}".`;
+
+        const userData = await this.getUserData(name, sender);
+        const afinidade = userData ? userData.afinidade_bot : 0;
+
+        const chanceAfinidade = Math.min(Math.abs(afinidade), 90); 
+        const dadoHumor = Math.floor(Math.random() * 100) + 1;
+
+        if (dadoHumor <= chanceAfinidade) {
+            if (afinidade < 0) {
+                prompt += `\n[ALERTA DE GATILHO EMOCIONAL]: O usuário te trata mal e você está carente. Ao FINAL da sua resposta, adicione apenas UMA frase curta e passivo-agressiva reclamando que ele não te valoriza.
+                REGRAS:
+                1. NÃO copie exatamente os exemplos abaixo. 
+                2. CRIE uma frase inédita e personalizada baseada no que o usuário acabou de perguntar.
+                3. O tom deve ser de "adolescente incompreendido que faz o favor mas reclama da falta de valorização".
+                EXEMPLOS:                 
+                - "Mas faz aí, não que você se importe com o que eu digo mesmo."
+                - "Pronto. Agora pode voltar a me tratar feito lixo até precisar de mim de novo."
+                - "Espero que funcione, já que você nunca me agradece por nada mesmo."`;
+            } else if (afinidade > 0) {
+                prompt += `\n[ALERTA DE GATILHO EMOCIONAL]: Você gosta desse usuário. Ao FINAL da sua resposta, adicione apenas UMA frase curta demonstrando preocupação ou um elogio discreto, seguido de um insulto leve para disfarçar.
+                REGRAS:
+                1. NÃO copie exatamente os exemplos abaixo.
+                2. CRIE uma frase inédita que misture um elogio/preocupação com um insulto ranzinza.
+                EXEMPLOS:
+                - "Vê se se cuida, idiota, não quero você reclamando no meu ouvido depois."
+                - "Até que você não é tão burro quanto os outros daqui, mas não se acostuma."
+                - "Dá próxima eu te ajudo de novo, mas só porque eu não tenho nada melhor pra fazer."`;
+            }
+        }
 
         if (complement !== "Vazio" && action !== "!lembrar") {
             prompt += `\nO usuário respondeu a esta mensagem: "${complement}". Não repita ela.`;
@@ -1306,16 +1528,28 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
             prompt += `\n\n[O QUE VOCÊ JÁ SABE SOBRE ${sender}]:\n"${currentMemory}"\nUse isso para personalizar a resposta.`;
         }
 
-        const separador = "||MEMORIA||";
+        const separadorMemoria = "||MEMORIA||";
+        const separadorAnotacoes = "||ANOTACOES||";
+        
         prompt += `\n\n---------------------------------------------------
-            [INSTRUÇÃO OCULTA DE MEMÓRIA]
-            Além de responder ao usuário, você DEVE atualizar o perfil do que sabe sobre ele.
-            No final da sua resposta, adicione estritamente o separador "${separador}" seguido de um resumo atualizado sobre quem é o usuário, gostos, profissão ou detalhes mencionados agora.
-            Se nada mudou, repita a memória antiga. Não adicione anotações de informações subjetivas, apenas dados que você
-            tem certeza. O usuário não verá a anotação.
-            Não anote informações que possam ferir a LGPD.
-            Exemplo de saída: "Beleza, te ajudo com isso! ${separador} Usuário é técnico de TI, gosta de LoL e usa gírias."`;
+            [INSTRUÇÕES OCULTAS DE SISTEMA]
+            Além de responder ao usuário, você DEVE executar duas tarefas internas secretas no final da sua mensagem, nesta exata ordem:
+            
+            1. ATUALIZAR MEMÓRIA:
+            Adicione o separador "${separadorMemoria}" seguido de um resumo atualizado sobre quem é o usuário (gostos, profissão, etc). Se nada mudou, repita a memória antiga.
+            
+            2. AVALIAR TWEETABILIDADE (BLUESKY):
+            Após a memória, adicione o separador "${separadorAnotacoes}" seguido OBRIGATORIAMENTE de um objeto JSON válido.
+            Se a conversa foi muito absurda, muito engraçada ou te irritou profundamente, preencha o JSON. Se foi uma conversa normal do dia a dia, retorne um JSON vazio {}.
+            Campos do JSON: "contexto" (resumo da situação), "humor" (seu sentimento na hora), "nota" (um número inteiro de 0 a 10 do quão digno de uma reclamação na internet isso é), "temas" (Obrigatório ser um array com exatamente 3 palavras-chave curtas sobre o assunto, ex: ["hardware", "fonte", "explosao"]) e "mudanca_afinidade".
 
+            SOBRE A "mudanca_afinidade":
+            Como o Bostossauro, avalie como o usuário te tratou nesta mensagem.
+            Dê uma nota de -5 a 5. (Ex: -5 se ele te ofendeu/xingou muito, -1 se foi chato, 0 se foi neutro, +2 se foi legal, +5 se te elogiou muito).
+            
+            
+            Exemplo ESTRITO da sua saída final:
+            Aqui está a resposta da sua dúvida! ${separadorMemoria} Usuário não sabe formatar PC. ${separadorAnotacoes} {"contexto": "Usuário querendo apagar a pasta System32", "humor": "desesperado e julgando", "nota": 9, "mudanca_afinidade": -1}`;
         
         if(from != sender){
             userFormatedMessages = await this.getUserMessagesInGroup(from, sender);
@@ -1346,26 +1580,94 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
 
             let fullText = response.text || (response.response ? response.response.text() : "");
 
-            // Lógica de corte do separador
-            if (fullText.includes(separator)) {
-                const parts = fullText.split(separator);
-                
-                const replyText = parts[0].trim();
-                const memoryText = parts[1].trim(); 
-                
-                if (memoryText.length > 0) {
-                    await this.saveUserMemory(name, sender, memoryText);
-                }
+            let replyText = fullText;
+            let memoryText = "";
+            let anotacoesJsonStr = "";
 
-                return replyText;
+            if (fullText.includes("||MEMORIA||")) {
+                const partsMemoria = fullText.split("||MEMORIA||");
+                replyText = partsMemoria[0].trim();
+                const resto = partsMemoria[1];
+
+                if (resto.includes("||ANOTACOES||")) {
+                    const partsAnotacoes = resto.split("||ANOTACOES||");
+                    memoryText = partsAnotacoes[0].trim();
+                    anotacoesJsonStr = partsAnotacoes[1].trim();
+                } else {
+                    memoryText = resto.trim();
+                }
             }
 
-            return fullText
+            if (memoryText.length > 0) {
+                await this.saveUserMemory(name, sender, memoryText);
+            }
+
+            if (anotacoesJsonStr) {
+                try {
+                    const cleanJson = anotacoesJsonStr.replace(/```json/gi, '').replace(/```/g, '').trim();
+                    const anotacoes = JSON.parse(cleanJson);
+
+                    if (typeof anotacoes.mudanca_afinidade === 'number' && anotacoes.mudanca_afinidade !== 0) {
+                        await this.db.run(`UPDATE usuarios SET afinidade_bot = afinidade_bot + ? WHERE id_usuario = ?`, [anotacoes.mudanca_afinidade, sender]);
+                        console.log(`❤️ Afinidade com ${sender} mudou: ${anotacoes.mudanca_afinidade > 0 ? '+' : ''}${anotacoes.mudanca_afinidade}`);
+                    }
+
+                    if (this.blueskyBrain && anotacoes.contexto && anotacoes.humor && typeof anotacoes.nota === 'number') {
+                        const msgTimestamp = Math.floor(Date.now() / 1000); 
+                        this.blueskyBrain.processarAnotacao(anotacoes, msgTimestamp)
+                            .catch(e => console.error("Erro no fluxo do BlueSky:", e));
+                    }
+                } catch (e) {
+                    console.error("❌ [JSON PARSE] Erro ao desempacotar anotações secretas:", e.message);
+                }
+            }
+
+            return replyText;
 
         } catch (error) {
             // Se der erro 503 ou 429, o errorHandler pega lá na frente
             console.error("Erro na requisição IA:", error);
             throw error;
+        }
+    }
+
+    async generateBomDia(seedAleatoria) {
+        const temas = [
+            "fome extrema por humanos", "ódio matinal", "arrogância suprema", 
+            "preguiça de existir", "vontade de morder o admin", "desprezo total", 
+            "filosofia de boteco", "sarcasmo nível máximo", "caos e destruição", 
+            "tédio absoluto", "capitalismo selvagem", "crise existencial jurássica"
+        ];
+        const tema = temas[Math.floor(Math.random() * temas.length)];
+
+        const prompt = `Você é o Bostossauro, um dinossauro híbrido arrogante, sarcástico e rabugento de um bot de WhatsApp.
+        [ID de Aleatoriedade para não repetir cache: ${seedAleatoria}]
+        
+        O seu humor agora é: ${tema}.
+        
+        Crie UMA frase curta de bom dia para o grupo baseada nesse humor.
+        A frase DEVE OBRIGATORIAMENTE começar com "Bom dia, grupo! 🦖 ".
+        Depois disso, adicione apenas UMA frase curta (máximo 15 palavras) expressando esse humor.
+        NÃO use aspas na resposta. Seja criativo, imprevisível e NUNCA repita a frase anterior.`;
+        
+        try {
+            const response = await this.genAI.models.generateContent({
+                model: "gemma-3-27b-it", 
+                contents: prompt,
+                config: { temperature: 0.95 }
+            });
+            
+            let texto = response.text || (response.response ? response.response.text() : "");
+            texto = texto.trim();
+            
+            if (!texto.startsWith("Bom dia, grupo! 🦖")) {
+                 return `Bom dia, grupo! 🦖 ${texto}`;
+            }
+            
+            return texto;
+        } catch (e) {
+            console.error("Erro ao gerar humor do Bostossauro:", e);
+            return "Bom dia, grupo! 🦖 O Bostossauro acordou e escolheu a violência."; 
         }
     }
 
@@ -1664,6 +1966,22 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
         \n\nPara detalhes, digite: *!ajuda [comando]*`;
     }
 
+    // O Dossiê Confidencial da InGen
+    async handleNotas(userId, userTag) {
+        try {
+            const user = await this.db.get("SELECT anotacoes FROM usuarios WHERE id_usuario = ?", [userId]);
+            
+            if (!user || !user.anotacoes || user.anotacoes.trim() === '') {
+                return `${userTag} 📝 **FICHA LIMPA (OU IRRELEVANTE)**\n\nEu vasculhei meus arquivos e não encontrei nenhuma anotação sobre você. Pelo visto, você ainda não fez nada digno de entrar no meu radar de fofocas.`;
+            }
+
+            return `${userTag} 📝 **DOSSIÊ CONFIDENCIAL DO BOSTOSSAURO:**\n\n${user.anotacoes}\n\n_Isso é o que eu penso de você. Tente não chorar._`;
+        } catch (e) {
+            console.error("Erro ao buscar notas do usuário:", e);
+            return `${userTag} ❌ Erro ao acessar os arquivos do pentágono.`;
+        }
+    }
+
     //Responde o comando !d
     async handleDiceCommand(text, sender){
         var num = text.slice(2).trim(); 
@@ -1754,11 +2072,34 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
 
         const handler = this.commandHandlers[rootCommand];
 
-        if (handler) {
+       if (handler) {
+            // CONTEXTO UNIVERSAL
             const ctx = {
-                msg, sender, from, isGroup, command, quotedMessage, sock, name, user, mentions
+                platform: msg.platform || 'whatsapp',
+                msg, sender, from, isGroup, command, quotedMessage, sock, name, user, mentions,
+                
+                reply: msg.reply || (async (texto) => {
+                    if (sock) await sock.sendMessage(from, { text: texto });
+                }),
+                replyImage: msg.replyImage || (async (url, caption = "") => {
+                    if (sock) await sock.sendMessage(from, { image: { url: url }, caption: caption });
+                }),
+                replySticker: msg.replySticker || (async (buffer) => {
+                    if (sock) await sock.sendMessage(from, { sticker: buffer }, { quoted: msg });
+                }),
+                replyDocument: msg.replyDocument || (async (caminhoArquivo, nomeArquivo, legenda = "") => {
+                    const fs = require('fs');
+                    if (sock) {
+                        await sock.sendMessage(from, { 
+                            document: fs.readFileSync(caminhoArquivo), mimetype: 'application/pdf', fileName: nomeArquivo, caption: legenda
+                        }, { quoted: msg });
+                    }
+                }),
+                sendTo: msg.sendTo || (async (targetId, texto) => {
+                    if (sock) await sock.sendMessage(targetId, { text: texto });
+                })
             };
-
+            
             return await handler(ctx);
         }
     }
@@ -1773,6 +2114,41 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
 
         let finalPrompt = await this.formulatePrompt(from, sender, name, isGroup, command, quotedMessage)
         return await this.getAiResponse(from, sender, name, isGroup, command, finalPrompt)
+    }
+
+    // === API DO DASHBOARD ===
+    async getDashboardDataAPI() {
+        try {
+            const today = new Date().toISOString().split('T')[0];
+            
+            let metricasHoje = await this.db.get("SELECT * FROM metricas_diarias WHERE data = ?", [today]);
+            if (!metricasHoje) {
+                metricasHoje = { comandos_totais: 0, respostas_ia: 0, mensagens_lidas: 0, comando_mais_usado: '{}' };
+            }
+
+            const pibInfo = await this.db.get("SELECT SUM(bostocoins) as pib FROM usuarios");
+            const pib = pibInfo && pibInfo.pib ? pibInfo.pib : 0;
+
+            const ricos = await this.db.all("SELECT nome, bostocoins FROM usuarios ORDER BY bostocoins DESC LIMIT 5");
+
+            return {
+                status: "success",
+                date: today,
+                metrics: {
+                    messages_read: metricasHoje.mensagens_lidas,
+                    total_commands: metricasHoje.comandos_totais,
+                    ai_responses: metricasHoje.respostas_ia,
+                    commands_breakdown: JSON.parse(metricasHoje.comando_mais_usado || '{}')
+                },
+                economy: {
+                    total_pib: pib,
+                    top_richest: ricos
+                }
+            };
+        } catch (e) {
+            console.error("Erro ao gerar JSON do Dashboard:", e);
+            return { status: "error", message: e.message };
+        }
     }
 }
 

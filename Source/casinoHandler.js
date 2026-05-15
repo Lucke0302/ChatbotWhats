@@ -68,17 +68,34 @@ constructor(db) {
         return user ? user.bostocoins : 0;
     }
 
-    async updateBalance(userId, amount, groupId = null, sock = null) {
-        if (amount < 0 && this.parqueHandler && groupId && groupId.includes('@g.us')) {
-            const gastoReal = Math.abs(amount);
-            this.parqueHandler.registrarProgressoComunitario(groupId, 'cassino', gastoReal, sock).catch(()=>{});
+    async updateBalance(userId, amount, groupId = null, ctx = null, bet = 0) {
+        const valorParaMissao = bet > 0 ? bet : (amount < 0 ? Math.abs(amount) : 0);
+        
+        if (valorParaMissao > 0) {
+            if (this.parqueHandler && groupId && groupId.includes('@g.us')) {
+                this.parqueHandler.registrarProgressoComunitario(groupId, 'cassino', valorParaMissao, ctx).catch(()=>{});
+            }
+            
+            try {
+                await this.db.run(`
+                    UPDATE usuarios 
+                    SET financas = json_set(
+                        COALESCE(financas, '{}'), 
+                        '$.total_apostado', 
+                        COALESCE(json_extract(financas, '$.total_apostado'), 0) + ?
+                    )
+                    WHERE id_usuario = ?
+                `, [valorParaMissao, userId]);
+            } catch (e) {
+                console.error("Erro ao salvar histórico de apostas:", e);
+            }
         }
         
         await this.db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [amount, userId]);
     }
 
     // CAÇA-NÍQUEIS
-    async playSlots(userId, userTag, bet, groupId, sock) {
+    async playSlots(userId, userTag, bet, groupId, ctx) {
         const balance = await this.getBalance(userId);
         if (isNaN(bet) || bet <= 0) return `${userTag}⚠️ Digite um valor para apostar. Ex: *!cassino 50*\nVocê tem ${balance} Bostocoins!`;
         
@@ -94,20 +111,20 @@ constructor(db) {
         if (r1 === r2 && r2 === r3) {
             let multiplier = r1 === "💎" || r1 === "🦖" ? 20 : 10;
             const win = bet * multiplier;
-            await this.updateBalance(userId, win - bet, groupId, sock);
+            await this.updateBalance(userId, win - bet, groupId, ctx, bet);
             return msg + `🏆 **JACKPOT!** Você tirou 3 iguais e ganhou 🪙 ${win} Bostocoins!`;
         } else if (r1 === r2 || r2 === r3 || r1 === r3) {
             const win = Math.floor(bet * 1.4);
-            await this.updateBalance(userId, win - bet, groupId, sock);
+            await this.updateBalance(userId, win - bet, groupId, ctx, bet);
             return msg + `✨ **QUASE!** Deu parzinho. Você ganhou 🪙 ${win} Bostocoins.`;
         } else {
-            await this.updateBalance(userId, -bet, groupId, sock);
+            await this.updateBalance(userId, -bet, groupId, ctx, bet);
             return msg + `💸 **PERDEU!** O cassino agradece sua doação de 🪙 ${bet} Bostocoins.`;
         }
     }
 
     // CARA OU COROA
-    async playCoinflip(userId, userTag, choice, bet, groupId, sock) {
+    async playCoinflip(userId, userTag, choice, bet, groupId, ctx) {
         const balance = await this.getBalance(userId);
         if (isNaN(bet) || bet <= 0) return `${userTag}⚠️ Digite um valor válido. Ex: *!cassino cara 50*\nVocê tem 🪙 ${balance} Bostocoins!`;
         if (choice !== 'cara' && choice !== 'coroa') return `${userTag}⚠️ Escolha 'cara' ou 'coroa'.`;
@@ -120,16 +137,17 @@ constructor(db) {
         let msg = `${userTag}🪙 A moeda girou e caiu... **${result.toUpperCase()}**!\n\n`;
 
         if (won) {
-            await this.updateBalance(userId, bet, groupId, sock);
-            return msg + `🎉 Você acertou e ganhou 🪙 ${bet * 1.8} Bostocoins!`;
+            const win = Math.floor(bet * 1.8);
+            await this.updateBalance(userId, win - bet, groupId, ctx, bet);
+            return msg + `🎉 Você acertou e ganhou 🪙 ${win} Bostocoins!`;
         } else {
-            await this.updateBalance(userId, -bet, groupId, sock);
+            await this.updateBalance(userId, -bet, groupId, ctx, bet);
             return msg + `💸 Você errou e perdeu 🪙 ${bet} Bostocoins.`;
         }
     }
 
     // ROLETA SIMPLES
-    async playRoulette(userId, userTag, colorChoice, bet, groupId, sock) {
+    async playRoulette(userId, userTag, colorChoice, bet, groupId, ctx) {
         const balance = await this.getBalance(userId);
         if (isNaN(bet) || bet <= 0) return `${userTag}⚠️ Valor inválido. Ex: *!cassino roleta vermelho 100* \nVocê tem ${balance} Bostocoins!`;
         const choices = ['vermelho', 'preto', 'verde'];
@@ -150,16 +168,16 @@ constructor(db) {
         if (colorChoice === resultColor) {
             const multiplier = resultColor === 'verde' ? 12 : 2;
             const win = bet * multiplier;
-            await this.updateBalance(userId, win - bet, groupId, sock);
+            await this.updateBalance(userId, win - bet, groupId, ctx, bet);
             return msg + `💰 **VITÓRIA!** Você multiplicou sua aposta por ${multiplier}x e ganhou 🪙 ${win} Bostocoins!`;
         } else {
-            await this.updateBalance(userId, -bet, groupId, sock);
+            await this.updateBalance(userId, -bet, groupId, ctx, bet);
             return msg + `💸 **DERROTA!** Você apostou no ${colorChoice} e perdeu 🪙 ${bet}.`;
         }
     }
 
     // MEGABOSTA
-    async playMega(userId, userTag, number, bet, groupId, sock) {
+    async playMega(userId, userTag, number, bet, groupId, ctx) {
         const balance = await this.getBalance(userId);
         if (isNaN(number) || number < 1 || number > 100) return `${userTag}⚠️ Escolha um número de 1 a 100. Ex: *!cassino mega 42 100*`;
         if (isNaN(bet) || bet <= 0) return `${userTag}⚠️ Valor inválido. Ex: *!cassino mega 42 100*`;
@@ -168,14 +186,14 @@ constructor(db) {
         const estado = await this.db.get("SELECT mega_multiplicador FROM cassino_estado WHERE id = 1");
         const multiplicador_atual = estado.mega_multiplicador * 100;
 
-        await this.updateBalance(userId, -bet, groupId, sock);
+        await this.updateBalance(userId, -bet, groupId, ctx);
         await this.db.run("INSERT INTO loteria (id_usuario, numero, valor) VALUES (?, ?, ?)", [userId, number, bet]);
 
         return `${userTag}🎟️ **BILHETE DA MEGABOSTA COMPRADO!**\nApostou 🪙 ${bet} no número **${number}**.\nSe ganhar, leva 🪙 **${bet * multiplicador_atual}** na segunda-feira!`;
     }
 
     // BOLAO
-    async playBolao(userId, userTag, number, bet, groupId, sock) {
+    async playBolao(userId, userTag, number, bet, groupId, ctx) {
         const balance = await this.getBalance(userId);
         if (isNaN(number) || number < 1 || number > 20) return `${userTag}⚠️ Escolha um número de 1 a 20. Ex: *!cassino bolao 15 500*`;
         if (isNaN(bet) || bet <= 0) return `${userTag}⚠️ Valor inválido.`;
@@ -184,7 +202,7 @@ constructor(db) {
         const ticket = await this.db.get("SELECT * FROM bolao WHERE id_usuario = ?", [userId]);
         if (ticket) return `${userTag}🎟️ Você já tá no bolão dessa semana com o número **${ticket.numero}**! Só pode um por pessoa.`;
 
-        await this.updateBalance(userId, -bet, groupId, sock);
+        await this.updateBalance(userId, -bet, groupId, ctx);
         await this.db.run("INSERT INTO bolao (id_usuario, numero, valor) VALUES (?, ?, ?)", [userId, number, bet]);
 
         return `${userTag}🤝 **NO BOLÃO!**\nVocê jogou 🪙 ${bet} no número **${number}**. O pote do grupo só cresce! Resultado na segunda-feira.`;
@@ -201,7 +219,7 @@ constructor(db) {
 
         await this.db.run(`INSERT OR IGNORE INTO usuarios (id_usuario, nome, banido_ate, uso_ia_diario, data_ultimo_uso, anotacoes) VALUES (?, 'Anônimo', 0, 0, '', '')`, [receiverId]);
 
-        await this.updateBalance(senderId, -amount, grou);
+        await this.updateBalance(senderId, -amount);
         await this.updateBalance(receiverId, amount);
 
         return `💸 **PIX TRANSFERIDO!**\n\n${senderTag} enviou 🪙 **${amount} Bostocoins** com sucesso!\nO Banco Central do Bostossauro já aprovou a transação.`;
@@ -676,14 +694,16 @@ constructor(db) {
         }
     }
 
-// INJEÇÃO NA ECONOMIA
-    async handleGiveCoins(senderId, senderTag, targetId, amountStr, groupId, sock, exceptions = []) {
+    // INJEÇÃO NA ECONOMIA
+    async handleGiveCoins(senderId, senderTag, targetId, amountStr, groupId, ctx, exceptions = []) {
+        if (ctx.platform !== 'whatsapp' || !ctx.sock) return `${senderTag}🚫 A impressora de dinheiro só funciona pelo WhatsApp.`;
+
         if (senderId !== "5513991008854@s.whatsapp.net") {
             return `${senderTag}🚫 Negativo! Só o Presidente do Banco Central tem a chave da impressora de dinheiro.`;
         }
 
         const amount = parseInt(amountStr);
-        if (isNaN(amount) || amount <= 0) {
+        if (isNaN(amount)) {
             return `${senderTag}⚠️ Digite um valor válido para injetar na economia.`;
         }
 
@@ -724,7 +744,14 @@ constructor(db) {
                     count++;
                 }
 
-                let msg = `${senderTag}🚁 **MAMATA ESTATAL (SILVIO SANTOS JURÁSSICO)** 🚁\nO Banco Central imprimiu e distribuiu 🪙 **${amount} Bostocoins** para ${count} membros do grupo!`;
+                let msgValor = ``;
+                if (amount > 0){
+                    msgValor = `**MAMATA ESTATAL (SILVIO SANTOS JURÁSSICO)** 🚁\nO Banco Central imprimiu e distribuiu`
+                } else{
+                    msgValor = `**PLANO COLLOR** 💰\nO Banco Central confiscou`
+                }
+
+                let msg = `${senderTag}🚁 ${msgValor} 🪙 **${Math.abs(amount)} Bostocoins** para ${count} membros do grupo!`;
                 if (ignorados > 0) msg += `\n\n🚫 _Atenção: ${ignorados} pessoa(s) sofreram sanções do governo!_`;
                 return msg;
 
@@ -738,15 +765,24 @@ constructor(db) {
             await this.db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [amount, targetId]);
             
             const cleanNum = targetId.split('@')[0];
-            return `${senderTag}💰 **INJEÇÃO DE CAPITAL** 💰\nO Banco Central transferiu 🪙 **${amount} Bostocoins** para @${cleanNum}.`;
+            let msg = ``;
+            if (amount > 0){
+                msg = `**INJEÇÃO DE CAPITAL** 💰\nO Banco Central transferiu`
+            } else{
+                msg = `**PLANO COLLOR** 💰\nO Banco Central confiscou`
+            }
+
+            return `${senderTag}💰 ${msg} 🪙 **${Math.abs(amount)} Bostocoins** para @${cleanNum}.`;
         }
     }
 
-    async handleDebugGroup(userTag, groupId, sock) {
+    async handleDebugGroup(userTag, groupId, ctx) {
         if (!groupId.endsWith('@g.us')) return "⚠️ Esse comando só funciona em grupos.";
+        
+        if (ctx.platform !== 'whatsapp' || !ctx.sock) return "⚠️ Raio-X restrito ao WhatsApp.";
 
         try {
-            const groupMetadata = await sock.groupMetadata(groupId);
+            const groupMetadata = await ctx.sock.groupMetadata(groupId);
             const participants = groupMetadata.participants;
             
             let msg = `🔍 **RAIO-X DE PARTICIPANTES (ANTI-FANTASMA)**\n`;

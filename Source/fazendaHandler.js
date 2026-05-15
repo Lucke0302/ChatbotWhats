@@ -82,6 +82,7 @@ class FazendaHandler {
         
         let upgradesParse = JSON.parse(row.upgrades);
         if (upgradesParse.adubos === undefined) upgradesParse.adubos = 0;
+        if (upgradesParse.sementes === undefined) upgradesParse.sementes = {};
 
         return {
             canteiros: canteirosParse,
@@ -359,12 +360,16 @@ class FazendaHandler {
         let msg = `${userTag}🏪 **COOPERATIVA AGRÍCOLA** 🏪\n_Saldo: 🪙 ${balance} Bostocoins_\n\n`;
         
         msg += `🌱 **CATÁLOGO DE SEMENTES**\n`;
+        const sementesEstoque = data.upgrades.sementes || {}; 
+
         SEEDS_CATALOG.forEach(s => {
-            msg += `${s.emoji} **${s.name}** ➝ 🪙 ${s.cost}\n`;
+            const qtdEstoque = sementesEstoque[s.id] || 0;
+            const avisoEstoque = qtdEstoque > 0 ? ` _(🎒 Você tem ${qtdEstoque} guardada(s))_` : '';
+            
+            msg += `${s.emoji} **${s.name}** ➝ 🪙 ${s.cost}${avisoEstoque}\n`;
             msg += `   ⏱️ Tempo: ${s.growthTimeHours}h | 🧬 Saturação: ${s.saturation}x\n`;
             msg += `   🛒 *!fazenda plantar ${s.id}*\n\n`;
         });
-
         msg += `\n🛠️ **EQUIPAMENTOS E TRATORES**\n_Aumentam a sua produção passiva!_\n\n`;
         
         const nextEnxada = TOOLS_CATALOG['enxada'].find(e => e.level === data.upgrades.enxada + 1);
@@ -456,21 +461,25 @@ class FazendaHandler {
         if (!seedId) return `${userTag} ⚠️ Qual semente? Use *!fazenda loja* para ver os IDs.`;
 
         const mods = CLIMA_FAZENDA[climaAtual.condicao] || CLIMA_FAZENDA['nublado'];
-        
         const seed = SEEDS_CATALOG.find(s => s.id === seedId.toLowerCase());
         if (!seed) return `${userTag} ❌ Semente desconhecida.`;
-
-        const userDb = await this.db.get("SELECT bostocoins FROM usuarios WHERE id_usuario = ?", [userId]);
-        const balance = userDb ? userDb.bostocoins : 0;
-
-        if (balance < seed.cost) return `${userTag} 💸 Você não tem 🪙 ${seed.cost} para comprar esta semente.`;
 
         const data = await this.getFazendaData(userId);
         const canteiroLivre = data.canteiros.find(c => !c.seedId);
 
         if (!canteiroLivre) return `${userTag} 🛑 Todos os seus canteiros estão ocupados!`;
 
-        await this.db.run("UPDATE usuarios SET bostocoins = bostocoins - ? WHERE id_usuario = ?", [seed.cost, userId]);
+        let usouEstoque = false;
+        if (data.upgrades.sementes && data.upgrades.sementes[seed.id] > 0) {
+            data.upgrades.sementes[seed.id] -= 1;
+            usouEstoque = true;
+        } else {
+            const userDb = await this.db.get("SELECT bostocoins FROM usuarios WHERE id_usuario = ?", [userId]);
+            const balance = userDb ? userDb.bostocoins : 0;
+
+            if (balance < seed.cost) return `${userTag} 💸 Você não tem 🪙 ${seed.cost} Bostocoins e nem sementes guardadas!`;
+            await this.db.run("UPDATE usuarios SET bostocoins = bostocoins - ? WHERE id_usuario = ?", [seed.cost, userId]);
+        }
 
         const now = Math.floor(Date.now() / 1000);
         canteiroLivre.seedId = seed.id;
@@ -480,7 +489,11 @@ class FazendaHandler {
 
         await this.saveFazendaData(userId, data);
 
-        return `${userTag} 🌱 **SEMENTE PLANTADA!**\nVocê gastou 🪙 ${seed.cost} e plantou ${seed.emoji} **${seed.name}** no Canteiro ${canteiroLivre.id}.\nFicará pronta em ${seed.growthTimeHours} horas!`;
+        if (usouEstoque) {
+            return `${userTag} 🌱 **SEMENTE PLANTADA (0 CUSTO)!**\nVocê usou uma semente do seu estoque e plantou ${seed.emoji} **${seed.name}** no Canteiro ${canteiroLivre.id}.\nFicará pronta em ${seed.growthTimeHours} horas!`;
+        } else {
+            return `${userTag} 🌱 **SEMENTE COMPRADA E PLANTADA!**\nVocê gastou 🪙 ${seed.cost} e plantou ${seed.emoji} **${seed.name}** no Canteiro ${canteiroLivre.id}.\nFicará pronta em ${seed.growthTimeHours} horas!`;
+        }
     }
 
     // REGAR
@@ -529,75 +542,106 @@ class FazendaHandler {
         return msg;
     }
 
-    // COLHER 
-    async colher(userId, userTag, canteiroIdStr, groupId, climaAtual) {
-        const cId = parseInt(canteiroIdStr);
-        if (isNaN(cId)) return `${userTag} ⚠️ Informe o canteiro. Ex: *!fazenda colher 1*`;
-
+    async colher(userId, userTag, canteiroIdStr, groupId, climaAtual, sock, ctx) {
         const data = await this.getFazendaData(userId);
-        const canteiro = data.canteiros.find(c => c.id === cId);
-        const mods = CLIMA_FAZENDA[climaAtual.condicao] || CLIMA_FAZENDA['nublado'];
-
-        if (!canteiro || !canteiro.seedId) return `${userTag} ❌ Este canteiro está vazio.`;
-
         const now = Math.floor(Date.now() / 1000);
-        if (now < canteiro.harvestTime) return `${userTag} 🛑 Tá verde ainda! Volte mais tarde ou use *!fazenda regar*.`;
 
-        const seed = SEEDS_CATALOG.find(s => s.id === canteiro.seedId);
-        
+        const canteirosProntos = data.canteiros.filter(c => c.seedId && now >= c.harvestTime);
+
+        if (canteirosProntos.length === 0) {
+            const temVerde = data.canteiros.some(c => c.seedId && now < c.harvestTime);
+            if (temVerde) {
+                return `${userTag} 🛑 Tá tudo verde ainda! Volte mais tarde ou use *!fazenda regar*.`;
+            }
+            return `${userTag} ❌ Você não tem nada plantado e pronto para colher.`;
+        }
+
+        const mods = CLIMA_FAZENDA[climaAtual.condicao] || CLIMA_FAZENDA['nublado'];
         const tratorLevel = data.upgrades.trator || 1;
         const tratorMult = TOOLS_CATALOG['trator'].find(t => t.level === tratorLevel).multiplier;
-        
-        let baseKilos = this.BASE_YIELD_KG * seed.yieldMultiplier * tratorMult;
-        if (canteiro.adubado) baseKilos *= 1.5;
-        
-        let finalKilos = baseKilos;
-        let rngMsg = "";
-        const roll = Math.random() * 100;
 
-        if (this.parqueHandler && groupId && groupId.includes('@g.us')) {
-            this.parqueHandler.registrarProgressoComunitario(groupId, 'fazenda_kg', finalKilos, sock).catch(()=>{});
-        }
+        let totalKilosGeral = 0;
+        let relatorioCanteiros = [];
+        let sementesGanhas = {};
 
-        if (climaAtual.condicao == "trovoada" && Math.random() < 0.15){
-            finalKilos = 0;
-            rngMsg = `\n⛈️ **DESASTRE!** A tempestade alagou toda a sua plantação. Você perdeu TUDO!`;
-        }
-        else{
-            if (roll < 5) {
+        for (let canteiro of canteirosProntos) {
+            const seed = SEEDS_CATALOG.find(s => s.id === canteiro.seedId);
+            
+            let baseKilos = this.BASE_YIELD_KG * seed.yieldMultiplier * tratorMult;
+            if (canteiro.adubado) baseKilos *= 1.5;
+            
+            let finalKilos = baseKilos;
+            let rngMsg = "";
+            let emojiStatus = "🌟";
+            const roll = Math.random() * 100;
+
+            if (climaAtual.condicao == "trovoada" && Math.random() < 0.15) {
                 finalKilos = 0;
-                rngMsg = `\n🦗 **DESASTRE!** Uma nuvem de gafanhotos devorou sua plantação. Você perdeu TUDO!`;
-            } else if (roll < 15) {
-                finalKilos = baseKilos * 0.5;
-                rngMsg = `\n☀️ **SECA FORTE!** A terra rachou e sua colheita rendeu apenas a metade.`;
+                emojiStatus = "🌩️";
+                rngMsg = `Raio destruiu tudo (0kg)`;
             } else {
-                rngMsg = `\n🌟 Colheita perfeita! A terra estava fértil.`;
+                if (roll < 5) {
+                    finalKilos = 0;
+                    emojiStatus = "🦗";
+                    rngMsg = `Gafanhotos comeram tudo (0kg)`;
+                } else if (roll < 15) {
+                    finalKilos = baseKilos * 0.5;
+                    emojiStatus = "☀️";
+                    rngMsg = `Seca reduziu pela metade (${finalKilos.toFixed(2)}kg)`;
+                } else {
+                    emojiStatus = "🌟";
+                    rngMsg = `Colheita perfeita! (${finalKilos.toFixed(2)}kg)`;
+                }
             }
+
+            totalKilosGeral += finalKilos;
+            relatorioCanteiros.push(`*[Canteiro ${canteiro.id}]* ${seed.emoji} ${seed.name}: ${emojiStatus} ${rngMsg}`);
+
+            if (finalKilos > 0) {
+                data.armazem.push({
+                    id: seed.id, name: seed.name, emoji: seed.emoji, weight: finalKilos, saturation: seed.saturation, date: now, instanceId: crypto.randomUUID()
+                });
+
+                if (!data.trofeus) data.trofeus = {};
+                if (!data.trofeus[seed.id] || finalKilos > data.trofeus[seed.id].weight) {
+                    data.trofeus[seed.id] = { weight: finalKilos, date: now, group_id: groupId };
+                }
+
+                let dropChance = 50 - (seed.cost / 200);
+                dropChance = Math.max(10, Math.min(50, dropChance)); 
+
+                if (Math.random() * 100 <= dropChance) {
+                    if (!data.upgrades.sementes) data.upgrades.sementes = {};
+                    data.upgrades.sementes[seed.id] = (data.upgrades.sementes[seed.id] || 0) + 1;
+                    
+                    sementesGanhas[seed.name] = (sementesGanhas[seed.name] || 0) + 1;
+                }
+            }
+
+            canteiro.seedId = null;
+            canteiro.plantTime = 0;
+            canteiro.harvestTime = 0;
+            canteiro.regas = 0;
+            canteiro.adubado = false;
         }
 
-
-
-        let msg = `${userTag} 🚜 **COLHEITA REALIZADA** 🚜${rngMsg}\n`;
-
-        if (finalKilos > 0) {
-            data.armazem.push({
-                id: seed.id, name: seed.name, emoji: seed.emoji, weight: finalKilos, saturation: seed.saturation, date: now, instanceId: crypto.randomUUID()
-            });
-            msg += `\n📦 Você colheu **${finalKilos.toFixed(2)}kg** de ${seed.emoji} ${seed.name}!\n_(Foi guardado na sua !fazenda despensa)_`;
-
-            if (!data.trofeus) data.trofeus = {};
-            if (!data.trofeus[seed.id] || finalKilos > data.trofeus[seed.id].weight) {
-                data.trofeus[seed.id] = { weight: finalKilos, date: now, group_id: groupId };
-            }
+        if (this.parqueHandler && groupId && groupId.includes('@g.us') && totalKilosGeral > 0) {
+            this.parqueHandler.registrarProgressoComunitario(groupId, 'fazenda_kg', totalKilosGeral, ctx).catch(()=>{});
         }
-
-        canteiro.seedId = null;
-        canteiro.plantTime = 0;
-        canteiro.harvestTime = 0;
-        canteiro.regas = 0;
-        canteiro.adubado = false;
 
         await this.saveFazendaData(userId, data);
+
+        let msg = `${userTag} 🚜 **COLHEITA EM MASSA REALIZADA** 🚜\n\n`;
+        msg += relatorioCanteiros.join('\n');
+        
+        msg += `\n\n📦 **Total para a Despensa:** ${totalKilosGeral.toFixed(2)}kg`;
+
+        const chavesSementes = Object.keys(sementesGanhas);
+        if (chavesSementes.length > 0) {
+            const sementesStr = chavesSementes.map(nome => `${sementesGanhas[nome]}x ${nome}`).join(', ');
+            msg += `\n🌱 **Sementes Extraídas:** ${sementesStr}`;
+        }
+
         return msg;
     }
 

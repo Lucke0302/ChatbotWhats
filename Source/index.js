@@ -1,4 +1,6 @@
 require('dotenv').config();
+const express = require('express');
+const cors = require('cors');
 
 process.on('uncaughtException', (err) => {
     console.error('🚨 [CRASH EVITADO] Exceção não tratada:', err);
@@ -24,10 +26,12 @@ const sqlite3 = require('sqlite3');
 const pino = require('pino'); 
 const ChatModel = require('./chatModel');
 const { handleBotError } = require('./errorHandler');
+const { startTwitch } = require('./Twitch/twitchConnector');
 const fs = require('fs');
 const { Sticker, StickerTypes } = require('wa-sticker-formatter');
-//const sharp = require('sharp');
+const sharp = require('sharp');
 const crypto = require('crypto');
+const BlueskyBrain = require('./Bluesky/blueskyBrain');
 
 const DriveBackup = require('./handleDriveBackup');
 const driveService = new DriveBackup();
@@ -699,6 +703,52 @@ async function initDatabase() {
         );
     `);
 
+    await db.exec(`
+        CREATE TABLE IF NOT EXISTS metricas_diarias (
+            data TEXT PRIMARY KEY,
+            comandos_totais INTEGER DEFAULT 0,
+            respostas_ia INTEGER DEFAULT 0,
+            mensagens_lidas INTEGER DEFAULT 0,
+            comando_mais_usado TEXT DEFAULT '{}'
+        )
+    `);
+
+    await db.exec(`
+        CREATE TABLE IF NOT EXISTS pensamentos_bot (
+            id TEXT PRIMARY KEY,
+            contexto TEXT,
+            humor_origem TEXT,
+            nota_tweet INTEGER DEFAULT NULL,
+            status TEXT DEFAULT 'pendente',
+            timestamp_evento INTEGER,
+            temas TEXT DEFAULT '[]'
+        )
+    `);
+    console.log("✅ Tabela 'pensamentos_bot' verificada.");
+
+    await db.exec(`
+        CREATE TABLE IF NOT EXISTS historico_bluesky (
+            id TEXT PRIMARY KEY,
+            temas TEXT,
+            post_texto TEXT,
+            timestamp INTEGER
+        )
+    `);
+
+    try {
+        await db.exec(`ALTER TABLE usuarios ADD COLUMN is_teammatch BOOLEAN DEFAULT 0;`);
+        console.log("✅ Coluna 'is_teammatch' adicionada com sucesso!");
+    } catch (error) {
+        if (!error.message.includes("duplicate column name")) console.error(error.message);
+    }
+
+    try {
+        await db.exec(`ALTER TABLE usuarios ADD COLUMN afinidade_bot INTEGER DEFAULT 0;`);
+        console.log("✅ Coluna 'afinidade_bot' adicionada com sucesso!");
+    } catch (error) {
+        if (!error.message.includes("duplicate column name")) console.error(error.message);
+    }
+
     console.log('✅ Banco de dados SQLite inicializado e tabelas verificadas.');
 }
 
@@ -825,6 +875,30 @@ const botCommands = {
     },
     '!cidade': {
         emoji: '📍'
+    },
+    '!admin': {
+        emoji: '🔐'
+    },
+    '!anuncio': {
+        emoji: '📢'
+    },
+    '!liveon': {
+        emoji: '🟢'
+    },
+    '!liveoff': {
+        emoji: '🔴'
+    },
+    '!addmod': {
+        emoji: '✅'
+    },
+    '!removemod': {
+        emoji: '❌'
+    },
+    '!listmods': {
+        emoji: '📝'
+    },
+    '!mods': {
+        emoji: '📝'
     }
 };
 
@@ -886,6 +960,97 @@ async function connectToWhatsApp() {
     //Instancia o chatbot
     const chatbot = new ChatModel(db, genAI)
     await chatbot.updateOnlineStatus();
+
+    const blueskyBrain = new BlueskyBrain(db, chatbot);
+    blueskyBrain.iniciarRotina();
+    chatbot.blueskyBrain = blueskyBrain;
+
+    startTwitch(chatbot, sock);
+
+    // ==========================================
+    //  SERVIDOR EXPRESS E WEBSOCKET 
+    // ==========================================
+    const http = require('http');
+    const { Server } = require('socket.io');
+
+    const app = express();
+    app.use(cors());
+
+    app.use(express.json());
+
+    const mfaService = require('./mfaService');
+
+    const server = http.createServer(app);
+
+    const io = new Server(server, {
+        cors: { origin: "*" }
+    });
+
+    app.post('/api/send-code', async (req, res) => {
+        try {
+            const { phone } = req.body;
+            if (!phone) return res.status(400).json({ RequestStatus: 400, Error: "Telefone ausente." });
+
+            const pureNumbers = phone.toString().replace(/\D/g, '');
+            
+            const jid = pureNumbers + '@s.whatsapp.net';
+
+            const code = mfaService.generateCode();
+            const message = `TeamMatch: Seu código de segurança é ${code}`;
+
+            await db.run(
+                `INSERT OR IGNORE INTO usuarios (id_usuario, nome, banido_ate, uso_ia_diario, data_ultimo_uso, anotacoes, is_teammatch) 
+                 VALUES (?, 'Usuário TeamMatch', 0, 0, '', '', 1)`,
+                [jid]
+            );
+
+            await sock.sendMessage(jid, { text: message });
+            
+            console.log(`🔐 [MFA] Enviado para: ${pureNumbers}`);
+
+            return res.json({
+                RequestStatus: 200,
+                VerificationCode: code,
+                UserPhone: pureNumbers
+            });
+
+        } catch (error) {
+            console.error("❌ Erro no MFA:", error);
+            res.status(500).json({ RequestStatus: 500 });
+        }
+    });
+
+    app.get('/api/dashboard', async (req, res) => {
+        const data = await chatbot.getDashboardDataAPI();
+        res.json(data);
+    });
+
+    io.on('connection', (socket) => {
+        console.log(`🟢 [DASHBOARD] Novo espião conectado: ${socket.id}`);
+        
+        chatbot.getDashboardDataAPI().then(data => {
+            socket.emit('dashboard_update', data);
+        });
+
+        socket.on('disconnect', () => {
+            console.log(`🔴 [DASHBOARD] Espião desconectado: ${socket.id}`);
+        });
+    });
+
+    setInterval(async () => {
+        if (io.engine.clientsCount > 0) { 
+            try {
+                const data = await chatbot.getDashboardDataAPI();
+                io.emit('dashboard_update', data);
+            } catch (e) {
+                console.error("Erro no loop do WebSocket:", e);
+            }
+        }
+    }, 3000);
+
+    server.listen(3000, '0.0.0.0', () => {
+        console.log('📈 [API/WS] Dashboard rodando na porta 3000');
+    });
     
     //Envia figurinha
     const sendSticker = async (sock, db, from, msg, mentions, command) => {
@@ -940,10 +1105,14 @@ async function connectToWhatsApp() {
                 try {
                     console.log("⏰ Iniciando rotina de Bom Dia...");
 
+                    const ROTAS_SILENCIOSAS = ["120363426917338477@g.us", "120363410458341287@g.us"];
+
+                    const humorMatinal = await chatbot.generateBomDia(`bomdia-${Date.now()}`);
+
                     const weatherComplement = await weatherCommandHandler.getWeather(targetCity);
                     const weatherForecastComplement = await weatherCommandHandler.getNextDayForecast(targetCity);
                     
-                    let baseMessage = "Bom dia, grupo! 🦖 O Bostossauro acordou e escolheu a violência.\n" + 
+                    let baseMessage = `${humorMatinal}\n` + 
                                       "Se quiser usar alguma das minhas funções, dá um !ajuda (ou !help).\n\n" + 
                                       weatherComplement + "\n\n" + 
                                       weatherForecastComplement;
@@ -1006,6 +1175,12 @@ async function connectToWhatsApp() {
                     }
 
                     for (const groupId of groupIds) {
+
+                        if (ROTAS_SILENCIOSAS.includes(groupId)) {
+                            console.log(`🔇 Pulando Bom Dia na Rota Silenciosa: ${groupId}`);
+                            continue;
+                        }
+
                         let toxicReport = "";
                         let divisor = "";
 
@@ -1126,6 +1301,9 @@ async function connectToWhatsApp() {
         const msg = m.messages[0];
 
         if (!msg.message || msg.key.fromMe) return;
+
+        // Interceptador: Conta mensagens lidas
+        chatbot.registerMetric('message').catch(()=>{});
 
         // Pega de quem é a mensagem e verifica se é de um grupo
         const from = msg.key.remoteJid;        
@@ -1254,12 +1432,37 @@ async function connectToWhatsApp() {
         }*/
         
         //Pega o texto da mensagem
-        const texto = msg.message.conversation || 
+        let texto = msg.message.conversation || 
               msg.message.extendedTextMessage?.text || 
               msg.message.imageMessage?.caption ||
               msg.message.videoMessage?.caption ||
               msg.message.documentMessage?.caption ||
               '';
+
+        const rawMentions = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
+        const textLids = rawMentions.filter(jid => jid.includes('@lid'));
+
+        if (textLids.length > 0 && from.endsWith('@g.us')) {
+            try {
+                const groupMetadata = await sock.groupMetadata(from);
+                const participants = groupMetadata.participants || [];
+
+                textLids.forEach(targetLid => {
+                    const found = participants.find(p => p.id === targetLid || p.lid === targetLid);
+                    if (found) {
+                        const realNumber = found.phoneNumber || found.id;
+                        if (realNumber && realNumber.includes('@s.whatsapp.net')) {
+                            const rawLidNum = targetLid.split('@')[0];
+                            const realNum = realNumber.split('@')[0];
+                            const regex = new RegExp(`@${rawLidNum}`, 'g');
+                            texto = texto.replace(regex, `@${realNum}`);
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error("❌ Erro ao limpar LID do texto:", error);
+            }
+        }
 
         //Joga o comando todo para letras minúsculas para evitar problemas com case-sensitive
         const command = texto.trim().toLowerCase();
@@ -1268,6 +1471,12 @@ async function connectToWhatsApp() {
         const name = msg.pushName || '';
 
         const sender = getSenderJid(msg);
+
+        const userDbInfo = await db.get("SELECT is_teammatch FROM usuarios WHERE id_usuario = ?", [sender]);
+        if (userDbInfo && userDbInfo.is_teammatch === 1) {
+            console.log(`🔇 Mensagem ignorada (Usuário TeamMatch): ${sender}`);
+            return; 
+        }
 
         if (!command.startsWith("!poke")) {
             chatbot.countMessage(name, sender, from);
@@ -1563,7 +1772,16 @@ async function connectToWhatsApp() {
                 
                 //Verifica se recebeu alguma resposta
                 if (response) {
-                    await sendAndSave(sock, db, from, finalResponse, null, [sender]);
+                    const numerosMencionados = finalResponse.match(/@\d+/g) || [];
+                    const jidsMencionados = numerosMencionados.map(num => num.replace('@', '') + '@s.whatsapp.net');
+
+                    const todasMencoes = [...new Set([
+                        sender,
+                        ...normalizedMentions,
+                        ...jidsMencionados
+                    ])];
+
+                    await sendAndSave(sock, db, from, finalResponse, null, todasMencoes);
                 }
             } catch (error) {
                 await handleBotError(error, replyToUser, contextObj);
@@ -1632,6 +1850,15 @@ async function connectToWhatsApp() {
         //Se é um quote para o bot e ele está online, responde
         //e reage com emoji de olho
         if (isInteractWithBot && chatbot.isOnline) {
+
+            const ROTAS_SILENCIOSAS = ["120363426917338477@g.us", "120363410458341287@g.us"];
+            const isStreamGroup = ROTAS_SILENCIOSAS.includes(from);
+
+            if (isStreamGroup && !command.startsWith('!')) {
+                console.log("🔇 Quote ignorado no grupo da Stream (Rota Silenciosa).");
+                return;
+            }
+
             const sender = getSenderJid(msg);
 
             console.log("✅ INTERAÇÃO DETECTADA! Respondendo...");
@@ -1661,8 +1888,18 @@ async function connectToWhatsApp() {
             
             try {                
                 response = await chatbot.handleMessageWithoutCommand(msg, sender, from, isGroup, command, quotedMessageText)
-                if (response && typeof response === 'string') {
-                    await sendAndSave(sock, db, from, response, msg, [sender]); 
+                if (response) {
+                    const normalizedMentions = await getNormalizedMentions(sock, from, msg);
+                    const numerosMencionados = response.match(/@\d+/g) || [];
+                    const jidsMencionados = numerosMencionados.map(num => num.replace('@', '') + '@s.whatsapp.net');
+
+                    const todasMencoes = [...new Set([
+                        sender,
+                        ...normalizedMentions,
+                        ...jidsMencionados
+                    ])];
+
+                    await sendAndSave(sock, db, from, response, null, todasMencoes);
                 }
             } catch (error) {
                 await handleBotError(error, replyToUser, contextObj);

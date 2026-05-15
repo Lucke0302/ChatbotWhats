@@ -8,13 +8,13 @@ class ResenhaCommand {
     }
 
     async execute(ctx) {
-        const { sock, from, msg } = ctx;
+        const { from, reply, replySticker } = ctx;
 
-        if (fs.existsSync('./Assets/analise.webp')) {
+        if (fs.existsSync('./Assets/analise.webp') && replySticker) {
             const stickerBuffer = fs.readFileSync('./Assets/analise.webp');
-            await sock.sendMessage(from, { sticker: stickerBuffer }, { quoted: msg });
+            await replySticker(stickerBuffer);
         } else {
-            await sock.sendMessage(from, { text: "🧐 *ANALISANDO POSSÍVEL RESENHA*" }, { quoted: msg });
+            await reply("🧐 *ANALISANDO POSSÍVEL RESENHA*");
         }
 
         const history = await this.db.all(
@@ -38,7 +38,7 @@ class ResenhaCommand {
         console.log(chatLog);
         console.log("--------------------------------------------------");
 
-const prompt = `
+        const prompt = `
 Você é o Juiz do "Tribunal da Resenha" em um grupo de WhatsApp.
 Sua missão é ler as últimas mensagens e classificar o nível da "Resenha" (zueira, humilhação cômica, piadas) em uma das três categorias abaixo.
 
@@ -81,25 +81,25 @@ JUSTIFICATIVA: [Sua análise resumida do porquê escolheu esse veredito]
         console.log("--------------------------------------------------\n");
 
         if (veredito === 'CONFIRMADA') {
-            if (fs.existsSync('./Assets/confirmada.webp')) {
+            if (fs.existsSync('./Assets/confirmada.webp') && replySticker) {
                 const stickerBuffer = fs.readFileSync('./Assets/confirmada.webp');
-                await sock.sendMessage(from, { sticker: stickerBuffer }, { quoted: msg });
+                await replySticker(stickerBuffer);
             } else {
-                await sock.sendMessage(from, { text: "✅ *RESENHA CONFIRMADA!* Nível máximo de zueira atingido." }, { quoted: msg });
+                await reply("✅ *RESENHA CONFIRMADA!* Nível máximo de zueira atingido.");
             }
         } else if (veredito === 'MODERADA') {
-            if (fs.existsSync('./Assets/moderada.webp')) {
+            if (fs.existsSync('./Assets/moderada.webp') && replySticker) {
                 const stickerBuffer = fs.readFileSync('./Assets/moderada.webp');
-                await sock.sendMessage(from, { sticker: stickerBuffer }, { quoted: msg });
+                await replySticker(stickerBuffer);
             } else {
-                await sock.sendMessage(from, { text: "⚠️ *RESENHA MODERADA!* Deu pra dar um sorrisinho, mas falta ódio." }, { quoted: msg });
+                await reply("⚠️ *RESENHA MODERADA!* Deu pra dar um sorrisinho, mas falta ódio.");
             }
         } else {
-            if (fs.existsSync('./Assets/cancelada.webp')) {
+            if (fs.existsSync('./Assets/cancelada.webp') && replySticker) {
                 const stickerBuffer = fs.readFileSync('./Assets/cancelada.webp');
-                await sock.sendMessage(from, { sticker: stickerBuffer }, { quoted: msg });
+                await replySticker(stickerBuffer);
             } else {
-                await sock.sendMessage(from, { text: "❌ *RESENHA CANCELADA!* Circulando, não tem nada pra ver aqui." }, { quoted: msg });
+                await reply("❌ *RESENHA CANCELADA!* Circulando, não tem nada pra ver aqui.");
             }
         }
 

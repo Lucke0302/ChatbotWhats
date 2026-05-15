@@ -1,8 +1,6 @@
-const { downloadMediaMessage } = require('@whiskeysockets/baileys');
 const PDFDocument = require('pdfkit');
 const libre = require('libreoffice-convert');
 const fs = require('fs');
-const path = require('path');
 const util = require('util');
 const pino = require('pino');
 
@@ -15,9 +13,6 @@ function createPdfKitDocument(conteudo, tipo, caminhoSaida) {
             const stream = fs.createWriteStream(caminhoSaida);
 
             doc.pipe(stream);
-            
-            doc.fontSize(8).fillColor('grey').text('Gerado por Bostossauro Bot', { align: 'right' });
-            doc.moveDown();
 
             if (tipo === 'imagem') {
                 try {
@@ -53,75 +48,86 @@ async function convertOfficeToPdf(buffer) {
     return await convertAsync(buffer, '.pdf', undefined);
 }
 
-async function handlePdfCommand(sock, msg, from) {
-    const isQuoted = !! msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
-    
-    const targetMessage = isQuoted ? msg.message.extendedTextMessage.contextInfo.quotedMessage : msg.message;
-    
-    const conversationText = msg.message?.conversation || 
-                             msg.message?.extendedTextMessage?.text || 
-                             msg.message?.documentMessage?.caption || 
-                             msg.message?.imageMessage?.caption || "";
+async function handlePdfCommand(ctx) {
+    const { platform, reply, msg } = ctx;
 
-    const imageMessage = targetMessage?.imageMessage || targetMessage?.viewOnceMessage?.message?.imageMessage;
-
-    const documentMessage = targetMessage?.documentMessage || 
-                            targetMessage?.documentWithCaptionMessage?.message?.documentMessage;
+    if (platform === 'twitch') {
+        await reply("🚫 A Twitch não suporta envio de arquivos.");
+        return null;
+    }
 
     const tempFileName = `./temp_pdf_${Date.now()}.pdf`;
 
     try {
+        let buffer = null;
+        let isImage = false;
+        let fileName = "documento";
 
-        if (imageMessage) {
-            const mediaKeys = { message: targetMessage }; 
-            if(targetMessage.viewOnceMessage) mediaKeys.message = targetMessage.viewOnceMessage.message;
+        if (platform === 'whatsapp') {
+            const { downloadMediaMessage } = require('@whiskeysockets/baileys');
+            const isQuoted = !! msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+            const targetMessage = isQuoted ? msg.message.extendedTextMessage.contextInfo.quotedMessage : msg.message;
+            
+            const imageMessage = targetMessage?.imageMessage || targetMessage?.viewOnceMessage?.message?.imageMessage;
+            const documentMessage = targetMessage?.documentMessage || targetMessage?.documentWithCaptionMessage?.message?.documentMessage;
 
-            const buffer = await downloadMediaMessage(mediaKeys, 'buffer', { logger: pino({ level: 'silent' }) });
-            await createPdfKitDocument(buffer, 'imagem', tempFileName);
-            await sendPdfAndCleanup(sock, from, tempFileName, 'Imagem_Convertida.pdf', msg);
-            return;
+            if (imageMessage) {
+                isImage = true;
+                fileName = 'Imagem_Convertida';
+                const mediaKeys = { message: targetMessage }; 
+                if(targetMessage.viewOnceMessage) mediaKeys.message = targetMessage.viewOnceMessage.message;
+                buffer = await downloadMediaMessage(mediaKeys, 'buffer', { logger: pino({ level: 'silent' }) });
+            } 
+            else if (documentMessage) {
+                fileName = documentMessage.fileName || "documento";
+                const mediaToDownload = documentMessage ? { message: { documentMessage: documentMessage } } : { message: targetMessage };
+                buffer = await downloadMediaMessage(mediaToDownload, 'buffer', { logger: pino({ level: 'silent' }) });
+            }
+        } 
+        else if (platform === 'discord') {
+            // if (msg.attachments.size > 0) { 
+            //    buffer = await fetch(msg.attachments.first().url).then(res => res.buffer());
+            // }
+            await reply("⏳ A extração de anexos do Discord será ligada em breve!");
+            return null;
         }
 
-        if (documentMessage) {
-            const fileName = documentMessage.fileName || "documento";
+        if (!buffer) {
+            await reply('📄 *Como usar o !pdf:*\n1. Mande imagem/doc com legenda !pdf\n2. Responda imagem/doc com !pdf');
+            return null;
+        }
+
+        if (isImage) {
+            await createPdfKitDocument(buffer, 'imagem', tempFileName);
+            await sendPdfAndCleanup(ctx, tempFileName, `${fileName}.pdf`);
+            return null;
+        } else {
             const ext = fileName.split('.').pop().toLowerCase();
             const supported = ['docx', 'doc', 'xlsx', 'xls', 'pptx', 'ppt', 'odt', 'ods', 'txt'];
 
             if (!supported.includes(ext)) {
-                await sock.sendMessage(from, { text: `❌ Extensão .${ext} não suportada. Tente Word, Excel ou Texto.` }, { quoted: msg });
-                return;
+                await reply(`❌ Extensão .${ext} não suportada. Tente Word, Excel ou Texto.`);
+                return null;
             }
 
-            const mediaToDownload = documentMessage ? { message: { documentMessage: documentMessage } } : { message: targetMessage };
-
-            const buffer = await downloadMediaMessage(mediaToDownload, 'buffer', { logger: pino({ level: 'silent' }) });
-
             const pdfBuffer = await convertOfficeToPdf(buffer);
-            
             fs.writeFileSync(tempFileName, pdfBuffer);
-            await sendPdfAndCleanup(sock, from, tempFileName, `${fileName}.pdf`, msg);
-            return;
+            
+            const cleanFileName = fileName.replace(new RegExp(`\\.${ext}$`, 'i'), '');
+            await sendPdfAndCleanup(ctx, tempFileName, `${cleanFileName}.pdf`);
+            return null;
         }
-
-        await sock.sendMessage(from, { text: '📄 *Como usar o !pdf:*\n1. Mande imagem/doc com legenda !pdf\n2. Responda imagem/doc com !pdf' }, { quoted: msg });
 
     } catch (error) {
         console.error("Erro no Handler PDF:", error);
-        await sock.sendMessage(from, { text: '❌ Ocorreu um erro ao gerar o PDF.' }, { quoted: msg });
+        await reply('❌ Ocorreu um erro ao gerar o PDF.');
+        return null;
     }
 }
 
-async function sendPdfAndCleanup(sock, from, filePath, fileName, quotedMsg) {
+async function sendPdfAndCleanup(ctx, filePath, fileName) {
     if (fs.existsSync(filePath)) {
-        await sock.sendMessage(from, { 
-            document: fs.readFileSync(filePath), 
-            mimetype: 'application/pdf', 
-            fileName: fileName,
-            caption: '🦖 Tá na mão seu PDF.'
-        }, { quoted: quotedMsg });
-
-        await sock.sendMessage(from, { react: { text: '✅', key: quotedMsg.key } });
-
+        await ctx.replyDocument(filePath, fileName, '🦖 Tá na mão seu PDF.');
         fs.unlinkSync(filePath);
     }
 }

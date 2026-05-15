@@ -1,10 +1,17 @@
 const { jidNormalizedUser } = require('@whiskeysockets/baileys');
 
-async function handleMigrationCommand(sock, from, command, sender) {
+async function handleMigrationCommand(ctx) {
+    const { command, sender, from, sock, platform, reply } = ctx;
+
+    if (platform !== 'whatsapp' || !sock) {
+        return "🚫 Este comando lida com IDs de grupos do WhatsApp e não funciona nesta plataforma.";
+    }
+
     const args = command.trim().split(/\s+/);
 
     if (args.length < 3) {
-        return "⚠️ *Uso Incorreto*\nFormato: `!migrar [ID_Origem] [ID_Destino] [Numeros_Excecao...]`";
+        await reply("⚠️ *Uso Incorreto*\nFormato: `!migrar [ID_Origem] [ID_Destino] [Numeros_Excecao...]`");
+        return null; 
     }
 
     const sourceId = args[1].endsWith('@g.us') ? args[1] : `${args[1]}@g.us`;
@@ -21,10 +28,11 @@ async function handleMigrationCommand(sock, from, command, sender) {
         console.log(`🔍 [MIGRAÇÃO] Checando grupo origem: ${sourceId}`);
         let sourceMetadata;
         try {
-            sourceMetadata = await sock.groupMetadata(sourceId);
+            sourceMetadata = await sock.groupMetadata(sourceId); // Usa o sock extraído do ctx
         } catch (err) {
             console.error(`❌ [MIGRAÇÃO] Erro origem:`, err);
-            return "❌ Não consegui ler o grupo de origem. Verifique o ID ou se estou lá.";
+            await reply("❌ Não consegui ler o grupo de origem. Verifique o ID ou se estou lá.");
+            return null;
         }
 
         console.log(`🔍 [MIGRAÇÃO] Checando grupo destino: ${targetId}`);
@@ -33,7 +41,8 @@ async function handleMigrationCommand(sock, from, command, sender) {
             targetMetadata = await sock.groupMetadata(targetId);
         } catch (err) {
             console.error(`❌ [MIGRAÇÃO] Erro destino:`, err);
-            return "❌ Não consegui ler o grupo de destino. Verifique o ID ou se estou lá.";
+            await reply("❌ Não consegui ler o grupo de destino. Verifique o ID ou se estou lá.");
+            return null;
         }
 
         const botId = jidNormalizedUser(sock.user.id);
@@ -46,12 +55,14 @@ async function handleMigrationCommand(sock, from, command, sender) {
         
         if (!botInTarget) {
             console.log(`❌ ERRO DEBUG: Bot ID (${botId}) não encontrado na lista do destino.`);
-            return "❌ Eu não estou no grupo de destino (ou não consegui me identificar na lista)!";
+            await reply("❌ Eu não estou no grupo de destino (ou não consegui me identificar na lista)!");
+            return null;
         }
 
         if (botInTarget.admin !== 'admin' && botInTarget.admin !== 'superadmin') {
             console.warn(`⛔ [MIGRAÇÃO] Bot consta no grupo mas não é admin.`);
-            return "⛔ *ERRO DE PERMISSÃO:*\nEu preciso ser **ADMINISTRADOR** no grupo de destino para adicionar pessoas.\nMe promove lá e tenta de novo.";
+            await reply("⛔ *ERRO DE PERMISSÃO:*\nEu preciso ser **ADMINISTRADOR** no grupo de destino para adicionar pessoas.\nMe promove lá e tenta de novo.");
+            return null;
         }
 
         const targetParticipantsSet = new Set(targetMetadata.participants.map(p => {
@@ -71,7 +82,8 @@ async function handleMigrationCommand(sock, from, command, sender) {
             });
 
         if (participantsToMigrate.length === 0) {
-            return "⚠️ Ninguém para migrar (todos já estão no grupo ou são exceções).";
+            await reply("⚠️ Ninguém para migrar (todos já estão no grupo ou são exceções).");
+            return null;
         }
 
         console.log(`✅ [MIGRAÇÃO] ${participantsToMigrate.length} participantes novos para adicionar.`);
@@ -97,7 +109,7 @@ async function handleMigrationCommand(sock, from, command, sender) {
                         } else {
                             results.failed++;
                             let reason = res.status;
-                            if(res.status === '403') reason = 'Privacidade'; // Muito comum
+                            if(res.status === '403') reason = 'Privacidade';
                             if(res.status === '400') reason = 'Inválido';
                             if(res.status === '409') {
                                 reason = 'Já no grupo';
@@ -121,7 +133,7 @@ async function handleMigrationCommand(sock, from, command, sender) {
                                  addedInThisBatch.map(jid => `+${jid.split('@')[0]}`).join(', ');
                     
                     try {
-                        await sock.sendMessage(from, { text: text });
+                        await reply(text); 
                     } catch (msgError) {
                         console.error("Erro ao enviar progresso do lote:", msgError);
                     }
@@ -152,11 +164,13 @@ async function handleMigrationCommand(sock, from, command, sender) {
             if(results.errors.length > 5) report += `\n...e mais ${results.errors.length - 5}.`;
         }
 
-        return report;
+        await reply(report);
+        return null;
 
     } catch (error) {
         console.error(`❌ [MIGRAÇÃO] Erro Geral:`, error);
-        return `❌ Erro fatal: ${error.message}`;
+        await reply(`❌ Erro fatal: ${error.message}`);
+        return null;
     }
 }
 

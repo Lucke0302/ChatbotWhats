@@ -116,21 +116,22 @@ const ITEM_CATALOG = [
 ];
 
 const STORE_CATALOG = {
-    '1': { id: 'isca_simples', name: 'Isca de Pão', emoji: '🍞', type: 'instant', effect: 1, price: 100, desc: 'Dá +1 isca na hora. Baratinha pros falidos.' },
-    '2': { id: 'balde_iscas', name: 'Balde de Iscas', emoji: '🪣', type: 'instant', effect: 4, price: 300, desc: 'Dá +4 iscas na hora (Pequeno desconto).' },
-    '3': { id: 'repelente', name: 'Repelente de Bota', emoji: '🧴', type: 'buff', duration: 4, price: 200, desc: 'Zera a chance de pescar lixo por 4 rodadas.' },
-    '4': { id: 'anzol_chumbo', name: 'Anzol de Chumbo', emoji: '⚓', type: 'buff', duration: 5, price: 200, desc: 'Aumenta o peso dos peixes em 30% por 5 rodadas.' },
-    '5': { id: 'ima_coins', name: 'Ímã de Bostocoins', emoji: '🧲', type: 'buff', duration: 3, price: 200, desc: 'Garante achar Bostocoins no fundo do lago por 3 rodadas.' }
+    '1': { id: 'isca_simples', name: 'Isca de Pão', emoji: '🍞', type: 'instant', effect: 1, price: 250, desc: 'Dá +1 isca na hora. Baratinha pros falidos.' },
+    '2': { id: 'balde_iscas', name: 'Balde de Iscas', emoji: '🪣', type: 'instant', effect: 4, price: 800, desc: 'Dá +4 iscas na hora (Pequeno desconto).' },
+    '3': { id: 'caminhao_iscas', name: 'Caminhão de Iscas', emoji: '🚚', type: 'instant', effect: 10, price: 1800, desc: 'Dá +10 iscas na hora (descontão).' },
+    '4': { id: 'repelente', name: 'Repelente de Bota', emoji: '🧴', type: 'buff', duration: 4, price: 200, desc: 'Zera a chance de pescar lixo por 4 rodadas.' },
+    '5': { id: 'anzol_chumbo', name: 'Anzol de Chumbo', emoji: '⚓', type: 'buff', duration: 5, price: 200, desc: 'Aumenta o peso dos peixes em 30% por 5 rodadas.' },
+    '6': { id: 'ima_coins', name: 'Ímã de Bostocoins', emoji: '🧲', type: 'buff', duration: 3, price: 200, desc: 'Garante achar Bostocoins no fundo do lago por 3 rodadas.' }
 };
 
 const ROD_CATALOG = {
         'bambu': { id: 'bambu', name: 'Vara de Bambu', mult: 1.0, luck: 0, anti_lixo: 0, ambar_chance: 0, emoji: '🎋', price: 0, next: 'fibra' },
-        'fibra': { id: 'fibra', name: 'Vara de Fibra de Vidro', mult: 1.10, luck: 5, anti_lixo: 10, ambar_chance: 1, emoji: '🎣', price: 800, next: 'grafite' },
-        'grafite': { id: 'grafite', name: 'Vara de Grafite Pro', mult: 1.20, luck: 10, anti_lixo: 20, ambar_chance: 2, emoji: '✒️', price: 1250, next: 'carbono' },
-        'carbono': { id: 'carbono', name: 'Vara de Carbono', mult: 1.30, luck: 15, anti_lixo: 40, ambar_chance: 3, emoji: '💎', price: 2000, next: 'aco' },    
-        'aco': { id: 'aco', name: 'Vara de Aço Temperado', mult: 1.40, luck: 20, anti_lixo: 60, ambar_chance: 4, emoji: '🔩', price: 3000, next: 'grafeno' },
-        'grafeno': { id: 'grafeno', name: 'Vara de Grafeno', mult: 1.50, luck: 25, anti_lixo: 80, ambar_chance: 5, emoji: '💎', price: 5000, next: 'adamantium' },
-        'adamantium': { id: 'adamantium', name: 'Vara de Adamantium', mult: 1.60, luck: 30, anti_lixo: 100, ambar_chance: 6, emoji: '🌌', price: 8000, next: null }
+        'fibra': { id: 'fibra', name: 'Vara de Fibra de Vidro', mult: 1.10, luck: 5, anti_lixo: 10, ambar_chance: 0.5, emoji: '🎣', price: 800, next: 'grafite' },
+        'grafite': { id: 'grafite', name: 'Vara de Grafite Pro', mult: 1.20, luck: 7.5, anti_lixo: 20, ambar_chance: 1, emoji: '✒️', price: 1250, next: 'carbono' },
+        'carbono': { id: 'carbono', name: 'Vara de Carbono', mult: 1.30, luck: 10, anti_lixo: 30, ambar_chance: 1.5, emoji: '💎', price: 2000, next: 'aco' },    
+        'aco': { id: 'aco', name: 'Vara de Aço Temperado', mult: 1.40, luck: 12.5, anti_lixo: 40, ambar_chance: 2, emoji: '🔩', price: 3000, next: 'grafeno' },
+        'grafeno': { id: 'grafeno', name: 'Vara de Grafeno', mult: 1.50, luck: 15, anti_lixo: 50, ambar_chance: 2.5, emoji: '💎', price: 5000, next: 'adamantium' },
+        'adamantium': { id: 'adamantium', name: 'Vara de Adamantium', mult: 1.60, luck: 20, anti_lixo: 60, ambar_chance: 3, emoji: '🌌', price: 8000, next: null }
 };
 
 const BOAT_CATALOG = {
@@ -255,7 +256,7 @@ class PescariaHandler {
         this.parqueHandler = parqueHandler;
     }
 
-    async pescar(userId, userTag, groupId, climaAtual) {
+    async pescar(userId, userTag, groupId, climaAtual, sock, ctx) {
         if (!climaAtual) climaAtual = { condicao: 'nublado', emoji: '☁️', cidade: 'Desconhecida' };
         
         const mods = CLIMA_PESCA[climaAtual.condicao] || CLIMA_PESCA['nublado'];
@@ -318,10 +319,10 @@ class PescariaHandler {
             }
 
             let roll = Math.random() * 100;
-            roll = roll * (1 - (player.fishing_stats.luck / 100));; 
+            roll = roll * (1 - (player.fishing_stats.luck / 100));
 
             const chanceMitico = 1 * mods.raridade_mult;
-            const chanceLendario = 5 * mods.raridade_mult; 
+            const chanceLendario = 2.5 * mods.raridade_mult; 
 
             let selectedRarity = 'comum';
             
@@ -378,7 +379,7 @@ class PescariaHandler {
                 });
 
                 if (this.parqueHandler && groupId && groupId.includes('@g.us')) {
-                    this.parqueHandler.registrarProgressoComunitario(groupId, 'pesca_kg', actualWeight, sock).catch(()=>{});
+                    this.parqueHandler.registrarProgressoComunitario(groupId, 'pesca_kg', actualWeight, ctx).catch(()=>{});
                 }
 
                 if (player.active_items['ima_coins']) {
@@ -879,7 +880,7 @@ class PescariaHandler {
     }
 
     // MERCADO DE PEIXES
-    async handleVender(userId, userTag, itemIndicesStr) {
+    async handleVender(userId, userTag, itemIndicesStr, groupId = null, sock = null, ctx) {
         const { sellableArray, player } = await this.getSellableList(userId);
 
         if (sellableArray.length === 0) {
@@ -939,6 +940,23 @@ class PescariaHandler {
         const profitResult = await this.casinoHandler.verifyProfit(userId, totalValue);
         await this.db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [profitResult.finalProfit, userId]);
 
+        if (this.parqueHandler && groupId && groupId.includes('@g.us') && profitResult.finalProfit > 0) {
+            this.parqueHandler.registrarProgressoComunitario(groupId, 'vendas', profitResult.finalProfit, ctx).catch(()=>{});
+            try {
+                await this.db.run(`
+                    UPDATE usuarios 
+                    SET pescaria_data = json_set(
+                        COALESCE(pescaria_data, '{}'), 
+                        '$.total_vendas_coins', 
+                        COALESCE(json_extract(pescaria_data, '$.total_vendas_coins'), 0) + ?
+                    )
+                    WHERE id_usuario = ?
+                `, [profitResult.finalProfit, userId]);
+            } catch (e) {
+                console.error("Erro ao salvar histórico de vendas de peixe:", e);
+            }
+        }
+
         let msg = `${userTag}🤝 **VENDA EM LOTE CONCLUÍDA!**\n\nVocê vendeu:\n`;
         
         soldFishes.reverse().forEach(f => {
@@ -951,7 +969,7 @@ class PescariaHandler {
     }
 
     // ♻️ VENDA AUTOMÁTICA DE LIXO
-    async handleVenderLixo(userId, userTag) {
+    async handleVenderLixo(userId, userTag, groupId = null, sock = null, ctx) { 
         const player = await this.getPlayerData(userId);
         
         if (!player.records || !Array.isArray(player.records) || player.records.length === 0) {
@@ -986,12 +1004,29 @@ class PescariaHandler {
 
         const profitResult = await this.casinoHandler.verifyProfit(userId, totalValue);
         await this.db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [profitResult.finalProfit, userId]);
+        
+        if (this.parqueHandler && groupId && groupId.includes('@g.us') && profitResult.finalProfit > 0) {
+            this.parqueHandler.registrarProgressoComunitario(groupId, 'vendas', profitResult.finalProfit, ctx).catch(()=>{});
+            try {
+                await this.db.run(`
+                    UPDATE usuarios 
+                    SET pescaria_data = json_set(
+                        COALESCE(pescaria_data, '{}'), 
+                        '$.total_vendas_coins', 
+                        COALESCE(json_extract(pescaria_data, '$.total_vendas_coins'), 0) + ?
+                    )
+                    WHERE id_usuario = ?
+                `, [profitResult.finalProfit, userId]);
+            } catch (e) {
+                console.error("Erro ao salvar histórico de vendas de peixe:", e);
+            }
+        }
 
         return `${userTag}♻️ **COLETA SELETIVA CONCLUÍDA!**\n\nVocê reciclou **${trashCount} itens de lixo** (Botas, pneus, calotas...) e ganhou 🪙 **${totalValue} Bostocoins** pelo serviço ambiental!${profitResult.msg}`;
     }
 
     // PROCESSA PEIXES REPETIDOS
-    async handleRepetidos(userId, userTag, action = 'vender', groupId = null) {
+    async handleRepetidos(userId, userTag, action = 'vender', groupId = null, sock = null, ctx) {
         const player = await this.getPlayerData(userId);
         
         if (!player.records || !Array.isArray(player.records) || player.records.length === 0) {
@@ -1051,8 +1086,26 @@ class PescariaHandler {
         if (action === 'vender') {
             const profitResult = await this.casinoHandler.verifyProfit(userId, totalValue);
             await this.db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [profitResult.finalProfit, userId]);
+            
+            if (this.parqueHandler && groupId && groupId.includes('@g.us') && profitResult.finalProfit > 0) {
+                this.parqueHandler.registrarProgressoComunitario(groupId, 'vendas', profitResult.finalProfit, ctx).catch(()=>{});
+                try {
+                    await this.db.run(`
+                        UPDATE usuarios 
+                        SET pescaria_data = json_set(
+                            COALESCE(pescaria_data, '{}'), 
+                            '$.total_vendas_coins', 
+                            COALESCE(json_extract(pescaria_data, '$.total_vendas_coins'), 0) + ?
+                        )
+                        WHERE id_usuario = ?
+                    `, [profitResult.finalProfit, userId]);
+                } catch (e) {
+                    console.error("Erro ao salvar histórico de vendas de peixe:", e);
+                }
+            }
 
             return `${userTag}📦 **LIMPEZA DE REPETIDOS CONCLUÍDA!**\n\nVocê vendeu **${soldCount} peixes duplicados** (mantendo apenas o seu recorde absoluto de cada espécie) e lucrou 🪙 **${totalValue} Bostocoins** no mercadão!${profitResult.msg}`;
+            
         } 
         else if (action === 'depositar') {
             if (!groupId) return `${userTag} ❌ Erro: ID do grupo não fornecido para o depósito.`;

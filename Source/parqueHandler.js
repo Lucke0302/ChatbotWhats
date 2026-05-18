@@ -1424,6 +1424,42 @@ class ParqueHandler {
         return `${userTag} ⚠️ Comando de escavação inválido. Tente usar a loja.`;
     }
 
+    async gerarLootCamada(camada, picareta, multiplicadorDrops = 1) {
+        let loot = [];
+        for (let i = 0; i < Math.ceil(picareta.drops * multiplicadorDrops); i++) {
+            
+            const chanceAmbar = ESC_CHANCE_AMBAR_BASE * (2 ** camada);
+            if (Math.random() < chanceAmbar) {
+                loot.push('ambar');
+                continue; 
+            }
+
+            let roll = Math.random() * 100;
+            roll = roll * (1 - (picareta.sorte / 100)); 
+
+            let allowedRarities = ['lixo', 'comum'];
+            if (camada >= 1) allowedRarities.push('incomum', 'raro');
+            if (camada >= 2) allowedRarities.push('muito_raro');
+            if (camada >= 3) allowedRarities.push('lendario');
+            if (camada >= 4) allowedRarities.push('mitico');
+
+            let selectedRarity = 'lixo';
+            if (roll < 1 && allowedRarities.includes('mitico')) selectedRarity = 'mitico';
+            else if (roll < 3 && allowedRarities.includes('lendario')) selectedRarity = 'lendario';
+            else if (roll < 10 && allowedRarities.includes('muito_raro')) selectedRarity = 'muito_raro';
+            else if (roll < 30 && allowedRarities.includes('raro')) selectedRarity = 'raro';
+            else if (roll < 60 && allowedRarities.includes('incomum')) selectedRarity = 'incomum';
+            else if (roll < 85 && allowedRarities.includes('comum')) selectedRarity = 'comum';
+
+            const possibleMinerals = MINERAL_CATALOG.filter(m => m.rarity === selectedRarity);
+            if (possibleMinerals.length > 0) {
+                const minerio = possibleMinerals[Math.floor(Math.random() * possibleMinerals.length)];
+                loot.push(minerio.id);
+            }
+        }
+        return loot;
+    }
+
     async processarLoot(userTag, sessao, lootTurno, picareta, hpTotalPicareta) {
         let msgLoot = "";
         for (const id of lootTurno) {

@@ -342,12 +342,20 @@ class ParqueHandler {
 
         let player = {
             inventory: data.inventory || {},
-            ferramentas: data.ferramentas || { picareta: 'madeira', picareta_hp: 6, debito_automatico: 1 }
+            inventario_consumiveis: data.inventario_consumiveis || {},
+            ferramentas: data.ferramentas || { 
+                picareta: 'madeira', 
+                picareta_hp: 6, 
+                debito_automatico: 1,
+                armadura: 'nenhuma',
+                acessorio: 'nenhum'
+            }
         };
 
-        if (player.ferramentas.debito_automatico === undefined) {
-            player.ferramentas.debito_automatico = 1; 
-        }
+        if (player.ferramentas.debito_automatico === undefined) player.ferramentas.debito_automatico = 1;
+        if (!player.ferramentas.armadura) player.ferramentas.armadura = 'nenhuma';
+        if (!player.ferramentas.acessorio) player.ferramentas.acessorio = 'nenhum';
+        if (!player.inventario_consumiveis) player.inventario_consumiveis = {};
 
         return player;
     }

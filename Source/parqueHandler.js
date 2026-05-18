@@ -1182,8 +1182,6 @@ class ParqueHandler {
             return `${userTag} 🛠️ Sua ${picaretaAtual.emoji} ${picaretaAtual.name} está cega/quebrada! (0 HP).\nVocê precisa *!escavar consertar* (pagar 25% do valor) ou *!escavar sucatear* (reverter pra picareta anterior de graça).`;
         }
 
-        let sessao = this.escavacoesAtivas.get(userId);
-
         const finalizarSessao = async (motivo) => {
             let msgLoot = "";
             let temAmbar = false;

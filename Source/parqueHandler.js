@@ -1080,6 +1080,37 @@ class ParqueHandler {
 
             return `${userTag} 💉 **SISTEMA DE SAÚDE PRIVADO INGEN!**\nVocê pagou 🪙 **${custoCura} Bostocoins**, tomou uma dose experimental de adrenalina e está 100% regenerado! Pode voltar a escavar imediatamente. ⛏️`;
         }
+        if (action.startsWith('equipar ')) {
+            if (this.escavacoesAtivas.has(userId)) {
+                return `${userTag} 🛑 Você não pode trocar de roupa no meio do escuro! Fuja da caverna primeiro para poder trocar seu acessório.`;
+            }
+
+            const accCode = action.replace('equipar ', '').trim();
+            const alvo = ACCESSORY_CATALOG[accCode];
+
+            if (!alvo || accCode === 'nenhum') {
+                return `${userTag} ❌ Acessório inválido! Escolha um item válido da loja.`;
+            }
+
+            if (player.ferramentas.acessorio === accCode) {
+                return `${userTag} ❌ O ${alvo.emoji} **${alvo.name}** já está ativo no seu corpo agora!`;
+            }
+
+            if (!player.inventario_acessorios[accCode]) {
+                return `${userTag} ❌ Você não é dono deste acessório. Compre ele no armazém usando *!escavar comprar ${accCode}*.`;
+            }
+
+            const antigoEquipado = player.ferramentas.acessorio;
+            if (antigoEquipado !== 'nenhum') {
+                player.inventario_acessorios[antigoEquipado] = 1;
+            }
+
+            player.ferramentas.acessorio = accCode; 
+            delete player.inventario_acessorios[accCode]; 
+
+            await this.savePlayerData(userId, player);
+            return `${userTag} 🔁 **MUDANÇA DE EQUIPAMENTO!** Você equipou o ${alvo.emoji} **${alvo.name}** com sucesso!`;
+        }
 
         if (action === 'auto' || action === 'debito') {
             player.ferramentas.debito_automatico = player.ferramentas.debito_automatico === 0 ? 1 : 0;
@@ -1110,9 +1141,20 @@ class ParqueHandler {
                 await this.savePlayerData(userId, player);
                 return `${userTag} 🛍️ Você comprou 1x ${alvo.emoji} **${alvo.name}**! Use com *!escavar usar ${alvo.id}* dentro da caverna.`;
             } else if (tipo === 'acessorio') {
-                player.ferramentas.acessorio = alvo.id;
-                await this.savePlayerData(userId, player);
-                return `${userTag} 🦺 Você equipou o ${alvo.emoji} **${alvo.name}**! O efeito é passivo.`;
+                if (player.inventario_acessorios[alvo.id] || player.ferramentas.acessorio === alvo.id) {
+                    await this.db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [alvo.price, userId]);
+                    return `${userTag} ❌ Você já possui o ${alvo.emoji} **${alvo.name}**! Não precisa comprar de novo. Use *!escavar equipar ${alvo.id}* para vestir.`;
+                }
+
+                if (player.ferramentas.acessorio === 'nenhum') {
+                    player.ferramentas.acessorio = alvo.id;
+                    await this.savePlayerData(userId, player);
+                    return `${userTag} 🦺 Você comprou e equipou o ${alvo.emoji} **${alvo.name}**! O efeito já está ativo no Abismo.`;
+                } else {
+                    player.inventario_acessorios[alvo.id] = 1;
+                    await this.savePlayerData(userId, player);
+                    return `${userTag} 📦 Você comprou o ${alvo.emoji} **${alvo.name}**! Como você já tem um item ativo, ele foi guardado na sua coleção. Use *!escavar equipar ${alvo.id}* para alternar entre eles de graça!`;
+                }
             } else if (tipo === 'armadura') {
                 player.ferramentas.armadura = alvo.id;
                 await this.savePlayerData(userId, player);
@@ -1131,8 +1173,18 @@ class ParqueHandler {
                 return `${userTag} ❌ Você não tem esse item. Compre na *!escavar loja*.`;
             }
 
+            // =======================================================
+            // 🛑 TRAVA DE OVERDOSE (1 por tipo por descida)
+            // =======================================================
+            sessao.itens_usados = sessao.itens_usados || {};
+            if (sessao.itens_usados[itemCode]) {
+                return `${userTag} 🛑 Cuidado com a overdose! Você já usou 1x ${alvo.emoji} **${alvo.name}** nesta descida. Só é permitido um de cada tipo por exploração!`;
+            }
+
             player.inventario_consumiveis[itemCode] -= 1;
             sessao.buffs = sessao.buffs || {};
+            sessao.itens_usados[itemCode] = true; // Registra o uso nesta sessão
+            // =======================================================
 
             if (itemCode === 'suporte') {
                 sessao.buffs.suporte = true;
@@ -1151,7 +1203,8 @@ class ParqueHandler {
             }
             if (itemCode === 'dinamite') {
                 if (sessao.camada >= picaretaAtual.max_camada) {
-                    player.inventario_consumiveis[itemCode] += 1; 
+                    player.inventario_consumiveis[itemCode] += 1; // Devolve o item
+                    delete sessao.itens_usados[itemCode]; // Devolve o direito de usar
                     return `${userTag} 🛑 Você já está no limite da sua picareta! Jogar dinamite aqui só vai te soterrar à toa.`;
                 }
 
@@ -1456,10 +1509,19 @@ class ParqueHandler {
             }
 
             const acessorioAtual = ACCESSORY_CATALOG[player.ferramentas.acessorio] || ACCESSORY_CATALOG['nenhum'];
-            msg += `🦺 **Acessório Equipado:** ${acessorioAtual.emoji} ${acessorioAtual.name}\n`;
-            msg += `_Catálogo de Acessórios:_\n`;
+            msg += `🦺 **Acessório Ativo:** ${acessorioAtual.emoji} ${acessorioAtual.name}\n`;
+            msg += `_Seus Acessórios Adquiridos:_\n`;
             Object.values(ACCESSORY_CATALOG).filter(a => a.id !== 'nenhum').forEach(a => {
-                msg += `- ${a.emoji} **${a.name}** (🪙 ${a.price.toLocaleString('pt-BR')}) -> *!escavar comprar ${a.id}*\n  _${a.desc}_\n`;
+                const possuiNaMochila = player.inventario_acessorios?.[a.id];
+                const estaEquipado = player.ferramentas.acessorio === a.id;
+                
+                if (estaEquipado) {
+                    msg += `- ${a.emoji} **${a.name}** ➝ [🟢 EM USO]\n  _${a.desc}_\n`;
+                } else if (possuiNaMochila) {
+                    msg += `- ${a.emoji} **${a.name}** ➝ [📦 ADQUIRIDO] (Trocar: *!escavar equipar ${a.id}*)\n  _${a.desc}_\n`;
+                } else {
+                    msg += `- ${a.emoji} **${a.name}** (🪙 ${a.price.toLocaleString('pt-BR')}) ➝ *!escavar comprar ${a.id}*\n  _${a.desc}_\n`;
+                }
             });
             msg += `\n`;
 

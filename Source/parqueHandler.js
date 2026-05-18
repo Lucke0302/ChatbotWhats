@@ -1469,6 +1469,7 @@ class ParqueHandler {
             this.emitWebEvent(userId, 'escavacao_update', {
                 acao: action,
                 camada: sessao.camada,
+                turnos_gastos: sessao.turnos,
                 hp_picareta: player.ferramentas.picareta_hp - sessao.turnos,
                 risco_atual: riscoVisual,
                 loot_adicionado: lootTurno,

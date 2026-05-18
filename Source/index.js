@@ -808,6 +808,13 @@ async function initDatabase() {
     `);
     console.log("✅ Tabelas da Web e Lista de Minérios carregadas.");
 
+    await db.exec(`
+        CREATE TABLE IF NOT EXISTS grupos_nomes (
+            id_grupo TEXT PRIMARY KEY, 
+            nome TEXT
+        )
+    `);
+
     console.log('✅ Banco de dados SQLite inicializado e tabelas verificadas.');
 }
 
@@ -1316,6 +1323,65 @@ async function connectToWhatsApp() {
         }
     });
 
+    app.get('/api/parque/grupos', authenticateToken, async (req, res) => {
+        try {
+            const userJid = req.user.id_whatsapp;
+            
+            const groups = await sock.groupFetchAllParticipating();
+            const gruposEmComum = [];
+
+            for (const groupId in groups) {
+                const group = groups[groupId];
+                
+                const usuarioEstaNoGrupo = group.participants.some(p => p.id === userJid);
+                
+                if (usuarioEstaNoGrupo) {
+                    gruposEmComum.push({
+                        id: group.id,
+                        nome: group.subject
+                    });
+                }
+            }
+
+            return res.json(gruposEmComum);
+        } catch (error) {
+            console.error("❌ Erro ao buscar grupos em comum:", error);
+            res.status(500).json({ error: "Erro ao carregar os canais de escavação." });
+        }
+    });
+
+    app.post('/api/parque/escavar', authenticateToken, async (req, res) => {
+        try {
+            const userId = req.user.id_whatsapp; 
+            const userTag = req.user.nome || "Minerador";
+            
+            const { acao, groupId } = req.body;
+
+            if (!acao || !groupId) {
+                return res.status(400).json({ error: "Parâmetros em falta (ação ou grupo ausentes)." });
+            }
+
+            console.log(`🕹️ [WEB ACTION] O utilizador ${userTag} solicitou a ação: '!escavar ${acao}' no grupo ${groupId}`);
+
+            let resultado;
+
+            if (acao === 'fuga') {
+                resultado = await chatbot.parqueHandler.handleEscavar(userId, userTag, groupId, 'sair');
+            } else {
+                resultado = await chatbot.parqueHandler.handleEscavar(userId, userTag, groupId, acao);
+            }
+
+            return res.json({ 
+                success: true, 
+                message: `Ação ${acao} executada com sucesso no servidor.` 
+            });
+
+        } catch (error) {
+            console.error("❌ Erro crítico ao processar escavação via Web:", error);
+            res.status(500).json({ error: "Falha interna no mainframe da InGen ao tentar escavar." });
+        }
+    });
+
     io.on('connection', (socket) => {
         console.log(`🟢 [WS] Novo cliente conectado: ${socket.id}`);
         
@@ -1400,10 +1466,28 @@ async function connectToWhatsApp() {
         }
     } else if (connection === 'open') {
             console.log('✅ Bot conectado e pronto!');
+
+            try {
+                const groups = await sock.groupFetchAllParticipating();
+                let gruposSalvos = 0;
+                
+                for (const groupId in groups) {
+                    const group = groups[groupId];
+                    await db.run(
+                        "INSERT INTO grupos_nomes (id_grupo, nome) VALUES (?, ?) ON CONFLICT(id_grupo) DO UPDATE SET nome = ?",
+                        [group.id, group.subject, group.subject]
+                    );
+                    gruposSalvos++;
+                }
+                console.log(`✅ [DB] ${gruposSalvos} grupos mapeados com sucesso!`);
+            } catch (err) {
+                console.error("❌ Erro ao sincronizar nomes dos grupos:", err);
+            }
             
             if (dailyJob) {
                 dailyJob.cancel();
             }
+            
 
             dailyJob = schedule.scheduleJob('0 0 10 * * *', async function(){
                 const targetCity = "Santos"; 

@@ -1489,6 +1489,22 @@ class ParqueHandler {
 
     async gerarLootCamada(camada, picareta, multiplicadorDrops = 1) {
         let loot = [];
+        
+        const CHANCE_BONUS_TARGET = 0.10; 
+
+        const proximaPicaretaChave = picareta.next;
+        const idItemUpgrade = proximaPicaretaChave ? PICKAXE_CATALOG[proximaPicaretaChave]?.req_item : null;
+        
+        const dadosItemUpgrade = idItemUpgrade ? MINERAL_CATALOG.find(m => m.id === idItemUpgrade) : null;
+
+        let allowedRarities = ['lixo', 'comum'];
+        if (camada >= 1) allowedRarities.push('incomum', 'raro');
+        if (camada >= 2) allowedRarities.push('muito_raro');
+        if (camada >= 3) allowedRarities.push('lendario');
+        if (camada >= 4) allowedRarities.push('mitico');
+
+        const itemUpgradeDisponivelNaCamada = dadosItemUpgrade && allowedRarities.includes(dadosItemUpgrade.rarity);
+
         for (let i = 0; i < Math.ceil(picareta.drops * multiplicadorDrops); i++) {
             
             const chanceAmbar = ESC_CHANCE_AMBAR_BASE * (2 ** camada);
@@ -1497,14 +1513,14 @@ class ParqueHandler {
                 continue; 
             }
 
+            if (itemUpgradeDisponivelNaCamada && Math.random() < CHANCE_BONUS_TARGET) {
+                console.log(`🎯 [TARGET FARMING] Bônus ativado! Dropado: ${idItemUpgrade} para upgrade.`);
+                loot.push(idItemUpgrade);
+                continue; 
+            }
+
             let roll = Math.random() * 100;
             roll = roll * (1 - (picareta.sorte / 100)); 
-
-            let allowedRarities = ['lixo', 'comum'];
-            if (camada >= 1) allowedRarities.push('incomum', 'raro');
-            if (camada >= 2) allowedRarities.push('muito_raro');
-            if (camada >= 3) allowedRarities.push('lendario');
-            if (camada >= 4) allowedRarities.push('mitico');
 
             let selectedRarity = 'lixo';
             if (roll < 1 && allowedRarities.includes('mitico')) selectedRarity = 'mitico';

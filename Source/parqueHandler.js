@@ -333,8 +333,13 @@ class ParqueHandler {
     }
 
     emitWebEvent(userId, eventName, payload) {
+        console.log(`\n🌐 [WEB EMIT] Preparando envio do evento: '${eventName}' para '${userId}'`);
+        
         if (this.io) {
             this.io.to(userId).emit(eventName, payload);
+            console.log(`✅ [WEB EMIT] Disparo feito para o Socket.io!\n`);
+        } else {
+            console.log(`❌ [WEB EMIT] ERRO GRAVE: O 'this.io' não está definido dentro do ParqueHandler!\n`);
         }
     }
     

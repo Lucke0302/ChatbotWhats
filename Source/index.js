@@ -1027,9 +1027,6 @@ async function connectToWhatsApp() {
     startTwitch(chatbot, sock);
     startDiscord(chatbot, sock);
 
-    // ==========================================
-    //  SERVIDOR EXPRESS E WEBSOCKET 
-    // ==========================================
     const http = require('http');
     const { Server } = require('socket.io');
 
@@ -1039,10 +1036,25 @@ async function connectToWhatsApp() {
     const crypto = require('crypto');
     const cookieParser = require('cookie-parser');
     
+    const allowedOrigins = [
+        'http://localhost:5173', 
+        'https://bostossauro.runage.tech',
+        'https://bostopark.com'
+    ];
+
     app.use(cors({ 
-        origin: true, 
+        origin: function (origin, callback) {
+            if (!origin) return callback(null, true);
+            
+            if (allowedOrigins.indexOf(origin) !== -1) {
+                callback(null, true);
+            } else {
+                callback(new Error('Bloqueado pelo CORS'));
+            }
+        },
         credentials: true 
     }));
+
     app.use(express.json());
     app.use(cookieParser());
 
@@ -1312,14 +1324,20 @@ async function connectToWhatsApp() {
         });
 
         socket.on('auth_bostopark', (token) => {
-            if (!token) return;
+            console.log(`\n🔐 [WS] Pedido de autenticação recebido do site!`);
+            if (!token) {
+                console.log(`❌ [WS] Token vazio recebido.`);
+                return;
+            }
             
             const JWT_SECRET = process.env.JWT_SECRET || 'chave_super_secreta_jwt_bostossauro';
             
             jwt.verify(token, JWT_SECRET, (err, user) => {
-                if (!err && user && user.id_whatsapp) {
+                if (err) {
+                    console.log(`❌ [WS] Erro ao validar token do site:`, err.message);
+                } else if (user && user.id_whatsapp) {
                     socket.join(user.id_whatsapp);
-                    console.log(`🔌 [WS] Usuário Web entrou na sala do Abismo: ${user.id_whatsapp}`);
+                    console.log(`🔌 [WS] SUCESSO! O JID ${user.id_whatsapp} entrou na sala privada do Abismo!\n`);
                 }
             });
         });

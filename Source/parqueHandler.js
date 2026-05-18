@@ -1173,9 +1173,6 @@ class ParqueHandler {
                 return `${userTag} ❌ Você não tem esse item. Compre na *!escavar loja*.`;
             }
 
-            // =======================================================
-            // 🛑 TRAVA DE OVERDOSE (1 por tipo por descida)
-            // =======================================================
             sessao.itens_usados = sessao.itens_usados || {};
             if (sessao.itens_usados[itemCode]) {
                 return `${userTag} 🛑 Cuidado com a overdose! Você já usou 1x ${alvo.emoji} **${alvo.name}** nesta descida. Só é permitido um de cada tipo por exploração!`;
@@ -1183,8 +1180,7 @@ class ParqueHandler {
 
             player.inventario_consumiveis[itemCode] -= 1;
             sessao.buffs = sessao.buffs || {};
-            sessao.itens_usados[itemCode] = true; // Registra o uso nesta sessão
-            // =======================================================
+            sessao.itens_usados[itemCode] = true; 
 
             if (itemCode === 'suporte') {
                 sessao.buffs.suporte = true;
@@ -1203,8 +1199,8 @@ class ParqueHandler {
             }
             if (itemCode === 'dinamite') {
                 if (sessao.camada >= picaretaAtual.max_camada) {
-                    player.inventario_consumiveis[itemCode] += 1; // Devolve o item
-                    delete sessao.itens_usados[itemCode]; // Devolve o direito de usar
+                    player.inventario_consumiveis[itemCode] += 1; 
+                    delete sessao.itens_usados[itemCode];
                     return `${userTag} 🛑 Você já está no limite da sua picareta! Jogar dinamite aqui só vai te soterrar à toa.`;
                 }
 
@@ -1354,7 +1350,7 @@ class ParqueHandler {
                         penTempo = "30 minutos";
                         relatorioDesastre += `📡 O seu Localizador GPS chamou o resgate rápido! Você ficará de molho apenas **${penTempo}**.\n`;
                     } else {
-                        relatorioDesastre += `🚑 Você foi resgatado de maca pela InGen. Ficará de molho por **1 hora**.\n`;
+                        relatorioDesastre += `🚑 Você foi resgatado de maca pela InGen. Ficará de molho por **1 hora** _*(pode usar !escavar curar)*_.\n`;
                     }
                     await this.db.run("UPDATE usuarios SET financas = ? WHERE id_usuario = ?", [JSON.stringify(financas), userId]);
                 } else {

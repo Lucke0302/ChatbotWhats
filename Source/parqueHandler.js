@@ -1059,27 +1059,28 @@ class ParqueHandler {
 
         const montanteInvestido = financas.investimento?.montante || 0;
         const netWorth = saldo + montanteInvestido;
-        const custoCura = Math.floor(500 + (netWorth * 0.0075));
+        
+        let custoCura = Math.floor(500 + (netWorth * 0.0075));
+        if (player.ferramentas.acessorio === 'localizador') {
+            custoCura = Math.floor(custoCura / 2);
+        }
 
         if (action === 'curar' || action === 'medico' || action === 'hospital') {
-            if (!financas.last_dano_escavacao || now - financas.last_dano_escavacao >= ESC_COOLDOWN_DANO) {
+            if (!player.ferramentas.last_dano || now - player.ferramentas.last_dano >= ESC_COOLDOWN_DANO) {
                 return `${userTag} 🩺 Você não está machucado! Quer gastar dinheiro com plano de saúde à toa?`;
             }
 
-            const dbUser = await this.db.get("SELECT bostocoins FROM usuarios WHERE id_usuario = ?", [userId]);
-            const saldo = dbUser ? dbUser.bostocoins : 0;
-
             if (saldo < custoCura) {
-                return `${userTag} 💸 O hospital da InGen não atende indigentes! A cirurgia particular para te tirar da maca custa 🪙 **${custoCura}**, você só tem 🪙 ${saldo}.`;
+                return `${userTag} 💸 O hospital da InGen não atende indigentes! A cirurgia particular para te tirar da maca custa 🪙 **${custoCura.toLocaleString('pt-BR')}**, você só tem 🪙 ${saldo.toLocaleString('pt-BR')}.`;
             }
-
             
             await this.db.run("UPDATE usuarios SET bostocoins = bostocoins - ? WHERE id_usuario = ?", [custoCura, userId]);
-            financas.last_dano_escavacao = 0;
-            await this.db.run("UPDATE usuarios SET financas = ? WHERE id_usuario = ?", [JSON.stringify(financas), userId]);
+            player.ferramentas.last_dano = 0; 
+            await this.savePlayerData(userId, player);
 
-            return `${userTag} 💉 **SISTEMA DE SAÚDE PRIVADO INGEN!**\nVocê pagou 🪙 **${custoCura} Bostocoins**, tomou uma dose experimental de adrenalina e está 100% regenerado! Pode voltar a escavar imediatamente. ⛏️`;
+            return `${userTag} 💉 **SISTEMA DE SAÚDE PRIVADO INGEN!**\nVocê pagou 🪙 **${custoCura.toLocaleString('pt-BR')} Bostocoins**, tomou uma dose experimental de adrenalina e está 100% regenerado! Pode voltar a escavar imediatamente. ⛏️`;
         }
+
         if (action.startsWith('equipar ')) {
             if (this.escavacoesAtivas.has(userId)) {
                 return `${userTag} 🛑 Você não pode trocar de roupa no meio do escuro! Fuja da caverna primeiro para poder trocar seu acessório.`;
@@ -1222,8 +1223,8 @@ class ParqueHandler {
             }
         }
 
-        if (financas.last_dano_escavacao && now - financas.last_dano_escavacao < ESC_COOLDOWN_DANO) {
-            const left = ESC_COOLDOWN_DANO - (now - financas.last_dano_escavacao);
+        if (player.ferramentas.last_dano && now - player.ferramentas.last_dano < ESC_COOLDOWN_DANO) {
+            const left = ESC_COOLDOWN_DANO - (now - player.ferramentas.last_dano);
             return `${userTag} 🚑 Você ainda está no hospital se recuperando do soterramento! O médico te dá alta em: ${Math.floor(left/60)} minutos.\n\n_💡 Dica: Por ser um cidadão de posses, você pode pagar o leito particular por 🪙 **${custoCura.toLocaleString('pt-BR')}** usando *!escavar curar* para sair da UTI agora!_`;
         }
 
@@ -1236,7 +1237,19 @@ class ParqueHandler {
         }
 
         if (player.ferramentas.picareta_hp <= 0) {
-            return `${userTag} 🛠️ Sua ${picaretaAtual.emoji} ${picaretaAtual.name} está cega/quebrada! (0 HP).\nVocê precisa *!escavar consertar* (pagar 25% do valor) ou *!escavar sucatear* (reverter pra picareta anterior de graça).`;
+            let autoConsertado = false;
+            const custoAfiar = Math.floor((picaretaAtual.req_coins || 100) * 0.25);
+            
+            if (player.ferramentas.debito_automatico !== 0 && saldo >= custoAfiar) {
+                await this.db.run("UPDATE usuarios SET bostocoins = bostocoins - ? WHERE id_usuario = ?", [custoAfiar, userId]);
+                player.ferramentas.picareta_hp = picaretaAtual.durabilidade;
+                await this.savePlayerData(userId, player);
+                autoConsertado = true;
+            }
+
+            if (!autoConsertado) {
+                return `${userTag} 🛠️ Sua ${picaretaAtual.emoji} ${picaretaAtual.name} está cega/quebrada! (0 HP).\nVocê precisa *!escavar consertar* (pagar 🪙 ${custoAfiar}) ou *!escavar sucatear* (reverter pra picareta anterior de graça).`;
+            }
         }
 
         const finalizarSessao = async (motivo) => {
@@ -1260,12 +1273,31 @@ class ParqueHandler {
             player.ferramentas.picareta_hp -= custoDurabilidade;
             if (player.ferramentas.picareta_hp < 0) player.ferramentas.picareta_hp = 0;
             
+            let autoConsertado = false;
+            const consertoCusto = Math.floor((picaretaAtual.req_coins || 100) * 0.25);
+            
+            if (motivo === 'quebra' && player.ferramentas.debito_automatico !== 0) {
+                const dbUser = await this.db.get("SELECT bostocoins FROM usuarios WHERE id_usuario = ?", [userId]);
+                const saldoAtualizado = dbUser ? dbUser.bostocoins : 0;
+                
+                if (saldoAtualizado >= consertoCusto) {
+                    await this.db.run("UPDATE usuarios SET bostocoins = bostocoins - ? WHERE id_usuario = ?", [consertoCusto, userId]);
+                    player.ferramentas.picareta_hp = picaretaAtual.durabilidade;
+                    autoConsertado = true;
+                }
+            }
+            
             await this.savePlayerData(userId, player);
             this.escavacoesAtivas.delete(userId);
             
-            let titulo = motivo === 'quebra' 
-                ? `🎒 **FIM DA LINHA! A PICARETA CEGOU!**\nVocê foi forçado a voltar para a superfície.\n` 
-                : `🎒 **VOCÊ VOLTOU PARA A SUPERFÍCIE!**\n`;
+            let titulo = "";
+            if (motivo === 'quebra') {
+                titulo = autoConsertado 
+                    ? `🎒 **A PICARETA CEGOU, MAS O FERREIRO É RÁPIDO!**\nSua ferramenta chegou ao limite, mas o Sindicato já debitou 🪙 **${consertoCusto}** e consertou ela automaticamente!\n`
+                    : `🎒 **FIM DA LINHA! A PICARETA CEGOU!**\nVocê foi forçado a voltar para a superfície com ela queixosa (HP 0) porque não tinha moedas suficientes.\n`;
+            } else {
+                titulo = `🎒 **VOCÊ VOLTOU PARA A SUPERFÍCIE!**\n`;
+            }
 
             let header = `${userTag} ${titulo}Durabilidade restante: (${player.ferramentas.picareta_hp}/${picaretaAtual.durabilidade}).\n\n**Loot que você trouxe:**\n`;
             if (temAmbar) header = `${userTag} 🚨 **ALERTA DA INGEN!** VOCÊ TROUXE ÂMBAR DA CAVERNA! 🚨\n${titulo}Durabilidade restante: (${player.ferramentas.picareta_hp}/${picaretaAtual.durabilidade})\n\n`;
@@ -1279,7 +1311,6 @@ class ParqueHandler {
         }
 
         if (action === 'fundo' || action === 'lado' || action === '') {
-            // [Código anterior de iniciar a sessão continua igual até a verificação do desmoronar]
             if (action === '') {
                 if (sessao) return `${userTag} 🔦 Você já está no abismo (Camada ${sessao.camada})! O que você faz?\n👉 *!escavar fundo*, *!escavar lado* ou *!escavar guardar*.`;
                 sessao = { camada: 0, turnos: 1, loot: {}, buffs: {} };
@@ -1342,17 +1373,16 @@ class ParqueHandler {
                 }
 
                 if (!salvouVida) {
-                    financas.last_dano_escavacao = now;
+                    player.ferramentas.last_dano = now;
                     let penTempo = "1 hora";
                     
                     if (player.ferramentas.acessorio === 'localizador') {
-                        financas.last_dano_escavacao -= (ESC_COOLDOWN_DANO / 2);
+                        player.ferramentas.last_dano -= (ESC_COOLDOWN_DANO / 2);
                         penTempo = "30 minutos";
                         relatorioDesastre += `📡 O seu Localizador GPS chamou o resgate rápido! Você ficará de molho apenas **${penTempo}**.\n`;
                     } else {
                         relatorioDesastre += `🚑 Você foi resgatado de maca pela InGen. Ficará de molho por **1 hora** _*(pode usar !escavar curar)*_.\n`;
                     }
-                    await this.db.run("UPDATE usuarios SET financas = ? WHERE id_usuario = ?", [JSON.stringify(financas), userId]);
                 } else {
                     relatorioDesastre += `🛡️ A sua ${armadura.emoji} ${armadura.name} te protegeu das pedras! Você **saiu ileso** e não precisa ir pro hospital.\n`;
                 }
@@ -1392,41 +1422,6 @@ class ParqueHandler {
         }
 
         return `${userTag} ⚠️ Comando de escavação inválido. Tente usar a loja.`;
-    }
-
-    async gerarLootCamada(camada, picareta, multiplicadorDrops = 1) {
-        let loot = [];
-        for (let i = 0; i < Math.ceil(picareta.drops * multiplicadorDrops); i++) {
-            const chanceAmbar = ESC_CHANCE_AMBAR_BASE * (2 ** camada);
-            if (Math.random() < chanceAmbar) {
-                loot.push('ambar');
-                continue;
-            }
-            
-            let roll = Math.random() * 100;
-            roll = roll * (1 - (picareta.sorte / 100));
-
-            let allowedRarities = ['lixo', 'comum'];
-            if (camada >= 1) allowedRarities.push('incomum', 'raro');
-            if (camada >= 2) allowedRarities.push('muito_raro');
-            if (camada >= 3) allowedRarities.push('lendario');
-            if (camada >= 4) allowedRarities.push('mitico');
-
-            let selectedRarity = 'lixo';
-            if (roll < 1 && allowedRarities.includes('mitico')) selectedRarity = 'mitico';
-            else if (roll < 3 && allowedRarities.includes('lendario')) selectedRarity = 'lendario';
-            else if (roll < 10 && allowedRarities.includes('muito_raro')) selectedRarity = 'muito_raro';
-            else if (roll < 30 && allowedRarities.includes('raro')) selectedRarity = 'raro';
-            else if (roll < 60 && allowedRarities.includes('incomum')) selectedRarity = 'incomum';
-            else if (roll < 85 && allowedRarities.includes('comum')) selectedRarity = 'comum';
-
-            const possibleMinerals = MINERAL_CATALOG.filter(m => m.rarity === selectedRarity);
-            if (possibleMinerals.length > 0) {
-                const minerio = possibleMinerals[Math.floor(Math.random() * possibleMinerals.length)];
-                loot.push(minerio.id);
-            }
-        }
-        return loot;
     }
 
     async processarLoot(userTag, sessao, lootTurno, picareta, hpTotalPicareta) {

@@ -1324,20 +1324,16 @@ async function connectToWhatsApp() {
         });
 
         socket.on('auth_bostopark', (token) => {
-            console.log(`\n🔐 [WS] Pedido de autenticação recebido do site!`);
-            if (!token) {
-                console.log(`❌ [WS] Token vazio recebido.`);
-                return;
-            }
+            if (!token) return;
             
             const JWT_SECRET = process.env.JWT_SECRET || 'chave_super_secreta_jwt_bostossauro';
             
             jwt.verify(token, JWT_SECRET, (err, user) => {
-                if (err) {
-                    console.log(`❌ [WS] Erro ao validar token do site:`, err.message);
-                } else if (user && user.id_whatsapp) {
-                    socket.join(user.id_whatsapp);
-                    console.log(`🔌 [WS] SUCESSO! O JID ${user.id_whatsapp} entrou na sala privada do Abismo!\n`);
+                if (!err && user && user.id_whatsapp) {
+                    const roomName = user.id_whatsapp.split('@')[0];
+                    
+                    socket.join(roomName);
+                    console.log(`🔌 [WS] SUCESSO! O Usuário entrou na sala privada: ${roomName}`);
                 }
             });
         });

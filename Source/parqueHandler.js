@@ -333,11 +333,13 @@ class ParqueHandler {
     }
 
     emitWebEvent(userId, eventName, payload) {
-        console.log(`\n🌐 [WEB EMIT] Preparando envio do evento: '${eventName}' para '${userId}'`);
+        const roomName = userId.split('@')[0];
+        
+        console.log(`\n🌐 [WEB EMIT] Preparando envio do evento: '${eventName}' para a sala '${roomName}'`);
         
         if (this.io) {
-            this.io.emit(eventName, payload);
-            console.log(`✅ [WEB EMIT] Disparo feito para o Socket.io!\n`);
+            this.io.to(roomName).emit(eventName, payload);
+            console.log(`✅ [WEB EMIT] Disparo feito para a sala ${roomName}!\n`);
         } else {
             console.log(`❌ [WEB EMIT] ERRO GRAVE: O 'this.io' não está definido dentro do ParqueHandler!\n`);
         }

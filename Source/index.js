@@ -1165,8 +1165,8 @@ async function connectToWhatsApp() {
 
             res.cookie('bostopark_refresh', refreshToken, {
                 httpOnly: true, 
-                secure: process.env.NODE_ENV === 'production', 
-                sameSite: 'Strict',
+                secure: true, 
+                sameSite: 'none', 
                 maxAge: 7 * 24 * 60 * 60 * 1000
             });
 

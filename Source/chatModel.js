@@ -2165,6 +2165,8 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
         const handler = this.commandHandlers[rootCommand];
 
        if (handler) {
+            this.registerMetric('command', rootCommand).catch(e => console.error("Erro ao registrar métrica:", e));
+
             // CONTEXTO UNIVERSAL
             const ctx = {
                 platform: msg.platform || 'whatsapp',
@@ -2216,7 +2218,9 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
     // === API DO DASHBOARD ===
     async getDashboardDataAPI() {
         try {
-            const today = new Date().toISOString().split('T')[0];
+            const d = new Date();
+            d.setHours(d.getHours() - 3);
+            const today = d.toISOString().split('T')[0];
             
             let metricasHoje = await this.db.get("SELECT * FROM metricas_diarias WHERE data = ?", [today]);
             if (!metricasHoje) {

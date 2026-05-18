@@ -331,6 +331,12 @@ class ParqueHandler {
 
         this.escavacoesAtivas = new Map();
     }
+
+    emitWebEvent(userId, eventName, payload) {
+        if (this.io) {
+            this.io.to(userId).emit(eventName, payload);
+        }
+    }
     
     async getPlayerData(userId) {
         const user = await this.db.get("SELECT parque_data FROM usuarios WHERE id_usuario = ?", [userId]);
@@ -1266,6 +1272,13 @@ class ParqueHandler {
                      player.inventory[id] = (player.inventory[id] || 0) + qtd;
                      const min = MINERAL_CATALOG.find(m => m.id === id);
                      msgLoot += `- ${qtd}x ${min.emoji} ${min.name}\n`;
+
+                     await this.db.run(`
+                         INSERT INTO minerios_descobertos (id_whatsapp, mineral_id, quantidade_total, data_primeira_descoberta)
+                         VALUES (?, ?, ?, ?)
+                         ON CONFLICT(id_whatsapp, mineral_id) DO UPDATE SET
+                         quantidade_total = quantidade_total + ?
+                     `, [userId, id, qtd, now, qtd]);
                  }
             }
             
@@ -1289,6 +1302,14 @@ class ParqueHandler {
             
             await this.savePlayerData(userId, player);
             this.escavacoesAtivas.delete(userId);
+
+            this.emitWebEvent(userId, 'escavacao_fuga', {
+                motivo: motivo, 
+                hp_picareta: player.ferramentas.picareta_hp,
+                loot_salvo: sessao.loot,
+                ambar_salvo: temAmbar,
+                auto_consertado: autoConsertado
+            });
             
             let titulo = "";
             if (motivo === 'quebra') {
@@ -1363,6 +1384,15 @@ class ParqueHandler {
                         for (const id of savedItems) {
                             if (id === 'ambar') salvouAmbar = true;
                             player.inventory[id] = (player.inventory[id] || 0) + 1;
+                            
+                            if (id !== 'ambar') {
+                                await this.db.run(`
+                                    INSERT INTO minerios_descobertos (id_whatsapp, mineral_id, quantidade_total, data_primeira_descoberta)
+                                    VALUES (?, ?, 1, ?)
+                                    ON CONFLICT(id_whatsapp, mineral_id) DO UPDATE SET
+                                    quantidade_total = quantidade_total + 1
+                                `, [userId, id, now]);
+                            }
                         }
                         relatorioDesastre += `🎒 Sua **Mochila de Carga** amorteceu a queda! Você perdeu parte das coisas, mas salvou **${savedItems.length} itens** de dentro dela (${salvouAmbar ? '🧬 **INCLUINDO UM ÂMBAR!**' : 'minérios diversos'}).\n`;
                     } else {
@@ -1389,6 +1419,14 @@ class ParqueHandler {
 
                 this.escavacoesAtivas.delete(userId);
                 await this.savePlayerData(userId, player);
+
+                this.emitWebEvent(userId, 'escavacao_desastre', {
+                    camada: sessao.camada,
+                    salvou_loot: salvouLoot || player.ferramentas.acessorio === 'mochila',
+                    salvou_vida: salvouVida,
+                    hp_picareta: player.ferramentas.picareta_hp
+                });
+
                 return relatorioDesastre;
             }
 
@@ -1417,6 +1455,23 @@ class ParqueHandler {
             if (sessao.turnos >= player.ferramentas.picareta_hp) {
                 return await finalizarSessao('quebra');
             }
+
+            let riscoVisual = ESC_CHANCE_DESMORONAR_BASE + (ESC_DESMORONAR_INCREMENTO * sessao.camada);
+            if (sessao.buffs?.suporte) riscoVisual /= 2;
+
+            this.emitWebEvent(userId, 'escavacao_update', {
+                acao: action,
+                camada: sessao.camada,
+                hp_picareta: player.ferramentas.picareta_hp - sessao.turnos,
+                risco_atual: riscoVisual,
+                loot_adicionado: lootTurno,
+                sacola_total: sessao.loot,
+                buffs: sessao.buffs,
+                sensor_peek: {
+                    lado: sessao.peek_lado ? true : false,
+                    fundo: sessao.peek_fundo ? true : false
+                }
+            });
 
             return await this.processarLoot(userTag, sessao, lootTurno, picaretaAtual, player.ferramentas.picareta_hp);
         }
@@ -2163,4 +2218,4 @@ class ParqueHandler {
     }
 }
 
-module.exports = ParqueHandler;
+module.exports = {ParqueHandler, MINERAL_CATALOG};

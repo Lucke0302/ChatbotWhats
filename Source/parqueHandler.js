@@ -336,7 +336,7 @@ class ParqueHandler {
         console.log(`\n🌐 [WEB EMIT] Preparando envio do evento: '${eventName}' para '${userId}'`);
         
         if (this.io) {
-            this.io.to(userId).emit(eventName, payload);
+            this.io.emit(eventName, payload);
             console.log(`✅ [WEB EMIT] Disparo feito para o Socket.io!\n`);
         } else {
             console.log(`❌ [WEB EMIT] ERRO GRAVE: O 'this.io' não está definido dentro do ParqueHandler!\n`);
@@ -1568,6 +1568,7 @@ class ParqueHandler {
             msg += `*!escavar lado* (Cava pros lados nesta camada)\n`;
             msg += `*!escavar guardar* (Foge com o loot)`;
         }
+
         return msg;
     }
 

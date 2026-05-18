@@ -1467,22 +1467,24 @@ async function connectToWhatsApp() {
     } else if (connection === 'open') {
             console.log('✅ Bot conectado e pronto!');
 
-            try {
-                const groups = await sock.groupFetchAllParticipating();
-                let gruposSalvos = 0;
-                
-                for (const groupId in groups) {
-                    const group = groups[groupId];
-                    await db.run(
-                        "INSERT INTO grupos_nomes (id_grupo, nome) VALUES (?, ?) ON CONFLICT(id_grupo) DO UPDATE SET nome = ?",
-                        [group.id, group.subject, group.subject]
-                    );
-                    gruposSalvos++;
+            (async () => {
+                try {
+                    const groups = await sock.groupFetchAllParticipating();
+                    let gruposSalvos = 0;
+                    
+                    for (const groupId in groups) {
+                        const group = groups[groupId];
+                        await db.run(
+                            "INSERT INTO grupos_nomes (id_grupo, nome) VALUES (?, ?) ON CONFLICT(id_grupo) DO UPDATE SET nome = ?",
+                            [group.id, group.subject, group.subject]
+                        );
+                        gruposSalvos++;
+                    }
+                    console.log(`✅ [DB] ${gruposSalvos} grupos mapeados com sucesso!`);
+                } catch (err) {
+                    console.error("❌ Erro ao sincronizar nomes dos grupos:", err);
                 }
-                console.log(`✅ [DB] ${gruposSalvos} grupos mapeados com sucesso!`);
-            } catch (err) {
-                console.error("❌ Erro ao sincronizar nomes dos grupos:", err);
-            }
+            })();
             
             if (dailyJob) {
                 dailyJob.cancel();

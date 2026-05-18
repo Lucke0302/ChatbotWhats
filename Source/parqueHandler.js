@@ -1170,9 +1170,6 @@ class ParqueHandler {
             return `${userTag} 🚑 Você ainda está no hospital se recuperando do soterramento! O médico te dá alta em: ${Math.floor(left/60)} minutos.\n\n_💡 Dica: Por ser um cidadão de posses, você pode pagar o leito particular por 🪙 **${custoCura.toLocaleString('pt-BR')}** usando *!escavar curar* para sair da UTI agora!_`;
         }
 
-        let player = await this.getPlayerData(userId);
-        const picaretaAtual = PICKAXE_CATALOG[player.ferramentas.picareta] || PICKAXE_CATALOG['madeira'];
-
         if (action === 'materiais' || action === 'camadas' || action === 'guia' || action === 'help' || action === 'ajuda') {
             return await this.listarMateriaisPorCamada(userTag);
         }
@@ -1335,7 +1332,7 @@ class ParqueHandler {
             if (sessao.turnos >= player.ferramentas.picareta_hp) {
                 return await finalizarSessao('quebra');
             }
-            
+
             return await this.processarLoot(userTag, sessao, lootTurno, picaretaAtual, player.ferramentas.picareta_hp);
         }
 

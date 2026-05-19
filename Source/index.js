@@ -2209,7 +2209,7 @@ async function connectToWhatsApp() {
                     const numeroLimpo = sender.split(':')[0]; 
                     const senderJid = numeroLimpo.includes('@s.whatsapp.net') ? numeroLimpo : numeroLimpo + '@s.whatsapp.net';
                     
-                    db.run("INSERT OR IGNORE INTO grupo_participantes (id_grupo, id_whatsapp) VALUES (?, ?)", [remoteJid, senderJid])
+                    db.run("INSERT OR IGNORE INTO grupo_participantes (id_grupo, id_whatsapp) VALUES (?, ?)", [from, senderJid])
                     .catch(err => console.error("Erro no tracking passivo de grupo:", err));
                 }
 

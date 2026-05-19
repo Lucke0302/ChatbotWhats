@@ -24,7 +24,7 @@ class BlueskyBrain {
             
             if (nota >= 8) {
                 await this.db.run(query, [id, contexto, humor, nota, 'postado', timestampOriginal, temasStr]);
-                this.surtoInstantaneo(contexto, humor, timestampOriginal, temas).catch(e => console.error(e));
+                this.surtoInstantaneo(id, contexto, humor, timestampOriginal, temas).catch(e => console.error(e));
             }
         } catch (error) {
             console.error("❌ Erro ao salvar pensamento:", error);
@@ -64,7 +64,7 @@ class BlueskyBrain {
         await this.gerarEPostar(eleito.id, eleito.contexto, eleito.humor_origem, eleito.timestamp_evento, temasEleito);
     }
 
-    async gerarEPostar(contexto, humor, timestampEvento, temasAtuais = []) {
+    async gerarEPostar(id, contexto, humor, timestampEvento, temasAtuais = []) {
         const historico = await this.db.all(`SELECT temas, post_texto, timestamp FROM historico_bluesky ORDER BY timestamp DESC LIMIT 100`);
         let melhoresMatches = [];
         for (const post of historico) {

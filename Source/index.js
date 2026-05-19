@@ -815,6 +815,14 @@ async function initDatabase() {
         )
     `);
 
+    await db.exec(`
+        CREATE TABLE IF NOT EXISTS grupo_participantes (
+            id_grupo TEXT,
+            id_whatsapp TEXT,
+            PRIMARY KEY (id_grupo, id_whatsapp)
+        )
+    `);
+
     console.log('✅ Banco de dados SQLite inicializado e tabelas verificadas.');
 }
 
@@ -1326,26 +1334,39 @@ async function connectToWhatsApp() {
     app.get('/api/parque/grupos', authenticateToken, async (req, res) => {
         try {
             const userJid = req.user.id_whatsapp;
+            const numeroLimpo = userJid.split('@')[0].split(':')[0]; 
             
-            const groups = await sock.groupFetchAllParticipating();
-            const gruposEmComum = [];
+            let gruposEmComum = [];
 
-            for (const groupId in groups) {
-                const group = groups[groupId];
+            try {
+                const groups = await sock.groupFetchAllParticipating();
                 
-                const usuarioEstaNoGrupo = group.participants.some(p => p.id === userJid);
-                
-                if (usuarioEstaNoGrupo) {
-                    gruposEmComum.push({
-                        id: group.id,
-                        nome: group.subject
-                    });
+                for (const groupId in groups) {
+                    const group = groups[groupId];
+                    
+                    if (group.participants && group.participants.length > 0) {
+                        const usuarioEstaNoGrupo = group.participants.some(p => p.id.includes(numeroLimpo));
+                        
+                        if (usuarioEstaNoGrupo) {
+                            gruposEmComum.push({ id: group.id, nome: group.subject || "Grupo sem Nome" });
+                        }
+                    }
                 }
+            } catch (baileysErr) {
+                console.log("Aviso: Falha ao ler cache do Baileys, usando fallback do DB.");
+            }
+
+            if (gruposEmComum.length === 0) {
+                console.log("⚠️ Cache de participantes vazio. Puxando grupos do SQLite...");
+                const gruposDB = await db.all("SELECT id_grupo as id, nome FROM grupos_nomes");
+                
+                gruposEmComum = gruposDB;
             }
 
             return res.json(gruposEmComum);
+
         } catch (error) {
-            console.error("❌ Erro ao buscar grupos em comum:", error);
+            console.error("❌ Erro ao buscar grupos:", error);
             res.status(500).json({ error: "Erro ao carregar os canais de escavação." });
         }
     });
@@ -2204,6 +2225,14 @@ async function connectToWhatsApp() {
                                 quotedMessage?.imageMessage?.caption || 
                                 "[Midia/Sticker sem texto]";
             try{
+                if (isGroup && sender) {
+                    const numeroLimpo = sender.split(':')[0]; 
+                    const senderJid = numeroLimpo.includes('@s.whatsapp.net') ? numeroLimpo : numeroLimpo + '@s.whatsapp.net';
+                    
+                    db.run("INSERT OR IGNORE INTO grupo_participantes (id_grupo, id_whatsapp) VALUES (?, ?)", [remoteJid, senderJid])
+                    .catch(err => console.error("Erro no tracking passivo de grupo:", err));
+                }
+                
                 //Se não for grupo e o chatbot estiver online, responde a qualquer mensagem,
                 //sem precisar de quote ou comando
                 if(!isGroup && chatbot.isOnline){

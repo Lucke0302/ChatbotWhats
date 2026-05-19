@@ -1354,7 +1354,6 @@ async function connectToWhatsApp() {
         try {
             const userId = req.user.id_whatsapp; 
             const userTag = req.user.nome || "Minerador";
-            
             const { acao, groupId } = req.body;
 
             if (!acao || !groupId) {
@@ -1363,17 +1362,20 @@ async function connectToWhatsApp() {
 
             console.log(`🕹️ [WEB ACTION] O utilizador ${userTag} solicitou a ação: '!escavar ${acao}' no grupo ${groupId}`);
 
-            let resultado;
+            const comandoSintetico = acao === 'fuga' ? '!escavar sair' : `!escavar ${acao}`;
+            
+            const fakeMsg = {
+                key: { remoteJid: groupId, fromMe: false, id: "WEB_" + Math.random().toString(36).substr(2, 9) },
+                messageTimestamp: Math.floor(Date.now() / 1000),
+                pushName: userTag,
+                platform: 'web' 
+            };
 
-            if (acao === 'fuga') {
-                resultado = await chatbot.parqueHandler.handleEscavar(userId, userTag, groupId, 'sair');
-            } else {
-                resultado = await chatbot.parqueHandler.handleEscavar(userId, userTag, groupId, acao);
-            }
+            await chatbot.handleCommand(fakeMsg, userId, groupId, true, comandoSintetico, null, sock, []);
 
             return res.json({ 
                 success: true, 
-                message: `Ação ${acao} executada com sucesso no servidor.` 
+                message: `Comando tático enviado para o servidor principal.` 
             });
 
         } catch (error) {

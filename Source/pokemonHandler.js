@@ -2562,7 +2562,7 @@ class PokemonHandler {
                    `Cuidando de: **${dayCarePoke.nickname}**\n` +
                    `🆙 Nível: ${startLevel} ➝ ${dayCarePoke.level} (+${levelsGained})\n` +
                    `💰 Custo atual: ${cost} coins\n\n` +
-                   `Para pagar e retirar, use: *!poke daycare sacar*`;
+                   `Para pagar e retirar, use: *!poke daycare tirar*`;
         }
 
         const action = param.toLowerCase().trim();

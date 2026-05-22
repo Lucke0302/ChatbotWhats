@@ -1704,6 +1704,8 @@ async function connectToWhatsApp() {
         const from = msg.key.remoteJid;        
         const isGroup = from.endsWith('@g.us');
 
+        if (!isGroup) return;
+
         const getSenderJid = (msg) => {
             const key = msg.key;
             if (key.participant) {

@@ -1862,6 +1862,7 @@ async function connectToWhatsApp() {
         //Joga o comando todo para letras minúsculas para evitar problemas com case-sensitive
         const command = texto.trim().toLowerCase();
 
+        // Trava temporária de reposta em DM
         if (!isGroup && !texto.trim().startsWith('!')) return;
         
         const name = msg.pushName || '';

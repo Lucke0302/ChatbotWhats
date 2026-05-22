@@ -1704,8 +1704,6 @@ async function connectToWhatsApp() {
         const from = msg.key.remoteJid;        
         const isGroup = from.endsWith('@g.us');
 
-        if (!isGroup) return;
-
         const getSenderJid = (msg) => {
             const key = msg.key;
             if (key.participant) {
@@ -1864,6 +1862,7 @@ async function connectToWhatsApp() {
         //Joga o comando todo para letras minúsculas para evitar problemas com case-sensitive
         const command = texto.trim().toLowerCase();
 
+        if (!isGroup && !texto.trim().startsWith('!')) return;
         
         const name = msg.pushName || '';
 

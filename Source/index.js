@@ -2028,16 +2028,16 @@ async function connectToWhatsApp() {
                 // Baixa a mídia
                 const messageType = Object.keys(targetMessage)[0];
                 const isVideo = messageType === 'videoMessage' || targetMessage?.viewOnceMessage?.message?.videoMessage;
+                
+                const mediaKeys = {
+                    message: targetMessage
+                };
 
                 let buffer = await downloadMediaMessage(
                     mediaKeys,
                     'buffer',
                     { logger: pino({ level: 'silent' }) } 
                 );
-
-                const mediaKeys = {
-                    message: targetMessage
-                };
 
                 let finalBuffer = buffer;
 

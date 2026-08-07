@@ -2028,9 +2028,7 @@ async function connectToWhatsApp() {
                 // Baixa a mídia
                 const messageType = Object.keys(targetMessage)[0];
                 const isVideo = messageType === 'videoMessage' || targetMessage?.viewOnceMessage?.message?.videoMessage;
-                const isVideo = messageType === 'videoMessage' || targetMessage?.viewOnceMessage?.message?.videoMessage;
 
-                let buffer = await downloadMediaMessage(
                 let buffer = await downloadMediaMessage(
                     mediaKeys,
                     'buffer',
@@ -2038,13 +2036,6 @@ async function connectToWhatsApp() {
                 );
 
                 let finalBuffer = buffer;
-
-                if (isVideo) {
-                    await sock.sendMessage(from, { react: { text: '🗜️', key: msg.key } });
-                    finalBuffer = await preCompressVideo(buffer);
-                }
-
-                let stickerQuality = 50;
 
                 if (isVideo) {
                     await sock.sendMessage(from, { react: { text: '🗜️', key: msg.key } });
@@ -2069,20 +2060,6 @@ async function connectToWhatsApp() {
                             console.log("✅ Imagem destruída (Modo Batata baixo)");
                         } catch (err) { console.error("Erro ao destruir imagem:", err); }
                     }
-                if (!isVideo) {
-                    if (param === 'baixa') {
-                        try {
-                            finalBuffer = await sharp(buffer)
-                                .resize(30, null) 
-                                .toFormat('jpeg', { quality: 10, mozjpeg: false })
-                                .modulate({ saturation: 1.5, brightness: 1.1 })
-                                .resize(512, null, { kernel: sharp.kernel.mitchell })                            
-                                .blur(3) 
-                                .toBuffer();                        
-                            stickerQuality = 5; 
-                            console.log("✅ Imagem destruída (Modo Batata baixo)");
-                        } catch (err) { console.error("Erro ao destruir imagem:", err); }
-                    }
 
                     if(param === 'podi'){                    
                         try {
@@ -2096,56 +2073,9 @@ async function connectToWhatsApp() {
                             stickerQuality = 5; 
                             console.log("✅ Imagem destruída (Modo Batata podi)");
                         } catch (err) { console.error("Erro ao destruir imagem:", err); }
-                    if(param === 'podi'){                    
-                        try {
-                            finalBuffer = await sharp(buffer)
-                                .resize(16, null) 
-                                .toFormat('jpeg', { quality: 5, mozjpeg: false })
-                                .modulate({ saturation: 1.5, brightness: 1.1 })
-                                .resize(512, null, { kernel: sharp.kernel.mitchell })
-                                .blur(8) 
-                                .toBuffer();
-                            stickerQuality = 5; 
-                            console.log("✅ Imagem destruída (Modo Batata podi)");
-                        } catch (err) { console.error("Erro ao destruir imagem:", err); }
                     }
                 }
 
-                let stickerMsg;
-                let finalStickerBuffer;
-                let attempts = 0;
-                let currentQuality = isVideo ? 25 : stickerQuality;
-                const MAX_SIZE = 950 * 1024;
-
-                while (attempts < 3) {
-                    const sticker = new Sticker(finalBuffer, {
-                        pack: 'Bostossauro Pack',
-                        author: 'Bostossauro', 
-                        type: StickerTypes.FULL, 
-                        categories: ['🤩', '🎉'],
-                        id: '12345',
-                        quality: currentQuality,
-                        background: '#00000000'
-                    });
-                    
-                    finalStickerBuffer = await sticker.toBuffer();
-                    
-                    if (finalStickerBuffer.length <= MAX_SIZE || !isVideo) {
-                        stickerMsg = await sticker.toMessage();
-                        break;
-                    }
-                    
-                    currentQuality = Math.floor(currentQuality / 2);
-                    attempts++;
-                    console.log(`⚠️ Vídeo excedeu 1MB (${finalStickerBuffer.length} bytes). Reduzindo qualidade para ${currentQuality}...`);
-                }
-
-                if (finalStickerBuffer.length > 1024 * 1024) {
-                    await sock.sendMessage(from, { text: '❌ O vídeo é muito longo! Mesmo espremendo no FFmpeg, passou de 1MB. Tente cortar uns segundos antes de mandar.' }, { quoted: msg });
-                    return;
-                }
-
-                await sock.sendMessage(from, stickerMsg, { quoted: msg });
                 let stickerMsg;
                 let finalStickerBuffer;
                 let attempts = 0;

@@ -1655,6 +1655,10 @@ async function connectToWhatsApp() {
                 const messageType = Object.keys(targetMessage)[0];
                 const isVideo = messageType === 'videoMessage' || targetMessage?.viewOnceMessage?.message?.videoMessage;
 
+                const mediaKeys = {
+                    message: targetMessage
+                };
+
                 let buffer = await downloadMediaMessage(
                     mediaKeys,
                     'buffer',

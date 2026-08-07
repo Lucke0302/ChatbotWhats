@@ -2035,6 +2035,10 @@ async function connectToWhatsApp() {
                     { logger: pino({ level: 'silent' }) } 
                 );
 
+                const mediaKeys = {
+                    message: targetMessage
+                };
+
                 let finalBuffer = buffer;
 
                 if (isVideo) {

@@ -152,6 +152,10 @@ class BlueskyBrain {
     }
 
     iniciarRotina() {
+        if (schedule.scheduledJobs['post_manha']) schedule.scheduledJobs['post_manha'].cancel();
+        if (schedule.scheduledJobs['post_tarde']) schedule.scheduledJobs['post_tarde'].cancel();
+        if (schedule.scheduledJobs['post_noite']) schedule.scheduledJobs['post_noite'].cancel();
+
         console.log("⏰ [BLUESKY] Rotinas engatilhadas (Manhã, Tarde e Noite).");
         
         const rodarComDelay = async () => {
@@ -160,10 +164,9 @@ class BlueskyBrain {
             await new Promise(r => setTimeout(r, delayRandom));
             await this.escolherEPostar();
         };
-
-        schedule.scheduleJob('0 12 * * *', rodarComDelay);
-        schedule.scheduleJob('0 18 * * *', rodarComDelay);
-        schedule.scheduleJob('0 23 * * *', rodarComDelay);
+        schedule.scheduleJob('post_manha', '0 12 * * *', rodarComDelay);
+        schedule.scheduleJob('post_tarde', '0 18 * * *', rodarComDelay);
+        schedule.scheduleJob('post_noite', '0 23 * * *', rodarComDelay);
     }
 }
 

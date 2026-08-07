@@ -1743,7 +1743,7 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
         
         try {
             const response = await this.genAI.models.generateContent({
-                model: "gemma-3-27b-it", 
+                model: "gemma-4-31b-it", 
                 contents: prompt,
                 config: { temperature: 0.95 }
             });

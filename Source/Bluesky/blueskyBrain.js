@@ -64,7 +64,7 @@ class BlueskyBrain {
         await this.gerarEPostar(eleito.id, eleito.contexto, eleito.humor_origem, eleito.timestamp_evento, temasEleito);
     }
 
-    async gerarEPostar(contexto, humor, timestampEvento, temasAtuais = []) {
+    async gerarEPostar(id, contexto, humor, timestampEvento, temasAtuais = []) {
         const historico = await this.db.all(`SELECT temas, post_texto, timestamp FROM historico_bluesky ORDER BY timestamp DESC LIMIT 100`);
         let melhoresMatches = [];
         for (const post of historico) {
@@ -141,6 +141,10 @@ class BlueskyBrain {
     }
 
     iniciarRotina() {
+        if (schedule.scheduledJobs['post_manha']) schedule.scheduledJobs['post_manha'].cancel();
+        if (schedule.scheduledJobs['post_tarde']) schedule.scheduledJobs['post_tarde'].cancel();
+        if (schedule.scheduledJobs['post_noite']) schedule.scheduledJobs['post_noite'].cancel();
+
         console.log("⏰ [BLUESKY] Rotinas engatilhadas (Manhã, Tarde e Noite).");
         
         const rodarComDelay = async () => {
@@ -149,10 +153,9 @@ class BlueskyBrain {
             await new Promise(r => setTimeout(r, delayRandom));
             await this.escolherEPostar();
         };
-
-        schedule.scheduleJob('0 12 * * *', rodarComDelay);
-        schedule.scheduleJob('0 18 * * *', rodarComDelay);
-        schedule.scheduleJob('0 23 * * *', rodarComDelay);
+        schedule.scheduleJob('post_manha', '0 12 * * *', rodarComDelay);
+        schedule.scheduleJob('post_tarde', '0 18 * * *', rodarComDelay);
+        schedule.scheduleJob('post_noite', '0 23 * * *', rodarComDelay);
     }
 }
 

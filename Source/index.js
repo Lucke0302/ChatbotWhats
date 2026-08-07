@@ -1651,8 +1651,7 @@ async function connectToWhatsApp() {
                     await sock.sendMessage(from, { react: { text: '🤨', key: msg.key } });
                 }
 
-                // Baixa a mídia
-                
+                // Baixa a mídia                
                 const messageType = Object.keys(targetMessage)[0];
                 const isVideo = messageType === 'videoMessage' || targetMessage?.viewOnceMessage?.message?.videoMessage;
 

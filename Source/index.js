@@ -38,11 +38,38 @@ const driveService = new DriveBackup();
 
 const { startDiscord } = require('./Discord/discordConnector');
 
+const { exec } = require('child_process');
+const path = require('path');
+const util = require('util');
+const execPromise = util.promisify(exec);
+
 const pollCache = new Map();
 
 const DB_PATH = 'chat_history.db'; 
 let db; 
 let myFullJid;
+
+async function preCompressVideo(inputBuffer) {
+    const tempInput = path.join(__dirname, `temp_in_${Date.now()}.mp4`);
+    const tempOutput = path.join(__dirname, `temp_out_${Date.now()}.mp4`);
+    
+    await fs.promises.writeFile(tempInput, inputBuffer);
+    
+    try {
+        const cmd = `ffmpeg -i "${tempInput}" -vf "scale='min(320,iw)':min'(320,ih)':force_original_aspect_ratio=decrease,fps=24" -c:v libx264 -preset ultrafast -crf 30 -an "${tempOutput}"`;
+        
+        await execPromise(cmd);
+        
+        const outBuffer = await fs.promises.readFile(tempOutput);
+        return outBuffer;
+    } catch (err) {
+        console.error("❌ Erro no pré-compressor do FFmpeg:", err);
+        return inputBuffer;
+    } finally {
+        if (fs.existsSync(tempInput)) await fs.promises.unlink(tempInput);
+        if (fs.existsSync(tempOutput)) await fs.promises.unlink(tempOutput);
+    }
+}
 
 //Insere as mensagens do bot no banco de dados.
 const saveBotMessage = async (database, from, text, externalId = null) => {
@@ -1625,92 +1652,91 @@ async function connectToWhatsApp() {
                 }
 
                 // Baixa a mídia
-                // Nota: downloadMediaMessage precisa do objeto de mensagem completo se for quote,
-                // mas aqui fazemos um "truque" passando a estrutura correta pro helper do Baileys
                 const messageType = Object.keys(targetMessage)[0];
-                
-                // Se for quoted, precisamos simular a estrutura de uma message key para o download funcionar bem
-                const mediaKeys = {
-                    message: targetMessage
-                };
+                const isVideo = messageType === 'videoMessage' || targetMessage?.viewOnceMessage?.message?.videoMessage;
 
-                const buffer = await downloadMediaMessage(
+                let buffer = await downloadMediaMessage(
                     mediaKeys,
                     'buffer',
                     { logger: pino({ level: 'silent' }) } 
                 );
 
                 let finalBuffer = buffer;
-                let stickerQuality = 50
 
+                if (isVideo) {
+                    await sock.sendMessage(from, { react: { text: '🗜️', key: msg.key } });
+                    finalBuffer = await preCompressVideo(buffer);
+                }
+
+                let stickerQuality = 50;
                 const args = command.trim().split(' ');
                 const param = args[1] ? args[1].toLowerCase() : null;
 
-                if (param === 'baixa') {
-                    stickerQuality = 1;
-                    try {
-                        finalBuffer = await sharp(buffer)
-                            .resize(30, null) 
-                            .toFormat('jpeg', { 
-                                quality: 10, 
-                                //chromaSubsampling: '4:2:0',
-                                mozjpeg: false
-                            })
-                            .modulate({
-                                saturation: 1.5,
-                                brightness: 1.1
-                            })
-                            .resize(512, null, { 
-                                kernel: sharp.kernel.mitchell 
-                            })                            
-                            .blur(3) 
-                            .toBuffer();                        
-                        stickerQuality = 5; 
-                        
-                        console.log("✅ Imagem destruída (Modo Batata baixo)");
-                    } catch (err) {
-                        console.error("Erro ao destruir imagem:", err);
+                if (!isVideo) {
+                    if (param === 'baixa') {
+                        try {
+                            finalBuffer = await sharp(buffer)
+                                .resize(30, null) 
+                                .toFormat('jpeg', { quality: 10, mozjpeg: false })
+                                .modulate({ saturation: 1.5, brightness: 1.1 })
+                                .resize(512, null, { kernel: sharp.kernel.mitchell })                            
+                                .blur(3) 
+                                .toBuffer();                        
+                            stickerQuality = 5; 
+                            console.log("✅ Imagem destruída (Modo Batata baixo)");
+                        } catch (err) { console.error("Erro ao destruir imagem:", err); }
+                    }
+
+                    if(param === 'podi'){                    
+                        try {
+                            finalBuffer = await sharp(buffer)
+                                .resize(16, null) 
+                                .toFormat('jpeg', { quality: 5, mozjpeg: false })
+                                .modulate({ saturation: 1.5, brightness: 1.1 })
+                                .resize(512, null, { kernel: sharp.kernel.mitchell })
+                                .blur(8) 
+                                .toBuffer();
+                            stickerQuality = 5; 
+                            console.log("✅ Imagem destruída (Modo Batata podi)");
+                        } catch (err) { console.error("Erro ao destruir imagem:", err); }
                     }
                 }
 
-                if(param === 'podi'){                    
-                    try {
-                        finalBuffer = await sharp(buffer)
-                            .resize(16, null) 
-                            .toFormat('jpeg', { 
-                                quality: 5, 
-                                //chromaSubsampling: '4:2:0', 
-                                mozjpeg: false
-                            })
-                            .modulate({
-                                saturation: 1.5, 
-                                brightness: 1.1
-                            })
-                            .resize(512, null, { 
-                                kernel: sharp.kernel.mitchell 
-                            })
-                            .blur(8) 
-                            .toBuffer();
-                        stickerQuality = 5; 
-                        
-                        console.log("✅ Imagem destruída (Modo Batata podi)");
-                    } catch (err) {
-                        console.error("Erro ao destruir imagem:", err);
+                let stickerMsg;
+                let finalStickerBuffer;
+                let attempts = 0;
+                let currentQuality = isVideo ? 25 : stickerQuality;
+                const MAX_SIZE = 950 * 1024;
+
+                while (attempts < 3) {
+                    const sticker = new Sticker(finalBuffer, {
+                        pack: 'Bostossauro Pack',
+                        author: 'Bostossauro', 
+                        type: StickerTypes.FULL, 
+                        categories: ['🤩', '🎉'],
+                        id: '12345',
+                        quality: currentQuality,
+                        background: '#00000000'
+                    });
+                    
+                    finalStickerBuffer = await sticker.toBuffer();
+                    
+                    if (finalStickerBuffer.length <= MAX_SIZE || !isVideo) {
+                        stickerMsg = await sticker.toMessage();
+                        break;
                     }
+                    
+                    currentQuality = Math.floor(currentQuality / 2);
+                    attempts++;
+                    console.log(`⚠️ Vídeo excedeu 1MB (${finalStickerBuffer.length} bytes). Reduzindo qualidade para ${currentQuality}...`);
                 }
 
-                // Cria a figurinha
-                const sticker = new Sticker(finalBuffer, {
-                    pack: 'Bostossauro Pack',
-                    author: 'Bostossauro', 
-                    type: StickerTypes.FULL, 
-                    categories: ['🤩', '🎉'],
-                    id: '12345',
-                    quality: stickerQuality,
-                    background: '#00000000'
-                });
+                if (finalStickerBuffer.length > 1024 * 1024) {
+                    await sock.sendMessage(from, { text: '❌ O vídeo é muito longo! Mesmo espremendo no FFmpeg, passou de 1MB. Tente cortar uns segundos antes de mandar.' }, { quoted: msg });
+                    return;
+                }
 
-                await sock.sendMessage(from, await sticker.toMessage(), { quoted: msg });
+                await sock.sendMessage(from, stickerMsg, { quoted: msg });
                 await sock.sendMessage(from, { react: { text: '✅', key: msg.key } });
                 
                 return;

@@ -13,7 +13,7 @@ const migrationCommandHandler = require('./migrarCommand');
 const ResenhaCommand = require('./resenhaCommand');
 const CasinoHandler = require('./casinoHandler');
 const PescariaHandler = require('./pescariaHandler');
-const ParqueHandler = require('./parqueHandler');
+const {ParqueHandler} = require('./parqueHandler');
 const { FazendaHandler } = require('./fazendaHandler');
 const StreamHandler = require('./streamHandler');
 const RIOT_API_KEY = process.env.RIOT_API_KEY;
@@ -807,9 +807,14 @@ class ChatModel {
 
             },
             '!escavar': async (ctx) => {
+                const textoMensagem = ctx.msg.text || ctx.msg.body || ctx.msg.message?.conversation || ctx.msg.message?.extendedTextMessage?.text || "";
+                const args = textoMensagem.trim().split(/\s+/);
+                const escavarAction = args.slice(1).join(' ').trim(); 
+                
                 const tag = await this.pokemonHandler.getUserTag(ctx.sender);
                 const netGroupId = await this.getNetGroupId(ctx.from); 
-                return await this.parqueHandler.handleEscavar(ctx.sender, tag, ctx.name, netGroupId);
+                
+                return await this.parqueHandler.handleEscavar(ctx.sender, tag, ctx.name, netGroupId, escavarAction);
             },
             '!fazenda': async (ctx) => {
                 const tag = await this.pokemonHandler.getUserTag(ctx.sender);
@@ -1186,14 +1191,6 @@ class ChatModel {
         const messagesDb = await this.db.all(sqlQuery, params);
         if (!messagesDb || messagesDb.length === 0) return "";
         return messagesDb.map(m => `${m.nome_remetente || 'Desconhecido'}: ${m.conteudo}`).reverse().join('\n');
-    }
-
-    async eventoMeteoroLocal(groupId, userTag) {
-        await this.db.run("UPDATE parque_dinossauros SET is_morto = 1 WHERE group_id = ?", [groupId]);
-        
-        await this.db.run("UPDATE parque_estoque SET carne = 0, vegetal = 0 WHERE group_id = ?", [groupId]);
-
-        return `${userTag} ☄️ **EXTINÇÃO EM MASSA!** ☄️\n\nUm meteoro flamejante rasgou o céu e atingiu em cheio o Jurassic BostoPark!\n\n🦴 Todos os dinossauros viraram fósseis (Eles foram para o Céu dos Dinos).\n🔥 A câmara frigorífica virou cinzas.\n\n_"A vida... não encontrou um meio."_`;
     }
 
     async executarWipeGlobal(sock) {
@@ -2168,6 +2165,8 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
         const handler = this.commandHandlers[rootCommand];
 
        if (handler) {
+            this.registerMetric('command', rootCommand).catch(e => console.error("Erro ao registrar métrica:", e));
+
             // CONTEXTO UNIVERSAL
             const ctx = {
                 platform: msg.platform || 'whatsapp',
@@ -2219,7 +2218,9 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
     // === API DO DASHBOARD ===
     async getDashboardDataAPI() {
         try {
-            const today = new Date().toISOString().split('T')[0];
+            const d = new Date();
+            d.setHours(d.getHours() - 3);
+            const today = d.toISOString().split('T')[0];
             
             let metricasHoje = await this.db.get("SELECT * FROM metricas_diarias WHERE data = ?", [today]);
             if (!metricasHoje) {

@@ -4,42 +4,54 @@ const MINERAL_CATALOG = [
     { id: 'terra', name: 'Punhado de Terra', emoji: '🤎', rarity: 'lixo', value: 1 },
     { id: 'cascalho', name: 'Cascalho', emoji: '🪨', rarity: 'lixo', value: 3 },
     { id: 'areia', name: 'Areia de Gato', emoji: '⏳', rarity: 'lixo', value: 2 },
+    { id: 'pasta_termica', name: 'Pasta Térmica Ressecada', emoji: '⚪', rarity: 'lixo', value: 4 },
+    { id: 'pino_torto', name: 'Pino Torto de Processador', emoji: '📌', rarity: 'lixo', value: 5 },
 
     // Comum 
     { id: 'carvao', name: 'Pedaço de Carvão', emoji: '⬛', rarity: 'comum', value: 15 },
     { id: 'calcario', name: 'Calcário', emoji: '🪨', rarity: 'comum', value: 12 },
     { id: 'argila', name: 'Argila Molhada', emoji: '🏺', rarity: 'comum', value: 18 },
     { id: 'granito', name: 'Bloco de Granito', emoji: '🧱', rarity: 'comum', value: 20 },
+    { id: 'sal_gema', name: 'Sal Gema', emoji: '🧂', rarity: 'comum', value: 25 },
+    { id: 'cobre', name: 'Minério de Cobre', emoji: '🟠', rarity: 'comum', value: 30 },
 
     // Incomum 
-    { id: 'cobre', name: 'Minério de Cobre', emoji: '🟠', rarity: 'incomum', value: 45 },
     { id: 'quartzo', name: 'Cristal de Quartzo', emoji: '🤍', rarity: 'incomum', value: 50 },
     { id: 'prata', name: 'Minério de Prata', emoji: '🥈', rarity: 'incomum', value: 65 },
-    { id: 'estanho', name: 'Estanho', emoji: '🪙', rarity: 'incomum', value: 40 },
+    { id: 'estanho', name: 'Estanho', emoji: '🪙', rarity: 'incomum', value: 45 },
+    { id: 'chumbo', name: 'Minério de Chumbo', emoji: '🪨', rarity: 'incomum', value: 70 },
+    { id: 'silicio', name: 'Silício Bruto', emoji: '🪞', rarity: 'incomum', value: 85 },
+    { id: 'ametista', name: 'Fragmento de Ametista', emoji: '🪻', rarity: 'incomum', value: 100 },
 
     // Raro
-    { id: 'ferro', name: 'Minério de Ferro', emoji: '🩶', rarity: 'raro', value: 120 },
-    { id: 'titanio', name: 'Titânio Bruto', emoji: '🛡️', rarity: 'raro', value: 150 },
-    { id: 'platina', name: 'Platina', emoji: '💿', rarity: 'raro', value: 180 },
-    { id: 'opala', name: 'Pedra de Opala', emoji: '🪩', rarity: 'raro', value: 140 },
+    { id: 'ferro', name: 'Minério de Ferro', emoji: '🩶', rarity: 'raro', value: 250 },
+    { id: 'titanio', name: 'Titânio Bruto', emoji: '🛡️', rarity: 'raro', value: 350 },
+    { id: 'platina', name: 'Platina', emoji: '💿', rarity: 'raro', value: 450 },
+    { id: 'opala', name: 'Pedra de Opala', emoji: '🪩', rarity: 'raro', value: 300 },
+    { id: 'topazio', name: 'Topázio Imperial', emoji: '🔶', rarity: 'raro', value: 400 },
+    { id: 'grafeno', name: 'Floco de Grafeno', emoji: '🕸️', rarity: 'raro', value: 600 },
 
     // Muito Raro
-    { id: 'ouro', name: 'Pepita de Ouro', emoji: '🟡', rarity: 'muito_raro', value: 400 },
-    { id: 'esmeralda', name: 'Esmeralda', emoji: '🟩', rarity: 'muito_raro', value: 500 },
-    { id: 'rubi', name: 'Rubi', emoji: '🟥', rarity: 'muito_raro', value: 550 },
-    { id: 'safira', name: 'Safira', emoji: '🟦', rarity: 'muito_raro', value: 450 },
+    { id: 'ouro', name: 'Pepita de Ouro', emoji: '🟡', rarity: 'muito_raro', value: 1200 },
+    { id: 'esmeralda', name: 'Esmeralda', emoji: '🟩', rarity: 'muito_raro', value: 1500 },
+    { id: 'rubi', name: 'Rubi', emoji: '🟥', rarity: 'muito_raro', value: 1800 },
+    { id: 'safira', name: 'Safira', emoji: '🟦', rarity: 'muito_raro', value: 1600 },
+    { id: 'bismuto', name: 'Cristal de Bismuto', emoji: '🌈', rarity: 'muito_raro', value: 2000 },
+    { id: 'litio', name: 'Bateria de Lítio Fóssil', emoji: '🔋', rarity: 'muito_raro', value: 2500 },
 
     // Lendário
-    { id: 'diamante', name: 'Diamante Bruto', emoji: '💎', rarity: 'lendario', value: 1500 },
-    { id: 'meteorito', name: 'Fragmento de Meteorito', emoji: '☄️', rarity: 'lendario', value: 1800 },
-    { id: 'obsidiana', name: 'Obsidiana Chorona', emoji: '🖤', rarity: 'lendario', value: 1200 },
-    { id: 'vibranium', name: 'Vibranium Falsificado', emoji: '🛡️', rarity: 'lendario', value: 2000 },
+    { id: 'diamante', name: 'Diamante Bruto', emoji: '💎', rarity: 'lendario', value: 5000 },
+    { id: 'meteorito', name: 'Fragmento de Meteorito', emoji: '☄️', rarity: 'lendario', value: 7000 },
+    { id: 'obsidiana', name: 'Obsidiana Chorona', emoji: '🖤', rarity: 'lendario', value: 4500 },
+    { id: 'vibranium', name: 'Vibranium Falsificado', emoji: '🛡️', rarity: 'lendario', value: 8500 },
+    { id: 'pedra_filosofal', name: 'Pedra Filosofal Falsa', emoji: '🩸', rarity: 'lendario', value: 10000 },
 
-    // Mítico 
-    { id: 'uranio', name: 'Urânio Enriquecido', emoji: '☢️', rarity: 'mitico', value: 5000 },
-    { id: 'kryptonita', name: 'Kryptonita Baiana', emoji: '🟩', rarity: 'mitico', value: 6000 },
-    { id: 'adamantium', name: 'Adamantium Bruto', emoji: '🔪', rarity: 'mitico', value: 7500 },
-    { id: 'materia_escura', name: 'Matéria Escura', emoji: '🌌', rarity: 'mitico', value: 8000 }
+    // Mítico
+    { id: 'uranio', name: 'Urânio Enriquecido', emoji: '☢️', rarity: 'mitico', value: 15000 },
+    { id: 'kryptonita', name: 'Kryptonita Baiana', emoji: '🟩', rarity: 'mitico', value: 18000 },
+    { id: 'adamantium', name: 'Adamantium Bruto', emoji: '🔪', rarity: 'mitico', value: 20000 },
+    { id: 'materia_escura', name: 'Matéria Escura', emoji: '🌌', rarity: 'mitico', value: 22000 },
+    { id: 'criptomoeda_fisica', name: 'Bitcoin Impresso em 3D', emoji: '₿', rarity: 'mitico', value: 25000 }
 ];
 
 const DINO_COLORS = [
@@ -69,8 +81,13 @@ const DINO_CATALOG = {
     'psittacosaurus': { name: 'Psittacosaurus', emoji: '🦖', rarity: 'comum', base_xp_req: 125, ticket_value: 70 },
     'troodon': { name: 'Troodon Zoiudo', emoji: '👀', rarity: 'comum', base_xp_req: 130, ticket_value: 80 },
     'herrerasaurus': { name: 'Herrerasaurus', emoji: '🦖', rarity: 'comum', base_xp_req: 140, ticket_value: 90 },
+    'lesothosaurus': { name: 'Lesothosaurus', emoji: '🦎', rarity: 'comum', base_xp_req: 85, ticket_value: 35 },
+    'minmi': { name: 'Minmi (Ankylossauro Anão)', emoji: '🐢', rarity: 'comum', base_xp_req: 135, ticket_value: 85 },
+    'scutellosaurus': { name: 'Scutellosaurus', emoji: '🦎', rarity: 'comum', base_xp_req: 95, ticket_value: 45 },
+    'saltasaurus': { name: 'Saltasaurus', emoji: '🦕', rarity: 'comum', base_xp_req: 145, ticket_value: 95 },
+    'maiasaura': { name: 'Maiasaura', emoji: '🦕', rarity: 'comum', base_xp_req: 150, ticket_value: 100 },
 
-    // INCOMU
+    // INCOMUM
     'velociraptor': { name: 'Velociraptor', emoji: '🦖', rarity: 'incomum', base_xp_req: 250, ticket_value: 150 },
     'pachycephalosaurus': { name: 'Pachycephalosaurus', emoji: '🦕', rarity: 'incomum', base_xp_req: 260, ticket_value: 160 },
     'dilophosaurus': { name: 'Dilophosaurus', emoji: '🦎', rarity: 'incomum', base_xp_req: 270, ticket_value: 175 },
@@ -81,8 +98,13 @@ const DINO_CATALOG = {
     'iguanodon': { name: 'Iguanodon', emoji: '🦖', rarity: 'incomum', base_xp_req: 310, ticket_value: 250 },
     'muttaburrasaurus': { name: 'Muttaburrasaurus', emoji: '🦕', rarity: 'incomum', base_xp_req: 320, ticket_value: 290 },
     'kentrosaurus': { name: 'Kentrosaurus', emoji: '🦔', rarity: 'incomum', base_xp_req: 330, ticket_value: 300 },
+    'guanlong': { name: 'Guanlong', emoji: '🦖', rarity: 'incomum', base_xp_req: 245, ticket_value: 145 },
+    'monolophosaurus': { name: 'Monolophosaurus', emoji: '🦖', rarity: 'incomum', base_xp_req: 265, ticket_value: 165 },
+    'tsintaosaurus': { name: 'Tsintaosaurus', emoji: '🦄', rarity: 'incomum', base_xp_req: 285, ticket_value: 190 },
+    'gargoyleosaurus': { name: 'Gargoyleosaurus', emoji: '🗿', rarity: 'incomum', base_xp_req: 325, ticket_value: 295 },
+    'ouranosaurus': { name: 'Ouranosaurus', emoji: '🐪', rarity: 'incomum', base_xp_req: 340, ticket_value: 310 },
 
-    // RARO (10)
+    // RARO 
     'triceratops': { name: 'Triceratops', emoji: '🦏', rarity: 'raro', base_xp_req: 600, ticket_value: 400 },
     'stegosaurus': { name: 'Stegosaurus', emoji: '🦕', rarity: 'raro', base_xp_req: 620, ticket_value: 450 },
     'ankylosaurus': { name: 'Ankylosaurus (Tanque)', emoji: '🐢', rarity: 'raro', base_xp_req: 650, ticket_value: 500 },
@@ -93,6 +115,11 @@ const DINO_CATALOG = {
     'pteranodon': { name: 'Pteranodon', emoji: '🦅', rarity: 'raro', base_xp_req: 580, ticket_value: 420 },
     'dimorphodon': { name: 'Dimorphodon', emoji: '🦇', rarity: 'raro', base_xp_req: 550, ticket_value: 400 },
     'plesiosaurus': { name: 'Plesiosaurus', emoji: '🦕', rarity: 'raro', base_xp_req: 780, ticket_value: 560 },
+    'utahraptor': { name: 'Utahraptor (Velociraptor Bombado)', emoji: '🦖', rarity: 'raro', base_xp_req: 760, ticket_value: 650 },
+    'majungasaurus': { name: 'Majungasaurus', emoji: '🦖', rarity: 'raro', base_xp_req: 690, ticket_value: 520 },
+    'concavenator': { name: 'Concavenator (Corcunda)', emoji: '🐪', rarity: 'raro', base_xp_req: 710, ticket_value: 580 },
+    'pachyrhinosaurus': { name: 'Pachyrhinosaurus', emoji: '🦏', rarity: 'raro', base_xp_req: 640, ticket_value: 480 },
+    'amargasaurus': { name: 'Amargasaurus (Espinhudo)', emoji: '🦕', rarity: 'raro', base_xp_req: 790, ticket_value: 640 },
 
     // LENDÁRIO
     't_rex': { name: 'Tiranossauro Rex', emoji: '🦖', rarity: 'lendario', base_xp_req: 2000, ticket_value: 1000 },
@@ -105,6 +132,11 @@ const DINO_CATALOG = {
     'mosasaurus': { name: 'Mosasaurus', emoji: '🐳', rarity: 'lendario', base_xp_req: 2800, ticket_value: 1000 },
     'quetzalcoatlus': { name: 'Quetzalcoatlus', emoji: '🦅', rarity: 'lendario', base_xp_req: 1900, ticket_value: 700 },
     'argentinosaurus': { name: 'Argentinosaurus', emoji: '🦕', rarity: 'lendario', base_xp_req: 3000, ticket_value: 950 },
+    'dreadnoughtus': { name: 'Dreadnoughtus', emoji: '🦕', rarity: 'lendario', base_xp_req: 3200, ticket_value: 1200 },
+    'tarbosaurus': { name: 'Tarbosaurus', emoji: '🦖', rarity: 'lendario', base_xp_req: 2150, ticket_value: 950 },
+    'deinosuchus': { name: 'Deinosuchus (Jacaré Colossal)', emoji: '🐊', rarity: 'lendario', base_xp_req: 2700, ticket_value: 1100 },
+    'acrocanthosaurus': { name: 'Acrocanthosaurus', emoji: '🦖', rarity: 'lendario', base_xp_req: 2450, ticket_value: 980 },
+    'yutyrannus': { name: 'Yutyrannus (T-Rex de Casaco)', emoji: '🧥', rarity: 'lendario', base_xp_req: 2250, ticket_value: 920 },
 
     // ------------- HÍBRIDOS ------------------- //
 
@@ -225,6 +257,48 @@ const DINO_CATALOG = {
     }
 };
 
+// --- CONFIGURAÇÕES DO ABISMO (Escavação v2) ---
+const ESC_CHANCE_AMBAR_BASE = 0.01;
+const ESC_CHANCE_DESMORONAR_BASE = 0.04; 
+const ESC_DESMORONAR_INCREMENTO = 0.06; 
+const ESC_CHANCE_PERDER_PICARETA = 0.35; 
+const ESC_COOLDOWN_DANO = 3600; 
+
+const PICKAXE_CATALOG = {
+    'madeira': { id: 'madeira', name: 'Picareta de Madeira', emoji: '🪵', durabilidade: 6, sorte: 0, drops: 1, max_camada: 2, req_coins: 0, req_item: null, req_qtd: 0, next: 'pedra', prev: null },
+    'pedra': { id: 'pedra', name: 'Picareta de Pedra', emoji: '🪨', durabilidade: 24, sorte: 5, drops: 1, max_camada: 2, req_coins: 500, req_item: 'pedregulho', req_qtd: 10, next: 'cobre', prev: 'madeira' },
+    'cobre': { id: 'cobre', name: 'Picareta de Cobre', emoji: '🟠', durabilidade: 36, sorte: 10, drops: 1, max_camada: 3, req_coins: 1200, req_item: 'cobre', req_qtd: 8, next: 'ferro', prev: 'pedra' },
+    'ferro': { id: 'ferro', name: 'Picareta de Ferro', emoji: '🩶', durabilidade: 48, sorte: 20, drops: 2, max_camada: 4, req_coins: 5000, req_item: 'ferro', req_qtd: 6, next: 'titanio', prev: 'cobre' },
+    'titanio': { id: 'titanio', name: 'Picareta de Titânio', emoji: '🛡️', durabilidade: 96, sorte: 35, drops: 2, max_camada: 5, req_coins: 15000, req_item: 'titanio', req_qtd: 4, next: 'diamante', prev: 'ferro' },
+    'diamante': { id: 'diamante', name: 'Picareta de Diamante', emoji: '💎', durabilidade: 192, sorte: 50, drops: 3, max_camada: 5, req_coins: 50000, req_item: 'diamante', req_qtd: 3, next: 'adamantium', prev: 'titanio' },
+    'adamantium': { id: 'adamantium', name: 'Picareta de Adamantium', emoji: '🌌', durabilidade: 384, sorte: 75, drops: 3, max_camada: 5, req_coins: 150000, req_item: 'adamantium', req_qtd: 2, next: null, prev: 'diamante' }
+};
+
+const ARMOR_CATALOG = {
+    'nenhuma': { id: 'nenhuma', name: 'Camisa do Corinthians', emoji: '👕', prot_loot: 0, prot_dano: 0, price: 0, next: 'couro' },
+    'couro': { id: 'couro', name: 'Armadura de Couro', emoji: '🧥', prot_loot: 15, prot_dano: 15, price: 5000, next: 'malha' },
+    'malha': { id: 'malha', name: 'Cota de Malha', emoji: '⛓️', prot_loot: 30, prot_dano: 30, price: 15000, next: 'bronze' },
+    'bronze': { id: 'bronze', name: 'Armadura de Bronze', emoji: '🥉', prot_loot: 45, prot_dano: 45, price: 35000, next: 'ferro' },
+    'ferro': { id: 'ferro', name: 'Armadura de Ferro', emoji: '🩶', prot_loot: 60, prot_dano: 60, price: 75000, next: 'titanio' },
+    'titanio': { id: 'titanio', name: 'Traje de Titânio', emoji: '🛡️', prot_loot: 75, prot_dano: 75, price: 150000, next: 'diamante' },
+    'diamante': { id: 'diamante', name: 'Armadura de Diamante', emoji: '💎', prot_loot: 90, prot_dano: 90, price: 350000, next: 'grafeno' },
+    'grafeno': { id: 'grafeno', name: 'Traje de Grafeno', emoji: '🌌', prot_loot: 100, prot_dano: 95, price: 800000, next: null }
+};
+
+const ACCESSORY_CATALOG = {
+    'nenhum': { id: 'nenhum', name: 'Nenhum', emoji: '🤷', price: 0 },
+    'localizador': { id: 'localizador', name: 'Localizador GPS', emoji: '📡', price: 50000, desc: 'Se soterrado, reduz tempo de UTI e custo de cura em 50%.' },
+    'sensor': { id: 'sensor', name: 'Sensor Sísmico', emoji: '📟', price: 80000, desc: 'Prevê os minérios do próximo turno (Lado e Fundo).' },
+    'mochila': { id: 'mochila', name: 'Mochila de Carga', emoji: '🎒', price: 65000, desc: 'Protege 50% do seu loot se ocorrer um desmoronamento.' } 
+};
+
+const CONSUMABLE_CATALOG = {
+    'biotonico': { id: 'biotonico', name: 'Biotônico Fontoura', emoji: '🍷', price: 5000, desc: 'Aumenta a coleta em 1.5x (arredondado p/ cima) na próxima batida.' },
+    'feitico': { id: 'feitico', name: 'Feitiço de Durabilidade', emoji: '✨', price: 8000, desc: 'Restaura a vida da picareta e a sobrecarrega.' },
+    'suporte': { id: 'suporte', name: 'Suporte de Teto', emoji: '🏗️', price: 12000, desc: 'Reduz risco pela metade no turno e salva loot se desabar.' },
+    'dinamite': { id: 'dinamite', name: 'Banana de Dinamite', emoji: '🧨', price: 10000, desc: 'Pula até 2 camadas para baixo sem gastar turno ou risco. Destrói o loot natural do caminho.' } 
+};
+
 class ParqueHandler {
     constructor(db, casinoHandler, pescariaHandler) {
         this.db = db;
@@ -254,6 +328,21 @@ class ParqueHandler {
             vendas: { nome: "💰 Economia (Vendas)", metas: [10000, 50000, 250000, 1000000], unidade: " 🪙" },
             cassino: { nome: "🎰 Vício em Apostas", metas: [10000, 50000, 250000, 1000000], unidade: " 🪙" }
         };
+
+        this.escavacoesAtivas = new Map();
+    }
+
+    emitWebEvent(userId, eventName, payload) {
+        const roomName = userId.split('@')[0];
+        
+        console.log(`\n🌐 [WEB EMIT] Preparando envio do evento: '${eventName}' para a sala '${roomName}'`);
+        
+        if (this.io) {
+            this.io.to(roomName).emit(eventName, payload);
+            console.log(`✅ [WEB EMIT] Disparo feito para a sala ${roomName}!\n`);
+        } else {
+            console.log(`❌ [WEB EMIT] ERRO GRAVE: O 'this.io' não está definido dentro do ParqueHandler!\n`);
+        }
     }
     
     async getPlayerData(userId) {
@@ -264,10 +353,22 @@ class ParqueHandler {
             try { data = JSON.parse(user.parque_data); } catch (e) { data = {}; }
         }
 
-        // Agora o player salva apenas a mochila de minérios, a estamina fica lá em financas.last_bico
         let player = {
-            inventory: data.inventory || {}
+            inventory: data.inventory || {},
+            inventario_consumiveis: data.inventario_consumiveis || {},
+            ferramentas: data.ferramentas || { 
+                picareta: 'madeira', 
+                picareta_hp: 6, 
+                debito_automatico: 1,
+                armadura: 'nenhuma',
+                acessorio: 'nenhum'
+            }
         };
+
+        if (player.ferramentas.debito_automatico === undefined) player.ferramentas.debito_automatico = 1;
+        if (!player.ferramentas.armadura) player.ferramentas.armadura = 'nenhuma';
+        if (!player.ferramentas.acessorio) player.ferramentas.acessorio = 'nenhum';
+        if (!player.inventario_consumiveis) player.inventario_consumiveis = {};
 
         return player;
     }
@@ -415,6 +516,35 @@ class ParqueHandler {
 
         msg += `\n💰 **Valor Estimado Total:** 🪙 ${totalEstimado}\n`;
         msg += `🛒 Para vender, use: *!parque vender [numero]* ou *!parque vender tudo*`;
+        return msg;
+    }
+
+    async listarMateriaisPorCamada(userTag) {
+        let msg = `${userTag} 📜 **GUIA GEOLÓGICO DO ABISMO** 📜\n\n`;
+
+        const camadas = [
+            { n: 0, nome: "Superfície", risco: "4%", ambar: "1%", raridades: ['lixo', 'comum'] },
+            { n: 1, nome: "Crosta", risco: "10%", ambar: "2%", raridades: ['incomum', 'raro'] },
+            { n: 2, nome: "Profundezas", risco: "16%", ambar: "4%", raridades: ['muito_raro'] },
+            { n: 3, nome: "Manto", risco: "22%", ambar: "8%", raridades: ['lendario'] },
+            { n: 4, nome: "Núcleo Externo", risco: "28%", ambar: "16%", raridades: ['mitico'] },
+            { n: 5, nome: "Abismo Final", risco: "34%", ambar: "32%", raridades: [] }
+        ];
+
+        camadas.forEach(c => {
+            msg += `⛏️ **Camada ${c.n}: ${c.nome}**\n`;
+            msg += `⚠️ Risco: ${c.risco} | 🦟 Âmbar: ${c.ambar}\n`;
+            
+            const itens = MINERAL_CATALOG.filter(m => c.raridades.includes(m.rarity));
+            if (itens.length > 0) {
+                msg += `💎 Itens: ${itens.map(i => i.emoji).join(' ')}\n`;
+            } else if (c.n === 5) {
+                msg += `💎 Itens: Todos os anteriores + Multiplicador de Sorte!\n`;
+            }
+            msg += `\n`;
+        });
+
+        msg += `💡 _Dica: Itens de camadas superficiais continuam aparecendo nas profundezas._`;
         return msg;
     }
 
@@ -920,35 +1050,640 @@ class ParqueHandler {
 
         return `${userTag} 🚚 **DOAÇÃO RECEBIDA!**\n\nVocê transferiu **${qtd}x** ${group.emoji} ${group.name} para a câmara frigorífica do grupo.\nTotal doado: 🥩 **${pesoTotalDepositado.toFixed(2)} kg de Carne**!\nO John Hammond saúda o seu comunismo jurássico.`;
     }
+    
+    async eventoMeteoroLocal(groupId, userTag) {
+        await this.db.run("UPDATE parque_dinossauros SET is_morto = 1 WHERE group_id = ?", [groupId]);
+        
+        await this.db.run("UPDATE parque_estoque SET carne = 0, vegetal = 0 WHERE group_id = ?", [groupId]);
 
-    async handleEscavar(userId, userTag, userName, groupId) {
+        return `${userTag} ☄️ **EXTINÇÃO EM MASSA!** ☄️\n\nUm meteoro flamejante rasgou o céu e atingiu em cheio o Jurassic BostoPark!\n\n🦴 Todos os dinossauros viraram fósseis (Eles foram para o Céu dos Dinos).\n🔥 A câmara frigorífica virou cinzas.\n\n_"A vida... não encontrou um meio."_`;
+    }
+
+
+    async handleEscavar(userId, userTag, userName, groupId, action = '') {
+        action = action.toLowerCase().trim();
         let financas = await this.casinoHandler.processFinancas(userId);
         const now = Math.floor(Date.now() / 1000);
-        const cooldown = this.casinoHandler.HOURS_TO_BICO * 3600;
+        let player = await this.getPlayerData(userId);
+        const picaretaAtual = PICKAXE_CATALOG[player.ferramentas.picareta] || PICKAXE_CATALOG['madeira'];
 
-        if (financas.last_bico > 0) {
-            const timePassed = now - financas.last_bico;
-            if (timePassed < cooldown) {
-                const timeLeft = cooldown - timePassed;
-                const hoursLeft = Math.floor(timeLeft / 3600);
-                const minutesLeft = Math.floor((timeLeft % 3600) / 60);
-                return `${userTag}🛑 Suas costas estão doendo muito! Você tá sem energia para escavar ou fazer bico.\nDescanse por mais **${hoursLeft}h e ${minutesLeft}m**.`;
+        const dbUser = await this.db.get("SELECT bostocoins FROM usuarios WHERE id_usuario = ?", [userId]);
+        const saldo = dbUser ? dbUser.bostocoins : 0;
+
+        const montanteInvestido = financas.investimento?.montante || 0;
+        const netWorth = saldo + montanteInvestido;
+        
+        let custoCura = Math.floor(500 + (netWorth * 0.0075));
+        if (player.ferramentas.acessorio === 'localizador') {
+            custoCura = Math.floor(custoCura / 2);
+        }
+
+        if (action === 'curar' || action === 'medico' || action === 'hospital') {
+            if (!player.ferramentas.last_dano || now - player.ferramentas.last_dano >= ESC_COOLDOWN_DANO) {
+                return `${userTag} 🩺 Você não está machucado! Quer gastar dinheiro com plano de saúde à toa?`;
+            }
+
+            if (saldo < custoCura) {
+                return `${userTag} 💸 O hospital da InGen não atende indigentes! A cirurgia particular para te tirar da maca custa 🪙 **${custoCura.toLocaleString('pt-BR')}**, você só tem 🪙 ${saldo.toLocaleString('pt-BR')}.`;
+            }
+            
+            await this.db.run("UPDATE usuarios SET bostocoins = bostocoins - ? WHERE id_usuario = ?", [custoCura, userId]);
+            player.ferramentas.last_dano = 0; 
+            await this.savePlayerData(userId, player);
+
+            return `${userTag} 💉 **SISTEMA DE SAÚDE PRIVADO INGEN!**\nVocê pagou 🪙 **${custoCura.toLocaleString('pt-BR')} Bostocoins**, tomou uma dose experimental de adrenalina e está 100% regenerado! Pode voltar a escavar imediatamente. ⛏️`;
+        }
+
+        if (action.startsWith('equipar ')) {
+            if (this.escavacoesAtivas.has(userId)) {
+                return `${userTag} 🛑 Você não pode trocar de roupa no meio do escuro! Fuja da caverna primeiro para poder trocar seu acessório.`;
+            }
+
+            const accCode = action.replace('equipar ', '').trim();
+            const alvo = ACCESSORY_CATALOG[accCode];
+
+            if (!alvo || accCode === 'nenhum') {
+                return `${userTag} ❌ Acessório inválido! Escolha um item válido da loja.`;
+            }
+
+            if (player.ferramentas.acessorio === accCode) {
+                return `${userTag} ❌ O ${alvo.emoji} **${alvo.name}** já está ativo no seu corpo agora!`;
+            }
+
+            if (!player.inventario_acessorios[accCode]) {
+                return `${userTag} ❌ Você não é dono deste acessório. Compre ele no armazém usando *!escavar comprar ${accCode}*.`;
+            }
+
+            const antigoEquipado = player.ferramentas.acessorio;
+            if (antigoEquipado !== 'nenhum') {
+                player.inventario_acessorios[antigoEquipado] = 1;
+            }
+
+            player.ferramentas.acessorio = accCode; 
+            delete player.inventario_acessorios[accCode]; 
+
+            await this.savePlayerData(userId, player);
+            return `${userTag} 🔁 **MUDANÇA DE EQUIPAMENTO!** Você equipou o ${alvo.emoji} **${alvo.name}** com sucesso!`;
+        }
+
+        if (action === 'auto' || action === 'debito') {
+            player.ferramentas.debito_automatico = player.ferramentas.debito_automatico === 0 ? 1 : 0;
+            await this.savePlayerData(userId, player);
+            const status = player.ferramentas.debito_automatico ? "🟢 ATIVADO" : "🔴 DESATIVADO";
+            return `${userTag} 🛠️ **DÉBITO AUTOMÁTICO:** ${status}\n${player.ferramentas.debito_automatico ? 'Sua picareta será afiada automaticamente se você tiver saldo ao quebrar.' : 'Você precisará afiar manualmente usando *!escavar consertar* quando ela cegar.'}`;
+        }
+
+        if (action.startsWith('comprar ')) {
+            const itemCode = action.replace('comprar ', '').trim();
+            let alvo = null; let tipo = '';
+            
+            if (CONSUMABLE_CATALOG[itemCode]) { alvo = CONSUMABLE_CATALOG[itemCode]; tipo = 'consumivel'; }
+            else if (ACCESSORY_CATALOG[itemCode]) { alvo = ACCESSORY_CATALOG[itemCode]; tipo = 'acessorio'; }
+            else if (itemCode === 'armadura') { 
+                const atual = ARMOR_CATALOG[player.ferramentas.armadura];
+                if (!atual.next) return `${userTag} ✨ Você já usa Grafeno. Não tem armadura melhor!`;
+                alvo = ARMOR_CATALOG[atual.next]; tipo = 'armadura';
+            }
+            
+            if (!alvo) return `${userTag} ❌ Item inválido. Veja a *!escavar loja*.`;
+            if (saldo < alvo.price) return `${userTag} 💸 Faltam moedas! Custa 🪙 ${alvo.price}.`;
+
+            await this.db.run("UPDATE usuarios SET bostocoins = bostocoins - ? WHERE id_usuario = ?", [alvo.price, userId]);
+
+            if (tipo === 'consumivel') {
+                player.inventario_consumiveis[alvo.id] = (player.inventario_consumiveis[alvo.id] || 0) + 1;
+                await this.savePlayerData(userId, player);
+                return `${userTag} 🛍️ Você comprou 1x ${alvo.emoji} **${alvo.name}**! Use com *!escavar usar ${alvo.id}* dentro da caverna.`;
+            } else if (tipo === 'acessorio') {
+                if (player.inventario_acessorios[alvo.id] || player.ferramentas.acessorio === alvo.id) {
+                    await this.db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [alvo.price, userId]);
+                    return `${userTag} ❌ Você já possui o ${alvo.emoji} **${alvo.name}**! Não precisa comprar de novo. Use *!escavar equipar ${alvo.id}* para vestir.`;
+                }
+
+                if (player.ferramentas.acessorio === 'nenhum') {
+                    player.ferramentas.acessorio = alvo.id;
+                    await this.savePlayerData(userId, player);
+                    return `${userTag} 🦺 Você comprou e equipou o ${alvo.emoji} **${alvo.name}**! O efeito já está ativo no Abismo.`;
+                } else {
+                    player.inventario_acessorios[alvo.id] = 1;
+                    await this.savePlayerData(userId, player);
+                    return `${userTag} 📦 Você comprou o ${alvo.emoji} **${alvo.name}**! Como você já tem um item ativo, ele foi guardado na sua coleção. Use *!escavar equipar ${alvo.id}* para alternar entre eles de graça!`;
+                }
+            } else if (tipo === 'armadura') {
+                player.ferramentas.armadura = alvo.id;
+                await this.savePlayerData(userId, player);
+                return `${userTag} 🛡️ Upgrade Feito! Você vestiu a ${alvo.emoji} **${alvo.name}**! (Proteção Dano: ${alvo.prot_dano}% | Loot: ${alvo.prot_loot}%)`;
             }
         }
 
-        financas.last_bico = now;
-        await this.db.run("UPDATE usuarios SET financas = ? WHERE id_usuario = ?", [JSON.stringify(financas), userId]);
-
-        let player = await this.getPlayerData(userId);
-
-        let msgHeader = `${userTag}⛏️ **ESCAVAÇÃO JURÁSSICA** ⛏️\n_Você pegou a picareta e foi bater pedra..._\n\n`;
+        let sessao = this.escavacoesAtivas.get(userId);
         
-        const isAmbar = Math.random() < 0.05;
+        if (action.startsWith('usar ')) {
+            if (!sessao) return `${userTag} ❓ Você só pode usar esses itens dentro da caverna durante uma exploração!`;
+            const itemCode = action.replace('usar ', '').trim();
+            const alvo = CONSUMABLE_CATALOG[itemCode];
+            
+            if (!alvo || !player.inventario_consumiveis[itemCode] || player.inventario_consumiveis[itemCode] <= 0) {
+                return `${userTag} ❌ Você não tem esse item. Compre na *!escavar loja*.`;
+            }
 
-        if (isAmbar) {
-            return msgHeader + await this.acharAmbar(userId, userName, groupId);
+            sessao.itens_usados = sessao.itens_usados || {};
+            if (sessao.itens_usados[itemCode]) {
+                return `${userTag} 🛑 Cuidado com a overdose! Você já usou 1x ${alvo.emoji} **${alvo.name}** nesta descida. Só é permitido um de cada tipo por exploração!`;
+            }
+
+            player.inventario_consumiveis[itemCode] -= 1;
+            sessao.buffs = sessao.buffs || {};
+            sessao.itens_usados[itemCode] = true; 
+
+            if (itemCode === 'suporte') {
+                sessao.buffs.suporte = true;
+                await this.savePlayerData(userId, player);
+                return `${userTag} 🏗️ **SUPORTE MONTADO!** O risco de desabamento caiu pela metade para o seu próximo passo, e se cair, o loot está protegido!`;
+            }
+            if (itemCode === 'biotonico') {
+                sessao.buffs.biotonico = true;
+                await this.savePlayerData(userId, player);
+                return `${userTag} 🍷 **GOLE DE BIOTÔNICO!** Seus braços estão fortes igual os de um T-Rex bombado. **TODAS** as suas batidas até o fim desta descida virão com **1.5x mais drops**! 💪⛏️`;
+            }
+            if (itemCode === 'feitico') {
+                player.ferramentas.picareta_hp += picaretaAtual.durabilidade;
+                await this.savePlayerData(userId, player);
+                return `${userTag} ✨ **MAGIA ATIVADA!** Sua picareta foi imbuída com durabilidade extra (HP: ${player.ferramentas.picareta_hp})!`;
+            }
+            if (itemCode === 'dinamite') {
+                if (sessao.camada >= picaretaAtual.max_camada) {
+                    player.inventario_consumiveis[itemCode] += 1; 
+                    delete sessao.itens_usados[itemCode];
+                    return `${userTag} 🛑 Você já está no limite da sua picareta! Jogar dinamite aqui só vai te soterrar à toa.`;
+                }
+
+                let target = sessao.camada + 2;
+                let avisoExtra = "";
+
+                if (target > picaretaAtual.max_camada) {
+                    target = picaretaAtual.max_camada;
+                    avisoExtra = `\n⚠️ **Aviso:** A explosão foi forte, mas sua ${picaretaAtual.name} não aguenta descer mais que a Camada ${target}, então você parou por aqui!`;
+                }
+
+                sessao.camada = target;
+                
+                sessao.peek_fundo = null;
+                sessao.peek_lado = null;
+
+                await this.savePlayerData(userId, player);
+                return `${userTag} 🧨💥 **KABOOM!**\nVocê jogou a dinamite no buraco e pulou no túnel recém-aberto! Você desceu em segurança (0 de durabilidade gasta e 0% risco) e agora está na **Camada ${sessao.camada}**!${avisoExtra}\n👉 Use *!escavar fundo* ou *!escavar lado* para continuar.`;
+            }
+        }
+
+        if (player.ferramentas.last_dano && now - player.ferramentas.last_dano < ESC_COOLDOWN_DANO) {
+            const left = ESC_COOLDOWN_DANO - (now - player.ferramentas.last_dano);
+            return `${userTag} 🚑 Você ainda está no hospital se recuperando do soterramento! O médico te dá alta em: ${Math.floor(left/60)} minutos.\n\n_💡 Dica: Por ser um cidadão de posses, você pode pagar o leito particular por 🪙 **${custoCura.toLocaleString('pt-BR')}** usando *!escavar curar* para sair da UTI agora!_`;
+        }
+
+        if (action === 'materiais' || action === 'camadas' || action === 'guia' || action === 'help' || action === 'ajuda') {
+            return await this.listarMateriaisPorCamada(userTag);
+        }
+
+        if (action === 'consertar' || action === 'sucatear' || action === 'upar' || action === 'loja') {
+            return await this.gerenciarPicareta(userId, userTag, player, action, picaretaAtual);
+        }
+
+        if (player.ferramentas.picareta_hp <= 0) {
+            let autoConsertado = false;
+            const custoAfiar = Math.floor((picaretaAtual.req_coins || 100) * 0.25);
+            
+            if (player.ferramentas.debito_automatico !== 0 && saldo >= custoAfiar) {
+                await this.db.run("UPDATE usuarios SET bostocoins = bostocoins - ? WHERE id_usuario = ?", [custoAfiar, userId]);
+                player.ferramentas.picareta_hp = picaretaAtual.durabilidade;
+                await this.savePlayerData(userId, player);
+                autoConsertado = true;
+            }
+
+            if (!autoConsertado) {
+                return `${userTag} 🛠️ Sua ${picaretaAtual.emoji} ${picaretaAtual.name} está cega/quebrada! (0 HP).\nVocê precisa *!escavar consertar* (pagar 🪙 ${custoAfiar}) ou *!escavar sucatear* (reverter pra picareta anterior de graça).`;
+            }
+        }
+
+        const finalizarSessao = async (motivo) => {
+            let msgLoot = "";
+            let temAmbar = false;
+            
+            for (const [id, qtd] of Object.entries(sessao.loot)) {
+                 if (id === 'ambar') {
+                     temAmbar = true;
+                     for(let i = 0; i < qtd; i++) {
+                         msgLoot += await this.acharAmbar(userId, userName, groupId) + "\n\n";
+                     }
+                 } else {
+                     player.inventory[id] = (player.inventory[id] || 0) + qtd;
+                     const min = MINERAL_CATALOG.find(m => m.id === id);
+                     msgLoot += `- ${qtd}x ${min.emoji} ${min.name}\n`;
+
+                     await this.db.run(`
+                         INSERT INTO minerios_descobertos (id_whatsapp, mineral_id, quantidade_total, data_primeira_descoberta)
+                         VALUES (?, ?, ?, ?)
+                         ON CONFLICT(id_whatsapp, mineral_id) DO UPDATE SET
+                         quantidade_total = quantidade_total + ?
+                     `, [userId, id, qtd, now, qtd]);
+                 }
+            }
+            
+            const custoDurabilidade = sessao.turnos; 
+            player.ferramentas.picareta_hp -= custoDurabilidade;
+            if (player.ferramentas.picareta_hp < 0) player.ferramentas.picareta_hp = 0;
+            
+            let autoConsertado = false;
+            const consertoCusto = Math.floor((picaretaAtual.req_coins || 100) * 0.25);
+            
+            if (motivo === 'quebra' && player.ferramentas.debito_automatico !== 0) {
+                const dbUser = await this.db.get("SELECT bostocoins FROM usuarios WHERE id_usuario = ?", [userId]);
+                const saldoAtualizado = dbUser ? dbUser.bostocoins : 0;
+                
+                if (saldoAtualizado >= consertoCusto) {
+                    await this.db.run("UPDATE usuarios SET bostocoins = bostocoins - ? WHERE id_usuario = ?", [consertoCusto, userId]);
+                    player.ferramentas.picareta_hp = picaretaAtual.durabilidade;
+                    autoConsertado = true;
+                }
+            }
+            
+            await this.savePlayerData(userId, player);
+            this.escavacoesAtivas.delete(userId);
+
+            this.emitWebEvent(userId, 'escavacao_fuga', {
+                motivo: motivo, 
+                hp_picareta: player.ferramentas.picareta_hp,
+                loot_salvo: sessao.loot,
+                ambar_salvo: temAmbar,
+                auto_consertado: autoConsertado
+            });
+            
+            let titulo = "";
+            if (motivo === 'quebra') {
+                titulo = autoConsertado 
+                    ? `🎒 **A PICARETA CEGOU, MAS O FERREIRO É RÁPIDO!**\nSua ferramenta chegou ao limite, mas o Sindicato já debitou 🪙 **${consertoCusto}** e consertou ela automaticamente!\n`
+                    : `🎒 **FIM DA LINHA! A PICARETA CEGOU!**\nVocê foi forçado a voltar para a superfície com ela queixosa (HP 0) porque não tinha moedas suficientes.\n`;
+            } else {
+                titulo = `🎒 **VOCÊ VOLTOU PARA A SUPERFÍCIE!**\n`;
+            }
+
+            let header = `${userTag} ${titulo}Durabilidade restante: (${player.ferramentas.picareta_hp}/${picaretaAtual.durabilidade}).\n\n**Loot que você trouxe:**\n`;
+            if (temAmbar) header = `${userTag} 🚨 **ALERTA DA INGEN!** VOCÊ TROUXE ÂMBAR DA CAVERNA! 🚨\n${titulo}Durabilidade restante: (${player.ferramentas.picareta_hp}/${picaretaAtual.durabilidade})\n\n`;
+            
+            return header + msgLoot;
+        };
+
+        if (action === 'guardar') {
+            if (!sessao) return `${userTag} ❓ Você não está em nenhuma caverna. Use apenas *!escavar* para começar.`;
+            return await finalizarSessao('fuga');
+        }
+
+        if (action === 'fundo' || action === 'lado' || action === '') {
+            if (action === '') {
+                if (sessao) return `${userTag} 🔦 Você já está no abismo (Camada ${sessao.camada})! O que você faz?\n👉 *!escavar fundo*, *!escavar lado* ou *!escavar guardar*.`;
+                sessao = { camada: 0, turnos: 1, loot: {}, buffs: {} };
+                this.escavacoesAtivas.set(userId, sessao);
+            } else {
+                if (!sessao) return `${userTag} ❓ Você não está escavando! Comece com *!escavar*.`;
+                sessao.turnos += 1;
+                if (action === 'fundo' && sessao.camada < picaretaAtual.max_camada) sessao.camada += 1;
+            }
+
+            let chanceDesmoronar = ESC_CHANCE_DESMORONAR_BASE + (ESC_DESMORONAR_INCREMENTO * sessao.camada);
+            if (sessao.buffs?.suporte) chanceDesmoronar /= 2; 
+
+            if (Math.random() < chanceDesmoronar) {
+                const armadura = ARMOR_CATALOG[player.ferramentas.armadura];
+                const salvouLoot = sessao.buffs?.suporte || (Math.random() * 100 < armadura.prot_loot);
+                const salvouVida = Math.random() * 100 < armadura.prot_dano;
+
+                let relatorioDesastre = `${userTag} 🪨💥 **DESMORONAMENTO!!!** 💥🪨\n\nO teto cedeu na Camada ${sessao.camada}!\n`;
+
+                if (Math.random() < ESC_CHANCE_PERDER_PICARETA) {
+                     player.ferramentas.picareta_hp = 0;
+                     relatorioDesastre += `💥 Sua picareta foi esmagada e perdeu todo o fio (HP 0).\n`;
+                } else {
+                     player.ferramentas.picareta_hp -= sessao.turnos;
+                     if(player.ferramentas.picareta_hp < 0) player.ferramentas.picareta_hp = 0;
+                }
+
+                if (salvouLoot) {
+                    relatorioDesastre += `🛡️ Graças aos deuses (ou ao seu equipamento), você conseguiu se jogar debaixo de uma fenda e proteger **TODO O LOOT**!\n_Use !parque mochila para ver._\n`;
+                    for (const [id, qtd] of Object.entries(sessao.loot)) {
+                        player.inventory[id] = (player.inventory[id] || 0) + qtd;
+                    }
+                } else if (player.ferramentas.acessorio === 'mochila') {
+                    let poolItems = [];
+                    for (const [id, qtd] of Object.entries(sessao.loot)) {
+                        for(let i = 0; i < qtd; i++) poolItems.push(id);
+                    }
+                    
+                    for (let i = poolItems.length - 1; i > 0; i--) {
+                        const j = Math.floor(Math.random() * (i + 1));
+                        [poolItems[i], poolItems[j]] = [poolItems[j], poolItems[i]];
+                    }
+                    
+                    const qtdSalvar = Math.floor(poolItems.length / 2);
+                    const savedItems = poolItems.slice(0, qtdSalvar);
+                    
+                    if (savedItems.length > 0) {
+                        let salvouAmbar = false;
+                        for (const id of savedItems) {
+                            if (id === 'ambar') salvouAmbar = true;
+                            player.inventory[id] = (player.inventory[id] || 0) + 1;
+                            
+                            if (id !== 'ambar') {
+                                await this.db.run(`
+                                    INSERT INTO minerios_descobertos (id_whatsapp, mineral_id, quantidade_total, data_primeira_descoberta)
+                                    VALUES (?, ?, 1, ?)
+                                    ON CONFLICT(id_whatsapp, mineral_id) DO UPDATE SET
+                                    quantidade_total = quantidade_total + 1
+                                `, [userId, id, now]);
+                            }
+                        }
+                        relatorioDesastre += `🎒 Sua **Mochila de Carga** amorteceu a queda! Você perdeu parte das coisas, mas salvou **${savedItems.length} itens** de dentro dela (${salvouAmbar ? '🧬 **INCLUINDO UM ÂMBAR!**' : 'minérios diversos'}).\n`;
+                    } else {
+                        relatorioDesastre += `🎒 Sua **Mochila de Carga** resistiu à queda, mas você tinha tão pouco loot na sacola que não sobrou nada de valor lá dentro.\n`;
+                    }
+                } else {
+                    relatorioDesastre += `☠️ Você deixou **TODO O LOOT** cair enquanto corria e perdeu tudo desta descida.\n`;
+                }
+
+                if (!salvouVida) {
+                    player.ferramentas.last_dano = now;
+                    let penTempo = "1 hora";
+                    
+                    if (player.ferramentas.acessorio === 'localizador') {
+                        player.ferramentas.last_dano -= (ESC_COOLDOWN_DANO / 2);
+                        penTempo = "30 minutos";
+                        relatorioDesastre += `📡 O seu Localizador GPS chamou o resgate rápido! Você ficará de molho apenas **${penTempo}**.\n`;
+                    } else {
+                        relatorioDesastre += `🚑 Você foi resgatado de maca pela InGen. Ficará de molho por **1 hora** _*(pode usar !escavar curar)*_.\n`;
+                    }
+                } else {
+                    relatorioDesastre += `🛡️ A sua ${armadura.emoji} ${armadura.name} te protegeu das pedras! Você **saiu ileso** e não precisa ir pro hospital.\n`;
+                }
+
+                this.escavacoesAtivas.delete(userId);
+                await this.savePlayerData(userId, player);
+
+                this.emitWebEvent(userId, 'escavacao_desastre', {
+                    camada: sessao.camada,
+                    salvou_loot: salvouLoot || player.ferramentas.acessorio === 'mochila',
+                    salvou_vida: salvouVida,
+                    hp_picareta: player.ferramentas.picareta_hp
+                });
+
+                return relatorioDesastre;
+            }
+
+            let lootTurno = [];
+            let multBiotonico = sessao.buffs?.biotonico ? 1.5 : 1;
+
+            if (action === 'fundo' && sessao.peek_fundo) {
+                lootTurno = sessao.peek_fundo;
+            } else if (action === 'lado' && sessao.peek_lado) {
+                lootTurno = sessao.peek_lado;
+            } else {
+                lootTurno = await this.gerarLootCamada(sessao.camada, picaretaAtual, multBiotonico);
+            }
+
+            for (const id of lootTurno) sessao.loot[id] = (sessao.loot[id] || 0) + 1;
+
+            sessao.buffs.suporte = false;
+
+            if (player.ferramentas.acessorio === 'sensor') {
+                sessao.peek_lado = await this.gerarLootCamada(sessao.camada, picaretaAtual, multBiotonico);
+                if (sessao.camada < picaretaAtual.max_camada) {
+                    sessao.peek_fundo = await this.gerarLootCamada(sessao.camada + 1, picaretaAtual, multBiotonico);
+                }
+            }
+
+            if (sessao.turnos >= player.ferramentas.picareta_hp) {
+                return await finalizarSessao('quebra');
+            }
+
+            let riscoVisual = ESC_CHANCE_DESMORONAR_BASE + (ESC_DESMORONAR_INCREMENTO * sessao.camada);
+            if (sessao.buffs?.suporte) riscoVisual /= 2;
+
+            this.emitWebEvent(userId, 'escavacao_update', {
+                acao: action,
+                camada: sessao.camada,
+                turnos_gastos: sessao.turnos,
+                hp_picareta: player.ferramentas.picareta_hp - sessao.turnos,
+                risco_atual: riscoVisual,
+                loot_adicionado: lootTurno,
+                sacola_total: sessao.loot,
+                buffs: sessao.buffs,
+                sensor_peek: {
+                    lado: sessao.peek_lado ? true : false,
+                    fundo: sessao.peek_fundo ? true : false
+                }
+            });
+
+            return await this.processarLoot(userTag, sessao, lootTurno, picaretaAtual, player.ferramentas.picareta_hp);
+        }
+
+        return `${userTag} ⚠️ Comando de escavação inválido. Tente usar a loja.`;
+    }
+
+    async gerarLootCamada(camada, picareta, multiplicadorDrops = 1) {
+        let loot = [];
+        
+        const CHANCE_BONUS_TARGET = 0.10; 
+
+        const proximaPicaretaChave = picareta.next;
+        const idItemUpgrade = proximaPicaretaChave ? PICKAXE_CATALOG[proximaPicaretaChave]?.req_item : null;
+        
+        const dadosItemUpgrade = idItemUpgrade ? MINERAL_CATALOG.find(m => m.id === idItemUpgrade) : null;
+
+        let allowedRarities = ['lixo', 'comum'];
+        if (camada >= 1) allowedRarities.push('incomum', 'raro');
+        if (camada >= 2) allowedRarities.push('muito_raro');
+        if (camada >= 3) allowedRarities.push('lendario');
+        if (camada >= 4) allowedRarities.push('mitico');
+
+        const itemUpgradeDisponivelNaCamada = dadosItemUpgrade && allowedRarities.includes(dadosItemUpgrade.rarity);
+
+        for (let i = 0; i < Math.ceil(picareta.drops * multiplicadorDrops); i++) {
+            
+            const chanceAmbar = ESC_CHANCE_AMBAR_BASE * (2 ** camada);
+            if (Math.random() < chanceAmbar) {
+                loot.push('ambar');
+                continue; 
+            }
+
+            if (itemUpgradeDisponivelNaCamada && Math.random() < CHANCE_BONUS_TARGET) {
+                console.log(`🎯 [TARGET FARMING] Bônus ativado! Dropado: ${idItemUpgrade} para upgrade.`);
+                loot.push(idItemUpgrade);
+                continue; 
+            }
+
+            let roll = Math.random() * 100;
+            roll = roll * (1 - (picareta.sorte / 100)); 
+
+            let selectedRarity = 'lixo';
+            if (roll < 1 && allowedRarities.includes('mitico')) selectedRarity = 'mitico';
+            else if (roll < 3 && allowedRarities.includes('lendario')) selectedRarity = 'lendario';
+            else if (roll < 10 && allowedRarities.includes('muito_raro')) selectedRarity = 'muito_raro';
+            else if (roll < 30 && allowedRarities.includes('raro')) selectedRarity = 'raro';
+            else if (roll < 60 && allowedRarities.includes('incomum')) selectedRarity = 'incomum';
+            else if (roll < 85 && allowedRarities.includes('comum')) selectedRarity = 'comum';
+
+            const possibleMinerals = MINERAL_CATALOG.filter(m => m.rarity === selectedRarity);
+            if (possibleMinerals.length > 0) {
+                const minerio = possibleMinerals[Math.floor(Math.random() * possibleMinerals.length)];
+                loot.push(minerio.id);
+            }
+        }
+        return loot;
+    }
+
+    async processarLoot(userTag, sessao, lootTurno, picareta, hpTotalPicareta) {
+        let msgLoot = "";
+        for (const id of lootTurno) {
+            if (id === 'ambar') msgLoot += `🦟 **Âmbar Ancestral**\n`;
+            else {
+                const min = MINERAL_CATALOG.find(m => m.id === id);
+                msgLoot += `${min.emoji} ${min.name}\n`;
+            }
+        }
+        
+        let ambarCount = 0;
+        for (const [id, qtd] of Object.entries(sessao.loot)) {
+            if (id === 'ambar') ambarCount += qtd;
+        }
+
+        const chanceDesmoronarFutura = ESC_CHANCE_DESMORONAR_BASE + (ESC_DESMORONAR_INCREMENTO * (sessao.camada + 1));
+        const chanceDesmoronarAtual = ESC_CHANCE_DESMORONAR_BASE + (ESC_DESMORONAR_INCREMENTO * sessao.camada);
+        
+        const hpRestante = hpTotalPicareta - sessao.turnos;
+
+        let msg = `${userTag} ⛏️ **O ABISMO - Camada ${sessao.camada}**\n`;
+        msg += `🔨 _Durabilidade: Faltam ${hpRestante} batidas antes da picareta cegar._\n\n`;
+        if (sessao.buffs?.biotonico) msg += `🍷 _Efeito Ativo: Biotônico Fontoura (1.5x Drops nesta descida)_\n`;
+        if (sessao.buffs?.suporte) msg += `🏗️ _Efeito Ativo: Suporte de Teto (Risco Reduzido nesta batida)_\n`;
+        msg += `Nesta batida você encontrou:\n${msgLoot}\n`;
+        msg += `🎒 **Sua Sacola Temporária:** (${Object.keys(sessao.loot).length} tipos de itens | ${ambarCount} Âmbares)\n\n`;
+        if (sessao.peek_lado) {
+            const achouAmbar = sessao.peek_lado.includes('ambar');
+            msg += `📟 Sensor (Lado): Detectou minérios e talvez... ${achouAmbar ? '🧬 SINAIS DE DNA!' : 'pedras normais.'}\n`;
+        }
+        if (sessao.peek_fundo) {
+            const achouAmbar = sessao.peek_fundo.includes('ambar');
+            msg += `📟 Sensor (Fundo): Sente uma vibração de... ${achouAmbar ? '🧬 SINAIS DE DNA!' : 'minérios densos.'}\n`;
+        }
+
+        if (sessao.camada < picareta.max_camada) {
+            msg += `⚠️ Risco (Cavar p/ Lados): **${(chanceDesmoronarAtual * 100).toFixed(1)}%**\n`;
+            msg += `⚠️ Risco (Descer Fundo): **${(chanceDesmoronarFutura * 100).toFixed(1)}%**\n\n`;
+            msg += `👉 O que você faz?\n`;
+            msg += `*!escavar fundo* (Descer p/ próxima camada)\n`;
+            msg += `*!escavar lado* (Arriscar manter a camada atual)\n`;
+            msg += `*!escavar guardar* (Foge com o loot)`;
         } else {
-            return msgHeader + await this.acharMineral(userId, player);
+            msg += `⚠️ Risco (Cavar p/ Lados): **${(chanceDesmoronarAtual * 100).toFixed(1)}%**\n\n`;
+            msg += `🛑 O material da sua Picareta não aguenta descer mais!\n👉 O que você faz?\n`;
+            msg += `*!escavar lado* (Cava pros lados nesta camada)\n`;
+            msg += `*!escavar guardar* (Foge com o loot)`;
+        }
+
+        return msg;
+    }
+
+    async gerenciarPicareta(userId, userTag, player, action, picaretaAtual) {
+        if (action === 'loja') {
+            let msg = `${userTag} 🛒 **ARMAZÉM DA INGEN (O Abismo)** 🛒\n\n`;
+
+            msg += `🛠️ **Sua Picareta:** ${picaretaAtual.emoji} ${picaretaAtual.name} (${player.ferramentas.picareta_hp}/${picaretaAtual.durabilidade} HP)\n`;
+            const consertoCusto = Math.floor((picaretaAtual.req_coins || 100) * 0.25);
+            msg += `🔧 Conserto: 🪙 ${consertoCusto.toLocaleString('pt-BR')} (*!escavar consertar*)\n`;
+            if (picaretaAtual.next) {
+                const nextPic = PICKAXE_CATALOG[picaretaAtual.next];
+                const itemReq = MINERAL_CATALOG.find(m => m.id === nextPic.req_item);
+                msg += `🆙 Próx. Upgrade: ${nextPic.emoji} ${nextPic.name} (🪙 ${nextPic.req_coins.toLocaleString('pt-BR')} + ${nextPic.req_qtd}x ${itemReq.emoji}) -> *!escavar upar*\n`;
+            }
+            if (picaretaAtual.prev) msg += `🗑️ Sucatear: Reverte de graça -> *!escavar sucatear*\n\n`;
+
+            const armaduraAtual = ARMOR_CATALOG[player.ferramentas.armadura];
+            msg += `🛡️ **Sua Armadura:** ${armaduraAtual.emoji} ${armaduraAtual.name}\n`;
+            msg += `_(Proteção: Dano ${armaduraAtual.prot_dano}% / Loot ${armaduraAtual.prot_loot}%)_\n`;
+            if (armaduraAtual.next) {
+                const nextArmor = ARMOR_CATALOG[armaduraAtual.next];
+                msg += `🆙 Próx. Armadura: ${nextArmor.emoji} ${nextArmor.name} (🪙 ${nextArmor.price.toLocaleString('pt-BR')}) -> *!escavar comprar armadura*\n\n`;
+            } else {
+                msg += `✨ Você veste a defesa suprema do universo!\n\n`;
+            }
+
+            const acessorioAtual = ACCESSORY_CATALOG[player.ferramentas.acessorio] || ACCESSORY_CATALOG['nenhum'];
+            msg += `🦺 **Acessório Ativo:** ${acessorioAtual.emoji} ${acessorioAtual.name}\n`;
+            msg += `_Seus Acessórios Adquiridos:_\n`;
+            Object.values(ACCESSORY_CATALOG).filter(a => a.id !== 'nenhum').forEach(a => {
+                const possuiNaMochila = player.inventario_acessorios?.[a.id];
+                const estaEquipado = player.ferramentas.acessorio === a.id;
+                
+                if (estaEquipado) {
+                    msg += `- ${a.emoji} **${a.name}** ➝ [🟢 EM USO]\n  _${a.desc}_\n`;
+                } else if (possuiNaMochila) {
+                    msg += `- ${a.emoji} **${a.name}** ➝ [📦 ADQUIRIDO] (Trocar: *!escavar equipar ${a.id}*)\n  _${a.desc}_\n`;
+                } else {
+                    msg += `- ${a.emoji} **${a.name}** (🪙 ${a.price.toLocaleString('pt-BR')}) ➝ *!escavar comprar ${a.id}*\n  _${a.desc}_\n`;
+                }
+            });
+            msg += `\n`;
+
+            msg += `🎒 **Itens Consumíveis:**\n`;
+            Object.values(CONSUMABLE_CATALOG).forEach(c => {
+                const qtdInv = player.inventario_consumiveis?.[c.id] || 0;
+                msg += `- ${c.emoji} **${c.name}** (🪙 ${c.price.toLocaleString('pt-BR')}) [Você tem: ${qtdInv}x]\n  _${c.desc}_ -> *!escavar comprar ${c.id}*\n`;
+            });
+
+            return msg;
+        }
+
+        const dbUser = await this.db.get("SELECT bostocoins FROM usuarios WHERE id_usuario = ?", [userId]);
+        const saldo = dbUser ? dbUser.bostocoins : 0;
+
+        if (action === 'consertar') {
+            if (player.ferramentas.picareta_hp === picaretaAtual.durabilidade) return `${userTag} Sua picareta já está novinha em folha!`;
+            const consertoCusto = Math.floor((picaretaAtual.req_coins || 100) * 0.25);
+            
+            if (saldo < consertoCusto) return `${userTag} 💸 Faltam moedas! Consertar custa 🪙 ${consertoCusto}, você só tem ${saldo}.`;
+            
+            await this.db.run("UPDATE usuarios SET bostocoins = bostocoins - ? WHERE id_usuario = ?", [consertoCusto, userId]);
+            player.ferramentas.picareta_hp = picaretaAtual.durabilidade;
+            await this.savePlayerData(userId, player);
+            return `${userTag} 🔧 **AFIAÇÃO CONCLUÍDA!**\nSua ${picaretaAtual.name} recuperou a durabilidade máxima por 🪙 ${consertoCusto}.`;
+        }
+
+        if (action === 'sucatear') {
+            if (!picaretaAtual.prev) return `${userTag} ❌ Você não pode sucatear a picareta de madeira, ela já é o lixo da base da cadeia alimentar!`;
+            const prevPic = PICKAXE_CATALOG[picaretaAtual.prev];
+            player.ferramentas.picareta = prevPic.id;
+            player.ferramentas.picareta_hp = prevPic.durabilidade;
+            await this.savePlayerData(userId, player);
+            return `${userTag} 🗑️ **SUCATEADA!** Você desmontou sua picareta para não pagar o conserto e voltou para a ${prevPic.emoji} ${prevPic.name} (HP 100%).`;
+        }
+
+        if (action === 'upar') {
+            if (!picaretaAtual.next) return `${userTag} ✨ Você já possui a ferramenta suprema, o ferreiro chora ao ver seu equipamento!`;
+            const nextPic = PICKAXE_CATALOG[picaretaAtual.next];
+            
+            if (saldo < nextPic.req_coins) return `${userTag} 💸 Faltam Bostocoins! Custa 🪙 ${nextPic.req_coins}, você só tem ${saldo}.`;
+            
+            const itemReqQtd = player.inventory[nextPic.req_item] || 0;
+            if (itemReqQtd < nextPic.req_qtd) {
+                const itemDef = MINERAL_CATALOG.find(m => m.id === nextPic.req_item);
+                return `${userTag} 🪨 Faltam materiais! Você precisa de ${nextPic.req_qtd}x ${itemDef.emoji} ${itemDef.name}, mas só tem ${itemReqQtd} no parque mochila.`;
+            }
+
+            await this.db.run("UPDATE usuarios SET bostocoins = bostocoins - ? WHERE id_usuario = ?", [nextPic.req_coins, userId]);
+            player.inventory[nextPic.req_item] -= nextPic.req_qtd;
+            player.ferramentas.picareta = nextPic.id;
+            player.ferramentas.picareta_hp = nextPic.durabilidade;
+            await this.savePlayerData(userId, player);
+
+            return `${userTag} ⚒️ **UPGRADE FORJADO COM SUCESSO!**\nVocê sacrificou seus minérios e Bostocoins e o ferreiro forjou a ${nextPic.emoji} **${nextPic.name}**!\nEla aguenta descer até a **Camada ${nextPic.max_camada}** e acha mais itens!`;
         }
     }
 
@@ -981,7 +1716,10 @@ class ParqueHandler {
     }
 
     async acharAmbar(userId, userName, groupId) {
-        const dinosDescobertos = await this.db.all("SELECT especie_id FROM parque_dinossauros WHERE descobridor_id = ?", [userId]);
+        const dinosDescobertos = await this.db.all(
+            "SELECT especie_id FROM parque_dinossauros WHERE descobridor_id = ? AND is_morto = 0", 
+            [userId]
+        );
         const idsDescobertos = dinosDescobertos.map(d => d.especie_id);
 
         let roll = Math.random() * 100;
@@ -1000,7 +1738,7 @@ class ParqueHandler {
         }
 
         if (especiesDisponiveis.length === 0) {
-            const recompensa = 250;
+            const recompensa = 2500;
             const profitResult = await this.casinoHandler.verifyProfit(userId, recompensa);
             await this.db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [profitResult.finalProfit, userId]);
             return `🦟 Você achou um Âmbar! Porém, a InGen informou que o DNA dentro dele já estava 100% mapeado por você.\nEles confiscaram a pedra e te pagaram 🪙 **${recompensa} Bostocoins** pela exclusividade!${profitResult.msg}`;
@@ -1505,4 +2243,4 @@ class ParqueHandler {
     }
 }
 
-module.exports = ParqueHandler;
+module.exports = {ParqueHandler, MINERAL_CATALOG};

@@ -797,6 +797,58 @@ async function initDatabase() {
     } catch (error) {
         if (!error.message.includes("duplicate column name")) console.error(error.message);
     }
+    await db.exec(`
+        CREATE TABLE IF NOT EXISTS tokens_vinculo (
+            token TEXT PRIMARY KEY,
+            id_whatsapp TEXT NOT NULL,
+            expira_em INTEGER NOT NULL
+        );
+    `);
+
+    await db.exec(`
+        CREATE TABLE IF NOT EXISTS usuarios_web (
+            id_whatsapp TEXT PRIMARY KEY,
+            senha_hash TEXT NOT NULL,
+            criado_em INTEGER
+        );
+    `);
+
+    await db.exec(`
+        CREATE TABLE IF NOT EXISTS refresh_tokens (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id_whatsapp TEXT NOT NULL,
+            token TEXT UNIQUE NOT NULL,
+            expira_em INTEGER NOT NULL,
+            revogado INTEGER DEFAULT 0,
+            FOREIGN KEY(id_whatsapp) REFERENCES usuarios_web(id_whatsapp)
+        );
+    `);
+
+    await db.exec(`
+        CREATE TABLE IF NOT EXISTS minerios_descobertos (
+            id_whatsapp TEXT,
+            mineral_id TEXT,
+            quantidade_total INTEGER DEFAULT 0,
+            data_primeira_descoberta INTEGER,
+            PRIMARY KEY (id_whatsapp, mineral_id)
+        );
+    `);
+    console.log("✅ Tabelas da Web e Lista de Minérios carregadas.");
+
+    await db.exec(`
+        CREATE TABLE IF NOT EXISTS grupos_nomes (
+            id_grupo TEXT PRIMARY KEY, 
+            nome TEXT
+        )
+    `);
+
+    await db.exec(`
+        CREATE TABLE IF NOT EXISTS grupo_participantes (
+            id_grupo TEXT,
+            id_whatsapp TEXT,
+            PRIMARY KEY (id_grupo, id_whatsapp)
+        )
+    `);
 
     console.log('✅ Banco de dados SQLite inicializado e tabelas verificadas.');
 }
@@ -1017,14 +1069,38 @@ async function connectToWhatsApp() {
     startTwitch(chatbot, sock);
     startDiscord(chatbot, sock);
 
-    // ==========================================
-    //  SERVIDOR EXPRESS E WEBSOCKET 
-    // ==========================================
     const http = require('http');
     const { Server } = require('socket.io');
 
     const app = express();
-    app.use(cors());
+    const bcrypt = require('bcrypt');
+    const jwt = require('jsonwebtoken');
+    const crypto = require('crypto');
+    const cookieParser = require('cookie-parser');
+    
+    const allowedOrigins = [
+        'http://localhost:5173', 
+        'https://bostossauro.runage.tech',
+        'https://bostopark.com'
+    ];
+
+    app.use(cors({ 
+        origin: function (origin, callback) {
+            if (!origin) return callback(null, true);
+            
+            if (allowedOrigins.indexOf(origin) !== -1) {
+                callback(null, true);
+            } else {
+                callback(new Error('Bloqueado pelo CORS'));
+            }
+        },
+        credentials: true 
+    }));
+
+    app.use(express.json());
+    app.use(cookieParser());
+
+    const JWT_SECRET = process.env.JWT_SECRET || 'chave_super_secreta_jwt_bostossauro';
 
     app.use(express.json());
 
@@ -1035,6 +1111,8 @@ async function connectToWhatsApp() {
     const io = new Server(server, {
         cors: { origin: "*" }
     });
+
+    chatbot.parqueHandler.io = io;
 
     app.post('/api/send-code', async (req, res) => {
         try {
@@ -1074,16 +1152,290 @@ async function connectToWhatsApp() {
         const data = await chatbot.getDashboardDataAPI();
         res.json(data);
     });
+    app.post('/api/auth/register', async (req, res) => {
+        try {
+            const { phone, password, token } = req.body;
+            if (!phone || !password || !token) return res.status(400).json({ error: "Dados incompletos." });
+
+            const pureNumbers = phone.toString().replace(/\D/g, '');
+            const jid = pureNumbers + '@s.whatsapp.net';
+            const upperToken = token.toUpperCase();
+
+            const registro = await db.get("SELECT * FROM tokens_vinculo WHERE token = ?", [upperToken]);
+            if (!registro) return res.status(400).json({ error: "Token inválido." });
+            if (registro.id_whatsapp !== jid) return res.status(400).json({ error: "O Token não pertence a esse número." });
+            if (Date.now() > registro.expira_em) return res.status(400).json({ error: "Token expirado. Gere outro no WhatsApp." });
+
+            const existe = await db.get("SELECT * FROM usuarios_web WHERE id_whatsapp = ?", [jid]);
+            if (existe) return res.status(400).json({ error: "Este número já possui cadastro na Web." });
+
+            const salt = await bcrypt.genSalt(10);
+            const hash = await bcrypt.hash(password, salt);
+            const now = Math.floor(Date.now() / 1000);
+
+            await db.run("INSERT INTO usuarios_web (id_whatsapp, senha_hash, criado_em) VALUES (?, ?, ?)", [jid, hash, now]);
+            await db.run("DELETE FROM tokens_vinculo WHERE token = ?", [upperToken]); // Queima o token
+
+            res.status(201).json({ success: "Conta criada com sucesso! Você já pode fazer login." });
+        } catch (e) {
+            console.error(e);
+            res.status(500).json({ error: "Erro interno do servidor." });
+        }
+    });
+
+    app.post('/api/auth/login', async (req, res) => {
+        try {
+            const { phone, password } = req.body;
+            const pureNumbers = phone.toString().replace(/\D/g, '');
+            const jid = pureNumbers + '@s.whatsapp.net';
+
+            const userWeb = await db.get("SELECT * FROM usuarios_web WHERE id_whatsapp = ?", [jid]);
+            if (!userWeb) return res.status(401).json({ error: "Usuário ou senha incorretos." });
+
+            const validPass = await bcrypt.compare(password, userWeb.senha_hash);
+            if (!validPass) return res.status(401).json({ error: "Usuário ou senha incorretos." });
+
+            const userBase = await db.get("SELECT nome FROM usuarios WHERE id_usuario = ?", [jid]);
+            const nome = userBase ? userBase.nome : "Funcionário";
+            
+            const accessToken = jwt.sign({ id_whatsapp: jid, nome: nome }, JWT_SECRET, { expiresIn: '15m' });
+
+            const refreshToken = crypto.randomBytes(40).toString('hex');
+            const expiraEm = Math.floor(Date.now() / 1000) + (7 * 24 * 60 * 60);
+
+            await db.run("INSERT INTO refresh_tokens (id_whatsapp, token, expira_em) VALUES (?, ?, ?)", [jid, refreshToken, expiraEm]);
+
+            res.cookie('bostopark_refresh', refreshToken, {
+                httpOnly: true, 
+                secure: true, 
+                sameSite: 'none', 
+                maxAge: 7 * 24 * 60 * 60 * 1000
+            });
+
+            res.json({ accessToken, user: { id: jid, nome } });
+        } catch (e) {
+            console.error(e);
+            res.status(500).json({ error: "Erro interno." });
+        }
+    });
+
+    app.post('/api/auth/refresh', async (req, res) => {
+        try {
+            const incomingRefresh = req.cookies.bostopark_refresh;
+            if (!incomingRefresh) return res.status(401).json({ error: "Nenhum token fornecido." });
+
+            const registro = await db.get("SELECT * FROM refresh_tokens WHERE token = ?", [incomingRefresh]);
+            const now = Math.floor(Date.now() / 1000);
+
+            if (!registro || registro.revogado === 1 || now > registro.expira_em) {
+                res.clearCookie('bostopark_refresh');
+                return res.status(401).json({ error: "Sessão inválida ou expirada." });
+            }
+
+            const userBase = await db.get("SELECT nome FROM usuarios WHERE id_usuario = ?", [registro.id_whatsapp]);
+            const nome = userBase ? userBase.nome : "Funcionário";
+
+            await db.run("DELETE FROM refresh_tokens WHERE id = ?", [registro.id]);
+            
+            const newRefreshToken = crypto.randomBytes(40).toString('hex');
+            const newExpiraEm = Math.floor(Date.now() / 1000) + (7 * 24 * 60 * 60);
+
+            await db.run("INSERT INTO refresh_tokens (id_whatsapp, token, expira_em) VALUES (?, ?, ?)", [registro.id_whatsapp, newRefreshToken, newExpiraEm]);
+
+            const newAccessToken = jwt.sign({ id_whatsapp: registro.id_whatsapp, nome: nome }, JWT_SECRET, { expiresIn: '15m' });
+
+            res.cookie('bostopark_refresh', newRefreshToken, {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === 'production',
+                sameSite: 'Strict',
+                maxAge: 7 * 24 * 60 * 60 * 1000
+            });
+
+            res.json({ accessToken: newAccessToken });
+        } catch (e) {
+            res.status(500).json({ error: "Erro ao renovar sessão." });
+        }
+    });
+
+    app.post('/api/auth/logout', async (req, res) => {
+        const token = req.cookies.bostopark_refresh;
+        if (token) {
+            await db.run("UPDATE refresh_tokens SET revogado = 1 WHERE token = ?", [token]);
+        }
+        res.clearCookie('bostopark_refresh');
+        res.json({ success: "Deslogado com sucesso." });
+    });
+
+    const authenticateToken = (req, res, next) => {
+        const authHeader = req.headers['authorization'];
+        const token = authHeader && authHeader.split(' ')[1]; 
+
+        if (!token) return res.status(401).json({ error: "Acesso negado. Token ausente." });
+
+        jwt.verify(token, JWT_SECRET, (err, user) => {
+            if (err) return res.status(403).json({ error: "Token inválido ou expirado." });
+            
+            req.user = user; 
+            next();
+        });
+    };
+
+    app.get('/api/parque/perfil', authenticateToken, async (req, res) => {
+        try {
+            const jid = req.user.id_whatsapp;
+
+            const player = await chatbot.parqueHandler.getPlayerData(jid);
+            
+            const userDb = await db.get("SELECT bostocoins, afinidade_bot FROM usuarios WHERE id_usuario = ?", [jid]);
+            
+            res.json({
+                id_whatsapp: jid,
+                nome: req.user.name || "Minerador",
+                bostocoins: userDb ? userDb.bostocoins : 0,
+                afinidade: userDb ? userDb.afinidade_bot : 0,
+                ferramentas: player.ferramentas,
+                inventory: player.inventory,
+                inventario_consumiveis: player.inventario_consumiveis
+            });
+        } catch (e) {
+            console.error("Erro ao buscar perfil do parque:", e);
+            res.status(500).json({ error: "Erro ao carregar dados do perfil." });
+        }
+    });
+
+    app.get('/api/parque/escavacao/ativa', authenticateToken, (req, res) => {
+        try {
+            const jid = req.user.id_whatsapp;
+            
+            const sessao = chatbot.parqueHandler.escavacoesAtivas.get(jid);
+
+            if (!sessao) {
+                return res.json({ ativa: false, mensagem: "Você está na superfície. Use !escavar no WhatsApp para entrar no Abismo!" });
+            }
+
+            const ESC_CHANCE_DESMORONAR_BASE = 0.04;
+            const ESC_DESMORONAR_INCREMENTO = 0.06;
+            
+            let riscoAtual = ESC_CHANCE_DESMORONAR_BASE + (ESC_DESMORONAR_INCREMENTO * sessao.camada);
+            if (sessao.buffs?.suporte) riscoAtual /= 2;
+
+            res.json({
+                ativa: true,
+                camada: sessao.camada,
+                turnos_gastos: sessao.turnos,
+                risco_porcentagem: parseFloat((riscoAtual * 100).toFixed(1)),
+                buffs_ativos: sessao.buffs || {},
+                sacola_temporaria: sessao.loot,
+                sensor_peek: {
+                    lado: sessao.peek_lado ? true : false,
+                    fundo: sessao.peek_fundo ? true : false
+                }
+            });
+        } catch (e) {
+            res.status(500).json({ error: "Erro ao verificar escavação ativa." });
+        }
+    });
+
+    app.get('/api/parque/pokedex', authenticateToken, async (req, res) => {
+        try {
+            const jid = req.user.id_whatsapp;
+
+            const descobertosRaw = await db.all("SELECT mineral_id, quantidade_total, data_primeira_descoberta FROM minerios_descobertos WHERE id_whatsapp = ?", [jid]);
+            
+            const descobertosMap = new Map(descobertosRaw.map(i => [i.mineral_id, i]));
+
+            const infoParqueHandler = require('./parqueHandler'); 
+
+            const dbCatalog = descobertosRaw.map(d => d.mineral_id);
+
+            res.json({
+                total_itens_catalogo: 35,
+                descobertos_qtd: descobertosRaw.length,
+                lista_descobertas: descobertosRaw
+            });
+        } catch (e) {
+            res.status(500).json({ error: "Erro ao processar Pokédex Geológica." });
+        }
+    });
+
+    app.get('/api/parque/grupos', authenticateToken, async (req, res) => {
+        try {
+            const userJid = req.user.id_whatsapp;
+            const numeroLimpo = userJid.split('@')[0].split(':')[0] + '@s.whatsapp.net';
+            
+            const gruposDB = await db.all(`
+                SELECT g.id_grupo as id, g.nome 
+                FROM grupos_nomes g
+                INNER JOIN grupo_participantes p ON g.id_grupo = p.id_grupo
+                WHERE p.id_whatsapp = ?
+            `, [numeroLimpo]);
+
+            return res.json(gruposDB);
+
+        } catch (error) {
+            console.error("❌ Erro ao buscar grupos no DB:", error);
+            res.status(500).json({ error: "Erro ao carregar os canais de escavação." });
+        }
+    });
+
+    app.post('/api/parque/escavar', authenticateToken, async (req, res) => {
+        try {
+            const userId = req.user.id_whatsapp; 
+            const userTag = req.user.nome || "Minerador";
+            const { acao, groupId } = req.body;
+
+            if (!acao || !groupId) {
+                return res.status(400).json({ error: "Parâmetros em falta (ação ou grupo ausentes)." });
+            }
+
+            console.log(`🕹️ [WEB ACTION] O utilizador ${userTag} solicitou a ação: '!escavar ${acao}' no grupo ${groupId}`);
+
+            const comandoSintetico = acao === 'fuga' ? '!escavar sair' : `!escavar ${acao}`;
+            
+            const fakeMsg = {
+                key: { remoteJid: groupId, fromMe: false, id: "WEB_" + Math.random().toString(36).substr(2, 9) },
+                messageTimestamp: Math.floor(Date.now() / 1000),
+                pushName: userTag,
+                platform: 'web' 
+            };
+
+            await chatbot.handleCommand(fakeMsg, userId, groupId, true, comandoSintetico, null, sock, []);
+
+            return res.json({ 
+                success: true, 
+                message: `Comando tático enviado para o servidor principal.` 
+            });
+
+        } catch (error) {
+            console.error("❌ Erro crítico ao processar escavação via Web:", error);
+            res.status(500).json({ error: "Falha interna no mainframe da InGen ao tentar escavar." });
+        }
+    });
 
     io.on('connection', (socket) => {
-        console.log(`🟢 [DASHBOARD] Novo espião conectado: ${socket.id}`);
+        console.log(`🟢 [WS] Novo cliente conectado: ${socket.id}`);
         
         chatbot.getDashboardDataAPI().then(data => {
             socket.emit('dashboard_update', data);
         });
 
+        socket.on('auth_bostopark', (token) => {
+            if (!token) return;
+            
+            const JWT_SECRET = process.env.JWT_SECRET || 'chave_super_secreta_jwt_bostossauro';
+            
+            jwt.verify(token, JWT_SECRET, (err, user) => {
+                if (!err && user && user.id_whatsapp) {
+                    const roomName = user.id_whatsapp.split('@')[0];
+                    
+                    socket.join(roomName);
+                    console.log(`🔌 [WS] SUCESSO! O Usuário entrou na sala privada: ${roomName}`);
+                }
+            });
+        });
+
         socket.on('disconnect', () => {
-            console.log(`🔴 [DASHBOARD] Espião desconectado: ${socket.id}`);
+            console.log(`🔴 [WS] Cliente desconectado: ${socket.id}`);
         });
     });
 
@@ -1144,10 +1496,30 @@ async function connectToWhatsApp() {
         }
     } else if (connection === 'open') {
             console.log('✅ Bot conectado e pronto!');
+
+            (async () => {
+                try {
+                    const groups = await sock.groupFetchAllParticipating();
+                    let gruposSalvos = 0;
+                    
+                    for (const groupId in groups) {
+                        const group = groups[groupId];
+                        await db.run(
+                            "INSERT INTO grupos_nomes (id_grupo, nome) VALUES (?, ?) ON CONFLICT(id_grupo) DO UPDATE SET nome = ?",
+                            [group.id, group.subject, group.subject]
+                        );
+                        gruposSalvos++;
+                    }
+                    console.log(`✅ [DB] ${gruposSalvos} grupos mapeados com sucesso!`);
+                } catch (err) {
+                    console.error("❌ Erro ao sincronizar nomes dos grupos:", err);
+                }
+            })();
             
             if (dailyJob) {
                 dailyJob.cancel();
             }
+            
 
             dailyJob = schedule.scheduleJob('0 0 10 * * *', async function(){
                 const targetCity = "Santos"; 
@@ -1517,6 +1889,8 @@ async function connectToWhatsApp() {
         //Joga o comando todo para letras minúsculas para evitar problemas com case-sensitive
         const command = texto.trim().toLowerCase();
 
+        // Trava temporária de reposta em DM
+        if (!isGroup && !texto.trim().startsWith('!')) return;
         
         const name = msg.pushName || '';
 
@@ -1859,6 +2233,16 @@ async function connectToWhatsApp() {
                                 quotedMessage?.imageMessage?.caption || 
                                 "[Midia/Sticker sem texto]";
             try{
+                if (isGroup && sender) {
+                    const numeroLimpo = sender.split(':')[0]; 
+                    const senderJid = numeroLimpo.includes('@s.whatsapp.net') ? numeroLimpo : numeroLimpo + '@s.whatsapp.net';
+                    
+                    const grupoReal = msg.key.remoteJid; 
+                    
+                    db.run("INSERT OR IGNORE INTO grupo_participantes (id_grupo, id_whatsapp) VALUES (?, ?)", [grupoReal, senderJid])
+                    .catch(err => console.error("Erro no tracking passivo de grupo:", err));
+                }
+
                 //Se não for grupo e o chatbot estiver online, responde a qualquer mensagem,
                 //sem precisar de quote ou comando
                 if(!isGroup && chatbot.isOnline){

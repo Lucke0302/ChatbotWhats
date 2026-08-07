@@ -6,6 +6,7 @@ class BlueskyBrain {
     constructor(db, chatbot) {
         this.db = db;
         this.chatbot = chatbot;
+        this.ultimoSurto = 0;
     }
 
     async processarAnotacao(anotacoes, timestampOriginal) {
@@ -23,8 +24,18 @@ class BlueskyBrain {
             }
             
             if (nota >= 8) {
-                await this.db.run(query, [id, contexto, humor, nota, 'postado', timestampOriginal, temasStr]);
-                this.surtoInstantaneo(contexto, humor, timestampOriginal, temas).catch(e => console.error(e));
+                const agora = Date.now();
+                const TEMPO_COOLDOWN = .5 * 60 * 60 * 1000; 
+                const emCooldown = (agora - this.ultimoSurto) < TEMPO_COOLDOWN;
+
+                if (emCooldown) {
+                    console.log(`❄️ [BLUESKY] Nota ${nota}, mas o surto está em cooldown. Mandando para a geladeira...`);
+                    await this.db.run(query, [id, contexto, humor, nota, 'avaliado', timestampOriginal, temasStr]);
+                } else {
+                    this.ultimoSurto = agora; 
+                    await this.db.run(query, [id, contexto, humor, nota, 'postado', timestampOriginal, temasStr]);
+                    this.surtoInstantaneo(id, contexto, humor, timestampOriginal, temas).catch(e => console.error(e));
+                }
             }
         } catch (error) {
             console.error("❌ Erro ao salvar pensamento:", error);

@@ -15,7 +15,7 @@
     "@google-cloud/local-auth": "^3.0.1",
     "@google/genai": "^1.46.0",
     "@google/generative-ai": "^0.24.1",
-    "@whiskeysockets/baileys": "^7.0.0-rc.9",
+    "@whiskeysockets/baileys": "^7.0.0-rc12",
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
     "express": "^5.2.1",

@@ -1149,23 +1149,21 @@ async function connectToWhatsApp() {
     });
 
     app.post('/api/xoxo', async (req, res) => {
-        try {
-            const { title, content, postId } = req.body;
+        try {
+            // O ID do grupo da Cúpula 
+            const cupulaGroupId = process.env.CUPULA_GROUP_ID || "120363422139578370@g.us"; 
 
-            const cupulaGroupId = process.env.CUPULA_GROUP_ID || "120363422139578370@g.us"; 
+            // Manda a mensagem seca no grupo
+            await sock.sendMessage(cupulaGroupId, { text: "xoxo" });
+            
+            console.log(`📣 [XOXO] Notificação silenciosa enviada para o grupo!`);
+            return res.json({ RequestStatus: 200, success: true });
 
-            const message = `xoxo`;
-
-            await sock.sendMessage(cupulaGroupId, { text: message });
-            
-            console.log(`📣 [XOXO] Notificação enviada para o grupo! Post: ${postId}`);
-            return res.json({ RequestStatus: 200, success: true });
-
-        } catch (error) {
-            console.error("❌ Erro no webhook XOXO:", error);
-            return res.status(500).json({ RequestStatus: 500, error: "Erro ao enviar notificação" });
-        }
-    });
+        } catch (error) {
+            console.error("❌ Erro no webhook XOXO:", error);
+            return res.status(500).json({ RequestStatus: 500, error: "Erro ao enviar notificação" });
+        }
+    });
 
     app.get('/api/dashboard', async (req, res) => {
         const data = await chatbot.getDashboardDataAPI();

@@ -1156,7 +1156,8 @@ async function connectToWhatsApp() {
             const cupulaGroupId = process.env.CUPULA_GROUP_ID || "120363422139578370@g.us"; 
 
             // Usa o globalSock aqui!
-            await globalSock.sendMessage(cupulaGroupId, { text: "xoxo" });
+            await globalSock.sendMessage(cupulaGroupId, { text: `Você não ouviu isso de mim… mas tem post novo no blog. 👀
+Corre antes que alguém apague as provas, mude a versão dos fatos ou finja que “não foi bem assim”.` });
             
             console.log(`📣 [XOXO] Notificação silenciosa enviada para o grupo!`);
             return res.json({ RequestStatus: 200, success: true });

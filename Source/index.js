@@ -48,6 +48,8 @@ const pollCache = new Map();
 const DB_PATH = 'chat_history.db'; 
 let db; 
 let myFullJid;
+let globalSock;
+let isExpressRunning = false;
 
 async function preCompressVideo(inputBuffer) {
     const tempInput = path.join(__dirname, `temp_in_${Date.now()}.mp4`);
@@ -1030,7 +1032,8 @@ async function connectToWhatsApp() {
         connectTimeoutMs: 60000,
         keepAliveIntervalMs: 10000,
     });
-    
+
+    globalSock = sock;    
     sock.pollCache = pollCache;
 
     if (usePairingCode && !sock.authState.creds.registered) {
@@ -1150,11 +1153,10 @@ async function connectToWhatsApp() {
 
     app.post('/api/xoxo', async (req, res) => {
         try {
-            // O ID do grupo da Cúpula 
             const cupulaGroupId = process.env.CUPULA_GROUP_ID || "120363422139578370@g.us"; 
 
-            // Manda a mensagem seca no grupo
-            await sock.sendMessage(cupulaGroupId, { text: "xoxo" });
+            // Usa o globalSock aqui!
+            await globalSock.sendMessage(cupulaGroupId, { text: "xoxo" });
             
             console.log(`📣 [XOXO] Notificação silenciosa enviada para o grupo!`);
             return res.json({ RequestStatus: 200, success: true });
@@ -1467,9 +1469,12 @@ async function connectToWhatsApp() {
         }
     }, 3000);
 
-    server.listen(3000, '0.0.0.0', () => {
-        console.log('📈 [API/WS] Dashboard rodando na porta 3000');
-    });
+    if (!isExpressRunning) {
+        server.listen(3000, '0.0.0.0', () => {
+            console.log('📈 [API/WS] Dashboard rodando na porta 3000');
+            isExpressRunning = true;
+        });
+    }
     
     //Envia figurinha
     const sendSticker = async (sock, db, from, msg, mentions, command) => {

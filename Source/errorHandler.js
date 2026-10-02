@@ -39,7 +39,8 @@ const ERROR_DICTIONARY = {
     "POKE_FAINTED": "🚑 Seus Pokémon estão todos desmaiados! Use *!poke2 curar* antes de arrumar confusão.",
     "POKE_NO_BATTLE": "🤷 Você não está em nenhuma batalha no momento.",
     "POKE_INVALID_SLOT": "⚠️ Slot inválido! Digite um número de 1 a 6.",
-    "POKE_FULL_TEAM": "📦 Seu time está cheio! Esse Pokémon foi enviado direto para o seu PC."
+    "POKE_FULL_TEAM": "📦 Seu time está cheio! Esse Pokémon foi enviado direto para o seu PC.",
+    "GOOGLE_API_INTERNAL": "⚠️ Deu um erro 500 interno lá nos data centers deles, a culpa não é do dev! Espera uns 5 a 10 segundos e tenta mandar o comando de novo."
 };
 
 // Mensagem padrão para erros não mapeados (bugs reais)
@@ -81,6 +82,10 @@ const handleBotError = async (error, replyFunction, context = {}) => {
     // DETECÇÃO INTELIGENTE DE ERROS DA API
     if (errorKey.includes("overloaded") || errorKey.includes("503")) {
         errorKey = "AI_OVERLOAD";
+    }
+
+    if (error.code === "GOOGLE_API_INTERNAL" || errorKey.includes("Internal error") || errorKey.includes('"code":500')) {
+        errorKey = "GOOGLE_API_INTERNAL";
     }
 
     const userMessage = ERROR_DICTIONARY[errorKey] || DEFAULT_ERROR_MESSAGE;

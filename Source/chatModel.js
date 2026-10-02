@@ -1650,7 +1650,7 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
         return prompt;
     }
 
-    //Recebe a resposta do Gemini utilizando o prompt recebido
+   // Recebe a resposta do Gemini utilizando o prompt recebido
     async getAiResponse(from, sender, name, isGroup, command, prompt, forceModel = null) {
         await this.updateOnlineStatus();
 
@@ -1658,13 +1658,43 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
 
         const separator = "||MEMORIA||";
 
+        // =================================================================
+        // 🔄 RETRY AUTOMÁTICO EM CASO DE ERRO 500 DA GOOGLE
+        // =================================================================
+        let response = null;
+        let tentativas = 0;
+        const maxTentativas = 2;
+
+        while (tentativas < maxTentativas) {
+            try {
+                tentativas++;
+                response = await this.genAI.models.generateContent({
+                    model: modelName,
+                    contents: prompt,
+                    config: {}
+                });
+                break; 
+            } catch (error) {
+                const isGoogle500 = error?.status === 500 || 
+                                    error?.error?.code === 500 || 
+                                    error?.message?.includes('"code":500') || 
+                                    error?.message?.includes('Internal error encountered') ||
+                                    error?.status === 'INTERNAL';
+
+                if (isGoogle500 && tentativas < maxTentativas) {
+                    console.warn(`⚠️ [GEMINI 500] Servidor do Google oscilou. Tentando novamente em 1.5s (Tentativa ${tentativas}/${maxTentativas})...`);
+                    await new Promise(r => setTimeout(r, 1500));
+                } else {
+                    if (isGoogle500) {
+                        error.code = 'GOOGLE_API_INTERNAL'; // Carimba a chave pro errorHandler
+                    }
+                    console.error("Erro na requisição IA:", error);
+                    throw error;
+                }
+            }
+        }
+
         try {
-            const response = await this.genAI.models.generateContent({
-                model: modelName,
-                contents: prompt,
-                config: {}
-            });
-            
             await this.incrementModelUsage(modelName);
 
             console.log(`Mensagem gerada usando o ${modelName}`);
@@ -1716,8 +1746,7 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
             return replyText;
 
         } catch (error) {
-            // Se der erro 503 ou 429, o errorHandler pega lá na frente
-            console.error("Erro na requisição IA:", error);
+            console.error("Erro no processamento da resposta da IA:", error);
             throw error;
         }
     }

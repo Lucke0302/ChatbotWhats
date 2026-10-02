@@ -110,42 +110,56 @@ class BlueskyBrain {
         ${contextoHistorico}
         Evento original: "${contexto}"`;
 
+        // =================================================================
+        // 🔄 REDUNDÂNCIA 1: ROTAÇÃO DE MODELOS COM RETRY ATÉ CONSEGUIR O TEXTO
+        // =================================================================
+        const modelosDisponiveis = [
+            "gemini-flash-lite-latest",
+            "gemini-3.1-flash-lite-preview",
+        ];
+
         let textoFinal = "";
-        try {
-            textoFinal = await this.chatbot.getAiResponse("sistema", "sistema", "sistema", false, "sys", promptPost, "gemini-3.1-flash-lite-preview");
-        } catch(e) {
-            console.error("❌ Erro ao gerar texto com IA. Devolvendo para geladeira...");
-            await this.db.run(`UPDATE pensamentos_bot SET status = 'avaliado' WHERE id = ?`, [id]);
-            return false;
-        }
+        let delayIa = 5000;
+        let indexModelo = 0;
 
-        let tentativas = 0;
-        let sucesso = false;
-
-        while (tentativas < 3 && !sucesso) {
+        while (!textoFinal) {
+            const modeloAtual = modelosDisponiveis[indexModelo % modelosDisponiveis.length];
             try {
-                tentativas++;
-                console.log(`📤 Postando no BlueSky (Tentativa ${tentativas}/3)...`);
-                await postarNoBlueSky(textoFinal);
-                sucesso = true;
-                
-                await this.db.run(`INSERT INTO historico_bluesky (id, temas, post_texto, timestamp) VALUES (?, ?, ?, ?)`, 
-                    [crypto.randomUUID(), JSON.stringify(temasAtuais), textoFinal, Math.floor(Date.now()/1000)]
-                );
-                await this.db.run(`DELETE FROM pensamentos_bot WHERE id = ?`, [id]);
-                
-            } catch (error) {
-                console.error(`⚠️ Falha na tentativa ${tentativas}.`);
-                if (tentativas < 3) {
-                    await new Promise(r => setTimeout(r, 5000));
-                }
+                console.log(`🤖 [BLUESKY IA] Tentando gerar com ${modeloAtual}...`);
+                textoFinal = await this.chatbot.getAiResponse("sistema", "sistema", "sistema", false, "sys", promptPost, modeloAtual);
+            } catch (e) {
+                console.warn(`⚠️ [BLUESKY IA] Falha no modelo ${modeloAtual} (${e.message || e}). Próxima tentativa em ${delayIa / 1000}s...`);
+                indexModelo++;
+                await new Promise(r => setTimeout(r, delayIa));
+                delayIa = Math.min(delayIa * 1.5, 60000); // Sobe o intervalo gradualmente até no máximo 60s
             }
         }
 
-        if (!sucesso) {
-            console.log(`❄️ Falha definitiva da API. Devolvendo pensamento ${id} para a geladeira.`);
-            await this.db.run(`UPDATE pensamentos_bot SET status = 'avaliado' WHERE id = ?`, [id]);
-            return false;
+        // =================================================================
+        // 🔄 REDUNDÂNCIA 2: INSISTÊNCIA NO ENVIO AO BLUESKY ATÉ DAR SUCESSO
+        // =================================================================
+        let postadoComSucesso = false;
+        let delayEnvio = 5000;
+        let tentativaPost = 0;
+
+        while (!postadoComSucesso) {
+            try {
+                tentativaPost++;
+                console.log(`📤 [BLUESKY] Enviando post (Tentativa ${tentativaPost})...`);
+                await postarNoBlueSky(textoFinal);
+                postadoComSucesso = true;
+                
+                await this.db.run(`INSERT INTO historico_bluesky (id, temas, post_texto, timestamp) VALUES (?, ?, ?, ?)`, 
+                    [crypto.randomUUID(), JSON.stringify(temasAtuais), textoFinal, Math.floor(Date.now() / 1000)]
+                );
+                await this.db.run(`DELETE FROM pensamentos_bot WHERE id = ?`, [id]);
+                console.log(`🎉 [BLUESKY] Pensamento ${id} publicado e salvo no histórico!`);
+                
+            } catch (error) {
+                console.error(`⚠️ [BLUESKY] Erro ao postar (${error.message}). Nova tentativa em ${delayEnvio / 1000}s...`);
+                await new Promise(r => setTimeout(r, delayEnvio));
+                delayEnvio = Math.min(delayEnvio * 1.5, 60000);
+            }
         }
 
         return true;

@@ -29,7 +29,7 @@ class ChatModel {
         this.modelLimits = {
             "gemma-4-31b-it": 1400,
             "gemma-4-26b-a4b-it": 1400,
-
+            "gemini-flash-lite-latest": 450,
             "gemini-3.1-flash-lite-preview": 450,
 
             "gemini-2.5-flash": 20,
@@ -1445,19 +1445,40 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
             candidates.push(forceModel);
         } 
         else if (command.startsWith("!resumo")){
-            candidates = ["gemma-4-31b-it", "gemma-4-26b-a4b-it", "gemini-3.1-flash-lite-preview"]; 
+            candidates = [
+                "gemini-flash-lite-latest",
+                "gemma-4-31b-it", 
+                "gemini-3.1-flash-lite-preview"
+            ]; 
         }
         else if (command.startsWith("!lembrar")) {
-            candidates = ["gemma-4-31b-it", "gemini-3.1-flash-lite-preview", "gemini-2.5-flash"]; 
+            candidates = [
+                "gemini-flash-lite-latest",
+                "gemma-4-31b-it", 
+                "gemini-2.5-flash"
+            ]; 
         }
         else if (command.startsWith("!gpt")){
-            candidates = ["gemini-3.1-flash-lite-preview", "gemma-4-31b-it", "gemma-4-26b-a4b-it", "gemini-2.5-flash"]; 
+            candidates = [
+                "gemini-flash-lite-latest",
+                "gemini-3.1-flash-lite-preview", 
+                "gemma-4-31b-it", 
+                "gemini-2.5-flash"
+            ]; 
         }
         else if (command.startsWith("!burro")){
-            candidates = ["gemma-4-26b-a4b-it", "gemini-2.5-flash-lite"];
+            candidates = [
+                "gemma-4-26b-a4b-it", 
+                "gemini-2.5-flash-lite"
+            ];
         }
         else {
-            candidates = ["gemini-3.1-flash-lite-preview", "gemma-4-31b-it", "gemini-2.5-flash"];
+            // Conversas comuns, menções e quotes
+            candidates = [
+                "gemini-flash-lite-latest",
+                "gemini-3.1-flash-lite-preview", 
+                "gemma-4-31b-it"
+            ];
         }
 
         const currentUsage = await this.getModelUsage();
@@ -1651,6 +1672,7 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
     }
 
    // Recebe a resposta do Gemini utilizando o prompt recebido
+    // Recebe a resposta do Gemini utilizando o prompt recebido
     async getAiResponse(from, sender, name, isGroup, command, prompt, forceModel = null) {
         await this.updateOnlineStatus();
 
@@ -1659,34 +1681,67 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
         const separator = "||MEMORIA||";
 
         // =================================================================
-        // 🔄 RETRY AUTOMÁTICO EM CASO DE ERRO 500 DA GOOGLE
+        // ⏱️ HELPER DE TIMEOUT (Corta requisições travadas no limbo)
+        // =================================================================
+        const withTimeout = (promise, ms) => {
+            let timer;
+            const timeoutPromise = new Promise((_, reject) => {
+                timer = setTimeout(() => {
+                    const err = new Error("Google API Timeout");
+                    err.code = "GOOGLE_TIMEOUT";
+                    reject(err);
+                }, ms);
+            });
+            return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timer));
+        };
+
+        // =================================================================
+        // 🔄 RETRY COM TIMEOUT (Trata 500, 503 e Quedas de Conexão)
         // =================================================================
         let response = null;
         let tentativas = 0;
         const maxTentativas = 2;
+        const TIMEOUT_LIMITE_MS = 30000; // Máximo de 30s por tentativa
 
         while (tentativas < maxTentativas) {
             try {
                 tentativas++;
-                response = await this.genAI.models.generateContent({
-                    model: modelName,
-                    contents: prompt,
-                    config: {}
-                });
+                response = await withTimeout(
+                    this.genAI.models.generateContent({
+                        model: modelName,
+                        contents: prompt,
+                        config: {}
+                    }),
+                    TIMEOUT_LIMITE_MS
+                );
                 break; 
             } catch (error) {
+                const isTimeout = error?.code === 'GOOGLE_TIMEOUT';
                 const isGoogle500 = error?.status === 500 || 
                                     error?.error?.code === 500 || 
                                     error?.message?.includes('"code":500') || 
-                                    error?.message?.includes('Internal error encountered') ||
                                     error?.status === 'INTERNAL';
 
-                if (isGoogle500 && tentativas < maxTentativas) {
-                    console.warn(`⚠️ [GEMINI 500] Servidor do Google oscilou. Tentando novamente em 1.5s (Tentativa ${tentativas}/${maxTentativas})...`);
-                    await new Promise(r => setTimeout(r, 1500));
+                const isGoogle503 = error?.status === 503 || 
+                                    error?.error?.code === 503 || 
+                                    error?.message?.includes('"code":503') || 
+                                    error?.message?.includes('high demand') ||
+                                    error?.message?.includes('overloaded') ||
+                                    error?.status === 'UNAVAILABLE';
+
+                const ehErroTemporario = isTimeout || isGoogle500 || isGoogle503;
+
+                if (ehErroTemporario && tentativas < maxTentativas) {
+                    const motivo = isTimeout ? 'Timeout (+20s)' : (isGoogle503 ? 'Alta Demanda (503)' : 'Instabilidade (500)');
+                    console.warn(`⚠️ [GEMINI] ${motivo}. Tentando novamente em 2s (Tentativa ${tentativas}/${maxTentativas})...`);
+                    await new Promise(r => setTimeout(r, 2000));
                 } else {
-                    if (isGoogle500) {
-                        error.code = 'GOOGLE_API_INTERNAL'; // Carimba a chave pro errorHandler
+                    if (isTimeout) {
+                        error.code = 'GOOGLE_TIMEOUT';
+                    } else if (isGoogle503) {
+                        error.code = 'AI_OVERLOAD';
+                    } else if (isGoogle500) {
+                        error.code = 'GOOGLE_API_INTERNAL';
                     }
                     console.error("Erro na requisição IA:", error);
                     throw error;

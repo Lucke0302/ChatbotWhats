@@ -2,12 +2,17 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 
+// ☠️ [FASE 4 - FALHAS FATAIS] Depois de uma exceção/promise não tratada o processo
+// fica em estado indefinido (zumbi): sockets órfãos, DB possivelmente inconsistente
+// e memória suja. Encerrar com exit(1) delega a recuperação limpa ao PM2.
 process.on('uncaughtException', (err) => {
-    console.error('🚨 [CRASH EVITADO] Exceção não tratada:', err);
+    console.error('🚨 [FALHA FATAL] Exceção não tratada. Encerrando processo para restart limpo via PM2:', err);
+    process.exit(1);
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-    console.error('🚨 [CRASH EVITADO] Promise Rejeitada não tratada:', reason);
+    console.error('🚨 [FALHA FATAL] Promise rejeitada não tratada. Encerrando processo para restart limpo via PM2:', reason);
+    process.exit(1);
 });
 
 const schedule = require('node-schedule');
@@ -100,7 +105,10 @@ async function preCompressVideo(inputBuffer) {
     try {
         const cmd = `ffmpeg -i "${tempInput}" -vf "scale='min(320,iw)':min'(320,ih)':force_original_aspect_ratio=decrease,fps=24" -c:v libx264 -preset ultrafast -crf 30 -an "${tempOutput}"`;
         
-        await execPromise(cmd);
+        // 🛡️ [FASE 4 - I/O RESILIENTE] Sem teto de tempo, um vídeo corrompido
+        // deixava o FFmpeg pendurado consumindo CPU/RAM e travando um dos 2 slots
+        // do semáforo de mídia da VM. SIGKILL garante morte imediata + fallback.
+        await execPromise(cmd, { timeout: 15000, killSignal: 'SIGKILL' });
         
         const outBuffer = await fs.promises.readFile(tempOutput);
         return outBuffer;
@@ -149,6 +157,13 @@ async function initDatabase() {
         driver: sqlite3.Database
     });
 
+    // 🛡️ [FASE 4 - I/O DO SQLITE] WAL separa leitura de escrita: dashboard,
+    // conectores (Twitch/Discord) e IA leem enquanto o bot grava, acabando com os
+    // travamentos SQLITE_BUSY. O busy_timeout absorve picos de escrita concorrente
+    // em vez de devolver erro imediato.
+    await db.run("PRAGMA journal_mode = WAL;");
+    await db.run("PRAGMA busy_timeout = 5000;");
+
     await db.exec(`
         CREATE TABLE IF NOT EXISTS mensagens (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -160,6 +175,11 @@ async function initDatabase() {
             id_mensagem_externo TEXT UNIQUE
         );
     `);
+
+    // 🚀 [FASE 4 - PERFORMANCE] Índice composto para a query quente de histórico
+    // (WHERE id_conversa = ? ORDER BY timestamp): elimina o full table scan em uma
+    // tabela que só cresce.
+    await db.exec(`CREATE INDEX IF NOT EXISTS idx_mensagens_conversa_tempo ON mensagens (id_conversa, timestamp);`);
 
     await db.exec(`
         CREATE TABLE IF NOT EXISTS usuarios (

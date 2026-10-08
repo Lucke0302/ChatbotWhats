@@ -2,6 +2,22 @@ require('dotenv').config();
 
 const WEATHER_API_KEY = process.env.WEATHER_API_KEY;
 
+// 🛡️ [FASE 4 - TIMEOUT] Teto rígido de 15s para a OpenWeatherMap: o
+// AbortController cancela a requisição pendente e o comando cai no fallback de
+// instabilidade em vez de ficar travado esperando a API responder.
+const TIMEOUT_API_MS = 15000;
+
+async function fetchComTimeout(url) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), TIMEOUT_API_MS);
+
+    try {
+        return await fetch(url, { signal: controller.signal });
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
 /**
  * Busca o clima na OpenWeatherMap
  * @param {string} city
@@ -14,7 +30,7 @@ async function getWeather(city) {
     try {
         const url = `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(city)}&appid=${WEATHER_API_KEY}&units=metric&lang=pt_br`;
         
-        const response = await fetch(url);
+        const response = await fetchComTimeout(url);
         
         if (!response.ok) {
             if (response.status === 404) {
@@ -63,7 +79,7 @@ async function getGameWeatherCondition(city) {
     
     try {
         const url = `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(city)}&appid=${WEATHER_API_KEY}&units=metric&lang=pt_br`;
-        const response = await fetch(url);
+        const response = await fetchComTimeout(url);
         
         if (!response.ok) return { condicao: 'nublado', emoji: '☁️', failed: true };
 
@@ -88,7 +104,7 @@ async function getNextDayForecast(city) {
     try {
         const url = `https://api.openweathermap.org/data/2.5/forecast?q=${encodeURIComponent(city)}&appid=${WEATHER_API_KEY}&units=metric&lang=pt_br`;
         
-        const response = await fetch(url);
+        const response = await fetchComTimeout(url);
 
         if (!response.ok) {
             if (response.status === 404) throw new Error("NON-EXISTENT_CITY");

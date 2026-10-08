@@ -122,17 +122,30 @@ class BlueskyBrain {
         let delayIa = 5000;
         let indexModelo = 0;
 
-        while (!textoFinal) {
+        // 🛡️ [FASE 4 - ANTI-LOOP] Teto rígido de tentativas: antes, uma IA
+        // indisponível prendia esta promise para sempre (loop infinito com sleeps
+        // de até 60s), acumulando estado pendente no processo.
+        const MAX_TENTATIVAS_IA = 3;
+        let tentativaIa = 0;
+
+        while (!textoFinal && tentativaIa < MAX_TENTATIVAS_IA) {
+            tentativaIa++;
             const modeloAtual = modelosDisponiveis[indexModelo % modelosDisponiveis.length];
             try {
-                console.log(`🤖 [BLUESKY IA] Tentando gerar com ${modeloAtual}...`);
+                console.log(`🤖 [BLUESKY IA] Tentando gerar com ${modeloAtual} (Tentativa ${tentativaIa}/${MAX_TENTATIVAS_IA})...`);
                 textoFinal = await this.chatbot.getAiResponse("sistema", "sistema", "sistema", false, "sys", promptPost, modeloAtual);
             } catch (e) {
                 console.warn(`⚠️ [BLUESKY IA] Falha no modelo ${modeloAtual} (${e.message || e}). Próxima tentativa em ${delayIa / 1000}s...`);
                 indexModelo++;
+                if (tentativaIa >= MAX_TENTATIVAS_IA) break; // 🛑 estanca o loop
                 await new Promise(r => setTimeout(r, delayIa));
                 delayIa = Math.min(delayIa * 1.5, 60000); // Sobe o intervalo gradualmente até no máximo 60s
             }
+        }
+
+        if (!textoFinal) {
+            console.error(`🛑 [BLUESKY IA] Limite de ${MAX_TENTATIVAS_IA} tentativas esgotado. Abortando o pensamento ${id} para não deixar promise pendente.`);
+            return false;
         }
 
         // =================================================================
@@ -142,10 +155,14 @@ class BlueskyBrain {
         let delayEnvio = 5000;
         let tentativaPost = 0;
 
-        while (!postadoComSucesso) {
+        // 🛡️ [FASE 4 - ANTI-LOOP] Teto rígido de envios: com o Bluesky fora do ar
+        // o while antigo insistia para sempre e a promise nunca resolvia.
+        const MAX_TENTATIVAS_POST = 3;
+
+        while (!postadoComSucesso && tentativaPost < MAX_TENTATIVAS_POST) {
             try {
                 tentativaPost++;
-                console.log(`📤 [BLUESKY] Enviando post (Tentativa ${tentativaPost})...`);
+                console.log(`📤 [BLUESKY] Enviando post (Tentativa ${tentativaPost}/${MAX_TENTATIVAS_POST})...`);
                 await postarNoBlueSky(textoFinal);
                 postadoComSucesso = true;
                 
@@ -156,11 +173,18 @@ class BlueskyBrain {
                 console.log(`🎉 [BLUESKY] Pensamento ${id} publicado e salvo no histórico!`);
                 
             } catch (error) {
-                console.error(`⚠️ [BLUESKY] Erro ao postar (${error.message}). Nova tentativa em ${delayEnvio / 1000}s...`);
+                console.error(`⚠️ [BLUESKY] Erro ao postar (${error.message}).`);
+                if (tentativaPost >= MAX_TENTATIVAS_POST) {
+                    console.error(`🛑 [BLUESKY] Limite de ${MAX_TENTATIVAS_POST} tentativas esgotado. Pensamento ${id} segue na geladeira para o próximo turno.`);
+                    break;
+                }
+                console.warn(`🔁 Nova tentativa em ${delayEnvio / 1000}s...`);
                 await new Promise(r => setTimeout(r, delayEnvio));
                 delayEnvio = Math.min(delayEnvio * 1.5, 60000);
             }
         }
+
+        if (!postadoComSucesso) return false;
 
         return true;
     }

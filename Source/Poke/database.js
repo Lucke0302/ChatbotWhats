@@ -3,6 +3,12 @@ class PokeDatabase {
         this.db = dbConnection;
     }
 
+    // 🛡️ [FASE 5 - SEGURANÇA] Whitelist de colunas de EV: `statName` vem da camada
+    // de jogo, mas a query NUNCA interpola um identificador sem validação.
+    static get EV_STAT_COLUMNS() {
+        return ['ev_hp', 'ev_atk', 'ev_def', 'ev_spa', 'ev_spd', 'ev_spe'];
+    }
+
     // ==========================================
     //  USUÁRIOS E PERFIL
     // ==========================================
@@ -156,6 +162,12 @@ class PokeDatabase {
 
     async addPokemonEVs(pokemonId, evStatsObject) {
         const col = evStatsObject.statName; 
+
+        // 🛡️ [FASE 5 - SEGURANÇA] Whitelist obrigatória antes de interpolar a coluna.
+        if (!PokeDatabase.EV_STAT_COLUMNS.includes(col)) {
+            throw new Error(`Coluna de EV inválida: ${col}`);
+        }
+
         return await this.db.run(`UPDATE user_pokemons SET ${col} = ${col} + ? WHERE id = ?`, [evStatsObject.amount, pokemonId]);
     }
 

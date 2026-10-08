@@ -1,4 +1,5 @@
 const usage = require('./usageControl');
+const crypto = require('crypto');
 const weatherCommandHandler = require('./weatherCommand');
 const currencyCommandHandler = require('./currencyCommand');
 const helpCommandHandler = require('./helpCommand');
@@ -27,6 +28,23 @@ class ChatModel {
         this.genAI = genAI;
         this.isOnline = true;
         this.isTesting = true;
+
+        // 🧠 [FASE 5 - MICRO-CACHE] `getModelUsage()` é chamado a CADA requisição
+        // de IA (roteador do Gemini) e também pelo dashboard de cotas. Cachear por
+        // 60s elimina dezenas de SELECTs por minuto no SQLite da VM de 1GB.
+        this.modelUsageCache = null;
+        this.MODEL_USAGE_CACHE_TTL_MS = 60 * 1000;
+
+        // 🧹 [FASE 5 - TTL DE MEMÓRIA] Cooldowns efêmeros. Declarados aqui (e não
+        // depois do updateOnlineStatus) porque o construtor dispara uma leitura
+        // assíncrona de uso antes do fim do bloco.
+        this.spamCooldowns = new Map(); 
+        this.SPAM_COOLDOWN_TTL_MS = 10 * 60 * 1000;
+        this.tokenCooldowns = new Map();
+        this.TOKEN_COOLDOWN_MS = 60 * 1000;
+        this.SPAM_DELAY_SECONDS = 10;
+        this.DAILY_AI_LIMIT = 10;
+        this.DAILY_LIMIT_GEMMA = 100;
         this.modelLimits = {
             "gemma-4-31b-it": 1400,
             "gemma-4-26b-a4b-it": 1400,
@@ -43,10 +61,6 @@ class ChatModel {
         // como o ChatModel é recriado a cada reconexão do Baileys, o guard
         // impede que um novo timer diário da Riot API seja acumulado.
         lolCommandHandler.init();
-        this.spamCooldowns = new Map(); 
-        this.SPAM_DELAY_SECONDS = 10;
-        this.DAILY_AI_LIMIT = 10;
-        this.DAILY_LIMIT_GEMMA = 100;
         this.toxicHandler = new ToxicHandler(db);
         this.pokemonHandler = new PokemonHandler(db);
         this.pokemonHandler.init();
@@ -104,6 +118,15 @@ class ChatModel {
 
     async getModelUsage() {
         const today = this.getTodayDateString();
+        const agora = Date.now();
+        const cache = this.modelUsageCache;
+
+        // 🧠 [FASE 5 - MICRO-CACHE] 60s de validade e invalidação automática na
+        // virada do dia (o `today` faz parte da chave de cache).
+        if (cache && cache.today === today && cache.expiresAt > agora) {
+            return cache.data;
+        }
+
         const rows = await this.db.all(`SELECT model_name, quantidade FROM system_usage WHERE data_uso = ?`, [today]);
         const usage = {};
         if (rows) {
@@ -111,6 +134,13 @@ class ChatModel {
                 usage[r.model_name] = r.quantidade;
             });
         }
+
+        this.modelUsageCache = {
+            today,
+            data: usage,
+            expiresAt: Date.now() + this.MODEL_USAGE_CACHE_TTL_MS
+        };
+
         return usage;
     }
 
@@ -122,6 +152,33 @@ class ChatModel {
             ON CONFLICT(data_uso, model_name)
             DO UPDATE SET quantidade = quantidade + 1
         `, [today, modelName]);
+
+        // Escrita invalida o micro-cache: o próximo roteamento enxerga o número real.
+        this.modelUsageCache = null;
+    }
+
+    // 🧹 [FASE 5 - TTL DE MEMÓRIA] Varredura das estruturas efêmeras do cérebro.
+    // Chamada pelo varredor periódico Singleton do index.js (a cada 30 min) e
+    // também de forma preguiçosa nos pontos de acesso mais quentes.
+    limparMemoriasExpiradas() {
+        const agora = Date.now();
+
+        for (const [chave, timestamp] of this.spamCooldowns) {
+            if (agora - timestamp > this.SPAM_COOLDOWN_TTL_MS) this.spamCooldowns.delete(chave);
+        }
+
+        for (const [chave, timestamp] of this.tokenCooldowns) {
+            // O dobro do cooldown já é suficiente para o expurgo (não há histórico).
+            if (agora - timestamp > (this.TOKEN_COOLDOWN_MS * 2)) this.tokenCooldowns.delete(chave);
+        }
+
+        // Delega a limpeza para os handlers que mantêm sessões interativas.
+        if (this.parqueHandler && typeof this.parqueHandler.limparEscavacoesExpiradas === 'function') {
+            this.parqueHandler.limparEscavacoesExpiradas();
+        }
+        if (this.pokemonHandler && typeof this.pokemonHandler.limparTradeSessionsExpiradas === 'function') {
+            this.pokemonHandler.limparTradeSessionsExpiradas();
+        }
     }
 
     initializeCommandHandlers() {
@@ -253,8 +310,20 @@ class ChatModel {
             },
             '!gerartoken': async (ctx) => {
                 if (ctx.platform !== 'whatsapp') return "❌ Gere o token pelo WhatsApp!";
-                
-                const token = Math.random().toString(36).substring(2, 7).toUpperCase();
+
+                // 🛡️ [FASE 5 - ANTI-SPAM] Limitador por usuário: geração de token
+                // escreve no SQLite e nunca deveria ser um comando de mão livre.
+                const agora = Date.now();
+                const ultimaGeracao = this.tokenCooldowns.get(ctx.sender) || 0;
+                const decorrido = agora - ultimaGeracao;
+
+                if (decorrido < this.TOKEN_COOLDOWN_MS) {
+                    const espera = Math.ceil((this.TOKEN_COOLDOWN_MS - decorrido) / 1000);
+                    return `⏳ Calma, ${ctx.name}! Você já gerou um token agora há pouco.\nTente novamente em *${espera}s*.`;
+                }
+                this.tokenCooldowns.set(ctx.sender, agora);
+
+                const token = this.gerarTokenSeguro();
                 const expira = Date.now() + (10 * 60 * 1000); 
                 
                 await this.db.run(
@@ -270,10 +339,11 @@ class ChatModel {
                 }
                 
                 const args = ctx.command.trim().split(/\s+/);
-                const tokenDigitado = args[1]?.toUpperCase();
-                if (!tokenDigitado) return "⚠️ Cadê o token? Use: !vincular ABC12";
+                const tokenDigitado = args[1]?.trim();
+                if (!tokenDigitado) return "⚠️ Cadê o token? Use: !vincular [SEU_TOKEN]";
 
-                const registro = await this.db.get("SELECT * FROM tokens_vinculo WHERE token = ?", [tokenDigitado]);
+                // 🛡️ [FASE 5 - SEGURANÇA] Token misto (A-z0-9) exige busca NOCASE.
+                const registro = await this.db.get("SELECT * FROM tokens_vinculo WHERE token = ? COLLATE NOCASE", [tokenDigitado]);
                 if (!registro) return "❌ Token inválido ou não encontrado.";
                 if (Date.now() > registro.expira_em) return "⏳ Esse token expirou! Gere outro no Zap.";
 
@@ -291,7 +361,8 @@ class ChatModel {
                         [registro.id_whatsapp, id_twitch, id_discord]
                     );
 
-                    await this.db.run("DELETE FROM tokens_vinculo WHERE token = ?", [tokenDigitado]);
+                    // Queima o token pela chave EXATA gravada no banco.
+                    await this.db.run("DELETE FROM tokens_vinculo WHERE token = ?", [registro.token]);
                     return `✅ **CROSS-SAVE ATIVADO!** Sua conta do ${ctx.platform.toUpperCase()} foi vinculada ao WhatsApp.`;
 
                 } catch (e) {
@@ -962,11 +1033,35 @@ class ChatModel {
         }
     }
 
+    // 🛡️ [FASE 5 - SEGURANÇA] Token de cross-save com entropia real (CSPRNG):
+    // 8 caracteres sobre um alfabeto de 62 símbolos = ~47 bits de entropia
+    // (o antigo `Math.random().substring(2,7)` tinha ~26 bits e era previsível).
+    gerarTokenSeguro() {
+        const alfabeto = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+        const bytes = crypto.randomBytes(8);
+        let token = '';
+
+        for (let i = 0; i < 8; i++) {
+            token += alfabeto[bytes[i] % alfabeto.length];
+        }
+
+        return token;
+    }
+
     checkSpam(sender, command = "") {
         if (sender === "5513991008854@s.whatsapp.net") {
             return; 
         }
         const now = Date.now();
+
+        // 🧹 [FASE 5 - TTL DE MEMÓRIA] Expurgo preguiçoso: o Map de cooldowns não
+        // pode crescer indefinidamente com usuários que nunca mais escrevem.
+        if (this.spamCooldowns.size > 200) {
+            for (const [chave, timestamp] of this.spamCooldowns) {
+                if (now - timestamp > this.SPAM_COOLDOWN_TTL_MS) this.spamCooldowns.delete(chave);
+            }
+        }
+
         const lastTime = this.spamCooldowns.get(sender) || 0;
         const diffSeconds = (now - lastTime) / 1000;
 
@@ -2105,6 +2200,10 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
                 ON CONFLICT(data_uso, model_name)
                 DO UPDATE SET quantidade = ?
             `, [today, selectedModel, limit, limit]);
+
+            // 🧠 [FASE 5 - MICRO-CACHE] Escrita direta no banco invalida o cache,
+            // senão o painel logo abaixo mostraria o número antigo por até 60s.
+            this.modelUsageCache = null;
 
             await this.updateOnlineStatus();
 

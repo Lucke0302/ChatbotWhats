@@ -3,6 +3,17 @@ const { gracefulShutdown } = require('node-schedule');
 const STARTER_IDS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 152, 153, 154, 155, 156, 157, 158, 159, 160, 252, 253, 254, 255, 256, 257, 258, 259, 260];
 const ADMIN_ID = "5513991008854@s.whatsapp.net";
 
+// 🛡️ [FASE 5 - SEGURANÇA] Whitelists de colunas: qualquer interpolação dinâmica
+// em SQL passa por estas listas, eliminando a injeção indireta de identificadores
+// (ex: um slot de golpe manipulado virando `move1_pp = 0; DROP TABLE ...`).
+const EV_STAT_COLUMNS = ['ev_hp', 'ev_atk', 'ev_def', 'ev_spa', 'ev_spd', 'ev_spe'];
+const MOVE_COLUMNS = ['move1', 'move2', 'move3', 'move4'];
+const MOVE_PP_COLUMNS = ['move1_pp', 'move2_pp', 'move3_pp', 'move4_pp'];
+
+// 🧹 [FASE 5 - TTL DE MEMÓRIA] Tempo de vida útil de uma negociação entre dois
+// jogadores antes de ser considerada abandonada.
+const TRADE_SESSION_TTL_MS = 5 * 60 * 1000;
+
 const REWARD_CUTOFF = 1768233600000;
 const RARE_POKE = [
     // --- GEN 1 ---
@@ -537,6 +548,9 @@ class PokemonHandler {
         };
         
         const bestStat = Object.keys(stats).reduce((a, b) => stats[a] > stats[b] ? a : b);
+
+        // 🛡️ [FASE 5 - SEGURANÇA] Só colunas da whitelist entram na query.
+        if (!EV_STAT_COLUMNS.includes(bestStat)) return "";
         
         const currentTotal = (userPoke.ev_hp||0) + (userPoke.ev_atk||0) + (userPoke.ev_def||0) + 
                             (userPoke.ev_spa||0) + (userPoke.ev_spd||0) + (userPoke.ev_spe||0);
@@ -2629,15 +2643,34 @@ class PokemonHandler {
                `⚠️ Taxa de retirada: 200 coins por nível subido.`;
     }
 
+    // 🧹 [FASE 5 - TTL DE MEMÓRIA] Varredura das negociações abandonadas (5 min de
+    // validade). Chamada no próprio comando de troca e pelo varredor periódico
+    // Singleton do index.js (cobre o caso de ninguém mais usar !poke troca).
+    limparTradeSessionsExpiradas() {
+        const agora = Date.now();
+        let removidas = 0;
+
+        for (const [chave, sessao] of this.tradeSessions) {
+            const referencia = (sessao && sessao.startedAt) ? sessao.startedAt : 0;
+
+            if ((agora - referencia) > TRADE_SESSION_TTL_MS) {
+                this.tradeSessions.delete(chave);
+                removidas++;
+            }
+        }
+
+        if (removidas > 0) {
+            console.log(`🧹 [TTL] tradeSessions: ${removidas} negociação(ões) expirada(s) expurgada(s).`);
+        }
+        return removidas;
+    }
+
     async handleTradeCommand(sender, command, mentions) {
         const tag = await this.getUserTag(sender);
         const args = command.split(' ');
         const subAction = args[2] ? args[2].toLowerCase() : '';
         
-        const now = Date.now();
-        for (const [key, session] of this.tradeSessions) {
-            if (now - session.startedAt > 300000) this.tradeSessions.delete(key);
-        }
+        this.limparTradeSessionsExpiradas();
 
         // --- INICIAR TROCA (!poke troca @usuario) ---
         if (subAction.startsWith('@') || subAction === 'iniciar') {
@@ -3777,7 +3810,10 @@ class PokemonHandler {
             
             // Consome PP
             const slotNumber = parseInt(moveSlot); 
-            const colName = `move${slotNumber}_pp`; 
+            // 🛡️ [FASE 5 - SEGURANÇA] Whitelist: o slot do golpe só pode gerar
+            // uma coluna conhecida (move1_pp … move4_pp).
+            const colName = MOVE_PP_COLUMNS[slotNumber - 1];
+            if (!colName) return `${tag}Golpe inválido!`;
             await this.db.run(`UPDATE user_pokemons SET ${colName} = ${colName} - 1 WHERE id = ?`, [userPoke.id]);
         }
         
@@ -4861,8 +4897,16 @@ class PokemonHandler {
         const currentMoveId = userPoke[`move${moveSlotToForget}`];
         const oldMoveName = currentMoveId ? (await this.db.get("SELECT name FROM moves WHERE id = ?", [currentMoveId]))?.name : 'Espaço Vazio';
 
+        // 🛡️ [FASE 5 - SEGURANÇA] Whitelist das colunas de golpe (o slot já foi
+        // validado como 1..4 acima, mas a query nunca interpola valor cru).
+        const moveColumn = MOVE_COLUMNS[moveSlotToForget - 1];
+        const movePpColumn = MOVE_PP_COLUMNS[moveSlotToForget - 1];
+        if (!moveColumn || !movePpColumn) {
+            return "⚠️ Escolha um slot de ataque válido de 1 a 4 para esquecer (ou 0 para descartar o golpe novo).";
+        }
+
         await this.db.run(
-            `UPDATE user_pokemons SET move${moveSlotToForget} = ?, move${moveSlotToForget}_pp = ? WHERE id = ?`, 
+            `UPDATE user_pokemons SET ${moveColumn} = ?, ${movePpColumn} = ? WHERE id = ?`, 
             [moveIdToLearn, move.pp, userPoke.id]
         );
 
@@ -4888,8 +4932,13 @@ class PokemonHandler {
         const emptyIndex = currentMoves.indexOf(null);
 
         if (emptyIndex !== -1) {
-            await this.db.run(`UPDATE user_pokemons SET move${emptyIndex + 1} = ? WHERE id = ?`, [moveId, userPoke.id]);
-            userPoke[`move${emptyIndex + 1}`] = moveId; 
+            // 🛡️ [FASE 5 - SEGURANÇA] O índice vem do array do próprio banco, mas
+            // ainda assim só uma coluna da whitelist pode ser interpolada.
+            const moveColumn = MOVE_COLUMNS[emptyIndex];
+            if (!moveColumn) return { success: false, reason: 'invalid_slot', msg: "slot inválido." };
+
+            await this.db.run(`UPDATE user_pokemons SET ${moveColumn} = ? WHERE id = ?`, [moveId, userPoke.id]);
+            userPoke[moveColumn] = moveId; 
             
             return { success: true, learned: true, moveName: move.name, msg: `**${userPoke.nickname}** aprendeu *${move.name}*!` };
         } else {

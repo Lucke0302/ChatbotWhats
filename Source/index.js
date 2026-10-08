@@ -39,9 +39,6 @@ const sharp = require('sharp');
 const crypto = require('crypto');
 const BlueskyBrain = require('./Bluesky/blueskyBrain');
 
-const DriveBackup = require('./handleDriveBackup');
-const driveService = new DriveBackup();
-
 const { startDiscord } = require('./Discord/discordConnector');
 
 // 🛡️ [FASE 2 - SEGURANÇA] Estado vivo compartilhado com Twitch/Discord.
@@ -54,7 +51,101 @@ const path = require('path');
 const util = require('util');
 const execPromise = util.promisify(exec);
 
+// 🧹 [FASE 5 - TTL DE MEMÓRIA] Cache de enquetes (pollCache) exposto aos handlers
+// via `sock.pollCache`. Contrato: cada entrada deve ser `{ value, expiresAt }`
+// (expiresAt = Date.now() + TTL). Entradas vencidas são expurgadas pelo varredor
+// periódico registrado junto do servidor web (instância única por processo).
 const pollCache = new Map();
+const POLL_CACHE_TTL_MS = 10 * 60 * 1000;
+
+function limparPollCacheExpirado() {
+    const agora = Date.now();
+    let removidos = 0;
+
+    for (const [chave, entrada] of pollCache) {
+        const expira = (entrada && typeof entrada === 'object') ? entrada.expiresAt : undefined;
+
+        // Entradas fora do contrato ou vencidas são descartadas (fail-closed).
+        if (typeof expira !== 'number' || expira <= agora) {
+            pollCache.delete(chave);
+            removidos++;
+        }
+    }
+
+    if (removidos > 0) {
+        console.log(`🧹 [TTL] pollCache: ${removidos} entrada(s) expirada(s) removida(s) (TTL padrão de ${POLL_CACHE_TTL_MS / 60000}min).`);
+    }
+    return removidos;
+}
+
+// 🧹 [FASE 5 - RETENÇÃO] Política de retenção do histórico:
+// mensagens com mais de 60 dias SÓ são removidas quando a conversa já acumulou
+// mais de 500 registros (evita perder contexto de grupos pequenos/raros).
+const RETENCAO_DIAS = 60;
+const RETENCAO_MIN_MENSAGENS = 500;
+
+async function limparHistoricoAntigo() {
+    if (!db) return 0;
+
+    const corte = Math.floor(Date.now() / 1000) - (RETENCAO_DIAS * 24 * 60 * 60);
+
+    try {
+        const resultado = await db.run(
+            `DELETE FROM mensagens
+             WHERE timestamp < ?
+               AND id_conversa IN (
+                   SELECT id_conversa
+                   FROM mensagens
+                   GROUP BY id_conversa
+                   HAVING COUNT(*) > ?
+               )`,
+            [corte, RETENCAO_MIN_MENSAGENS]
+        );
+
+        const apagadas = (resultado && resultado.changes) ? resultado.changes : 0;
+        if (apagadas > 0) {
+            console.log(`🧹 [RETENÇÃO] ${apagadas} mensagens antigas (>${RETENCAO_DIAS} dias) removidas do histórico.`);
+        } else {
+            console.log(`🧹 [RETENÇÃO] Nenhuma mensagem elegível para expurgo hoje.`);
+        }
+        return apagadas;
+    } catch (error) {
+        console.error("❌ [RETENÇÃO] Falha ao limpar histórico antigo:", error);
+        return 0;
+    }
+}
+
+// 🧠 [FASE 5 - MICRO-CACHE] Dashboard é lido pelo WebSocket a cada 3s e pela rota
+// /api/dashboard. Sem cache isso significava N consultas agressivas no SQLite da
+// VM de 1GB. Agora o resultado vive 60s em memória e as leituras concorrentes são
+// coalescidas em uma única promise (single-flight).
+const DASHBOARD_CACHE_TTL_MS = 60 * 1000;
+let dashboardCacheData = null;
+let dashboardCacheExpiresAt = 0;
+let dashboardCachePromise = null;
+
+async function getDashboardDataCacheado() {
+    const agora = Date.now();
+
+    if (dashboardCacheData && dashboardCacheExpiresAt > agora) {
+        return dashboardCacheData;
+    }
+
+    if (dashboardCachePromise) return dashboardCachePromise;
+    if (!globalChatbot) return null;
+
+    dashboardCachePromise = globalChatbot.getDashboardDataAPI()
+        .then((dados) => {
+            dashboardCacheData = dados;
+            dashboardCacheExpiresAt = Date.now() + DASHBOARD_CACHE_TTL_MS;
+            return dados;
+        })
+        .finally(() => {
+            dashboardCachePromise = null;
+        });
+
+    return dashboardCachePromise;
+}
 
 const DB_PATH = 'chat_history.db'; 
 let db; 
@@ -70,6 +161,7 @@ let isDbInitialized = false;
 let isWebInitialized = false;
 let isCronInitialized = false;
 let dailyJob = null;
+let retentionJob = null;
 let webIO = null;
 let globalChatbot = null;
 
@@ -1075,13 +1167,6 @@ async function connectToWhatsApp() {
         console.log('✅ [DB] Instância única do SQLite inicializada.');
     }
 
-    /*try {
-        await driveService.authorize();
-        console.log("✅ Google Drive Autenticado!");
-    } catch (err) {
-        console.error("❌ Falha ao autenticar no Drive:", err);
-    }*/
-
     const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
 
     const usePairingCode = true;
@@ -1254,8 +1339,48 @@ async function connectToWhatsApp() {
 
     const server = http.createServer(app);
 
+    // 🛡️ [FASE 5 - SEGURANÇA] O Socket.io aceitava QUALQUER origem (`origin: "*"`),
+    // permitindo que sites de terceiros abrissem conexões persistentes no servidor.
+    // Agora o handshake só aceita as mesmas origens do CORS REST e, quando um token
+    // JWT é enviado, ele é validado ANTES de manter a conexão viva.
     const io = new Server(server, {
-        cors: { origin: "*" }
+        cors: {
+            origin: function (origin, callback) {
+                if (!origin) return callback(null, true);
+
+                if (allowedOrigins.indexOf(origin) !== -1) {
+                    return callback(null, true);
+                }
+                return callback(new Error('Bloqueado pelo CORS do WebSocket'));
+            },
+            methods: ['GET', 'POST'],
+            credentials: true
+        },
+        maxHttpBufferSize: 1e6
+    });
+
+    io.use((socket, next) => {
+        const origin = socket.handshake.headers && socket.handshake.headers.origin;
+
+        // Origem não autorizada (navegador de terceiros) = conexão recusada.
+        if (origin && allowedOrigins.indexOf(origin) === -1) {
+            return next(new Error('Origem não autorizada.'));
+        }
+
+        const token = (socket.handshake.auth && socket.handshake.auth.token) ||
+                      (socket.handshake.query && socket.handshake.query.token);
+
+        // Espectador anônimo: mantém apenas o acesso de leitura ao dashboard público
+        // (mesmo nível de exposição da rota /api/dashboard).
+        if (!token) return next();
+
+        jwt.verify(token, JWT_SECRET, (err, user) => {
+            if (err || !user) {
+                return next(new Error('Token inválido no handshake.'));
+            }
+            socket.user = user;
+            next();
+        });
     });
 
     webIO = io; // Referência global viva (re-vinculada a cada reconexão)
@@ -1336,7 +1461,10 @@ Corre antes que alguém apague as provas, mude a versão dos fatos ou finja que 
             if (!globalChatbot) {
                 return res.status(503).json({ status: "error", message: "Chatbot indisponível." });
             }
-            const data = await globalChatbot.getDashboardDataAPI();
+            const data = await getDashboardDataCacheado();
+            if (!data) {
+                return res.status(503).json({ status: "error", message: "Chatbot indisponível." });
+            }
             return res.json(data);
         } catch (e) {
             console.error("❌ Erro na rota /api/dashboard:", e);
@@ -1350,9 +1478,12 @@ Corre antes que alguém apague as provas, mude a versão dos fatos ou finja que 
 
             const pureNumbers = phone.toString().replace(/\D/g, '');
             const jid = pureNumbers + '@s.whatsapp.net';
-            const upperToken = token.toUpperCase();
+            const upperToken = token.toString().trim();
 
-            const registro = await db.get("SELECT * FROM tokens_vinculo WHERE token = ?", [upperToken]);
+            // 🛡️ [FASE 5 - SEGURANÇA] Tokens agora misturam maiúsculas e minúsculas,
+            // então a busca deixa de comparar por igualdade binária e passa a usar
+            // COLLATE NOCASE (o usuário pode digitar o token em qualquer caixa).
+            const registro = await db.get("SELECT * FROM tokens_vinculo WHERE token = ? COLLATE NOCASE", [upperToken]);
             if (!registro) return res.status(400).json({ error: "Token inválido." });
             if (registro.id_whatsapp !== jid) return res.status(400).json({ error: "O Token não pertence a esse número." });
             if (Date.now() > registro.expira_em) return res.status(400).json({ error: "Token expirado. Gere outro no WhatsApp." });
@@ -1365,7 +1496,7 @@ Corre antes que alguém apague as provas, mude a versão dos fatos ou finja que 
             const now = Math.floor(Date.now() / 1000);
 
             await db.run("INSERT INTO usuarios_web (id_whatsapp, senha_hash, criado_em) VALUES (?, ?, ?)", [jid, hash, now]);
-            await db.run("DELETE FROM tokens_vinculo WHERE token = ?", [upperToken]); // Queima o token
+            await db.run("DELETE FROM tokens_vinculo WHERE token = ?", [registro.token]); // Queima o token
 
             res.status(201).json({ success: "Conta criada com sucesso! Você já pode fazer login." });
         } catch (e) {
@@ -1605,10 +1736,12 @@ Corre antes que alguém apague as provas, mude a versão dos fatos ou finja que 
 
     io.on('connection', (socket) => {
         console.log(`🟢 [WS] Novo cliente conectado: ${socket.id}`);
-        
-        globalChatbot.getDashboardDataAPI().then(data => {
-            socket.emit('dashboard_update', data);
-        });
+
+        // 🧠 [FASE 5 - MICRO-CACHE] Serve o snapshot em memória (60s de validade),
+        // sem bater no SQLite a cada nova conexão.
+        getDashboardDataCacheado().then(data => {
+            if (data) socket.emit('dashboard_update', data);
+        }).catch(() => {});
 
         socket.on('auth_bostopark', (token) => {
             if (!token) return;
@@ -1631,16 +1764,38 @@ Corre antes que alguém apague as provas, mude a versão dos fatos ou finja que 
         });
     });
 
+    // 🧠 [FASE 5 - MICRO-CACHE] O loop de 3s agora consome o snapshot cacheado.
+    // Só existe I/O no SQLite quando o cache de 60s expira — antes eram 20
+    // consultas agressivas por minuto alimentadas pelo WebSocket.
     setInterval(async () => {
         if (io.engine.clientsCount > 0) { 
             try {
-                const data = await globalChatbot.getDashboardDataAPI();
-                io.emit('dashboard_update', data);
+                const data = await getDashboardDataCacheado();
+                if (data) io.emit('dashboard_update', data);
             } catch (e) {
                 console.error("Erro no loop do WebSocket:", e);
             }
         }
     }, 3000);
+
+    // 🧹 [FASE 5 - TTL DE MEMÓRIA] Varredor periódico (a cada 30 minutos) das
+    // estruturas em memória efêmeras. Roda no bloco Singleton do servidor web,
+    // portanto existe UMA vez por processo e sempre aponta para o `globalChatbot`
+    // VIVO (não segura instâncias antigas na memória).
+    const memorySweepInterval = setInterval(() => {
+        try {
+            limparPollCacheExpirado();
+
+            if (globalChatbot && typeof globalChatbot.limparMemoriasExpiradas === 'function') {
+                globalChatbot.limparMemoriasExpiradas();
+            }
+        } catch (e) {
+            console.error("❌ Erro no varredor de memória:", e);
+        }
+    }, 30 * 60 * 1000);
+
+    // Não segura o event loop vivo caso o processo precise encerrar.
+    if (typeof memorySweepInterval.unref === 'function') memorySweepInterval.unref();
 
     if (!isExpressRunning) {
         server.listen(3000, '0.0.0.0', () => {
@@ -1736,6 +1891,14 @@ Corre antes que alguém apague as provas, mude a versão dos fatos ou finja que 
             // então continua falando com a conexão ATUAL após reconectar.
             if (!isCronInitialized) {
                 isCronInitialized = true;
+
+            // 🧹 [FASE 5 - RETENÇÃO] Expurgo diário (04:30) do histórico frio.
+            // Roda no mesmo guard Singleton do cron do Bom Dia: um único job por
+            // processo, sobrevivendo às reconexões do Baileys.
+            retentionJob = schedule.scheduleJob('0 30 4 * * *', async function(){
+                console.log("🧹 [RETENÇÃO] Iniciando expurgo do histórico antigo...");
+                await limparHistoricoAntigo();
+            });
 
             dailyJob = schedule.scheduleJob('0 0 10 * * *', async function(){
                 const targetCity = "Santos"; 
@@ -2032,60 +2195,6 @@ Corre antes que alguém apague as provas, mude a versão dos fatos ou finja que 
             return [...new Set(normalized)];
         };
 
-        /*try {
-            const messageType = Object.keys(msg.message)[0];
-            
-            // Lista de tipos permitidos para documentos
-            const allowedMimeTypes = [
-                'application/pdf',
-                'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                'image/jpeg',
-                'image/png'
-            ];
-
-            let shouldUpload = false;
-            let mimeType = '';
-            let fileName = '';
-
-            // Verifica se é Imagem
-            if (messageType === 'imageMessage') {
-                shouldUpload = true;
-                mimeType = msg.message.imageMessage.mimetype;
-                fileName = `IMG_${Math.floor(Date.now() / 1000)}.jpeg`;
-            } 
-            // Verifica se é Documento
-            else if (messageType === 'documentMessage') {
-                mimeType = msg.message.documentMessage.mimetype;
-                
-                // Filtra apenas PDF, DOCX, XLSX
-                if (allowedMimeTypes.includes(mimeType)) {
-                    shouldUpload = true;
-                    fileName = msg.message.documentMessage.fileName || `DOC_${Math.floor(Date.now() / 1000)}`;
-                }
-            }
-
-            if (shouldUpload) {
-                console.log(`📥 Mídia detectada (${fileName}). Baixando...`);
-                
-                // Baixa a mídia da memória do WhatsApp
-                const buffer = await downloadMediaMessage(
-                    msg,
-                    'buffer',
-                    { },
-                    { logger: pino({ level: 'silent' }) }
-                );
-
-                // Envia para o Drive
-                await driveService.uploadFile(fileName, mimeType, buffer);
-                
-                await sock.sendMessage(msg.key.remoteJid, { react: { text: '☁️', key: msg.key } });
-            }
-
-        } catch (err) {
-            console.error("Erro ao processar upload automático:", err);
-        }*/
-        
         //Pega o texto da mensagem
         let texto = msg.message.conversation || 
               msg.message.extendedTextMessage?.text || 

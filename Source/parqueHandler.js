@@ -301,6 +301,11 @@ const CONSUMABLE_CATALOG = {
     'dinamite': { id: 'dinamite', name: 'Banana de Dinamite', emoji: '🧨', price: 10000, desc: 'Pula até 2 camadas para baixo sem gastar turno ou risco. Destrói o loot natural do caminho.' } 
 };
 
+// 🧹 [FASE 5 - TTL DE MEMÓRIA] Sessões de escavação abandonadas (usuário fechou o
+// chat no meio da descida) ficavam presas no Map para sempre, com o loot e os
+// buffs alocados na RAM da VM de 1GB. TTL de 2h de inatividade.
+const ESC_SESSAO_TTL_MS = 2 * 60 * 60 * 1000;
+
 class ParqueHandler {
     constructor(db, casinoHandler, pescariaHandler) {
         this.db = db;
@@ -1101,8 +1106,34 @@ class ParqueHandler {
     }
 
 
+    // 🧹 [FASE 5 - TTL DE MEMÓRIA] Expurga as explorações abandonadas. É chamada
+    // de forma preguiçosa a cada acesso ao comando e pelo varredor periódico
+    // Singleton do index.js (que também cobre o caso "ninguém mais escava").
+    limparEscavacoesExpiradas() {
+        const agora = Date.now();
+        let removidas = 0;
+
+        for (const [chave, sessao] of this.escavacoesAtivas) {
+            const referencia = (sessao && sessao.ultimoAcesso) ? sessao.ultimoAcesso : 0;
+
+            if ((agora - referencia) > ESC_SESSAO_TTL_MS) {
+                this.escavacoesAtivas.delete(chave);
+                removidas++;
+            }
+        }
+
+        if (removidas > 0) {
+            console.log(`🧹 [TTL] escavacoesAtivas: ${removidas} sessão(ões) abandonada(s) expurgada(s).`);
+        }
+        return removidas;
+    }
+
     async handleEscavar(userId, userTag, userName, groupId, action = '') {
         action = action.toLowerCase().trim();
+
+        // 🧹 [FASE 5 - TTL] Antes de qualquer leitura, higieniza o Map de sessões.
+        this.limparEscavacoesExpiradas();
+
         let financas = await this.casinoHandler.processFinancas(userId);
         const now = Math.floor(Date.now() / 1000);
         let player = await this.getPlayerData(userId);
@@ -1228,6 +1259,8 @@ class ParqueHandler {
         }
 
         let sessao = this.escavacoesAtivas.get(userId);
+        // 🧹 [FASE 5 - TTL] Marca atividade para o varredor de sessões abandonadas.
+        if (sessao) sessao.ultimoAcesso = Date.now();
         
         if (action.startsWith('usar ')) {
             if (!sessao) return `${userTag} ❓ Você só pode usar esses itens dentro da caverna durante uma exploração!`;
@@ -1397,7 +1430,7 @@ class ParqueHandler {
         if (action === 'fundo' || action === 'lado' || action === '') {
             if (action === '') {
                 if (sessao) return `${userTag} 🔦 Você já está no abismo (Camada ${sessao.camada})! O que você faz?\n👉 *!escavar fundo*, *!escavar lado* ou *!escavar guardar*.`;
-                sessao = { camada: 0, turnos: 1, loot: {}, buffs: {} };
+                sessao = { camada: 0, turnos: 1, loot: {}, buffs: {}, ultimoAcesso: Date.now() };
                 this.escavacoesAtivas.set(userId, sessao);
             } else {
                 if (!sessao) return `${userTag} ❓ Você não está escavando! Comece com *!escavar*.`;

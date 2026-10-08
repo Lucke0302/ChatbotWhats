@@ -1,3 +1,5 @@
+const { withTransaction, debitarSaldo, creditarSaldo, incrementarJson, incrementarJsonComPiso, setJson, removerJsonChave, appendarArrayJson } = require('./dbHelper');
+
 const FISH_CATALOG = [
     // LIXO 
     { id: 'bota', name: 'Bota Velha', emoji: '👢', avgWeight: 2.0, rarity: 'lixo' },
@@ -116,9 +118,9 @@ const ITEM_CATALOG = [
 ];
 
 const STORE_CATALOG = {
-    '1': { id: 'isca_simples', name: 'Isca de Pão', emoji: '🍞', type: 'instant', effect: 1, price: 250, desc: 'Dá +1 isca na hora. Baratinha pros falidos.' },
-    '2': { id: 'balde_iscas', name: 'Balde de Iscas', emoji: '🪣', type: 'instant', effect: 4, price: 800, desc: 'Dá +4 iscas na hora (Pequeno desconto).' },
-    '3': { id: 'caminhao_iscas', name: 'Caminhão de Iscas', emoji: '🚚', type: 'instant', effect: 10, price: 1800, desc: 'Dá +10 iscas na hora (descontão).' },
+    '1': { id: 'isca_simples', name: 'Isca de Pão', emoji: '🍞', type: 'instant', effect: 1, price: 500, desc: 'Dá +1 isca na hora. Baratinha pros falidos.' },
+    '2': { id: 'balde_iscas', name: 'Balde de Iscas', emoji: '🪣', type: 'instant', effect: 4, price: 1500, desc: 'Dá +4 iscas na hora (Pequeno desconto).' },
+    '3': { id: 'caminhao_iscas', name: 'Caminhão de Iscas', emoji: '🚚', type: 'instant', effect: 10, price: 4000, desc: 'Dá +10 iscas na hora (descontão).' },
     '4': { id: 'repelente', name: 'Repelente de Bota', emoji: '🧴', type: 'buff', duration: 4, price: 200, desc: 'Zera a chance de pescar lixo por 4 rodadas.' },
     '5': { id: 'anzol_chumbo', name: 'Anzol de Chumbo', emoji: '⚓', type: 'buff', duration: 5, price: 200, desc: 'Aumenta o peso dos peixes em 30% por 5 rodadas.' },
     '6': { id: 'ima_coins', name: 'Ímã de Bostocoins', emoji: '🧲', type: 'buff', duration: 3, price: 200, desc: 'Garante achar Bostocoins no fundo do lago por 3 rodadas.' }
@@ -256,6 +258,26 @@ class PescariaHandler {
         this.parqueHandler = parqueHandler;
     }
 
+    // [FASE 3] Consumo de isca/suprimento atômico: o débito só é aplicado se existir
+    // suprimento no banco (WHERE ... >= ?), então duas pescarias simultâneas não
+    // pescam de graça. O timer de regeneração reinicia quando o balde estava cheio.
+    async consumirSuprimentoPesca(userId, quantidade, now) {
+        const resultado = await this.db.run(`
+            UPDATE usuarios
+            SET pescaria_data = json_set(
+                COALESCE(NULLIF(pescaria_data, ''), '{}'),
+                '$.suprimentos',
+                CAST(COALESCE(json_extract(NULLIF(pescaria_data, ''), '$.suprimentos'), ?) AS INTEGER) - ?,
+                '$.last_supply_regen',
+                CASE WHEN CAST(COALESCE(json_extract(NULLIF(pescaria_data, ''), '$.suprimentos'), ?) AS INTEGER) >= ?
+                     THEN ? ELSE COALESCE(json_extract(NULLIF(pescaria_data, ''), '$.last_supply_regen'), ?) END
+            )
+            WHERE id_usuario = ? AND CAST(COALESCE(json_extract(NULLIF(pescaria_data, ''), '$.suprimentos'), ?) AS INTEGER) >= ?
+        `, [MAX_SUPPLIES, quantidade, MAX_SUPPLIES, MAX_SUPPLIES, now, now, userId, MAX_SUPPLIES, quantidade]);
+
+        return !!(resultado && resultado.changes === 1);
+    }
+
     async pescar(userId, userTag, groupId, climaAtual, sock, ctx) {
         if (!climaAtual) climaAtual = { condicao: 'nublado', emoji: '☁️', cidade: 'Desconhecida' };
         
@@ -272,13 +294,16 @@ class PescariaHandler {
         }
 
         player.suprimentos -= 1;
-        
-        if (player.suprimentos === (MAX_SUPPLIES - 1) && now - player.last_supply_regen < 10) {
-            player.last_supply_regen = now;
+
+        // [FASE 3] A isca é debitada por UPDATE condicional: se o consumo falhar
+        // (suprimento acabou em outra ação concorrente), a pescaria nem começa.
+        const consumiuIsca = await this.consumirSuprimentoPesca(userId, 1, now);
+
+        if (!consumiuIsca) {
+            return `${userTag}🪹 Você está sem suprimentos (Iscas/Água)! Você recebe uma nova carga de energia em breve.\n_(Máximo acumulado: ${MAX_SUPPLIES})_`;
         }
 
         if (mods.quebra_chance > 0 && Math.random() < mods.quebra_chance) {
-            await this.savePlayerData(userId, player);
             return `${userTag}🎣 **PESCARIA EM ${climaAtual.cidade.toUpperCase()}**\n_Clima: ${mods.txt}_\n_Suprimentos: ${player.suprimentos}_\n\n⛈️ **TEMPESTADE!** Uma onda gigante bateu, a linha tensionou e... **PAH!** Arrebentou tudo.\nVocê perdeu o suprimento e quase foi pro mar junto.`;
         }
 
@@ -288,6 +313,19 @@ class PescariaHandler {
         let catches = player.fishing_stats.catches;
         let weightMultiplierBuff = 1.0;
         let canCatchTrash = true;
+
+        // [FASE 3] Acumuladores da rodada: tudo é gravado no fim, dentro de UMA
+        // transação, sem regravar o blob inteiro de `pescaria_data`.
+        const novosRecords = [];
+        const buffsIniciais = Object.keys(player.active_items);
+        let pesoNovo = 0;
+        let moedasTotais = 0;
+
+        // [FASE 3] Itens achados no lago mexem no estoque de iscas. O ajuste é
+        // aplicado de forma INCREMENTAL no banco (nunca a partir do snapshot lido no
+        // início da rodada), senão pescarias simultâneas corrigiam o estoque com um
+        // valor velho e o deixavam negativo.
+        let deltaIscasAchadas = 0;
 
         if (player.active_items['anzol_duplo']) catches *= 2; 
         
@@ -379,6 +417,17 @@ class PescariaHandler {
                     instanceId: crypto.randomUUID()
                 });
 
+                // [FASE 3] O peixe é gravado por append atômico (json_insert) no fim da
+                // rodada: pescarias simultâneas não se sobrescrevem mais.
+                novosRecords.push({
+                    id: caughtFish.id,
+                    weight: actualWeight,
+                    group_id: groupId,
+                    date: now,
+                    instanceId: crypto.randomUUID()
+                });
+                pesoNovo += actualWeight;
+
                 if (this.parqueHandler && groupId && groupId.includes('@g.us')) {
                     this.parqueHandler.registrarProgressoComunitario(groupId, 'pesca_kg', actualWeight, ctx).catch(()=>{});
                 }
@@ -386,8 +435,8 @@ class PescariaHandler {
                 if (player.active_items['ima_coins']) {
                     const moedasAchadas = Math.floor(Math.random() * 41) + 10;
                     const profitResult = await this.casinoHandler.verifyProfit(userId, moedasAchadas);
-                    
-                    await this.db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [profitResult.finalProfit, userId]);
+
+                    moedasTotais += profitResult.finalProfit;
                     msg += `   🧲 Puxou junto 🪙 **${moedasAchadas} Bostocoins**!${profitResult.msg}\n`;
                 }
             }
@@ -401,9 +450,11 @@ class PescariaHandler {
             
             if (droppedItem.type === 'instant') {
                 player.suprimentos += droppedItem.effect;
+                deltaIscasAchadas += droppedItem.effect;
                 msg += `_${droppedItem.desc}_\n`;
             } else if (droppedItem.type === 'instant_debuff') {
                 player.suprimentos = Math.max(0, player.suprimentos + droppedItem.effect);
+                deltaIscasAchadas += droppedItem.effect;
                 msg += `_${droppedItem.desc}_\n`;
             } else {
                 player.active_items[droppedItem.id] = droppedItem.duration;
@@ -421,11 +472,54 @@ class PescariaHandler {
             }
         }
 
-        await this.savePlayerData(userId, player);
+        // [FASE 3] Gravação da rodada numa transação única e atômica:
+        //  - peso total somado por json_set (aritmética no banco);
+        //  - novos peixes anexados com json_insert `[#]` (append, nunca replace);
+        //  - buffs atualizados/removidos chave por chave (json_set/json_remove);
+        //  - suprimentos ganhos nas caixas somados atomicamente.
+        // Antes, o `savePlayerData` reescrevia o blob inteiro e uma segunda
+        // pescaria no mesmo instante apagava os peixes da primeira.
+        const salvouPesca = await withTransaction(this.db, async () => {
+            if (pesoNovo > 0) {
+                await incrementarJson(this.db, 'usuarios', 'pescaria_data', userId, '$.total_weight', pesoNovo);
+            }
+
+            for (const record of novosRecords) {
+                await appendarArrayJson(this.db, 'usuarios', 'pescaria_data', userId, '$.records', record);
+            }
+
+            const deltaSuprimentos = deltaIscasAchadas;
+            if (deltaSuprimentos !== 0) {
+                // Ajuste incremental com piso 0: nunca deixa o estoque negativo.
+                await incrementarJsonComPiso(this.db, 'usuarios', 'pescaria_data', userId, '$.suprimentos', deltaSuprimentos, 0, MAX_SUPPLIES);
+            }
+
+            for (const itemId of buffsIniciais) {
+                if (!(itemId in player.active_items)) {
+                    await removerJsonChave(this.db, 'usuarios', 'pescaria_data', userId, `$.active_items.${itemId}`);
+                }
+            }
+
+            for (const [itemId, rodadas] of Object.entries(player.active_items)) {
+                await setJson(this.db, 'usuarios', 'pescaria_data', userId, `$.active_items.${itemId}`, rodadas);
+            }
+
+            if (moedasTotais > 0) {
+                await creditarSaldo(this.db, userId, moedasTotais);
+            }
+
+            return true;
+        }).catch((e) => {
+            console.error("Erro ao salvar a rodada de pescaria:", e);
+            return false;
+        });
+
+        if (!salvouPesca) {
+            return `${userTag}⚠️ O banco de dados engasgou e a pescaria não pôde ser registrada (nada foi perdido do seu lado). Tenta de novo!`;
+        }
+
         return msg;
     }
-
-    // RANKING DE PESCA
     async getRanking(groupId, userTag) {
         const users = await this.db.all("SELECT nome, pescaria_data FROM usuarios WHERE pescaria_data IS NOT NULL AND pescaria_data != '{}'");
 
@@ -770,10 +864,21 @@ class PescariaHandler {
                 return `${userTag}💸 Tá achando que ferro e carbono dão em árvore? Você precisa de 🪙 **${nextRod.price} Bostocoins** pra forjar a ${nextRod.emoji} *${nextRod.name}*.\nVocê só tem 🪙 ${balance}. Trabalhe mais!`;
             }
 
-            await this.db.run("UPDATE usuarios SET bostocoins = bostocoins - ? WHERE id_usuario = ?", [nextRod.price, userId]);
-            
+            // [FASE 3] Forja atômica: débito condicional + upgrade da vara na MESMA
+            // transação (nada de pagar sem receber a vara, nem vara de graça).
+            const forjouVara = await withTransaction(this.db, async () => {
+                const debitado = await debitarSaldo(this.db, userId, nextRod.price);
+                if (!debitado) return false;
+
+                await setJson(this.db, 'usuarios', 'pescaria_data', userId, '$.inventory.vara', nextRod.id);
+                return true;
+            });
+
+            if (!forjouVara) {
+                return `${userTag}💸 Tá achando que ferro e carbono dão em árvore? Você precisa de 🪙 **${nextRod.price} Bostocoins** pra forjar a ${nextRod.emoji} *${nextRod.name}*.\nVocê só tem 🪙 ${balance}. Trabalhe mais!`;
+            }
+
             player.inventory.vara = nextRod.id;
-            await this.savePlayerData(userId, player);
 
             const novoBonus = Math.round((nextRod.mult - 1) * 100);
             msg = `${userTag}⚒️ **VARA FORJADA COM SUCESSO!**\nO ferreiro pegou seus 🪙 ${nextRod.price} Bostocoins e montou uma ${nextRod.emoji} **${nextRod.name}** novinha em folha pra você!\n\n🐟 Agora todos os seus peixes serão **+${novoBonus}%** mais pesados (E consequentemente, mais caros)!`;
@@ -803,9 +908,20 @@ class PescariaHandler {
                 return `${userTag}💸 Barco custa caro! Você precisa de 🪙 **${nextBoat.price} Bostocoins** para comprar o ${nextBoat.emoji} *${nextBoat.name}*.\nSeu saldo: 🪙 ${balance}.`;
             }
 
-            await this.db.run("UPDATE usuarios SET bostocoins = bostocoins - ? WHERE id_usuario = ?", [nextBoat.price, userId]);
+            // [FASE 3] Compra do barco também atômica (débito condicional + upgrade).
+            const comprouBarco = await withTransaction(this.db, async () => {
+                const debitado = await debitarSaldo(this.db, userId, nextBoat.price);
+                if (!debitado) return false;
+
+                await setJson(this.db, 'usuarios', 'pescaria_data', userId, '$.inventory.barco', nextBoat.id);
+                return true;
+            });
+
+            if (!comprouBarco) {
+                return `${userTag}💸 Barco custa caro! Você precisa de 🪙 **${nextBoat.price} Bostocoins** para comprar o ${nextBoat.emoji} *${nextBoat.name}*.\nSeu saldo: 🪙 ${balance}.`;
+            }
+
             player.inventory.barco = nextBoat.id;
-            await this.savePlayerData(userId, player);
 
             return `${userTag}⛴️ **NOVO BARCO NA FROTA!**\nVocê pagou 🪙 ${nextBoat.price} Bostocoins e agora é o orgulhoso capitão do ${nextBoat.emoji} **${nextBoat.name}**!\n\n🐟 Suas redes agora arrastam **${nextBoat.catches} peixes por isca**! (Multiplica com Anzol Duplo!)`;
         }
@@ -820,15 +936,30 @@ class PescariaHandler {
             return `${userTag}💸 Saldo insuficiente, camponês! Você precisa de 🪙 **${item.price} Bostocoins** para comprar ${item.emoji} *${item.name}*, mas só tem 🪙 ${balance}.\nVai capinar um lote (!trabalhar)!`;
         }
 
-        await this.db.run("UPDATE usuarios SET bostocoins = bostocoins - ? WHERE id_usuario = ?", [item.price, userId]);
+        // [FASE 3] Compra de consumível/buff atômica: débito condicional + efeito
+        // gravado na mesma transação (nada de item sem pagamento).
+        const comprouItem = await withTransaction(this.db, async () => {
+            const debitado = await debitarSaldo(this.db, userId, item.price);
+            if (!debitado) return false;
+
+            if (item.type === 'instant') {
+                await incrementarJson(this.db, 'usuarios', 'pescaria_data', userId, '$.suprimentos', item.effect);
+            } else if (item.type === 'buff') {
+                await setJson(this.db, 'usuarios', 'pescaria_data', userId, `$.active_items.${item.id}`, item.duration);
+            }
+
+            return true;
+        });
+
+        if (!comprouItem) {
+            return `${userTag}💸 Saldo insuficiente, camponês! Você precisa de 🪙 **${item.price} Bostocoins** para comprar ${item.emoji} *${item.name}*, mas só tem 🪙 ${balance}.\nVai capinar um lote (!trabalhar)!`;
+        }
 
         if (item.type === 'instant') {
             player.suprimentos += item.effect;
         } else if (item.type === 'buff') {
             player.active_items[item.id] = item.duration;
         }
-
-        await this.savePlayerData(userId, player);
 
         msg = `${userTag}🛍️ **COMPRA REALIZADA COM SUCESSO!**\nVocê comprou ${item.emoji} *${item.name}* por 🪙 ${item.price} Bostocoins.\n`;
         
@@ -936,26 +1067,31 @@ class PescariaHandler {
             return `${userTag}⚠️ Os peixes escaparam da sacola! Nenhum peixe pôde ser vendido.`;
         }
 
-        await this.savePlayerData(userId, player);
-
         const profitResult = await this.casinoHandler.verifyProfit(userId, totalValue);
-        await this.db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [profitResult.finalProfit, userId]);
+
+        // [FASE 3] Venda em lote atômica: dar baixa no isopor, receber o pagamento e
+        // contabilizar o histórico de vendas acontecem na MESMA transação. Antes um
+        // erro no meio removia os peixes sem pagar (ou pagava sem remover).
+        const vendeuLote = await withTransaction(this.db, async () => {
+            await this.savePlayerData(userId, player);
+            await creditarSaldo(this.db, userId, profitResult.finalProfit);
+
+            if (this.parqueHandler && groupId && groupId.includes('@g.us') && profitResult.finalProfit > 0) {
+                await incrementarJson(this.db, 'usuarios', 'pescaria_data', userId, '$.total_vendas_coins', profitResult.finalProfit);
+            }
+
+            return true;
+        }).catch((e) => {
+            console.error("Erro ao registrar a venda em lote:", e);
+            return false;
+        });
+
+        if (!vendeuLote) {
+            return `${userTag}⚠️ O banco de dados engasgou e a venda não foi concluída. Tente vender novamente.`;
+        }
 
         if (this.parqueHandler && groupId && groupId.includes('@g.us') && profitResult.finalProfit > 0) {
             this.parqueHandler.registrarProgressoComunitario(groupId, 'vendas', profitResult.finalProfit, ctx).catch(()=>{});
-            try {
-                await this.db.run(`
-                    UPDATE usuarios 
-                    SET pescaria_data = json_set(
-                        COALESCE(pescaria_data, '{}'), 
-                        '$.total_vendas_coins', 
-                        COALESCE(json_extract(pescaria_data, '$.total_vendas_coins'), 0) + ?
-                    )
-                    WHERE id_usuario = ?
-                `, [profitResult.finalProfit, userId]);
-            } catch (e) {
-                console.error("Erro ao salvar histórico de vendas de peixe:", e);
-            }
         }
 
         let msg = `${userTag}🤝 **VENDA EM LOTE CONCLUÍDA!**\n\nVocê vendeu:\n`;
@@ -1001,26 +1137,31 @@ class PescariaHandler {
         }
 
         player.records = newRecords;
-        await this.savePlayerData(userId, player);
 
         const profitResult = await this.casinoHandler.verifyProfit(userId, totalValue);
-        await this.db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [profitResult.finalProfit, userId]);
-        
+
+        // [FASE 3] Reciclagem atômica: limpar o isopor + receber + contabilizar numa
+        // transação única (mesma proteção da venda em lote).
+        const reciclou = await withTransaction(this.db, async () => {
+            await this.savePlayerData(userId, player);
+            await creditarSaldo(this.db, userId, profitResult.finalProfit);
+
+            if (this.parqueHandler && groupId && groupId.includes('@g.us') && profitResult.finalProfit > 0) {
+                await incrementarJson(this.db, 'usuarios', 'pescaria_data', userId, '$.total_vendas_coins', profitResult.finalProfit);
+            }
+
+            return true;
+        }).catch((e) => {
+            console.error("Erro ao registrar a venda de lixo:", e);
+            return false;
+        });
+
+        if (!reciclou) {
+            return `${userTag}⚠️ O banco de dados engasgou e a coleta seletiva não foi concluída. Tente novamente.`;
+        }
+
         if (this.parqueHandler && groupId && groupId.includes('@g.us') && profitResult.finalProfit > 0) {
             this.parqueHandler.registrarProgressoComunitario(groupId, 'vendas', profitResult.finalProfit, ctx).catch(()=>{});
-            try {
-                await this.db.run(`
-                    UPDATE usuarios 
-                    SET pescaria_data = json_set(
-                        COALESCE(pescaria_data, '{}'), 
-                        '$.total_vendas_coins', 
-                        COALESCE(json_extract(pescaria_data, '$.total_vendas_coins'), 0) + ?
-                    )
-                    WHERE id_usuario = ?
-                `, [profitResult.finalProfit, userId]);
-            } catch (e) {
-                console.error("Erro ao salvar histórico de vendas de peixe:", e);
-            }
         }
 
         return `${userTag}♻️ **COLETA SELETIVA CONCLUÍDA!**\n\nVocê reciclou **${trashCount} itens de lixo** (Botas, pneus, calotas...) e ganhou 🪙 **${totalValue} Bostocoins** pelo serviço ambiental!${profitResult.msg}`;
@@ -1082,11 +1223,24 @@ class PescariaHandler {
         }
 
         player.records = [...recordsToKeep, ...Object.values(bestFishes)];
-        await this.savePlayerData(userId, player);
 
         if (action === 'vender') {
             const profitResult = await this.casinoHandler.verifyProfit(userId, totalValue);
-            await this.db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [profitResult.finalProfit, userId]);
+
+            // [FASE 3] Baixa dos repetidos + pagamento na MESMA transação: os peixes
+            // nunca mais são apagados sem que o dinheiro entre na carteira.
+            const vendeuRepetidos = await withTransaction(this.db, async () => {
+                await this.savePlayerData(userId, player);
+                await creditarSaldo(this.db, userId, profitResult.finalProfit);
+                return true;
+            }).catch((e) => {
+                console.error("Erro ao registrar a venda de repetidos:", e);
+                return false;
+            });
+
+            if (!vendeuRepetidos) {
+                return `${userTag}⚠️ O banco de dados engasgou e a limpeza dos repetidos não foi concluída. Tente novamente.`;
+            }
             
             if (this.parqueHandler && groupId && groupId.includes('@g.us') && profitResult.finalProfit > 0) {
                 this.parqueHandler.registrarProgressoComunitario(groupId, 'vendas', profitResult.finalProfit, ctx).catch(()=>{});
@@ -1110,7 +1264,12 @@ class PescariaHandler {
         } 
         else if (action === 'depositar') {
             if (!groupId) return `${userTag} ❌ Erro: ID do grupo não fornecido para o depósito.`;
-            
+
+            // [FASE 3] Baixa dos repetidos no isopor dentro de uma transação.
+            await withTransaction(this.db, async () => {
+                await this.savePlayerData(userId, player);
+            });
+
             await this.db.run(`
                 INSERT INTO parque_estoque (group_id, carne, vegetal) 
                 VALUES (?, ?, 0) 
@@ -1262,7 +1421,10 @@ class PescariaHandler {
                 }
 
                 if (modified) {
-                    await this.savePlayerData(u.id_usuario, data);
+                    // [FASE 3] Migração gravada dentro de uma transação (blob consistente).
+                    await withTransaction(this.db, async () => {
+                        await this.savePlayerData(u.id_usuario, data);
+                    });
                     countUsuariosAlterados++;
                 }
             } catch (e) {
@@ -1276,24 +1438,24 @@ class PescariaHandler {
     // ACELERA A GERAÇÃO DE ISCAS EM 2 HORAS
     async acelerarIscasGlobais(userTag) {
         const SECONDS_TO_SUBTRACT = 2 * 3600;
-        
-        const users = await this.db.all("SELECT id_usuario, pescaria_data FROM usuarios WHERE pescaria_data IS NOT NULL AND pescaria_data != '{}'");
-        let count = 0;
+        const agora = Math.floor(Date.now() / 1000);
 
-        for (const u of users) {
-            try {
-                let data = JSON.parse(u.pescaria_data);
-                
-                if (data.suprimentos !== undefined && data.suprimentos < MAX_SUPPLIES) {
-                    data.last_supply_regen -= SECONDS_TO_SUBTRACT;
-                    await this.savePlayerData(u.id_usuario, data);
-                    count++;
-                }
-            } catch (e) {
-                console.error("Erro ao acelerar o tempo:", e);
-            }
-        }
-        
+        // [FASE 3] Um único UPDATE set-based com json_set: adianta o relógio de todos
+        // os pescadores sem ler/regravar (e sem corromper) o blob `pescaria_data`.
+        const result = await this.db.run(`
+            UPDATE usuarios
+            SET pescaria_data = json_set(
+                COALESCE(NULLIF(pescaria_data, ''), '{}'),
+                '$.last_supply_regen',
+                COALESCE(json_extract(NULLIF(pescaria_data, ''), '$.last_supply_regen'), ?) - ?
+            )
+            WHERE pescaria_data IS NOT NULL AND pescaria_data != '{}'
+              AND json_extract(NULLIF(pescaria_data, ''), '$.suprimentos') IS NOT NULL
+              AND CAST(json_extract(NULLIF(pescaria_data, ''), '$.suprimentos') AS INTEGER) < ?
+        `, [agora, SECONDS_TO_SUBTRACT, MAX_SUPPLIES]);
+
+        const count = result ? result.changes : 0;
+
         return `⏳ O Ibama foi bonzinho e adiantou o relógio em 2 horas para **${count} pescadores**!\nSe alguém tava quase ganhando energia, o balde acabou de encher. Vão pescar e regar a roça!`;
     }
 }

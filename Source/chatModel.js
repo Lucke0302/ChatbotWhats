@@ -1,4 +1,5 @@
 const usage = require('./usageControl');
+const crypto = require('crypto');
 const weatherCommandHandler = require('./weatherCommand');
 const currencyCommandHandler = require('./currencyCommand');
 const helpCommandHandler = require('./helpCommand');
@@ -13,8 +14,9 @@ const migrationCommandHandler = require('./migrarCommand');
 const ResenhaCommand = require('./resenhaCommand');
 const CasinoHandler = require('./casinoHandler');
 const PescariaHandler = require('./pescariaHandler');
-const ParqueHandler = require('./parqueHandler');
+const {ParqueHandler} = require('./parqueHandler');
 const { FazendaHandler } = require('./fazendaHandler');
+const { withTransaction, debitarSaldo } = require('./dbHelper');
 const StreamHandler = require('./streamHandler');
 const RIOT_API_KEY = process.env.RIOT_API_KEY;
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
@@ -26,10 +28,27 @@ class ChatModel {
         this.genAI = genAI;
         this.isOnline = true;
         this.isTesting = true;
+
+        // 🧠 [FASE 5 - MICRO-CACHE] `getModelUsage()` é chamado a CADA requisição
+        // de IA (roteador do Gemini) e também pelo dashboard de cotas. Cachear por
+        // 60s elimina dezenas de SELECTs por minuto no SQLite da VM de 1GB.
+        this.modelUsageCache = null;
+        this.MODEL_USAGE_CACHE_TTL_MS = 60 * 1000;
+
+        // 🧹 [FASE 5 - TTL DE MEMÓRIA] Cooldowns efêmeros. Declarados aqui (e não
+        // depois do updateOnlineStatus) porque o construtor dispara uma leitura
+        // assíncrona de uso antes do fim do bloco.
+        this.spamCooldowns = new Map(); 
+        this.SPAM_COOLDOWN_TTL_MS = 10 * 60 * 1000;
+        this.tokenCooldowns = new Map();
+        this.TOKEN_COOLDOWN_MS = 60 * 1000;
+        this.SPAM_DELAY_SECONDS = 10;
+        this.DAILY_AI_LIMIT = 10;
+        this.DAILY_LIMIT_GEMMA = 100;
         this.modelLimits = {
             "gemma-4-31b-it": 1400,
             "gemma-4-26b-a4b-it": 1400,
-
+            "gemini-flash-lite-latest": 450,
             "gemini-3.1-flash-lite-preview": 450,
 
             "gemini-2.5-flash": 20,
@@ -38,11 +57,10 @@ class ChatModel {
             "gemini-flash-latest": 20
         };
         this.updateOnlineStatus();
+        // 🛡️ init() é idempotente (guard interno no lolCommand.js):
+        // como o ChatModel é recriado a cada reconexão do Baileys, o guard
+        // impede que um novo timer diário da Riot API seja acumulado.
         lolCommandHandler.init();
-        this.spamCooldowns = new Map(); 
-        this.SPAM_DELAY_SECONDS = 10;
-        this.DAILY_AI_LIMIT = 10;
-        this.DAILY_LIMIT_GEMMA = 100;
         this.toxicHandler = new ToxicHandler(db);
         this.pokemonHandler = new PokemonHandler(db);
         this.pokemonHandler.init();
@@ -100,6 +118,15 @@ class ChatModel {
 
     async getModelUsage() {
         const today = this.getTodayDateString();
+        const agora = Date.now();
+        const cache = this.modelUsageCache;
+
+        // 🧠 [FASE 5 - MICRO-CACHE] 60s de validade e invalidação automática na
+        // virada do dia (o `today` faz parte da chave de cache).
+        if (cache && cache.today === today && cache.expiresAt > agora) {
+            return cache.data;
+        }
+
         const rows = await this.db.all(`SELECT model_name, quantidade FROM system_usage WHERE data_uso = ?`, [today]);
         const usage = {};
         if (rows) {
@@ -107,6 +134,13 @@ class ChatModel {
                 usage[r.model_name] = r.quantidade;
             });
         }
+
+        this.modelUsageCache = {
+            today,
+            data: usage,
+            expiresAt: Date.now() + this.MODEL_USAGE_CACHE_TTL_MS
+        };
+
         return usage;
     }
 
@@ -118,6 +152,33 @@ class ChatModel {
             ON CONFLICT(data_uso, model_name)
             DO UPDATE SET quantidade = quantidade + 1
         `, [today, modelName]);
+
+        // Escrita invalida o micro-cache: o próximo roteamento enxerga o número real.
+        this.modelUsageCache = null;
+    }
+
+    // 🧹 [FASE 5 - TTL DE MEMÓRIA] Varredura das estruturas efêmeras do cérebro.
+    // Chamada pelo varredor periódico Singleton do index.js (a cada 30 min) e
+    // também de forma preguiçosa nos pontos de acesso mais quentes.
+    limparMemoriasExpiradas() {
+        const agora = Date.now();
+
+        for (const [chave, timestamp] of this.spamCooldowns) {
+            if (agora - timestamp > this.SPAM_COOLDOWN_TTL_MS) this.spamCooldowns.delete(chave);
+        }
+
+        for (const [chave, timestamp] of this.tokenCooldowns) {
+            // O dobro do cooldown já é suficiente para o expurgo (não há histórico).
+            if (agora - timestamp > (this.TOKEN_COOLDOWN_MS * 2)) this.tokenCooldowns.delete(chave);
+        }
+
+        // Delega a limpeza para os handlers que mantêm sessões interativas.
+        if (this.parqueHandler && typeof this.parqueHandler.limparEscavacoesExpiradas === 'function') {
+            this.parqueHandler.limparEscavacoesExpiradas();
+        }
+        if (this.pokemonHandler && typeof this.pokemonHandler.limparTradeSessionsExpiradas === 'function') {
+            this.pokemonHandler.limparTradeSessionsExpiradas();
+        }
     }
 
     initializeCommandHandlers() {
@@ -249,8 +310,20 @@ class ChatModel {
             },
             '!gerartoken': async (ctx) => {
                 if (ctx.platform !== 'whatsapp') return "❌ Gere o token pelo WhatsApp!";
-                
-                const token = Math.random().toString(36).substring(2, 7).toUpperCase();
+
+                // 🛡️ [FASE 5 - ANTI-SPAM] Limitador por usuário: geração de token
+                // escreve no SQLite e nunca deveria ser um comando de mão livre.
+                const agora = Date.now();
+                const ultimaGeracao = this.tokenCooldowns.get(ctx.sender) || 0;
+                const decorrido = agora - ultimaGeracao;
+
+                if (decorrido < this.TOKEN_COOLDOWN_MS) {
+                    const espera = Math.ceil((this.TOKEN_COOLDOWN_MS - decorrido) / 1000);
+                    return `⏳ Calma, ${ctx.name}! Você já gerou um token agora há pouco.\nTente novamente em *${espera}s*.`;
+                }
+                this.tokenCooldowns.set(ctx.sender, agora);
+
+                const token = this.gerarTokenSeguro();
                 const expira = Date.now() + (10 * 60 * 1000); 
                 
                 await this.db.run(
@@ -266,10 +339,11 @@ class ChatModel {
                 }
                 
                 const args = ctx.command.trim().split(/\s+/);
-                const tokenDigitado = args[1]?.toUpperCase();
-                if (!tokenDigitado) return "⚠️ Cadê o token? Use: !vincular ABC12";
+                const tokenDigitado = args[1]?.trim();
+                if (!tokenDigitado) return "⚠️ Cadê o token? Use: !vincular [SEU_TOKEN]";
 
-                const registro = await this.db.get("SELECT * FROM tokens_vinculo WHERE token = ?", [tokenDigitado]);
+                // 🛡️ [FASE 5 - SEGURANÇA] Token misto (A-z0-9) exige busca NOCASE.
+                const registro = await this.db.get("SELECT * FROM tokens_vinculo WHERE token = ? COLLATE NOCASE", [tokenDigitado]);
                 if (!registro) return "❌ Token inválido ou não encontrado.";
                 if (Date.now() > registro.expira_em) return "⏳ Esse token expirou! Gere outro no Zap.";
 
@@ -287,7 +361,8 @@ class ChatModel {
                         [registro.id_whatsapp, id_twitch, id_discord]
                     );
 
-                    await this.db.run("DELETE FROM tokens_vinculo WHERE token = ?", [tokenDigitado]);
+                    // Queima o token pela chave EXATA gravada no banco.
+                    await this.db.run("DELETE FROM tokens_vinculo WHERE token = ?", [registro.token]);
                     return `✅ **CROSS-SAVE ATIVADO!** Sua conta do ${ctx.platform.toUpperCase()} foi vinculada ao WhatsApp.`;
 
                 } catch (e) {
@@ -807,9 +882,14 @@ class ChatModel {
 
             },
             '!escavar': async (ctx) => {
+                const textoMensagem = ctx.msg.text || ctx.msg.body || ctx.msg.message?.conversation || ctx.msg.message?.extendedTextMessage?.text || "";
+                const args = textoMensagem.trim().split(/\s+/);
+                const escavarAction = args.slice(1).join(' ').trim(); 
+                
                 const tag = await this.pokemonHandler.getUserTag(ctx.sender);
                 const netGroupId = await this.getNetGroupId(ctx.from); 
-                return await this.parqueHandler.handleEscavar(ctx.sender, tag, ctx.name, netGroupId);
+                
+                return await this.parqueHandler.handleEscavar(ctx.sender, tag, ctx.name, netGroupId, escavarAction);
             },
             '!fazenda': async (ctx) => {
                 const tag = await this.pokemonHandler.getUserTag(ctx.sender);
@@ -953,11 +1033,35 @@ class ChatModel {
         }
     }
 
+    // 🛡️ [FASE 5 - SEGURANÇA] Token de cross-save com entropia real (CSPRNG):
+    // 8 caracteres sobre um alfabeto de 62 símbolos = ~47 bits de entropia
+    // (o antigo `Math.random().substring(2,7)` tinha ~26 bits e era previsível).
+    gerarTokenSeguro() {
+        const alfabeto = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+        const bytes = crypto.randomBytes(8);
+        let token = '';
+
+        for (let i = 0; i < 8; i++) {
+            token += alfabeto[bytes[i] % alfabeto.length];
+        }
+
+        return token;
+    }
+
     checkSpam(sender, command = "") {
         if (sender === "5513991008854@s.whatsapp.net") {
             return; 
         }
         const now = Date.now();
+
+        // 🧹 [FASE 5 - TTL DE MEMÓRIA] Expurgo preguiçoso: o Map de cooldowns não
+        // pode crescer indefinidamente com usuários que nunca mais escrevem.
+        if (this.spamCooldowns.size > 200) {
+            for (const [chave, timestamp] of this.spamCooldowns) {
+                if (now - timestamp > this.SPAM_COOLDOWN_TTL_MS) this.spamCooldowns.delete(chave);
+            }
+        }
+
         const lastTime = this.spamCooldowns.get(sender) || 0;
         const diffSeconds = (now - lastTime) / 1000;
 
@@ -1164,9 +1268,15 @@ class ChatModel {
     //Retorna a contagem total de mensagens de uma conversa
     async getMessageCount(from){
         const netId = await this.getNetGroupId(from);
-        const condition = netId !== from ? `id_conversa IN ('${from}', '${netId}')` : `id_conversa = '${from}'`;
+        // 🛡️ [FASE 2 - SEGURANÇA] JIDs NUNCA são concatenados na SQL: o escape
+        // é delegado ao SQLite via placeholder (?), matando SQL Injection por
+        // `from`/`netId` (JID manipulado, grupo linkado malicioso, etc).
+        const sameConversation = netId === from;
+        const condition = sameConversation ? `id_conversa = ?` : `id_conversa IN (?, ?)`;
+        const params = sameConversation ? [from] : [from, netId];
+
         const sqlQuery = `SELECT COUNT(*) AS total FROM mensagens WHERE ${condition}`;
-        const result = await this.db.get(sqlQuery); 
+        const result = await this.db.get(sqlQuery, params); 
         return result ? result.total : 0;
     }
 
@@ -1186,14 +1296,6 @@ class ChatModel {
         const messagesDb = await this.db.all(sqlQuery, params);
         if (!messagesDb || messagesDb.length === 0) return "";
         return messagesDb.map(m => `${m.nome_remetente || 'Desconhecido'}: ${m.conteudo}`).reverse().join('\n');
-    }
-
-    async eventoMeteoroLocal(groupId, userTag) {
-        await this.db.run("UPDATE parque_dinossauros SET is_morto = 1 WHERE group_id = ?", [groupId]);
-        
-        await this.db.run("UPDATE parque_estoque SET carne = 0, vegetal = 0 WHERE group_id = ?", [groupId]);
-
-        return `${userTag} ☄️ **EXTINÇÃO EM MASSA!** ☄️\n\nUm meteoro flamejante rasgou o céu e atingiu em cheio o Jurassic BostoPark!\n\n🦴 Todos os dinossauros viraram fósseis (Eles foram para o Céu dos Dinos).\n🔥 A câmara frigorífica virou cinzas.\n\n_"A vida... não encontrou um meio."_`;
     }
 
     async executarWipeGlobal(sock) {
@@ -1419,15 +1521,82 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
     };
 
     //Função para o comando !resumo, retorna a resposta de um select feito pelo Gemini
-    async getMessagesByAiResponse(response){
+    async getMessagesByAiResponse(response, params = []){
         const sqlQuery = response
+
+        // 🛡️ [FASE 2 - SEGURANÇA] Cinto + suspensório: além da allow-list do
+        // buildSafeLembrarQuery(), nada que não seja um SELECT simples e
+        // parâmetro-único chega ao driver aqui.
+        if (typeof sqlQuery !== 'string' || !/^select\s+nome_remetente\s*,\s*conteudo\s+from\s+mensagens\b/i.test(sqlQuery.trim())) {
+            throw new Error("UNSAFE_AI_SQL_BLOCKED");
+        }
+        if (!/limit\s+200\s*$/i.test(sqlQuery.trim())) {
+            throw new Error("UNSAFE_AI_SQL_BLOCKED");
+        }
         
-        const messagesDb = await this.db.all(sqlQuery);
+        const messagesDb = await this.db.all(sqlQuery, params);
         if (!messagesDb || messagesDb.length === 0) {
             throw new Error("NO_AI_SQL_RESULT");
         }
 
         return messagesDb.map(m => `${m.nome_remetente || 'Desconhecido'}: ${m.conteudo}`).join('\n');        
+    }
+
+    // 🛡️ [FASE 2 - SEGURANÇA] Guarda-corpo do SQL gerado pela IA (!lembrar).
+    // A IA NUNCA executa SQL livre. Regras:
+    //  (a) prefixo obrigatório: SELECT nome_remetente, conteudo FROM mensagens
+    //  (b) allow-list negativa: sem UNION/DROP/DELETE/UPDATE/INSERT/PRAGMA/;/--
+    //  (c) apenas um filtro temporal inteiro é aproveitado (timestamp BETWEEN)
+    //  (d) o filtro de conversa e o LIMIT são reescritos POR NÓS, com params (?)
+    static buildSafeLembrarQuery(rawSql, from, netId) {
+        const MAX_RAW_SQL_LENGTH = 1000;
+        const FORCED_LIMIT = 200;
+
+        const sql = String(rawSql || '')
+            .replace(/```sql/gi, '')
+            .replace(/```/g, '')
+            // Um ';' TERMINAL é ruído comum do modelo (o exemplo do prompt não
+            // pede, mas ele costuma adicionar). Removemos apenas no fim: qualquer
+            // ';' interno continua bloqueado como tentativa de multi-statement.
+            .replace(/;+\s*$/, '')
+            .trim();
+
+        if (!sql || sql.length > MAX_RAW_SQL_LENGTH) {
+            console.log("⚠️ [SQL GUARD] Query vazia ou maior que o limite permitido.");
+            throw new Error("INVALID_SELECT");
+        }
+
+        // (a) Somente leitura das colunas/tabela autorizadas.
+        if (!/^select\s+nome_remetente\s*,\s*conteudo\s+from\s+mensagens\b/i.test(sql)) {
+            console.log("⚠️ [SQL GUARD] Prefixo não autorizado:", sql.slice(0, 120));
+            throw new Error("INVALID_SELECT");
+        }
+
+        // (b) Nada de escrita, DDL, encadeamento de statements ou comentários.
+        const PERIGOSOS = /\b(union|drop|delete|update|insert|pragma|attach|detach|alter|create|replace|exec|execute|vacuum|grant|revoke|load_extension|sqlite_master)\b|;|--|\/\*|\*\//i;
+        if (PERIGOSOS.test(sql)) {
+            console.log("⚠️ [SQL GUARD] Payload destrutivo bloqueado:", sql.slice(0, 120));
+            throw new Error("DANGEROUS_SQL");
+        }
+
+        // (c) Único filtro aproveitado da IA: intervalo inteiro de timestamp.
+        const range = sql.match(/timestamp\s+between\s+(\d{1,11})\s+and\s+(\d{1,11})/i);
+
+        // (d) Reconstrução da query com placeholder (escape delegado ao SQLite).
+        const sameConversation = netId === from;
+        let query = sameConversation
+            ? "SELECT nome_remetente, conteudo FROM mensagens WHERE id_conversa = ?"
+            : "SELECT nome_remetente, conteudo FROM mensagens WHERE id_conversa IN (?, ?)";
+        const params = sameConversation ? [from] : [from, netId];
+
+        if (range) {
+            query += " AND timestamp BETWEEN ? AND ?";
+            params.push(parseInt(range[1], 10), parseInt(range[2], 10));
+        }
+
+        query += ` AND conteudo NOT LIKE '*Resumo da conversa*%' ORDER BY timestamp DESC LIMIT ${FORCED_LIMIT}`;
+
+        return { query, params };
     }
 
     // TRADUTOR DE REDE PAI-FILHO
@@ -1448,19 +1617,40 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
             candidates.push(forceModel);
         } 
         else if (command.startsWith("!resumo")){
-            candidates = ["gemma-4-31b-it", "gemma-4-26b-a4b-it", "gemini-3.1-flash-lite-preview"]; 
+            candidates = [
+                "gemini-flash-lite-latest",
+                "gemma-4-31b-it", 
+                "gemini-3.1-flash-lite-preview"
+            ]; 
         }
         else if (command.startsWith("!lembrar")) {
-            candidates = ["gemma-4-31b-it", "gemini-3.1-flash-lite-preview", "gemini-2.5-flash"]; 
+            candidates = [
+                "gemini-flash-lite-latest",
+                "gemma-4-31b-it", 
+                "gemini-2.5-flash"
+            ]; 
         }
         else if (command.startsWith("!gpt")){
-            candidates = ["gemini-3.1-flash-lite-preview", "gemma-4-31b-it", "gemma-4-26b-a4b-it", "gemini-2.5-flash"]; 
+            candidates = [
+                "gemini-flash-lite-latest",
+                "gemini-3.1-flash-lite-preview", 
+                "gemma-4-31b-it", 
+                "gemini-2.5-flash"
+            ]; 
         }
         else if (command.startsWith("!burro")){
-            candidates = ["gemma-4-26b-a4b-it", "gemini-2.5-flash-lite"];
+            candidates = [
+                "gemma-4-26b-a4b-it", 
+                "gemini-2.5-flash-lite"
+            ];
         }
         else {
-            candidates = ["gemini-3.1-flash-lite-preview", "gemma-4-31b-it", "gemini-2.5-flash"];
+            // Conversas comuns, menções e quotes
+            candidates = [
+                "gemini-flash-lite-latest",
+                "gemini-3.1-flash-lite-preview", 
+                "gemma-4-31b-it"
+            ];
         }
 
         const currentUsage = await this.getModelUsage();
@@ -1653,21 +1843,152 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
         return prompt;
     }
 
-    //Recebe a resposta do Gemini utilizando o prompt recebido
-    async getAiResponse(from, sender, name, isGroup, command, prompt, forceModel = null) {
+    // 🛡️ [FASE 2 - PROMPT INJECTION] Saneia o bloco ||MEMORIA||.
+    // A memória é saída de LLM (dado NÃO confiável): limitamos o tamanho,
+    // removemos caracteres de controle e os próprios separadores, para que o
+    // texto não vire payload persistido no SQLite nem instruções maliciosas
+    // reaproveitadas no próximo prompt.
+    static sanitizeMemoryText(raw) {
+        const MAX_MEMORIA_CHARS = 1500;
+        const texto = String(raw === null || raw === undefined ? "" : raw)
+            .replace(/\|\|(MEMORIA|ANOTACOES)\|\|/gi, " ")
+            .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, " ")
+            .replace(/[ \t]{3,}/g, "  ")
+            .trim();
+
+        if (!texto) return "";
+        return texto.length > MAX_MEMORIA_CHARS ? texto.slice(0, MAX_MEMORIA_CHARS) : texto;
+    }
+
+    // 🛡️ [FASE 2 - PROMPT INJECTION] Saneia o bloco ||ANOTACOES|| antes de
+    // qualquer efeito colateral (UPDATE de afinidade no SQLite e fila do BlueSky).
+    // Tipos são validados (números finitos) e as FAIXAS são forçadas:
+    // nota 0..10 e mudanca_afinidade -5..5, conforme a régua definida no prompt.
+    static sanitizeAnotacoes(rawJson) {
+        const LIMITES = {
+            notaMin: 0, notaMax: 10,
+            afinidadeMin: -5, afinidadeMax: 5,
+            textoMax: 400,
+            temasMax: 5, temaMax: 80
+        };
+
+        let parsed;
+        try {
+            parsed = typeof rawJson === 'string' ? JSON.parse(rawJson) : rawJson;
+        } catch (e) {
+            return null; // JSON inválido => nenhum efeito colateral é executado
+        }
+
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+
+        // Só aceita número finito; arredonda e prende na faixa permitida.
+        const limitarInteiro = (valor, min, max) => {
+            const n = Number(valor);
+            if (!Number.isFinite(n)) return null;
+            return Math.min(max, Math.max(min, Math.round(n)));
+        };
+
+        const limparTexto = (valor, max) => {
+            if (typeof valor !== 'string') return "";
+            const texto = valor
+                .replace(/[\u0000-\u001F\u007F]/g, " ")
+                .replace(/\|\|(MEMORIA|ANOTACOES)\|\|/gi, " ")
+                .trim();
+            return texto.length > max ? texto.slice(0, max) : texto;
+        };
+
+        return {
+            contexto: limparTexto(parsed.contexto, LIMITES.textoMax),
+            humor: limparTexto(parsed.humor, LIMITES.textoMax),
+            // Nota inválida/fora de faixa cai para 0 => nunca dispara post no BlueSky
+            nota: limitarInteiro(parsed.nota, LIMITES.notaMin, LIMITES.notaMax) ?? LIMITES.notaMin,
+            // Afinidade inválida cai para 0 => nunca altera o saldo social do usuário
+            mudanca_afinidade: limitarInteiro(parsed.mudanca_afinidade, LIMITES.afinidadeMin, LIMITES.afinidadeMax) ?? 0,
+            temas: Array.isArray(parsed.temas)
+                ? parsed.temas.slice(0, LIMITES.temasMax).map(t => limparTexto(t, LIMITES.temaMax)).filter(Boolean)
+                : []
+        };
+    }
+
+   // Recebe a resposta do Gemini utilizando o prompt recebido
+    // Recebe a resposta do Gemini utilizando o prompt recebido
+    async getAiResponse(from, sender, name, isGroup, command, prompt, forceModel = null, options = {}) {
         await this.updateOnlineStatus();
 
         let modelName = await this.selectBestModel(command, forceModel);
 
         const separator = "||MEMORIA||";
 
-        try {
-            const response = await this.genAI.models.generateContent({
-                model: modelName,
-                contents: prompt,
-                config: {}
+        // =================================================================
+        // ⏱️ HELPER DE TIMEOUT (Corta requisições travadas no limbo)
+        // =================================================================
+        const withTimeout = (promise, ms) => {
+            let timer;
+            const timeoutPromise = new Promise((_, reject) => {
+                timer = setTimeout(() => {
+                    const err = new Error("Google API Timeout");
+                    err.code = "GOOGLE_TIMEOUT";
+                    reject(err);
+                }, ms);
             });
-            
+            return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timer));
+        };
+
+        // =================================================================
+        // 🔄 RETRY COM TIMEOUT (Trata 500, 503 e Quedas de Conexão)
+        // =================================================================
+        let response = null;
+        let tentativas = 0;
+        const maxTentativas = 2;
+        const TIMEOUT_LIMITE_MS = 30000; // Máximo de 30s por tentativa
+
+        while (tentativas < maxTentativas) {
+            try {
+                tentativas++;
+                response = await withTimeout(
+                    this.genAI.models.generateContent({
+                        model: modelName,
+                        contents: prompt,
+                        config: {}
+                    }),
+                    TIMEOUT_LIMITE_MS
+                );
+                break; 
+            } catch (error) {
+                const isTimeout = error?.code === 'GOOGLE_TIMEOUT';
+                const isGoogle500 = error?.status === 500 || 
+                                    error?.error?.code === 500 || 
+                                    error?.message?.includes('"code":500') || 
+                                    error?.status === 'INTERNAL';
+
+                const isGoogle503 = error?.status === 503 || 
+                                    error?.error?.code === 503 || 
+                                    error?.message?.includes('"code":503') || 
+                                    error?.message?.includes('high demand') ||
+                                    error?.message?.includes('overloaded') ||
+                                    error?.status === 'UNAVAILABLE';
+
+                const ehErroTemporario = isTimeout || isGoogle500 || isGoogle503;
+
+                if (ehErroTemporario && tentativas < maxTentativas) {
+                    const motivo = isTimeout ? 'Timeout (+20s)' : (isGoogle503 ? 'Alta Demanda (503)' : 'Instabilidade (500)');
+                    console.warn(`⚠️ [GEMINI] ${motivo}. Tentando novamente em 2s (Tentativa ${tentativas}/${maxTentativas})...`);
+                    await new Promise(r => setTimeout(r, 2000));
+                } else {
+                    if (isTimeout) {
+                        error.code = 'GOOGLE_TIMEOUT';
+                    } else if (isGoogle503) {
+                        error.code = 'AI_OVERLOAD';
+                    } else if (isGoogle500) {
+                        error.code = 'GOOGLE_API_INTERNAL';
+                    }
+                    console.error("Erro na requisição IA:", error);
+                    throw error;
+                }
+            }
+        }
+
+        try {
             await this.incrementModelUsage(modelName);
 
             console.log(`Mensagem gerada usando o ${modelName}`);
@@ -1692,24 +2013,33 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
                 }
             }
 
-            if (memoryText.length > 0) {
-                await this.saveUserMemory(name, sender, memoryText);
+            // 🛡️ [FASE 2 - PROMPT INJECTION] Memória vinda do modelo passa por
+            // saneamento (tipo/tamanho) antes de tocar o SQLite. Também não é
+            // escrita em passadas de "ferramenta" (ex: geração de SQL do !lembrar).
+            if (memoryText.length > 0 && !options.skipMemoryEffects) {
+                const memoriaLimpa = ChatModel.sanitizeMemoryText(memoryText);
+                if (memoriaLimpa) await this.saveUserMemory(name, sender, memoriaLimpa);
             }
 
-            if (anotacoesJsonStr) {
+            if (anotacoesJsonStr && !options.skipMemoryEffects) {
                 try {
                     const cleanJson = anotacoesJsonStr.replace(/```json/gi, '').replace(/```/g, '').trim();
-                    const anotacoes = JSON.parse(cleanJson);
 
-                    if (typeof anotacoes.mudanca_afinidade === 'number' && anotacoes.mudanca_afinidade !== 0) {
-                        await this.db.run(`UPDATE usuarios SET afinidade_bot = afinidade_bot + ? WHERE id_usuario = ?`, [anotacoes.mudanca_afinidade, sender]);
-                        console.log(`❤️ Afinidade com ${sender} mudou: ${anotacoes.mudanca_afinidade > 0 ? '+' : ''}${anotacoes.mudanca_afinidade}`);
-                    }
+                    // 🛡️ [FASE 2 - PROMPT INJECTION] Validação de TIPOS + clamp de
+                    // faixa: nada é gravado nem enviado ao BlueSky sem passar aqui.
+                    const anotacoes = ChatModel.sanitizeAnotacoes(cleanJson);
 
-                    if (this.blueskyBrain && anotacoes.contexto && anotacoes.humor && typeof anotacoes.nota === 'number') {
-                        const msgTimestamp = Math.floor(Date.now() / 1000); 
-                        this.blueskyBrain.processarAnotacao(anotacoes, msgTimestamp)
-                            .catch(e => console.error("Erro no fluxo do BlueSky:", e));
+                    if (anotacoes) {
+                        if (anotacoes.mudanca_afinidade !== 0) {
+                            await this.db.run(`UPDATE usuarios SET afinidade_bot = afinidade_bot + ? WHERE id_usuario = ?`, [anotacoes.mudanca_afinidade, sender]);
+                            console.log(`❤️ Afinidade com ${sender} mudou: ${anotacoes.mudanca_afinidade > 0 ? '+' : ''}${anotacoes.mudanca_afinidade}`);
+                        }
+
+                        if (this.blueskyBrain && anotacoes.contexto && anotacoes.humor && anotacoes.nota > 0) {
+                            const msgTimestamp = Math.floor(Date.now() / 1000); 
+                            this.blueskyBrain.processarAnotacao(anotacoes, msgTimestamp)
+                                .catch(e => console.error("Erro no fluxo do BlueSky:", e));
+                        }
                     }
                 } catch (e) {
                     console.error("❌ [JSON PARSE] Erro ao desempacotar anotações secretas:", e.message);
@@ -1719,8 +2049,7 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
             return replyText;
 
         } catch (error) {
-            // Se der erro 503 ou 429, o errorHandler pega lá na frente
-            console.error("Erro na requisição IA:", error);
+            console.error("Erro no processamento da resposta da IA:", error);
             throw error;
         }
     }
@@ -1872,6 +2201,10 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
                 DO UPDATE SET quantidade = ?
             `, [today, selectedModel, limit, limit]);
 
+            // 🧠 [FASE 5 - MICRO-CACHE] Escrita direta no banco invalida o cache,
+            // senão o painel logo abaixo mostraria o número antigo por até 60s.
+            this.modelUsageCache = null;
+
             await this.updateOnlineStatus();
 
             return `🔌 *DISJUNTOR DESLIGADO!*\nO modelo **${selectedModel}** foi exaurido artificialmente (${limit}/${limit}).\nO sistema de fallback pulará ele na próxima requisição.`;
@@ -1916,8 +2249,31 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
             if (usoAtual <= 0) return `${tag}🧠 Seu cérebro já está 100% livre! Você não tem cota de IA para reduzir hoje. Vá gastar com isca!`;
 
             const reduceAmount = Math.min(usoAtual, item.effect);
-            
-            await this.db.run("UPDATE usuarios SET bostocoins = bostocoins - ?, uso_ia_diario = uso_ia_diario - ? WHERE id_usuario = ?", [item.price, reduceAmount, ctx.sender]);
+
+            // [FASE 3] Compra atômica: o dinheiro só sai se a cota de IA ainda existir.
+            // Antes o UPDATE era incondicional (dois cliques = preço dobrado e saldo
+            // podendo ficar negativo).
+            const comprou = await withTransaction(this.db, async () => {
+                const debitado = await debitarSaldo(this.db, ctx.sender, item.price);
+                if (!debitado) return false;
+
+                const cota = await this.db.run(
+                    "UPDATE usuarios SET uso_ia_diario = MAX(0, uso_ia_diario - ?) WHERE id_usuario = ? AND uso_ia_diario > 0",
+                    [reduceAmount, ctx.sender]
+                );
+
+                if (!cota || cota.changes !== 1) {
+                    throw new Error('COTA_IA_ZERADA');
+                }
+
+                return true;
+            }).catch((e) => {
+                if (e && e.message === 'COTA_IA_ZERADA') return false;
+                console.error("Erro na compra VIP:", e);
+                return false;
+            });
+
+            if (!comprou) return `${tag}💸 Compra não concluída: saldo insuficiente (🪙 ${saldo}) ou cota de IA já zerada.`;
             
             return `${tag}💎 **COMPRA VIP REALIZADA!**\nVocê comprou o *${item.name}*!\nSua cota de IA caiu de ${usoAtual} para **${usoAtual - reduceAmount}**.\nPode voltar a perturbar o GPT!`;
         }
@@ -1997,34 +2353,31 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
 
     async handleLembrarCommand(from, sender, name, isGroup, command, complement){
             const netId = await this.getNetGroupId(from);
-            const condition = netId !== from ? `id_conversa IN ('${from}', '${netId}')` : `id_conversa = '${from}'`;
 
             const pergunta = command.slice(8).trim()
             const selectPrompt = `Você é um gerador de consulta SQL para SQLite. Sua única saída deve ser uma consulta SQL (SELECT), sem NENHUMA explicação ou texto adicional.
             A tabela é 'mensagens' e o campo de tempo é 'timestamp' (UNIX time em segundos).
-            Use a condição WHERE para filtrar rigorosamente por ${condition} E pelo intervalo de tempo (timestamp).
-            O usuário quer recuperar mensagens que se encaixam no período de tempo da pergunta, limitando o resultado a 500 mensagens no máximo.
+            FILTRO OBRIGATÓRIO: use APENAS o intervalo de tempo (timestamp) no WHERE. NUNCA escreva a coluna 'id_conversa',
+            pois o sistema injeta o filtro de conversa como parâmetro seguro DEPOIS da sua resposta.
+            O usuário quer recuperar mensagens que se encaixam no período de tempo da pergunta.
             Recupere as colunas 'nome_remetente' e 'conteudo'.
             A ordenação deve ser por timestamp DESC, e o limite deve ser de 200. Se a pergunta não especificar um período de tempo, recupere as últimas 200 mensagens da conversa.
 
-            Exemplo de saída para "o que rolou ontem": SELECT nome_remetente, conteudo FROM mensagens WHERE id_conversa = '${from}' AND timestamp BETWEEN 1764355200 AND 1764441600 ORDER BY timestamp DESC LIMIT 200;
+            Exemplo de saída para "o que rolou ontem": SELECT nome_remetente, conteudo FROM mensagens WHERE timestamp BETWEEN 1764355200 AND 1764441600 ORDER BY timestamp DESC LIMIT 200
 
             Pergunta do usuário: ${pergunta}`
 
-            let sqlQuery = await this.getAiResponse(from, sender, name, isGroup, command, selectPrompt, "gemini-3.1-flash-lite-preview")
+            // 🛡️ [FASE 2 - SEGURANÇA] A IA só PRODUZ TEXTO aqui. Quem monta a SQL
+            // executável é o guarda-corpo (allow-list + parâmetros + LIMIT fixo).
+            const rawSql = await this.getAiResponse(
+                from, sender, name, isGroup, command, selectPrompt,
+                "gemini-3.1-flash-lite-preview",
+                { skipMemoryEffects: true } // passada de geração de SQL não escreve memória/BlueSky
+            );
 
-            sqlQuery = sqlQuery.replace(/```sql/gi, '').replace(/```/g, '').trim(); 
-            
-            if (!sqlQuery.toLowerCase().startsWith('select')) {
-                console.log("IA gerou SQL inválido:", sqlQuery);
-                throw new Error("INVALID_SELECT");
-            }
-            
-            if (!sqlQuery.toLowerCase().includes('limit')) {
-                sqlQuery = sqlQuery.replace(/;?$/, ` LIMIT 200;`);
-            }
-            
-            let selectedMessages = await this.getMessagesByAiResponse(sqlQuery)
+            const { query: safeSql, params: safeParams } = ChatModel.buildSafeLembrarQuery(rawSql, from, netId);
+
+            let selectedMessages = await this.getMessagesByAiResponse(safeSql, safeParams)
 
             let finalPrompt = await this.formulatePrompt(from, sender, name, isGroup, command, selectedMessages)
             
@@ -2168,6 +2521,8 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
         const handler = this.commandHandlers[rootCommand];
 
        if (handler) {
+            this.registerMetric('command', rootCommand).catch(e => console.error("Erro ao registrar métrica:", e));
+
             // CONTEXTO UNIVERSAL
             const ctx = {
                 platform: msg.platform || 'whatsapp',
@@ -2219,7 +2574,9 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
     // === API DO DASHBOARD ===
     async getDashboardDataAPI() {
         try {
-            const today = new Date().toISOString().split('T')[0];
+            const d = new Date();
+            d.setHours(d.getHours() - 3);
+            const today = d.toISOString().split('T')[0];
             
             let metricasHoje = await this.db.get("SELECT * FROM metricas_diarias WHERE data = ?", [today]);
             if (!metricasHoje) {

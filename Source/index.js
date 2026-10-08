@@ -2,12 +2,17 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 
+// ☠️ [FASE 4 - FALHAS FATAIS] Depois de uma exceção/promise não tratada o processo
+// fica em estado indefinido (zumbi): sockets órfãos, DB possivelmente inconsistente
+// e memória suja. Encerrar com exit(1) delega a recuperação limpa ao PM2.
 process.on('uncaughtException', (err) => {
-    console.error('🚨 [CRASH EVITADO] Exceção não tratada:', err);
+    console.error('🚨 [FALHA FATAL] Exceção não tratada. Encerrando processo para restart limpo via PM2:', err);
+    process.exit(1);
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-    console.error('🚨 [CRASH EVITADO] Promise Rejeitada não tratada:', reason);
+    console.error('🚨 [FALHA FATAL] Promise rejeitada não tratada. Encerrando processo para restart limpo via PM2:', reason);
+    process.exit(1);
 });
 
 const schedule = require('node-schedule');
@@ -22,7 +27,8 @@ const { GoogleGenAI } = require("@google/genai");
 const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 const qrcode = require('qrcode-terminal');
 const sqlite = require('sqlite'); 
-const sqlite3 = require('sqlite3'); 
+const sqlite3 = require('sqlite3');
+const { withTransaction, creditarSaldo } = require('./dbHelper'); 
 const pino = require('pino'); 
 const ChatModel = require('./chatModel');
 const { handleBotError } = require('./errorHandler');
@@ -33,21 +39,154 @@ const sharp = require('sharp');
 const crypto = require('crypto');
 const BlueskyBrain = require('./Bluesky/blueskyBrain');
 
-const DriveBackup = require('./handleDriveBackup');
-const driveService = new DriveBackup();
-
 const { startDiscord } = require('./Discord/discordConnector');
+
+// 🛡️ [FASE 2 - SEGURANÇA] Estado vivo compartilhado com Twitch/Discord.
+// Os conectores leem o sock/chatbot ATUAIS via getter, nunca a instância
+// capturada na primeira conexão (evita sockets zumbis após restart do Baileys).
+const { setGlobalSock, setGlobalChatbot } = require('./globalState');
 
 const { exec } = require('child_process');
 const path = require('path');
 const util = require('util');
 const execPromise = util.promisify(exec);
 
+// 🧹 [FASE 5 - TTL DE MEMÓRIA] Cache de enquetes (pollCache) exposto aos handlers
+// via `sock.pollCache`. Contrato: cada entrada deve ser `{ value, expiresAt }`
+// (expiresAt = Date.now() + TTL). Entradas vencidas são expurgadas pelo varredor
+// periódico registrado junto do servidor web (instância única por processo).
 const pollCache = new Map();
+const POLL_CACHE_TTL_MS = 10 * 60 * 1000;
+
+function limparPollCacheExpirado() {
+    const agora = Date.now();
+    let removidos = 0;
+
+    for (const [chave, entrada] of pollCache) {
+        const expira = (entrada && typeof entrada === 'object') ? entrada.expiresAt : undefined;
+
+        // Entradas fora do contrato ou vencidas são descartadas (fail-closed).
+        if (typeof expira !== 'number' || expira <= agora) {
+            pollCache.delete(chave);
+            removidos++;
+        }
+    }
+
+    if (removidos > 0) {
+        console.log(`🧹 [TTL] pollCache: ${removidos} entrada(s) expirada(s) removida(s) (TTL padrão de ${POLL_CACHE_TTL_MS / 60000}min).`);
+    }
+    return removidos;
+}
+
+// 🧹 [FASE 5 - RETENÇÃO] Política de retenção do histórico:
+// mensagens com mais de 60 dias SÓ são removidas quando a conversa já acumulou
+// mais de 500 registros (evita perder contexto de grupos pequenos/raros).
+const RETENCAO_DIAS = 60;
+const RETENCAO_MIN_MENSAGENS = 500;
+
+async function limparHistoricoAntigo() {
+    if (!db) return 0;
+
+    const corte = Math.floor(Date.now() / 1000) - (RETENCAO_DIAS * 24 * 60 * 60);
+
+    try {
+        const resultado = await db.run(
+            `DELETE FROM mensagens
+             WHERE timestamp < ?
+               AND id_conversa IN (
+                   SELECT id_conversa
+                   FROM mensagens
+                   GROUP BY id_conversa
+                   HAVING COUNT(*) > ?
+               )`,
+            [corte, RETENCAO_MIN_MENSAGENS]
+        );
+
+        const apagadas = (resultado && resultado.changes) ? resultado.changes : 0;
+        if (apagadas > 0) {
+            console.log(`🧹 [RETENÇÃO] ${apagadas} mensagens antigas (>${RETENCAO_DIAS} dias) removidas do histórico.`);
+        } else {
+            console.log(`🧹 [RETENÇÃO] Nenhuma mensagem elegível para expurgo hoje.`);
+        }
+        return apagadas;
+    } catch (error) {
+        console.error("❌ [RETENÇÃO] Falha ao limpar histórico antigo:", error);
+        return 0;
+    }
+}
+
+// 🧠 [FASE 5 - MICRO-CACHE] Dashboard é lido pelo WebSocket a cada 3s e pela rota
+// /api/dashboard. Sem cache isso significava N consultas agressivas no SQLite da
+// VM de 1GB. Agora o resultado vive 60s em memória e as leituras concorrentes são
+// coalescidas em uma única promise (single-flight).
+const DASHBOARD_CACHE_TTL_MS = 60 * 1000;
+let dashboardCacheData = null;
+let dashboardCacheExpiresAt = 0;
+let dashboardCachePromise = null;
+
+async function getDashboardDataCacheado() {
+    const agora = Date.now();
+
+    if (dashboardCacheData && dashboardCacheExpiresAt > agora) {
+        return dashboardCacheData;
+    }
+
+    if (dashboardCachePromise) return dashboardCachePromise;
+    if (!globalChatbot) return null;
+
+    dashboardCachePromise = globalChatbot.getDashboardDataAPI()
+        .then((dados) => {
+            dashboardCacheData = dados;
+            dashboardCacheExpiresAt = Date.now() + DASHBOARD_CACHE_TTL_MS;
+            return dados;
+        })
+        .finally(() => {
+            dashboardCachePromise = null;
+        });
+
+    return dashboardCachePromise;
+}
 
 const DB_PATH = 'chat_history.db'; 
 let db; 
 let myFullJid;
+let globalSock;
+let isExpressRunning = false;
+
+// 🛡️ [FASE 1 - ANTI-OOM] Guards de inicialização única (padrão Singleton).
+// As reconexões do Baileys chamam connectToWhatsApp() várias vezes; sem estes
+// guards o SQLite seria reaberto, novos endpoints/Socket.io subiriam e os
+// timers seriam multiplicados a cada queda de conexão.
+let isDbInitialized = false;
+let isWebInitialized = false;
+let isCronInitialized = false;
+let dailyJob = null;
+let retentionJob = null;
+let webIO = null;
+let globalChatbot = null;
+
+// 🚦 [FASE 1 - ANTI-OOM] Semáforo de mídia: no máximo 2 processamentos
+// simultâneos de sharp/ffmpeg/sticker na VM de 1GB.
+const MAX_MEDIA_CONCURRENCY = 2;
+let activeMediaTasks = 0;
+const mediaQueue = [];
+
+function acquireMediaSlot() {
+    if (activeMediaTasks < MAX_MEDIA_CONCURRENCY) {
+        activeMediaTasks++;
+        return Promise.resolve();
+    }
+    return new Promise((resolve) => mediaQueue.push(resolve));
+}
+
+function releaseMediaSlot() {
+    const next = mediaQueue.shift();
+    if (next) {
+        next();
+    } else {
+        activeMediaTasks--;
+    }
+}
 
 async function preCompressVideo(inputBuffer) {
     const tempInput = path.join(__dirname, `temp_in_${Date.now()}.mp4`);
@@ -58,13 +197,16 @@ async function preCompressVideo(inputBuffer) {
     try {
         const cmd = `ffmpeg -i "${tempInput}" -vf "scale='min(320,iw)':min'(320,ih)':force_original_aspect_ratio=decrease,fps=24" -c:v libx264 -preset ultrafast -crf 30 -an "${tempOutput}"`;
         
-        await execPromise(cmd);
+        // 🛡️ [FASE 4 - I/O RESILIENTE] Sem teto de tempo, um vídeo corrompido
+        // deixava o FFmpeg pendurado consumindo CPU/RAM e travando um dos 2 slots
+        // do semáforo de mídia da VM. SIGKILL garante morte imediata + fallback.
+        await execPromise(cmd, { timeout: 15000, killSignal: 'SIGKILL' });
         
         const outBuffer = await fs.promises.readFile(tempOutput);
         return outBuffer;
     } catch (err) {
         console.error("❌ Erro no pré-compressor do FFmpeg:", err);
-        return inputBuffer;
+        return inputBuffer; 
     } finally {
         if (fs.existsSync(tempInput)) await fs.promises.unlink(tempInput);
         if (fs.existsSync(tempOutput)) await fs.promises.unlink(tempOutput);
@@ -107,6 +249,13 @@ async function initDatabase() {
         driver: sqlite3.Database
     });
 
+    // 🛡️ [FASE 4 - I/O DO SQLITE] WAL separa leitura de escrita: dashboard,
+    // conectores (Twitch/Discord) e IA leem enquanto o bot grava, acabando com os
+    // travamentos SQLITE_BUSY. O busy_timeout absorve picos de escrita concorrente
+    // em vez de devolver erro imediato.
+    await db.run("PRAGMA journal_mode = WAL;");
+    await db.run("PRAGMA busy_timeout = 5000;");
+
     await db.exec(`
         CREATE TABLE IF NOT EXISTS mensagens (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -118,6 +267,11 @@ async function initDatabase() {
             id_mensagem_externo TEXT UNIQUE
         );
     `);
+
+    // 🚀 [FASE 4 - PERFORMANCE] Índice composto para a query quente de histórico
+    // (WHERE id_conversa = ? ORDER BY timestamp): elimina o full table scan em uma
+    // tabela que só cresce.
+    await db.exec(`CREATE INDEX IF NOT EXISTS idx_mensagens_conversa_tempo ON mensagens (id_conversa, timestamp);`);
 
     await db.exec(`
         CREATE TABLE IF NOT EXISTS usuarios (
@@ -797,6 +951,58 @@ async function initDatabase() {
     } catch (error) {
         if (!error.message.includes("duplicate column name")) console.error(error.message);
     }
+    await db.exec(`
+        CREATE TABLE IF NOT EXISTS tokens_vinculo (
+            token TEXT PRIMARY KEY,
+            id_whatsapp TEXT NOT NULL,
+            expira_em INTEGER NOT NULL
+        );
+    `);
+
+    await db.exec(`
+        CREATE TABLE IF NOT EXISTS usuarios_web (
+            id_whatsapp TEXT PRIMARY KEY,
+            senha_hash TEXT NOT NULL,
+            criado_em INTEGER
+        );
+    `);
+
+    await db.exec(`
+        CREATE TABLE IF NOT EXISTS refresh_tokens (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id_whatsapp TEXT NOT NULL,
+            token TEXT UNIQUE NOT NULL,
+            expira_em INTEGER NOT NULL,
+            revogado INTEGER DEFAULT 0,
+            FOREIGN KEY(id_whatsapp) REFERENCES usuarios_web(id_whatsapp)
+        );
+    `);
+
+    await db.exec(`
+        CREATE TABLE IF NOT EXISTS minerios_descobertos (
+            id_whatsapp TEXT,
+            mineral_id TEXT,
+            quantidade_total INTEGER DEFAULT 0,
+            data_primeira_descoberta INTEGER,
+            PRIMARY KEY (id_whatsapp, mineral_id)
+        );
+    `);
+    console.log("✅ Tabelas da Web e Lista de Minérios carregadas.");
+
+    await db.exec(`
+        CREATE TABLE IF NOT EXISTS grupos_nomes (
+            id_grupo TEXT PRIMARY KEY, 
+            nome TEXT
+        )
+    `);
+
+    await db.exec(`
+        CREATE TABLE IF NOT EXISTS grupo_participantes (
+            id_grupo TEXT,
+            id_whatsapp TEXT,
+            PRIMARY KEY (id_grupo, id_whatsapp)
+        )
+    `);
 
     console.log('✅ Banco de dados SQLite inicializado e tabelas verificadas.');
 }
@@ -953,14 +1159,13 @@ const botCommands = {
 
 //Inicia a conexão com mo Whatsapp para fazer todas as operações
 async function connectToWhatsApp() {
-    await initDatabase();
-
-    /*try {
-        await driveService.authorize();
-        console.log("✅ Google Drive Autenticado!");
-    } catch (err) {
-        console.error("❌ Falha ao autenticar no Drive:", err);
-    }*/
+    // 🛡️ [FASE 1 - ANTI-OOM] Abre o SQLite APENAS uma vez por processo.
+    // Sem o guard, cada reconexão abria um novo handle de banco (DB zumbi).
+    if (!isDbInitialized) {
+        await initDatabase();
+        isDbInitialized = true;
+        console.log('✅ [DB] Instância única do SQLite inicializada.');
+    }
 
     const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
 
@@ -978,7 +1183,9 @@ async function connectToWhatsApp() {
         connectTimeoutMs: 60000,
         keepAliveIntervalMs: 10000,
     });
-    
+
+    globalSock = sock;    
+    setGlobalSock(sock); // 🔄 Publica a instância ATIVA para os conectores externos
     sock.pollCache = pollCache;
 
     if (usePairingCode && !sock.authState.creds.registered) {
@@ -1008,23 +1215,123 @@ async function connectToWhatsApp() {
 
     //Instancia o chatbot
     const chatbot = new ChatModel(db, genAI)
+    globalChatbot = chatbot; // Referência viva para rotas HTTP/WS e timers (evita instância zumbi)
+    setGlobalChatbot(chatbot); // 🔄 Publica a instância ATIVA para os conectores externos
     await chatbot.updateOnlineStatus();
 
     const blueskyBrain = new BlueskyBrain(db, chatbot);
     blueskyBrain.iniciarRotina();
     chatbot.blueskyBrain = blueskyBrain;
 
-    startTwitch(chatbot, sock);
-    startDiscord(chatbot, sock);
+    // 🔄 Conectores externos NÃO recebem mais instâncias por parâmetro:
+    // eles consomem o estado vivo (getGlobalSock/getGlobalChatbot).
+    startTwitch();
+    startDiscord();
 
-    // ==========================================
-    //  SERVIDOR EXPRESS E WEBSOCKET 
-    // ==========================================
+    // 🛡️ [FASE 1 - ANTI-OOM] Servidor HTTP + Socket.io + rotas são Singletons:
+    // sobem apenas UMA vez por processo, mesmo após N reconexões do Baileys.
+    // Sem isso cada queda criava um novo Express, um novo server, um novo
+    // Socket.io e mais um setInterval de dashboard (vazamento de RAM/sockets).
+    if (!isWebInitialized) {
+    isWebInitialized = true;
+
     const http = require('http');
     const { Server } = require('socket.io');
 
     const app = express();
-    app.use(cors());
+    const bcrypt = require('bcrypt');
+    const jwt = require('jsonwebtoken');
+    const crypto = require('crypto');
+    const cookieParser = require('cookie-parser');
+    
+    const allowedOrigins = [
+        'http://localhost:5173', 
+        'https://bostossauro.runage.tech',
+        'https://bostopark.com'
+    ];
+
+    app.use(cors({ 
+        origin: function (origin, callback) {
+            if (!origin) return callback(null, true);
+            
+            if (allowedOrigins.indexOf(origin) !== -1) {
+                callback(null, true);
+            } else {
+                callback(new Error('Bloqueado pelo CORS'));
+            }
+        },
+        credentials: true 
+    }));
+
+    app.use(express.json());
+    app.use(cookieParser());
+
+    // 🛡️ [FASE 2 - SEGURANÇA] ZERO fallback hardcoded: o segredo hardcoded no
+    // código permitia FORJAR tokens (bypass total do login) por qualquer um que
+    // lesse o repositório. Sem JWT_SECRET no ambiente geramos um segredo
+    // criptograficamente aleatório por processo: sessões antigas morrem no
+    // restart, o que é o comportamento seguro.
+    const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(64).toString('hex');
+    if (!process.env.JWT_SECRET) {
+        console.warn('⚠️ [SEGURANÇA] JWT_SECRET ausente no .env — usando segredo efêmero (sessões invalidam a cada restart).');
+    }
+
+    // 🛡️ [FASE 2 - SEGURANÇA] Rate limit em memória (sem dependência nova, VM de 1GB).
+    // Janela deslizante por IP com poda automática para não vazar memória.
+    const rateBuckets = new Map();
+
+    const createRateLimiter = ({ windowMs, max, message }) => (req, res, next) => {
+        const now = Date.now();
+        const ip = String(req.headers['x-forwarded-for'] || req.ip || (req.socket && req.socket.remoteAddress) || 'unknown')
+            .split(',')[0].trim();
+
+        let hits = rateBuckets.get(ip);
+        if (!hits) {
+            hits = [];
+            rateBuckets.set(ip, hits);
+        }
+
+        while (hits.length && (now - hits[0]) > windowMs) hits.shift();
+
+        if (hits.length >= max) {
+            const retryAfter = Math.max(1, Math.ceil((windowMs - (now - hits[0])) / 1000));
+            res.set('Retry-After', String(retryAfter));
+            return res.status(429).json({ error: message });
+        }
+
+        hits.push(now);
+
+        // Poda global: mantém o Map pequeno mesmo sob ataque distribuído.
+        if (rateBuckets.size > 500) {
+            for (const [key, value] of rateBuckets) {
+                if (!value.length || (now - value[value.length - 1]) > windowMs) rateBuckets.delete(key);
+            }
+        }
+
+        next();
+    };
+
+    // Envio de código por WhatsApp é uma ação CARA e abusável (spam / força bruta de MFA).
+    const mfaRateLimiter = createRateLimiter({
+        windowMs: 10 * 60 * 1000,
+        max: 3,
+        message: "Muitas solicitações de código. Aguarde alguns minutos."
+    });
+    const dashboardRateLimiter = createRateLimiter({
+        windowMs: 60 * 1000,
+        max: 60,
+        message: "Taxa de consulta excedida. Reduza a frequência."
+    });
+    const loginRateLimiter = createRateLimiter({
+        windowMs: 10 * 60 * 1000,
+        max: 10,
+        message: "Muitas tentativas de autenticação. Aguarde alguns minutos."
+    });
+    const broadcastRateLimiter = createRateLimiter({
+        windowMs: 60 * 1000,
+        max: 5,
+        message: "Webhook em cooldown."
+    });
 
     app.use(express.json());
 
@@ -1032,18 +1339,70 @@ async function connectToWhatsApp() {
 
     const server = http.createServer(app);
 
+    // 🛡️ [FASE 5 - SEGURANÇA] O Socket.io aceitava QUALQUER origem (`origin: "*"`),
+    // permitindo que sites de terceiros abrissem conexões persistentes no servidor.
+    // Agora o handshake só aceita as mesmas origens do CORS REST e, quando um token
+    // JWT é enviado, ele é validado ANTES de manter a conexão viva.
     const io = new Server(server, {
-        cors: { origin: "*" }
+        cors: {
+            origin: function (origin, callback) {
+                if (!origin) return callback(null, true);
+
+                if (allowedOrigins.indexOf(origin) !== -1) {
+                    return callback(null, true);
+                }
+                return callback(new Error('Bloqueado pelo CORS do WebSocket'));
+            },
+            methods: ['GET', 'POST'],
+            credentials: true
+        },
+        maxHttpBufferSize: 1e6
     });
 
-    app.post('/api/send-code', async (req, res) => {
+    io.use((socket, next) => {
+        const origin = socket.handshake.headers && socket.handshake.headers.origin;
+
+        // Origem não autorizada (navegador de terceiros) = conexão recusada.
+        if (origin && allowedOrigins.indexOf(origin) === -1) {
+            return next(new Error('Origem não autorizada.'));
+        }
+
+        const token = (socket.handshake.auth && socket.handshake.auth.token) ||
+                      (socket.handshake.query && socket.handshake.query.token);
+
+        // Espectador anônimo: mantém apenas o acesso de leitura ao dashboard público
+        // (mesmo nível de exposição da rota /api/dashboard).
+        if (!token) return next();
+
+        jwt.verify(token, JWT_SECRET, (err, user) => {
+            if (err || !user) {
+                return next(new Error('Token inválido no handshake.'));
+            }
+            socket.user = user;
+            next();
+        });
+    });
+
+    webIO = io; // Referência global viva (re-vinculada a cada reconexão)
+    chatbot.parqueHandler.io = io;
+
+    app.post('/api/send-code', mfaRateLimiter, async (req, res) => {
         try {
             const { phone } = req.body;
             if (!phone) return res.status(400).json({ RequestStatus: 400, Error: "Telefone ausente." });
 
+            // Normaliza para evitar injeção de caracteres/formatos no JID
             const pureNumbers = phone.toString().replace(/\D/g, '');
+            if (pureNumbers.length < 10 || pureNumbers.length > 15) {
+                return res.status(400).json({ RequestStatus: 400, Error: "Telefone inválido." });
+            }
             
             const jid = pureNumbers + '@s.whatsapp.net';
+
+            // 🛡️ [FASE 2 - SEGURANÇA] Nunca operar em cima de socket zumbi
+            if (!globalSock) {
+                return res.status(503).json({ RequestStatus: 503, Error: "Serviço de mensagens indisponível." });
+            }
 
             const code = mfaService.generateCode();
             const message = `TeamMatch: Seu código de segurança é ${code}`;
@@ -1054,13 +1413,16 @@ async function connectToWhatsApp() {
                 [jid]
             );
 
-            await sock.sendMessage(jid, { text: message });
+            await globalSock.sendMessage(jid, { text: message });
             
             console.log(`🔐 [MFA] Enviado para: ${pureNumbers}`);
 
+            // ⚠️ [FASE 2 - SEGURANÇA] O VerificationCode NÃO trafega mais no JSON:
+            // devolver o código na resposta transformava a rota em um oráculo de
+            // MFA (qualquer um gerava/roubava o código do alvo pela internet).
+            // O segredo agora só é legível por quem tem posse do WhatsApp alvo.
             return res.json({
                 RequestStatus: 200,
-                VerificationCode: code,
                 UserPhone: pureNumbers
             });
 
@@ -1070,37 +1432,383 @@ async function connectToWhatsApp() {
         }
     });
 
-    app.get('/api/dashboard', async (req, res) => {
-        const data = await chatbot.getDashboardDataAPI();
-        res.json(data);
+    app.post('/api/xoxo', broadcastRateLimiter, async (req, res) => {
+        try {
+            const cupulaGroupId = process.env.CUPULA_GROUP_ID || "120363422139578370@g.us"; 
+
+            // 🛡️ [FASE 2 - SEGURANÇA] Webhook aberto: precisa de rate limit e de
+            // socket VIVO, senão vira vetor de broadcast/spam via WhatsApp.
+            if (!globalSock) {
+                return res.status(503).json({ RequestStatus: 503, error: "Serviço de mensagens indisponível." });
+            }
+
+            await globalSock.sendMessage(cupulaGroupId, { text: `Você não ouviu isso de mim… mas tem post novo no blog. 👀
+Corre antes que alguém apague as provas, mude a versão dos fatos ou finja que “não foi bem assim”.` });
+            
+            console.log(`📣 [XOXO] Notificação silenciosa enviada para o grupo!`);
+            return res.json({ RequestStatus: 200, success: true });
+
+        } catch (error) {
+            console.error("❌ Erro no webhook XOXO:", error);
+            return res.status(500).json({ RequestStatus: 500, error: "Erro ao enviar notificação" });
+        }
+    });
+
+    app.get('/api/dashboard', dashboardRateLimiter, async (req, res) => {
+        // 🛡️ [FASE 2 - SEGURANÇA] Rota pública de métricas: rate limit obrigatório
+        // para não virar amplificador de leitura no SQLite da VM de 1GB.
+        try {
+            if (!globalChatbot) {
+                return res.status(503).json({ status: "error", message: "Chatbot indisponível." });
+            }
+            const data = await getDashboardDataCacheado();
+            if (!data) {
+                return res.status(503).json({ status: "error", message: "Chatbot indisponível." });
+            }
+            return res.json(data);
+        } catch (e) {
+            console.error("❌ Erro na rota /api/dashboard:", e);
+            return res.status(500).json({ status: "error", message: "Erro interno." });
+        }
+    });
+    app.post('/api/auth/register', loginRateLimiter, async (req, res) => {
+        try {
+            const { phone, password, token } = req.body;
+            if (!phone || !password || !token) return res.status(400).json({ error: "Dados incompletos." });
+
+            const pureNumbers = phone.toString().replace(/\D/g, '');
+            const jid = pureNumbers + '@s.whatsapp.net';
+            const upperToken = token.toString().trim();
+
+            // 🛡️ [FASE 5 - SEGURANÇA] Tokens agora misturam maiúsculas e minúsculas,
+            // então a busca deixa de comparar por igualdade binária e passa a usar
+            // COLLATE NOCASE (o usuário pode digitar o token em qualquer caixa).
+            const registro = await db.get("SELECT * FROM tokens_vinculo WHERE token = ? COLLATE NOCASE", [upperToken]);
+            if (!registro) return res.status(400).json({ error: "Token inválido." });
+            if (registro.id_whatsapp !== jid) return res.status(400).json({ error: "O Token não pertence a esse número." });
+            if (Date.now() > registro.expira_em) return res.status(400).json({ error: "Token expirado. Gere outro no WhatsApp." });
+
+            const existe = await db.get("SELECT * FROM usuarios_web WHERE id_whatsapp = ?", [jid]);
+            if (existe) return res.status(400).json({ error: "Este número já possui cadastro na Web." });
+
+            const salt = await bcrypt.genSalt(10);
+            const hash = await bcrypt.hash(password, salt);
+            const now = Math.floor(Date.now() / 1000);
+
+            await db.run("INSERT INTO usuarios_web (id_whatsapp, senha_hash, criado_em) VALUES (?, ?, ?)", [jid, hash, now]);
+            await db.run("DELETE FROM tokens_vinculo WHERE token = ?", [registro.token]); // Queima o token
+
+            res.status(201).json({ success: "Conta criada com sucesso! Você já pode fazer login." });
+        } catch (e) {
+            console.error(e);
+            res.status(500).json({ error: "Erro interno do servidor." });
+        }
+    });
+
+    app.post('/api/auth/login', loginRateLimiter, async (req, res) => {
+        try {
+            const { phone, password } = req.body;
+            const pureNumbers = phone.toString().replace(/\D/g, '');
+            const jid = pureNumbers + '@s.whatsapp.net';
+
+            const userWeb = await db.get("SELECT * FROM usuarios_web WHERE id_whatsapp = ?", [jid]);
+            if (!userWeb) return res.status(401).json({ error: "Usuário ou senha incorretos." });
+
+            const validPass = await bcrypt.compare(password, userWeb.senha_hash);
+            if (!validPass) return res.status(401).json({ error: "Usuário ou senha incorretos." });
+
+            const userBase = await db.get("SELECT nome FROM usuarios WHERE id_usuario = ?", [jid]);
+            const nome = userBase ? userBase.nome : "Funcionário";
+            
+            const accessToken = jwt.sign({ id_whatsapp: jid, nome: nome }, JWT_SECRET, { expiresIn: '15m' });
+
+            const refreshToken = crypto.randomBytes(40).toString('hex');
+            const expiraEm = Math.floor(Date.now() / 1000) + (7 * 24 * 60 * 60);
+
+            await db.run("INSERT INTO refresh_tokens (id_whatsapp, token, expira_em) VALUES (?, ?, ?)", [jid, refreshToken, expiraEm]);
+
+            res.cookie('bostopark_refresh', refreshToken, {
+                httpOnly: true, 
+                secure: true, 
+                sameSite: 'none', 
+                maxAge: 7 * 24 * 60 * 60 * 1000
+            });
+
+            res.json({ accessToken, user: { id: jid, nome } });
+        } catch (e) {
+            console.error(e);
+            res.status(500).json({ error: "Erro interno." });
+        }
+    });
+
+    app.post('/api/auth/refresh', async (req, res) => {
+        try {
+            const incomingRefresh = req.cookies.bostopark_refresh;
+            if (!incomingRefresh) return res.status(401).json({ error: "Nenhum token fornecido." });
+
+            const registro = await db.get("SELECT * FROM refresh_tokens WHERE token = ?", [incomingRefresh]);
+            const now = Math.floor(Date.now() / 1000);
+
+            if (!registro || registro.revogado === 1 || now > registro.expira_em) {
+                res.clearCookie('bostopark_refresh');
+                return res.status(401).json({ error: "Sessão inválida ou expirada." });
+            }
+
+            const userBase = await db.get("SELECT nome FROM usuarios WHERE id_usuario = ?", [registro.id_whatsapp]);
+            const nome = userBase ? userBase.nome : "Funcionário";
+
+            await db.run("DELETE FROM refresh_tokens WHERE id = ?", [registro.id]);
+            
+            const newRefreshToken = crypto.randomBytes(40).toString('hex');
+            const newExpiraEm = Math.floor(Date.now() / 1000) + (7 * 24 * 60 * 60);
+
+            await db.run("INSERT INTO refresh_tokens (id_whatsapp, token, expira_em) VALUES (?, ?, ?)", [registro.id_whatsapp, newRefreshToken, newExpiraEm]);
+
+            const newAccessToken = jwt.sign({ id_whatsapp: registro.id_whatsapp, nome: nome }, JWT_SECRET, { expiresIn: '15m' });
+
+            res.cookie('bostopark_refresh', newRefreshToken, {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === 'production',
+                sameSite: 'Strict',
+                maxAge: 7 * 24 * 60 * 60 * 1000
+            });
+
+            res.json({ accessToken: newAccessToken });
+        } catch (e) {
+            res.status(500).json({ error: "Erro ao renovar sessão." });
+        }
+    });
+
+    app.post('/api/auth/logout', async (req, res) => {
+        const token = req.cookies.bostopark_refresh;
+        if (token) {
+            await db.run("UPDATE refresh_tokens SET revogado = 1 WHERE token = ?", [token]);
+        }
+        res.clearCookie('bostopark_refresh');
+        res.json({ success: "Deslogado com sucesso." });
+    });
+
+    const authenticateToken = (req, res, next) => {
+        const authHeader = req.headers['authorization'];
+        const token = authHeader && authHeader.split(' ')[1]; 
+
+        if (!token) return res.status(401).json({ error: "Acesso negado. Token ausente." });
+
+        jwt.verify(token, JWT_SECRET, (err, user) => {
+            if (err) return res.status(403).json({ error: "Token inválido ou expirado." });
+            
+            req.user = user; 
+            next();
+        });
+    };
+
+    app.get('/api/parque/perfil', authenticateToken, async (req, res) => {
+        try {
+            const jid = req.user.id_whatsapp;
+
+            const player = await globalChatbot.parqueHandler.getPlayerData(jid);
+            
+            const userDb = await db.get("SELECT bostocoins, afinidade_bot FROM usuarios WHERE id_usuario = ?", [jid]);
+            
+            res.json({
+                id_whatsapp: jid,
+                nome: req.user.name || "Minerador",
+                bostocoins: userDb ? userDb.bostocoins : 0,
+                afinidade: userDb ? userDb.afinidade_bot : 0,
+                ferramentas: player.ferramentas,
+                inventory: player.inventory,
+                inventario_consumiveis: player.inventario_consumiveis
+            });
+        } catch (e) {
+            console.error("Erro ao buscar perfil do parque:", e);
+            res.status(500).json({ error: "Erro ao carregar dados do perfil." });
+        }
+    });
+
+    app.get('/api/parque/escavacao/ativa', authenticateToken, (req, res) => {
+        try {
+            const jid = req.user.id_whatsapp;
+            
+            const sessao = globalChatbot.parqueHandler.escavacoesAtivas.get(jid);
+
+            if (!sessao) {
+                return res.json({ ativa: false, mensagem: "Você está na superfície. Use !escavar no WhatsApp para entrar no Abismo!" });
+            }
+
+            const ESC_CHANCE_DESMORONAR_BASE = 0.04;
+            const ESC_DESMORONAR_INCREMENTO = 0.06;
+            
+            let riscoAtual = ESC_CHANCE_DESMORONAR_BASE + (ESC_DESMORONAR_INCREMENTO * sessao.camada);
+            if (sessao.buffs?.suporte) riscoAtual /= 2;
+
+            res.json({
+                ativa: true,
+                camada: sessao.camada,
+                turnos_gastos: sessao.turnos,
+                risco_porcentagem: parseFloat((riscoAtual * 100).toFixed(1)),
+                buffs_ativos: sessao.buffs || {},
+                sacola_temporaria: sessao.loot,
+                sensor_peek: {
+                    lado: sessao.peek_lado ? true : false,
+                    fundo: sessao.peek_fundo ? true : false
+                }
+            });
+        } catch (e) {
+            res.status(500).json({ error: "Erro ao verificar escavação ativa." });
+        }
+    });
+
+    app.get('/api/parque/pokedex', authenticateToken, async (req, res) => {
+        try {
+            const jid = req.user.id_whatsapp;
+
+            const descobertosRaw = await db.all("SELECT mineral_id, quantidade_total, data_primeira_descoberta FROM minerios_descobertos WHERE id_whatsapp = ?", [jid]);
+            
+            const descobertosMap = new Map(descobertosRaw.map(i => [i.mineral_id, i]));
+
+            const infoParqueHandler = require('./parqueHandler'); 
+
+            const dbCatalog = descobertosRaw.map(d => d.mineral_id);
+
+            res.json({
+                total_itens_catalogo: 35,
+                descobertos_qtd: descobertosRaw.length,
+                lista_descobertas: descobertosRaw
+            });
+        } catch (e) {
+            res.status(500).json({ error: "Erro ao processar Pokédex Geológica." });
+        }
+    });
+
+    app.get('/api/parque/grupos', authenticateToken, async (req, res) => {
+        try {
+            const userJid = req.user.id_whatsapp;
+            const numeroLimpo = userJid.split('@')[0].split(':')[0] + '@s.whatsapp.net';
+            
+            const gruposDB = await db.all(`
+                SELECT g.id_grupo as id, g.nome 
+                FROM grupos_nomes g
+                INNER JOIN grupo_participantes p ON g.id_grupo = p.id_grupo
+                WHERE p.id_whatsapp = ?
+            `, [numeroLimpo]);
+
+            return res.json(gruposDB);
+
+        } catch (error) {
+            console.error("❌ Erro ao buscar grupos no DB:", error);
+            res.status(500).json({ error: "Erro ao carregar os canais de escavação." });
+        }
+    });
+
+    app.post('/api/parque/escavar', authenticateToken, async (req, res) => {
+        try {
+            const userId = req.user.id_whatsapp; 
+            const userTag = req.user.nome || "Minerador";
+            const { acao, groupId } = req.body;
+
+            if (!acao || !groupId) {
+                return res.status(400).json({ error: "Parâmetros em falta (ação ou grupo ausentes)." });
+            }
+
+            console.log(`🕹️ [WEB ACTION] O utilizador ${userTag} solicitou a ação: '!escavar ${acao}' no grupo ${groupId}`);
+
+            const comandoSintetico = acao === 'fuga' ? '!escavar sair' : `!escavar ${acao}`;
+            
+            const fakeMsg = {
+                key: { remoteJid: groupId, fromMe: false, id: "WEB_" + Math.random().toString(36).substr(2, 9) },
+                messageTimestamp: Math.floor(Date.now() / 1000),
+                pushName: userTag,
+                platform: 'web' 
+            };
+
+            await globalChatbot.handleCommand(fakeMsg, userId, groupId, true, comandoSintetico, null, globalSock, []);
+
+            return res.json({ 
+                success: true, 
+                message: `Comando tático enviado para o servidor principal.` 
+            });
+
+        } catch (error) {
+            console.error("❌ Erro crítico ao processar escavação via Web:", error);
+            res.status(500).json({ error: "Falha interna no mainframe da InGen ao tentar escavar." });
+        }
     });
 
     io.on('connection', (socket) => {
-        console.log(`🟢 [DASHBOARD] Novo espião conectado: ${socket.id}`);
-        
-        chatbot.getDashboardDataAPI().then(data => {
-            socket.emit('dashboard_update', data);
+        console.log(`🟢 [WS] Novo cliente conectado: ${socket.id}`);
+
+        // 🧠 [FASE 5 - MICRO-CACHE] Serve o snapshot em memória (60s de validade),
+        // sem bater no SQLite a cada nova conexão.
+        getDashboardDataCacheado().then(data => {
+            if (data) socket.emit('dashboard_update', data);
+        }).catch(() => {});
+
+        socket.on('auth_bostopark', (token) => {
+            if (!token) return;
+            
+            // 🛡️ [FASE 2 - SEGURANÇA] Usa o MESMO segredo do resto da API.
+            // Antes esta linha redefinia o segredo com o valor hardcoded,
+            // criando duas autoridades de assinatura diferentes (bypass).
+            jwt.verify(token, JWT_SECRET, (err, user) => {
+                if (!err && user && user.id_whatsapp) {
+                    const roomName = user.id_whatsapp.split('@')[0];
+                    
+                    socket.join(roomName);
+                    console.log(`🔌 [WS] SUCESSO! O Usuário entrou na sala privada: ${roomName}`);
+                }
+            });
         });
 
         socket.on('disconnect', () => {
-            console.log(`🔴 [DASHBOARD] Espião desconectado: ${socket.id}`);
+            console.log(`🔴 [WS] Cliente desconectado: ${socket.id}`);
         });
     });
 
+    // 🧠 [FASE 5 - MICRO-CACHE] O loop de 3s agora consome o snapshot cacheado.
+    // Só existe I/O no SQLite quando o cache de 60s expira — antes eram 20
+    // consultas agressivas por minuto alimentadas pelo WebSocket.
     setInterval(async () => {
         if (io.engine.clientsCount > 0) { 
             try {
-                const data = await chatbot.getDashboardDataAPI();
-                io.emit('dashboard_update', data);
+                const data = await getDashboardDataCacheado();
+                if (data) io.emit('dashboard_update', data);
             } catch (e) {
                 console.error("Erro no loop do WebSocket:", e);
             }
         }
     }, 3000);
 
-    server.listen(3000, '0.0.0.0', () => {
-        console.log('📈 [API/WS] Dashboard rodando na porta 3000');
-    });
+    // 🧹 [FASE 5 - TTL DE MEMÓRIA] Varredor periódico (a cada 30 minutos) das
+    // estruturas em memória efêmeras. Roda no bloco Singleton do servidor web,
+    // portanto existe UMA vez por processo e sempre aponta para o `globalChatbot`
+    // VIVO (não segura instâncias antigas na memória).
+    const memorySweepInterval = setInterval(() => {
+        try {
+            limparPollCacheExpirado();
+
+            if (globalChatbot && typeof globalChatbot.limparMemoriasExpiradas === 'function') {
+                globalChatbot.limparMemoriasExpiradas();
+            }
+        } catch (e) {
+            console.error("❌ Erro no varredor de memória:", e);
+        }
+    }, 30 * 60 * 1000);
+
+    // Não segura o event loop vivo caso o processo precise encerrar.
+    if (typeof memorySweepInterval.unref === 'function') memorySweepInterval.unref();
+
+    if (!isExpressRunning) {
+        server.listen(3000, '0.0.0.0', () => {
+            console.log('📈 [API/WS] Dashboard rodando na porta 3000');
+            isExpressRunning = true;
+        });
+    }
+    } // 🔚 fim do guard isWebInitialized (Express/Socket.io = instância única)
+
+    // 🔄 Re-vincula o emissor de eventos do Parque à instância ATUAL do handler
+    if (chatbot.parqueHandler) {
+        chatbot.parqueHandler.io = webIO;
+    }
     
     //Envia figurinha
     const sendSticker = async (sock, db, from, msg, mentions, command) => {
@@ -1133,7 +1841,21 @@ async function connectToWhatsApp() {
     if (connection === 'close') {
         const statusCode = (lastDisconnect.error)?.output?.statusCode;
         const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
-        
+
+        // 🧹 [FASE 1 - ANTI-LEAK] Descarte determinístico do socket zumbi:
+        // solta os listeners e encerra o websocket ANTES de criar outro,
+        // evitando acúmulo de handles/event emitters a cada queda.
+        try {
+            sock.ev.removeAllListeners();
+            sock.end(undefined);
+        } catch (err) {
+            console.error('⚠️ Falha ao descartar o socket antigo:', err.message);
+        }
+        if (globalSock === sock) {
+            globalSock = null;
+            setGlobalSock(null); // 🔄 Evita que Twitch/Discord escrevam no socket morto
+        }
+
         if (shouldReconnect) {
             console.log('🔄 Conexão caiu. Tentando reconectar em 5 segundos...');
             setTimeout(() => {
@@ -1144,10 +1866,39 @@ async function connectToWhatsApp() {
         }
     } else if (connection === 'open') {
             console.log('✅ Bot conectado e pronto!');
+
+            (async () => {
+                try {
+                    const groups = await sock.groupFetchAllParticipating();
+                    let gruposSalvos = 0;
+                    
+                    for (const groupId in groups) {
+                        const group = groups[groupId];
+                        await db.run(
+                            "INSERT INTO grupos_nomes (id_grupo, nome) VALUES (?, ?) ON CONFLICT(id_grupo) DO UPDATE SET nome = ?",
+                            [group.id, group.subject, group.subject]
+                        );
+                        gruposSalvos++;
+                    }
+                    console.log(`✅ [DB] ${gruposSalvos} grupos mapeados com sucesso!`);
+                } catch (err) {
+                    console.error("❌ Erro ao sincronizar nomes dos grupos:", err);
+                }
+            })();
             
-            if (dailyJob) {
-                dailyJob.cancel();
-            }
+            // 🛡️ [FASE 1 - ANTI-LEAK] O cron do "Bom Dia" é Singleton:
+            // é agendado UMA vez por processo e usa globalSock/globalChatbot,
+            // então continua falando com a conexão ATUAL após reconectar.
+            if (!isCronInitialized) {
+                isCronInitialized = true;
+
+            // 🧹 [FASE 5 - RETENÇÃO] Expurgo diário (04:30) do histórico frio.
+            // Roda no mesmo guard Singleton do cron do Bom Dia: um único job por
+            // processo, sobrevivendo às reconexões do Baileys.
+            retentionJob = schedule.scheduleJob('0 30 4 * * *', async function(){
+                console.log("🧹 [RETENÇÃO] Iniciando expurgo do histórico antigo...");
+                await limparHistoricoAntigo();
+            });
 
             dailyJob = schedule.scheduleJob('0 0 10 * * *', async function(){
                 const targetCity = "Santos"; 
@@ -1157,7 +1908,7 @@ async function connectToWhatsApp() {
 
                     const ROTAS_SILENCIOSAS = ["120363426917338477@g.us", "120363410458341287@g.us"];
 
-                    const humorMatinal = await chatbot.generateBomDia(`bomdia-${Date.now()}`);
+                    const humorMatinal = await globalChatbot.generateBomDia(`bomdia-${Date.now()}`);
 
                     const weatherComplement = await weatherCommandHandler.getWeather(targetCity);
                     const weatherForecastComplement = await weatherCommandHandler.getNextDayForecast(targetCity);
@@ -1167,7 +1918,7 @@ async function connectToWhatsApp() {
                                       weatherComplement + "\n\n" + 
                                       weatherForecastComplement;
 
-                    const groups = await sock.groupFetchAllParticipating();
+                    const groups = await globalSock.groupFetchAllParticipating();
                     const groupIds = Object.keys(groups);
 
                     console.log(`📊 Enviando bom dia para ${groupIds.length} grupos.`);
@@ -1179,7 +1930,7 @@ async function connectToWhatsApp() {
                         console.log("🎰 Realizando sorteios da semana...");
                         const estado = await db.get("SELECT * FROM cassino_estado WHERE id = 1");
                         
-                        const numBolao = await chatbot.rollDice(20);
+                        const numBolao = await globalChatbot.rollDice(20);
                         const apostasBolao = await db.all("SELECT b.*, u.nome FROM bolao b JOIN usuarios u ON b.id_usuario = u.id_usuario");
                         const vencedoresBolao = apostasBolao.filter(b => b.numero === numBolao);
                         
@@ -1188,40 +1939,49 @@ async function connectToWhatsApp() {
 
                         loteriaReport += `\n\n🤝 **RESULTADO DO BOLÃO** 🤝\nNúmero sorteado: 🎲 **${numBolao}**\nPote total: 🪙 **${poteTotal}**\n`;
 
-                        if (vencedoresBolao.length > 0) {
-                            const premioPorPessoa = Math.floor(poteTotal / vencedoresBolao.length);
-                            for (const w of vencedoresBolao) {
-                                await db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [premioPorPessoa, w.id_usuario]);
-                                loteriaReport += `🎉 *${w.nome}* levou 🪙 **${premioPorPessoa}**!\n`;
+                        // [FASE 3] Pagamento dos vencedores + reset do acumulado + limpeza
+                        // dos bilhetes dentro de UMA transação: um crash no meio do
+                        // caminho não deixa o pote "pago duas vezes" na próxima semana.
+                        await withTransaction(db, async () => {
+                            if (vencedoresBolao.length > 0) {
+                                const premioPorPessoa = Math.floor(poteTotal / vencedoresBolao.length);
+                                for (const w of vencedoresBolao) {
+                                    await creditarSaldo(db, w.id_usuario, premioPorPessoa);
+                                    loteriaReport += `🎉 *${w.nome}* levou 🪙 **${premioPorPessoa}**!\n`;
+                                }
+                                await db.run("UPDATE cassino_estado SET bolao_acumulado = 0 WHERE id = 1");
+                            } else {
+                                loteriaReport += `💀 Ninguém acertou! O pote acumulou para a próxima semana.\n`;
+                                await db.run("UPDATE cassino_estado SET bolao_acumulado = ? WHERE id = 1", [poteTotal]);
                             }
-                            await db.run("UPDATE cassino_estado SET bolao_acumulado = 0 WHERE id = 1");
-                        } else {
-                            loteriaReport += `💀 Ninguém acertou! O pote acumulou para a próxima semana.\n`;
-                            await db.run("UPDATE cassino_estado SET bolao_acumulado = ? WHERE id = 1", [poteTotal]);
-                        }
-                        await db.run("DELETE FROM bolao"); 
+                            await db.run("DELETE FROM bolao");
+                        }); 
 
-                        const numMega = await chatbot.rollDice(100);
+                        const numMega = await globalChatbot.rollDice(100);
                         const apostasMega = await db.all("SELECT l.*, u.nome FROM loteria l JOIN usuarios u ON l.id_usuario = u.id_usuario");
                         const vencedoresMega = apostasMega.filter(l => l.numero === numMega);
                         const multiMega = estado.mega_multiplicador * 100;
 
                         loteriaReport += `\n🎟️ **RESULTADO DA MEGA** 🎟️\nNúmero sorteado: 🎲 **${numMega}**\n`;
 
-                        if (vencedoresMega.length > 0) {
-                            loteriaReport += `🤑 **TEMOS BILIONÁRIOS!**\n`;
-                            for (const w of vencedoresMega) {
-                                const premioMega = w.valor * multiMega;
-                                await db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [premioMega, w.id_usuario]);
-                                loteriaReport += `💰 *${w.nome}* apostou 🪙 ${w.valor} e levou incríveis 🪙 **${premioMega}**!\n`;
+                        // [FASE 3] Resgate da Mega + reset do multiplicador + limpeza dos
+                        // bilhetes dentro de UMA transação (fim do prêmio duplicado).
+                        await withTransaction(db, async () => {
+                            if (vencedoresMega.length > 0) {
+                                loteriaReport += `🤑 **TEMOS BILIONÁRIOS!**\n`;
+                                for (const w of vencedoresMega) {
+                                    const premioMega = w.valor * multiMega;
+                                    await creditarSaldo(db, w.id_usuario, premioMega);
+                                    loteriaReport += `💰 *${w.nome}* apostou 🪙 ${w.valor} e levou incríveis 🪙 **${premioMega}**!\n`;
+                                }
+                                await db.run("UPDATE cassino_estado SET mega_multiplicador = 1 WHERE id = 1");
+                            } else {
+                                const semanas = estado.mega_multiplicador;
+                                loteriaReport += `💀 Ninguém acertou de novo... A Mega acumulou para **${(semanas + 1) * 100}x** a aposta na semana que vem!`;
+                                await db.run("UPDATE cassino_estado SET mega_multiplicador = mega_multiplicador + 1 WHERE id = 1");
                             }
-                            await db.run("UPDATE cassino_estado SET mega_multiplicador = 1 WHERE id = 1");
-                        } else {
-                            const semanas = estado.mega_multiplicador;
-                            loteriaReport += `💀 Ninguém acertou de novo... A Mega acumulou para **${(semanas + 1) * 100}x** a aposta na semana que vem!`;
-                            await db.run("UPDATE cassino_estado SET mega_multiplicador = mega_multiplicador + 1 WHERE id = 1");
-                        }
-                        await db.run("DELETE FROM loteria");
+                            await db.run("DELETE FROM loteria");
+                        });
                     }
 
                     for (const groupId of groupIds) {
@@ -1234,7 +1994,7 @@ async function connectToWhatsApp() {
                         let toxicReport = "";
                         let divisor = "";
 
-                        const parqueReport = await chatbot.parqueHandler.processarBilheteria(groupId);
+                        const parqueReport = await globalChatbot.parqueHandler.processarBilheteria(groupId);
 
                         if(groupId == "120363422139578370@g.us"){
                             divisor = "\n\n------------------------------\n";                            
@@ -1253,15 +2013,19 @@ async function connectToWhatsApp() {
                                 toxicRewardReport += "🤬 **PATROCÍNIO DO ÓDIO (PRÊMIO BOCA SUJA)** 🤬\nO Bostossauro valoriza a falta de educação. Os mais tóxicos ganharam:\n\n";
                                 
                                 const medalhas = ["🥇", "🥈", "🥉"];
-                                
-                                for (let i = 0; i < topToxicos.length; i++) {
-                                    const t = topToxicos[i];
-                                    const recompensa = t.quantidade * 10;
-                                    
-                                    await db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [recompensa, t.id_usuario]);
-                                    
-                                    toxicRewardReport += `${medalhas[i]} *${t.nome}*: ${t.quantidade} ofensas ➡️ **+🪙 ${recompensa}**\n`;
-                                }
+
+                                // [FASE 3] Premiação paga numa transação única (ou todos
+                                // recebem, ou ninguém recebe meio pagamento).
+                                await withTransaction(db, async () => {
+                                    for (let i = 0; i < topToxicos.length; i++) {
+                                        const t = topToxicos[i];
+                                        const recompensa = t.quantidade * 10;
+
+                                        await creditarSaldo(db, t.id_usuario, recompensa);
+
+                                        toxicRewardReport += `${medalhas[i]} *${t.nome}*: ${t.quantidade} ofensas ➡️ **+🪙 ${recompensa}**\n`;
+                                    }
+                                });
                                 toxicRewardReport += "\n";
                             }
 
@@ -1278,11 +2042,13 @@ async function connectToWhatsApp() {
                             if (topFalador) {
                                 const recompensaFalador = topFalador.total_mensagens * 2; 
                                 
-                                await db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [recompensaFalador, topFalador.id_usuario]);
+                                await withTransaction(db, async () => {
+                                    await creditarSaldo(db, topFalador.id_usuario, recompensaFalador);
+                                });
                                 
                             }
                             
-                            toxicReport = await chatbot.getAndResetToxicPodium(groupId);
+                            toxicReport = await globalChatbot.getAndResetToxicPodium(groupId);
                             
                             toxicReport = toxicRewardReport + toxicReport;
                         }
@@ -1298,19 +2064,19 @@ async function connectToWhatsApp() {
                         let faladorRewardReport = "";
                         if (todosFaladores.length > 0) {
                             let outrosPagos = 0;
-                            
-                            for (let i = 0; i < todosFaladores.length; i++) {
-                                const f = todosFaladores[i];
-                                const recompensaFalador = f.total_mensagens;
-                                
-                                await db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [recompensaFalador, f.id_usuario]);
-                                
-                                if (i < 3) {
-                                    faladorRewardReport += "";
-                                } else {
-                                    outrosPagos++;
+
+                            // [FASE 3] Pagamento dos faladores numa transação única
+                            // (uma gravação só para o grupo inteiro).
+                            await withTransaction(db, async () => {
+                                for (let i = 0; i < todosFaladores.length; i++) {
+                                    const f = todosFaladores[i];
+                                    const recompensaFalador = f.total_mensagens;
+
+                                    await creditarSaldo(db, f.id_usuario, recompensaFalador);
+
+                                    if (i >= 3) outrosPagos++;
                                 }
-                            }
+                            });
                             
                             if (outrosPagos > 0) {
                                 faladorRewardReport += "";
@@ -1321,7 +2087,7 @@ async function connectToWhatsApp() {
                         
                         const finalMessage = baseMessage + loteriaReport + parqueReport + divisor + toxicReport;
 
-                        await sock.sendMessage(groupId, { text: finalMessage });
+                        await globalSock.sendMessage(groupId, { text: finalMessage });
                         await new Promise(resolve => setTimeout(resolve, 2000));
                     }
 
@@ -1331,6 +2097,7 @@ async function connectToWhatsApp() {
                     console.error("❌ Erro no envio do clima/toxicidade agendado:", error);
                 }
             });
+            } // 🔚 fim do guard isCronInitialized (cron = instância única)
         }
     });
 
@@ -1339,7 +2106,8 @@ async function connectToWhatsApp() {
     //Pega as informações do bot
     const me = state.creds.me;
     myFullJid = me?.id ? jidNormalizedUser(me.id) :  '5513991526878@s.whatsapp.net'; 
-    let dailyJob;
+    // 🛡️ dailyJob agora é global (declarado no topo do arquivo) para o cron
+    // ser criado UMA única vez e sobreviver às reconexões.
 
 
     //Acorda quando chega uma mensagem
@@ -1427,60 +2195,6 @@ async function connectToWhatsApp() {
             return [...new Set(normalized)];
         };
 
-        /*try {
-            const messageType = Object.keys(msg.message)[0];
-            
-            // Lista de tipos permitidos para documentos
-            const allowedMimeTypes = [
-                'application/pdf',
-                'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                'image/jpeg',
-                'image/png'
-            ];
-
-            let shouldUpload = false;
-            let mimeType = '';
-            let fileName = '';
-
-            // Verifica se é Imagem
-            if (messageType === 'imageMessage') {
-                shouldUpload = true;
-                mimeType = msg.message.imageMessage.mimetype;
-                fileName = `IMG_${Math.floor(Date.now() / 1000)}.jpeg`;
-            } 
-            // Verifica se é Documento
-            else if (messageType === 'documentMessage') {
-                mimeType = msg.message.documentMessage.mimetype;
-                
-                // Filtra apenas PDF, DOCX, XLSX
-                if (allowedMimeTypes.includes(mimeType)) {
-                    shouldUpload = true;
-                    fileName = msg.message.documentMessage.fileName || `DOC_${Math.floor(Date.now() / 1000)}`;
-                }
-            }
-
-            if (shouldUpload) {
-                console.log(`📥 Mídia detectada (${fileName}). Baixando...`);
-                
-                // Baixa a mídia da memória do WhatsApp
-                const buffer = await downloadMediaMessage(
-                    msg,
-                    'buffer',
-                    { },
-                    { logger: pino({ level: 'silent' }) }
-                );
-
-                // Envia para o Drive
-                await driveService.uploadFile(fileName, mimeType, buffer);
-                
-                await sock.sendMessage(msg.key.remoteJid, { react: { text: '☁️', key: msg.key } });
-            }
-
-        } catch (err) {
-            console.error("Erro ao processar upload automático:", err);
-        }*/
-        
         //Pega o texto da mensagem
         let texto = msg.message.conversation || 
               msg.message.extendedTextMessage?.text || 
@@ -1517,6 +2231,8 @@ async function connectToWhatsApp() {
         //Joga o comando todo para letras minúsculas para evitar problemas com case-sensitive
         const command = texto.trim().toLowerCase();
 
+        // Trava temporária de reposta em DM
+        if (!isGroup && !texto.trim().startsWith('!')) return;
         
         const name = msg.pushName || '';
 
@@ -1625,6 +2341,15 @@ async function connectToWhatsApp() {
 
         // Comando para criar figurinha (!s ou !sticker)
         if (commandName === '!s' || commandName === '!sticker') {
+            // 🚦 [FASE 1 - ANTI-OOM] Semáforo: no máximo 2 mídias sendo
+            // processadas ao mesmo tempo (sharp/ffmpeg consomem muita RAM).
+            await acquireMediaSlot();
+
+            // Buffers declarados fora do try para poderem ser liberados no finally
+            let buffer = null;
+            let finalBuffer = null;
+            let finalStickerBuffer = null;
+
             try {
                 // Identifica se é uma imagem/video direto ou um quote
                 const isQuoted = !!msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
@@ -1654,18 +2379,18 @@ async function connectToWhatsApp() {
                 // Baixa a mídia.       
                 const messageType = Object.keys(targetMessage)[0];
                 const isVideo = messageType === 'videoMessage' || targetMessage?.viewOnceMessage?.message?.videoMessage;
-
+                
                 const mediaKeys = {
                     message: targetMessage
                 };
 
-                let buffer = await downloadMediaMessage(
+                buffer = await downloadMediaMessage(
                     mediaKeys,
                     'buffer',
                     { logger: pino({ level: 'silent' }) } 
                 );
 
-                let finalBuffer = buffer;
+                finalBuffer = buffer;
 
                 if (isVideo) {
                     await sock.sendMessage(from, { react: { text: '🗜️', key: msg.key } });
@@ -1707,7 +2432,6 @@ async function connectToWhatsApp() {
                 }
 
                 let stickerMsg;
-                let finalStickerBuffer;
                 let attempts = 0;
                 let currentQuality = isVideo ? 25 : stickerQuality;
                 const MAX_SIZE = 950 * 1024;
@@ -1749,6 +2473,13 @@ async function connectToWhatsApp() {
                 console.error("Erro ao criar figurinha:", error);
                 await sock.sendMessage(from, { text: '❌ Deu ruim na figurinha. Tenta com outra imagem.' }, { quoted: msg });
                 return;
+            } finally {
+                // 🧹 [FASE 1 - ANTI-OOM] Anula os buffers massivos e devolve o
+                // slot do semáforo para o GC liberar a RAM imediatamente.
+                buffer = null;
+                finalBuffer = null;
+                finalStickerBuffer = null;
+                releaseMediaSlot();
             }
         }
 
@@ -1863,6 +2594,16 @@ async function connectToWhatsApp() {
                                 quotedMessage?.imageMessage?.caption || 
                                 "[Midia/Sticker sem texto]";
             try{
+                if (isGroup && sender) {
+                    const numeroLimpo = sender.split(':')[0]; 
+                    const senderJid = numeroLimpo.includes('@s.whatsapp.net') ? numeroLimpo : numeroLimpo + '@s.whatsapp.net';
+                    
+                    const grupoReal = msg.key.remoteJid; 
+                    
+                    db.run("INSERT OR IGNORE INTO grupo_participantes (id_grupo, id_whatsapp) VALUES (?, ?)", [grupoReal, senderJid])
+                    .catch(err => console.error("Erro no tracking passivo de grupo:", err));
+                }
+
                 //Se não for grupo e o chatbot estiver online, responde a qualquer mensagem,
                 //sem precisar de quote ou comando
                 if(!isGroup && chatbot.isOnline){

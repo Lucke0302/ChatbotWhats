@@ -6,6 +6,7 @@ class BlueskyBrain {
     constructor(db, chatbot) {
         this.db = db;
         this.chatbot = chatbot;
+        this.ultimoSurto = 0;
     }
 
     async processarAnotacao(anotacoes, timestampOriginal) {
@@ -23,8 +24,18 @@ class BlueskyBrain {
             }
             
             if (nota >= 8) {
-                await this.db.run(query, [id, contexto, humor, nota, 'postado', timestampOriginal, temasStr]);
-                this.surtoInstantaneo(contexto, humor, timestampOriginal, temas).catch(e => console.error(e));
+                const agora = Date.now();
+                const TEMPO_COOLDOWN = .5 * 60 * 60 * 1000; 
+                const emCooldown = (agora - this.ultimoSurto) < TEMPO_COOLDOWN;
+
+                if (emCooldown) {
+                    console.log(`❄️ [BLUESKY] Nota ${nota}, mas o surto está em cooldown. Mandando para a geladeira...`);
+                    await this.db.run(query, [id, contexto, humor, nota, 'avaliado', timestampOriginal, temasStr]);
+                } else {
+                    this.ultimoSurto = agora; 
+                    await this.db.run(query, [id, contexto, humor, nota, 'postado', timestampOriginal, temasStr]);
+                    this.surtoInstantaneo(id, contexto, humor, timestampOriginal, temas).catch(e => console.error(e));
+                }
             }
         } catch (error) {
             console.error("❌ Erro ao salvar pensamento:", error);
@@ -99,43 +110,81 @@ class BlueskyBrain {
         ${contextoHistorico}
         Evento original: "${contexto}"`;
 
+        // =================================================================
+        // 🔄 REDUNDÂNCIA 1: ROTAÇÃO DE MODELOS COM RETRY ATÉ CONSEGUIR O TEXTO
+        // =================================================================
+        const modelosDisponiveis = [
+            "gemini-flash-lite-latest",
+            "gemini-3.1-flash-lite-preview",
+        ];
+
         let textoFinal = "";
-        try {
-            textoFinal = await this.chatbot.getAiResponse("sistema", "sistema", "sistema", false, "sys", promptPost, "gemini-3.1-flash-lite-preview");
-        } catch(e) {
-            console.error("❌ Erro ao gerar texto com IA. Devolvendo para geladeira...");
-            await this.db.run(`UPDATE pensamentos_bot SET status = 'avaliado' WHERE id = ?`, [id]);
-            return false;
-        }
+        let delayIa = 5000;
+        let indexModelo = 0;
 
-        let tentativas = 0;
-        let sucesso = false;
+        // 🛡️ [FASE 4 - ANTI-LOOP] Teto rígido de tentativas: antes, uma IA
+        // indisponível prendia esta promise para sempre (loop infinito com sleeps
+        // de até 60s), acumulando estado pendente no processo.
+        const MAX_TENTATIVAS_IA = 3;
+        let tentativaIa = 0;
 
-        while (tentativas < 3 && !sucesso) {
+        while (!textoFinal && tentativaIa < MAX_TENTATIVAS_IA) {
+            tentativaIa++;
+            const modeloAtual = modelosDisponiveis[indexModelo % modelosDisponiveis.length];
             try {
-                tentativas++;
-                console.log(`📤 Postando no BlueSky (Tentativa ${tentativas}/3)...`);
-                await postarNoBlueSky(textoFinal);
-                sucesso = true;
-                
-                await this.db.run(`INSERT INTO historico_bluesky (id, temas, post_texto, timestamp) VALUES (?, ?, ?, ?)`, 
-                    [crypto.randomUUID(), JSON.stringify(temasAtuais), textoFinal, Math.floor(Date.now()/1000)]
-                );
-                await this.db.run(`DELETE FROM pensamentos_bot WHERE id = ?`, [id]);
-                
-            } catch (error) {
-                console.error(`⚠️ Falha na tentativa ${tentativas}.`);
-                if (tentativas < 3) {
-                    await new Promise(r => setTimeout(r, 5000));
-                }
+                console.log(`🤖 [BLUESKY IA] Tentando gerar com ${modeloAtual} (Tentativa ${tentativaIa}/${MAX_TENTATIVAS_IA})...`);
+                textoFinal = await this.chatbot.getAiResponse("sistema", "sistema", "sistema", false, "sys", promptPost, modeloAtual);
+            } catch (e) {
+                console.warn(`⚠️ [BLUESKY IA] Falha no modelo ${modeloAtual} (${e.message || e}). Próxima tentativa em ${delayIa / 1000}s...`);
+                indexModelo++;
+                if (tentativaIa >= MAX_TENTATIVAS_IA) break; // 🛑 estanca o loop
+                await new Promise(r => setTimeout(r, delayIa));
+                delayIa = Math.min(delayIa * 1.5, 60000); // Sobe o intervalo gradualmente até no máximo 60s
             }
         }
 
-        if (!sucesso) {
-            console.log(`❄️ Falha definitiva da API. Devolvendo pensamento ${id} para a geladeira.`);
-            await this.db.run(`UPDATE pensamentos_bot SET status = 'avaliado' WHERE id = ?`, [id]);
+        if (!textoFinal) {
+            console.error(`🛑 [BLUESKY IA] Limite de ${MAX_TENTATIVAS_IA} tentativas esgotado. Abortando o pensamento ${id} para não deixar promise pendente.`);
             return false;
         }
+
+        // =================================================================
+        // 🔄 REDUNDÂNCIA 2: INSISTÊNCIA NO ENVIO AO BLUESKY ATÉ DAR SUCESSO
+        // =================================================================
+        let postadoComSucesso = false;
+        let delayEnvio = 5000;
+        let tentativaPost = 0;
+
+        // 🛡️ [FASE 4 - ANTI-LOOP] Teto rígido de envios: com o Bluesky fora do ar
+        // o while antigo insistia para sempre e a promise nunca resolvia.
+        const MAX_TENTATIVAS_POST = 3;
+
+        while (!postadoComSucesso && tentativaPost < MAX_TENTATIVAS_POST) {
+            try {
+                tentativaPost++;
+                console.log(`📤 [BLUESKY] Enviando post (Tentativa ${tentativaPost}/${MAX_TENTATIVAS_POST})...`);
+                await postarNoBlueSky(textoFinal);
+                postadoComSucesso = true;
+                
+                await this.db.run(`INSERT INTO historico_bluesky (id, temas, post_texto, timestamp) VALUES (?, ?, ?, ?)`, 
+                    [crypto.randomUUID(), JSON.stringify(temasAtuais), textoFinal, Math.floor(Date.now() / 1000)]
+                );
+                await this.db.run(`DELETE FROM pensamentos_bot WHERE id = ?`, [id]);
+                console.log(`🎉 [BLUESKY] Pensamento ${id} publicado e salvo no histórico!`);
+                
+            } catch (error) {
+                console.error(`⚠️ [BLUESKY] Erro ao postar (${error.message}).`);
+                if (tentativaPost >= MAX_TENTATIVAS_POST) {
+                    console.error(`🛑 [BLUESKY] Limite de ${MAX_TENTATIVAS_POST} tentativas esgotado. Pensamento ${id} segue na geladeira para o próximo turno.`);
+                    break;
+                }
+                console.warn(`🔁 Nova tentativa em ${delayEnvio / 1000}s...`);
+                await new Promise(r => setTimeout(r, delayEnvio));
+                delayEnvio = Math.min(delayEnvio * 1.5, 60000);
+            }
+        }
+
+        if (!postadoComSucesso) return false;
 
         return true;
     }

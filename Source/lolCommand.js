@@ -3,17 +3,58 @@ require('dotenv').config();
 
 const RIOT_API_KEY = process.env.RIOT_API_KEY;
 
+// 🛡️ [FASE 4 - TIMEOUT] Nenhuma chamada à Riot/DDragon sem teto de tempo.
+// AbortController + Promise.race travam em 15s (o node-fetch v2 não aborta
+// sozinho, então o race é a garantia final de que o await nunca fica preso).
+const TIMEOUT_API_MS = 15000;
+
+async function fetchComTimeout(url, options = {}) {
+    const controller = new AbortController();
+    let timer;
+
+    const vigiaTimeout = new Promise((_, reject) => {
+        timer = setTimeout(() => {
+            controller.abort();
+            reject(new Error('LOL_API_TIMEOUT'));
+        }, TIMEOUT_API_MS);
+    });
+
+    const requisicao = fetch(url, { ...options, signal: controller.signal });
+    // Trata a rejeição tardia para nunca gerar unhandledRejection (que agora
+    // derruba o processo por design).
+    requisicao.catch(() => {});
+
+    try {
+        return await Promise.race([requisicao, vigiaTimeout]);
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
 let lolChampionsMap = null;
 let lolVersion = '14.23.1';
 
 const UPDATE_INTERVAL = 1000 * 60 * 60 * 24;
 
+// 🛡️ [FASE 1 - ANTI-OOM] Guard de inicialização única: o ChatModel é
+// reconstruído a cada reconexão do Baileys e chama init() novamente.
+// Sem o guard, um novo setInterval de atualização da Riot seria criado por queda.
+let isLolInitialized = false;
+let lolUpdateTimer = null;
+
 async function init() {
+    if (isLolInitialized) {
+        console.log("🎮 [LoL] Módulo já inicializado. Re-init ignorado (anti-leak de timers).");
+        return;
+    }
+    isLolInitialized = true;
+
     console.log("🎮 Inicializando módulo League of Legends...");
     
     await updateLoLData().catch(err => console.error("❌ Falha ao iniciar dados do LoL:", err.message));
 
-    setInterval(async () => {
+    if (lolUpdateTimer) clearInterval(lolUpdateTimer);
+    lolUpdateTimer = setInterval(async () => {
         console.log("⏰ Atualizando versão e campeões do LoL (Rotina Diária)...");
         await updateLoLData().catch(err => console.error("❌ Erro na atualização diária do LoL:", err.message));
     }, UPDATE_INTERVAL);
@@ -21,7 +62,7 @@ async function init() {
 
 async function updateLoLData() {
     try {
-        const versionResp = await fetch('https://ddragon.leagueoflegends.com/api/versions.json');
+        const versionResp = await fetchComTimeout('https://ddragon.leagueoflegends.com/api/versions.json');
         
         if (!versionResp.ok) throw new Error(`LOL_VERSION_ERROR`);
         
@@ -29,7 +70,7 @@ async function updateLoLData() {
         lolVersion = versions[0];
 
         const champUrl = `https://ddragon.leagueoflegends.com/cdn/${lolVersion}/data/pt_BR/champion.json`;
-        const champsResp = await fetch(champUrl);
+        const champsResp = await fetchComTimeout(champUrl);
         
         if (!champsResp.ok) throw new Error(`CHAMPIONS_ERROR`);
 
@@ -77,7 +118,7 @@ async function handleLolCommand(command) {
 
     try {
         // 1. Busca Conta (PUUID)
-        const accountResp = await fetch(`https://${region}.api.riotgames.com/riot/account/v1/accounts/by-riot-id/${encodeURIComponent(gameName.trim())}/${encodeURIComponent(tagLine.trim())}`, {
+        const accountResp = await fetchComTimeout(`https://${region}.api.riotgames.com/riot/account/v1/accounts/by-riot-id/${encodeURIComponent(gameName.trim())}/${encodeURIComponent(tagLine.trim())}`, {
             headers: { 'X-Riot-Token': RIOT_API_KEY }
         });
 
@@ -91,7 +132,7 @@ async function handleLolCommand(command) {
         const puuid = accountData.puuid;
 
         // 2. Busca Elo/Rank
-        const leagueResp = await fetch(`https://${platform}.api.riotgames.com/lol/league/v4/entries/by-puuid/${puuid}`, {
+        const leagueResp = await fetchComTimeout(`https://${platform}.api.riotgames.com/lol/league/v4/entries/by-puuid/${puuid}`, {
                 headers: { 'X-Riot-Token': RIOT_API_KEY }
         });
 
@@ -113,7 +154,7 @@ async function handleLolCommand(command) {
         }
 
         // 3. Busca Maestrias
-        const masteryResp = await fetch(`https://${platform}.api.riotgames.com/lol/champion-mastery/v4/champion-masteries/by-puuid/${puuid}/top?count=3`, {
+        const masteryResp = await fetchComTimeout(`https://${platform}.api.riotgames.com/lol/champion-mastery/v4/champion-masteries/by-puuid/${puuid}/top?count=3`, {
             headers: { 'X-Riot-Token': RIOT_API_KEY }
         });
         

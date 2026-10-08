@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const { withTransaction, debitarSaldo, creditarSaldo, incrementarJson, debitarJson, setJson, appendarArrayJson, setJsonSeMaior } = require('./dbHelper');
 
 const SEEDS_CATALOG = [
     { id: 'trigo', name: 'Trigo Rápido', emoji: '🌾', growthTimeHours: 4, saturation: 1.0, yieldMultiplier: 1.0, cost: 20, sellPriceKg: 0.6 },
@@ -99,19 +100,28 @@ class FazendaHandler {
         );
     }
 
+    // [FASE 3] Consumo de suprimento atômico (usado por regar/adubar e pelo parque):
+    // o débito só é aplicado se houver suprimento NO BANCO (WHERE ... >= ?), então
+    // duas ações simultâneas não consomem o mesmo suprimento duas vezes. Antes o
+    // bot lia no JS, validava e só depois gravava (suprimento infinito na correria).
     async consumirSuprimento(userId, quantidade = 1) {
-        let pescariaPlayer = await this.pescariaHandler.getPlayerData(userId);
         const now = Math.floor(Date.now() / 1000);
+        const maxSuprimentos = this.MAX_SUPPLY;
 
-        if (pescariaPlayer.suprimentos < quantidade) return false;
+        const resultado = await this.db.run(`
+            UPDATE usuarios
+            SET pescaria_data = json_set(
+                COALESCE(NULLIF(pescaria_data, ''), '{}'),
+                '$.suprimentos',
+                CAST(COALESCE(json_extract(NULLIF(pescaria_data, ''), '$.suprimentos'), ?) AS INTEGER) - ?,
+                '$.last_supply_regen',
+                CASE WHEN CAST(COALESCE(json_extract(NULLIF(pescaria_data, ''), '$.suprimentos'), ?) AS INTEGER) >= ?
+                     THEN ? ELSE COALESCE(json_extract(NULLIF(pescaria_data, ''), '$.last_supply_regen'), ?) END
+            )
+            WHERE id_usuario = ? AND CAST(COALESCE(json_extract(NULLIF(pescaria_data, ''), '$.suprimentos'), ?) AS INTEGER) >= ?
+        `, [maxSuprimentos, quantidade, maxSuprimentos, maxSuprimentos, now, now, userId, maxSuprimentos, quantidade]);
 
-        if (pescariaPlayer.suprimentos === this.pescariaHandler.MAX_SUPPLIES) {
-            pescariaPlayer.last_supply_regen = now;
-        }
-
-        pescariaPlayer.suprimentos -= quantidade;
-        await this.pescariaHandler.savePlayerData(userId, pescariaPlayer);
-        return true;
+        return !!(resultado && resultado.changes === 1);
     }
 
     async getGroupedDispensa(userId) {
@@ -236,11 +246,22 @@ class FazendaHandler {
             msgSobra = `🦴 **Troco:** Um retalho de **${sobra.toFixed(2)}kg** de ${ultimoPeixe.emoji} ${ultimoPeixe.name} voltou pro seu isopor para a próxima compostagem!\n\n`;
         }
 
-        await this.pescariaHandler.savePlayerData(userId, player);
+        // [FASE 3] Compostagem atômica: baixa dos peixes no isopor + crédito dos sacos
+        // de adubo na MESMA transação (antes um erro no meio triturava os peixes sem
+        // entregar o adubo, e o blob `upgrades` era reescrito inteiro).
+        const compostou = await withTransaction(this.db, async () => {
+            await this.getFazendaData(userId); // garante a linha em fazenda_inventario
+            await this.pescariaHandler.savePlayerData(userId, player);
+            await incrementarJson(this.db, 'fazenda_inventario', 'upgrades', userId, '$.adubos', qtdSacos);
+            return true;
+        }).catch((e) => {
+            console.error("Erro ao registrar a compostagem:", e);
+            return false;
+        });
 
-        const data = await this.getFazendaData(userId);
-        data.upgrades.adubos += qtdSacos;
-        await this.saveFazendaData(userId, data);
+        if (!compostou) {
+            return `${userTag} ⚠️ O banco de dados engasgou e a compostagem não foi concluída. Tente novamente.`;
+        }
 
         let msg = `${userTag} ♻️ **COMPOSTAGEM CONCLUÍDA!**\n\n`;
         msg += `Você triturou ${msgAction} (Usou: ${(pesoAcumulado - sobra).toFixed(2)}kg).\n\n`;
@@ -265,18 +286,38 @@ class FazendaHandler {
 
         let msg = `${userTag} 💩 **TERRA FERTILIZADA!**\n`;
 
+        const indiceCanteiro = data.canteiros.findIndex(c => c.id === cId);
+
+        // [FASE 3] Adubação atômica: o saco de adubo sai do estoque por json_set
+        // condicional (ou o suprimento é debitado por UPDATE condicional) e só então
+        // o canteiro é marcado como adubado — o flag `adubado` era perdido quando duas
+        // ações no mesmo canteiro se cruzavam (lost update do blob `canteiros`).
+        const adubou = await withTransaction(this.db, async () => {
+            const usarSuprimento = !(data.upgrades.adubos > 0);
+
+            if (usarSuprimento) {
+                const consumiu = await this.consumirSuprimento(userId, 1);
+                if (!consumiu) return false;
+            } else {
+                const usouSaco = await debitarJson(this.db, 'fazenda_inventario', 'upgrades', userId, '$.adubos', 1, 0);
+                if (!usouSaco) return false;
+            }
+
+            await setJson(this.db, 'fazenda_inventario', 'canteiros', userId, `$[${indiceCanteiro}].adubado`, 1);
+            return true;
+        });
+
+        if (!adubou) return `${userTag} 🪹 Você não tem Sacos de Adubo Orgânico e está sem Suprimentos (Energia) para fazer o adubo químico!`;
+
         if (data.upgrades.adubos > 0) {
             data.upgrades.adubos -= 1;
             msg += `Você usou **1 Saco de Adubo Orgânico** (Feito de peixe)!\n`;
-        } 
+        }
         else {
-            const gastou = await this.consumirSuprimento(userId, 1);
-            if (!gastou) return `${userTag} 🪹 Você não tem Sacos de Adubo Orgânico e está sem Suprimentos (Energia) para fazer o adubo químico!`;
             msg += `Você gastou **1 Suprimento de Energia** para aplicar fertilizante sintético!\n`;
         }
 
         canteiro.adubado = true;
-        await this.saveFazendaData(userId, data);
 
         msg += `🌱 A colheita final do Canteiro [ ${cId} ] renderá **+50% de peso**!`;
         return msg;
@@ -426,13 +467,27 @@ class FazendaHandler {
                 return `${userTag} 💸 A imobiliária riu da sua cara! Um novo lote de terra custa 🪙 **${price} Bostocoins**.`;
             }
 
-            await this.db.run("UPDATE usuarios SET bostocoins = bostocoins - ? WHERE id_usuario = ?", [price, userId]);
-
             const novoId = data.canteiros.length + 1;
+
+            // [FASE 3] Compra atômica do lote: débito condicional + canteiro anexado
+            // (json_insert no array `canteiros`) na MESMA transação. Nada de pagar e
+            // não receber o terreno (ou de ganhar terreno sem pagar).
+            const comprouLote = await withTransaction(this.db, async () => {
+                const debitado = await debitarSaldo(this.db, userId, price);
+                if (!debitado) return false;
+
+                await appendarArrayJson(this.db, 'fazenda_inventario', 'canteiros', userId, '$',
+                    { id: novoId, seedId: null, plantTime: 0, harvestTime: 0, regas: 0, adubado: false });
+                await setJson(this.db, 'fazenda_inventario', 'upgrades', userId, '$.maxCanteiros', novoId);
+                return true;
+            });
+
+            if (!comprouLote) {
+                return `${userTag} 💸 A imobiliária riu da sua cara! Um novo lote de terra custa 🪙 **${price} Bostocoins**.`;
+            }
+
             data.canteiros.push({ id: novoId, seedId: null, plantTime: 0, harvestTime: 0, regas: 0 });
             data.upgrades.maxCanteiros = novoId;
-
-            await this.saveFazendaData(userId, data);
 
             return `${userTag} 🗺️ **EXPANSÃO AGRÍCOLA!**\n\nVocê subornou o Ibama, desmatou um pedaço da floresta e adquiriu o **Canteiro ${novoId}**!\nAgora você pode plantar mais sementes simultaneamente. Use *!fazenda perfil* para ver sua nova propriedade.`;
         }
@@ -448,10 +503,21 @@ class FazendaHandler {
             return `${userTag} 💸 Você tá pobre! A ${nextUpgrade.name} custa 🪙 ${nextUpgrade.price} Bostocoins. Vá vender umas cenouras.`;
         }
 
-        await this.db.run("UPDATE usuarios SET bostocoins = bostocoins - ? WHERE id_usuario = ?", [nextUpgrade.price, userId]);
-        
+        // [FASE 3] Compra atômica do equipamento: débito condicional + json_set do
+        // nível da ferramenta dentro da mesma transação.
+        const comprouFerramenta = await withTransaction(this.db, async () => {
+            const debitado = await debitarSaldo(this.db, userId, nextUpgrade.price);
+            if (!debitado) return false;
+
+            await setJson(this.db, 'fazenda_inventario', 'upgrades', userId, `$.${tipo}`, nextUpgrade.level);
+            return true;
+        });
+
+        if (!comprouFerramenta) {
+            return `${userTag} 💸 Você tá pobre! A ${nextUpgrade.name} custa 🪙 ${nextUpgrade.price} Bostocoins. Vá vender umas cenouras.`;
+        }
+
         data.upgrades[tipo] = nextUpgrade.level;
-        await this.saveFazendaData(userId, data);
 
         return `${userTag} 🤝 **NEGÓCIO FECHADO!**\n\nVocê acaba de adquirir a **${nextUpgrade.name}**!\nSuas próximas colheitas terão um multiplicador de **${nextUpgrade.multiplier}x**.`;
     }
@@ -469,27 +535,39 @@ class FazendaHandler {
 
         if (!canteiroLivre) return `${userTag} 🛑 Todos os seus canteiros estão ocupados!`;
 
-        let usouEstoque = false;
-        if (data.upgrades.sementes && data.upgrades.sementes[seed.id] > 0) {
-            data.upgrades.sementes[seed.id] -= 1;
-            usouEstoque = true;
-        } else {
-            const userDb = await this.db.get("SELECT bostocoins FROM usuarios WHERE id_usuario = ?", [userId]);
-            const balance = userDb ? userDb.bostocoins : 0;
+        const indiceCanteiro = data.canteiros.findIndex(c => c.id === canteiroLivre.id);
+        const now = Math.floor(Date.now() / 1000);
+        const harvestTime = (now + (seed.growthTimeHours * 3600)) * mods.tempo_mult;
+        const temSementeEstocada = !!(data.upgrades.sementes && data.upgrades.sementes[seed.id] > 0);
 
-            if (balance < seed.cost) return `${userTag} 💸 Você não tem 🪙 ${seed.cost} Bostocoins e nem sementes guardadas!`;
-            await this.db.run("UPDATE usuarios SET bostocoins = bostocoins - ? WHERE id_usuario = ?", [seed.cost, userId]);
+        // [FASE 3] Plantio atômico: a semente é debitada do estoque (ou o dinheiro da
+        // carteira) de forma condicional e SÓ ENTÃO o canteiro é ocupado, gravando
+        // campo a campo com json_set (antes o blob `canteiros` era reescrito inteiro).
+        const plantou = await withTransaction(this.db, async () => {
+            let consumiuEstoque = false;
+
+            if (temSementeEstocada) {
+                consumiuEstoque = await debitarJson(this.db, 'fazenda_inventario', 'upgrades', userId, `$.sementes.${seed.id}`, 1, 0);
+            }
+
+            if (!consumiuEstoque) {
+                const pagou = await debitarSaldo(this.db, userId, seed.cost);
+                if (!pagou) return null;
+            }
+
+            await setJson(this.db, 'fazenda_inventario', 'canteiros', userId, `$[${indiceCanteiro}].seedId`, seed.id);
+            await setJson(this.db, 'fazenda_inventario', 'canteiros', userId, `$[${indiceCanteiro}].plantTime`, now);
+            await setJson(this.db, 'fazenda_inventario', 'canteiros', userId, `$[${indiceCanteiro}].harvestTime`, harvestTime);
+            await setJson(this.db, 'fazenda_inventario', 'canteiros', userId, `$[${indiceCanteiro}].regas`, 0);
+
+            return consumiuEstoque ? 'estoque' : 'dinheiro';
+        });
+
+        if (!plantou) {
+            return `${userTag} 💸 Você não tem 🪙 ${seed.cost} Bostocoins e nem sementes guardadas!`;
         }
 
-        const now = Math.floor(Date.now() / 1000);
-        canteiroLivre.seedId = seed.id;
-        canteiroLivre.plantTime = now;
-        canteiroLivre.harvestTime = (now + (seed.growthTimeHours * 3600)) * mods.tempo_mult;
-        canteiroLivre.regas = 0;
-
-        await this.saveFazendaData(userId, data);
-
-        if (usouEstoque) {
+        if (plantou === 'estoque') {
             return `${userTag} 🌱 **SEMENTE PLANTADA (0 CUSTO)!**\nVocê usou uma semente do seu estoque e plantou ${seed.emoji} **${seed.name}** no Canteiro ${canteiroLivre.id}.\nFicará pronta em ${seed.growthTimeHours} horas!`;
         } else {
             return `${userTag} 🌱 **SEMENTE COMPRADA E PLANTADA!**\nVocê gastou 🪙 ${seed.cost} e plantou ${seed.emoji} **${seed.name}** no Canteiro ${canteiroLivre.id}.\nFicará pronta em ${seed.growthTimeHours} horas!`;
@@ -513,20 +591,31 @@ class FazendaHandler {
         if (now >= canteiro.harvestTime) return `${userTag} ✅ A planta já cresceu! Use *!fazenda colher ${cId}*.`;
 
         const seed = SEEDS_CATALOG.find(s => s.id === canteiro.seedId);
-        const valorRegar = mods.rega_custo;
-        
-        const gastou = await this.consumirSuprimento(userId, mods.rega_custo);
-        if (!gastou) return `${userTag} 🪹 Você não tem Suprimentos (Água/Iscas)! Espere recarregar.`;
+        const indiceCanteiro = data.canteiros.findIndex(c => c.id === cId);
 
         const porcentagemRegador = Math.max(5, 30 - seed.saturation);
         const tempoTotalSegundos = seed.growthTimeHours * 3600;
         const tempoReduzido = Math.floor(tempoTotalSegundos * (porcentagemRegador / 100));
-        
+
+        // [FASE 3] Rega atômica: o suprimento é debitado por UPDATE condicional e o
+        // avanço da planta é aplicado por aritmética no JSON (json_set). Antes o blob
+        // `canteiros` era reescrito inteiro e duas regas simultâneas consumiam só
+        // 1 suprimento (ou adiantavam o crescimento duas vezes com o mesmo gasto).
+        const regou = await withTransaction(this.db, async () => {
+            const gastou = await this.consumirSuprimento(userId, mods.rega_custo);
+            if (!gastou) return false;
+
+            await incrementarJson(this.db, 'fazenda_inventario', 'canteiros', userId, `$[${indiceCanteiro}].harvestTime`, -tempoReduzido);
+            await incrementarJson(this.db, 'fazenda_inventario', 'canteiros', userId, `$[${indiceCanteiro}].regas`, 1, 0);
+            return true;
+        });
+
+        if (!regou) return `${userTag} 🪹 Você não tem Suprimentos (Água/Iscas)! Espere recarregar.`;
+
         canteiro.harvestTime -= tempoReduzido;
         canteiro.regas += 1;
 
         if (canteiro.harvestTime < now) canteiro.harvestTime = now;
-        await this.saveFazendaData(userId, data);
 
         let msg = `${userTag} 💦 **CANTEIRO REGADO!**\nVocê gastou 1 Suprimento e adiantou o crescimento em **${porcentagemRegador.toFixed(1)}%**.\n`;
         
@@ -563,6 +652,13 @@ class FazendaHandler {
         let totalKilosGeral = 0;
         let relatorioCanteiros = [];
         let sementesGanhas = {};
+
+        // [FASE 3] Acumuladores da colheita: tudo é gravado de forma atômica
+        // (append no armazém, json_set nos canteiros) dentro de uma transação única.
+        const colheitas = [];
+        const trofeusNovos = [];
+        const sementesParaEstoque = [];
+        const canteirosColhidos = [];
 
         for (let canteiro of canteirosProntos) {
             const seed = SEEDS_CATALOG.find(s => s.id === canteiro.seedId);
@@ -601,10 +697,15 @@ class FazendaHandler {
                 data.armazem.push({
                     id: seed.id, name: seed.name, emoji: seed.emoji, weight: finalKilos, saturation: seed.saturation, date: now, instanceId: crypto.randomUUID()
                 });
+                // [FASE 3] A safra entra no armazém por append atômico (json_insert).
+                colheitas.push({
+                    id: seed.id, name: seed.name, emoji: seed.emoji, weight: finalKilos, saturation: seed.saturation, date: now, instanceId: crypto.randomUUID()
+                });
 
                 if (!data.trofeus) data.trofeus = {};
                 if (!data.trofeus[seed.id] || finalKilos > data.trofeus[seed.id].weight) {
                     data.trofeus[seed.id] = { weight: finalKilos, date: now, group_id: groupId };
+                    trofeusNovos.push({ id: seed.id, trofeu: { weight: finalKilos, date: now, group_id: groupId }, peso: finalKilos });
                 }
 
                 let dropChance = 50 - (seed.cost / 200);
@@ -615,6 +716,7 @@ class FazendaHandler {
                     data.upgrades.sementes[seed.id] = (data.upgrades.sementes[seed.id] || 0) + 1;
                     
                     sementesGanhas[seed.name] = (sementesGanhas[seed.name] || 0) + 1;
+                    sementesParaEstoque.push(seed.id);
                 }
             }
 
@@ -623,13 +725,56 @@ class FazendaHandler {
             canteiro.harvestTime = 0;
             canteiro.regas = 0;
             canteiro.adubado = false;
+            canteirosColhidos.push(canteiro.id);
         }
 
         if (this.parqueHandler && groupId && groupId.includes('@g.us') && totalKilosGeral > 0) {
             this.parqueHandler.registrarProgressoComunitario(groupId, 'fazenda_kg', totalKilosGeral, ctx).catch(()=>{});
         }
 
-        await this.saveFazendaData(userId, data);
+        // [FASE 3] Colheita gravada de forma atômica, campo por campo:
+        //  - safra anexada ao armazém (json_insert `[#]`);
+        //  - canteiro liberado (json_set de seedId/plantTime/harvestTime/regas/adubado);
+        //  - sementes extras somadas no estoque (json_set aritmético);
+        //  - troféu somente se o peso bater o recorde (json_set condicional).
+        // Antes, um único UPDATE reescrevia `canteiros`+`upgrades`+`armazem`+`trofeus`
+        // e qualquer colheita simultânea (ou venda concorrente) era perdida.
+        const salvouColheita = await withTransaction(this.db, async () => {
+            for (const item of colheitas) {
+                await appendarArrayJson(this.db, 'fazenda_inventario', 'armazem', userId, '$', item);
+            }
+
+            for (const seedId of sementesParaEstoque) {
+                await incrementarJson(this.db, 'fazenda_inventario', 'upgrades', userId, `$.sementes.${seedId}`, 1, 0);
+            }
+
+            for (const trofeu of trofeusNovos) {
+                await setJsonSeMaior(
+                    this.db, 'fazenda_inventario', 'trofeus', userId,
+                    `$.${trofeu.id}`, `$.${trofeu.id}.weight`, trofeu.trofeu, trofeu.peso
+                );
+            }
+
+            for (const idCanteiro of canteirosColhidos) {
+                const indice = data.canteiros.findIndex(c => c.id === idCanteiro);
+                if (indice < 0) continue;
+
+                await setJson(this.db, 'fazenda_inventario', 'canteiros', userId, `$[${indice}].seedId`, null);
+                await setJson(this.db, 'fazenda_inventario', 'canteiros', userId, `$[${indice}].plantTime`, 0);
+                await setJson(this.db, 'fazenda_inventario', 'canteiros', userId, `$[${indice}].harvestTime`, 0);
+                await setJson(this.db, 'fazenda_inventario', 'canteiros', userId, `$[${indice}].regas`, 0);
+                await setJson(this.db, 'fazenda_inventario', 'canteiros', userId, `$[${indice}].adubado`, 0);
+            }
+
+            return true;
+        }).catch((e) => {
+            console.error("Erro ao salvar a colheita:", e);
+            return false;
+        });
+
+        if (!salvouColheita) {
+            return `${userTag} ⚠️ O banco de dados engasgou e a colheita não foi registrada. Tente colher novamente.`;
+        }
 
         let msg = `${userTag} 🚜 **COLHEITA EM MASSA REALIZADA** 🚜\n\n`;
         msg += relatorioCanteiros.join('\n');
@@ -732,10 +877,22 @@ class FazendaHandler {
             data.armazem.splice(idx, 1);
         }
 
-        await this.saveFazendaData(userId, data);
-        
         const profitResult = await this.casinoHandler.verifyProfit(userId, ganhoTotal);
-        await this.db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [profitResult.finalProfit, userId]);
+
+        // [FASE 3] Venda agrícola atômica: baixa no armazém + pagamento na mesma
+        // transação (nada de entregar a safra e ficar sem receber).
+        const vendeuSafra = await withTransaction(this.db, async () => {
+            await this.saveFazendaData(userId, data);
+            await creditarSaldo(this.db, userId, profitResult.finalProfit);
+            return true;
+        }).catch((e) => {
+            console.error("Erro ao registrar a venda agrícola:", e);
+            return false;
+        });
+
+        if (!vendeuSafra) {
+            return `${userTag} ⚠️ O banco de dados engasgou e a venda não foi concluída. Tente novamente.`;
+        }
 
         msg += `💰 **Lucro Final:** 🪙 **${ganhoTotal} Bostocoins**${profitResult.msg}`;
         return msg;

@@ -6,11 +6,27 @@ const currencySymbols = {
 const quoteCache = {};
 const CACHE_DURATION_MINUTES = 10;
 
+// 🛡️ [FASE 4 - TIMEOUT] Nenhuma chamada externa sem teto de tempo: o
+// AbortController cancela a requisição pendente em 15s, evitando que uma API
+// lenta deixe o comando preso (e a promise pendente para sempre).
+const TIMEOUT_API_MS = 15000;
+
+async function fetchComTimeout(url) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), TIMEOUT_API_MS);
+
+    try {
+        return await fetch(url, { signal: controller.signal });
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
 
 async function fetchFallback(fromCode, toCode, amount) {
     try {
         console.log(`[Currency] Tentando API Reserva para ${fromCode}-${toCode}...`);
-        const response = await fetch(`https://api.exchangerate-api.com/v4/latest/${fromCode}`);
+        const response = await fetchComTimeout(`https://api.exchangerate-api.com/v4/latest/${fromCode}`);
         
         if (!response.ok) throw new Error("Fallback API Error");
         
@@ -90,7 +106,7 @@ async function convertCurrency(command) {
             console.log(`[CACHE] Usando cotação salva para ${pairKey}`);
         } else {
             const url = `https://economia.awesomeapi.com.br/last/${pairKey}`;
-            const response = await fetch(url);
+            const response = await fetchComTimeout(url);
             
             if (response.status === 429) {
                 throw new Error("[API] Bloqueio 429 detectado.");

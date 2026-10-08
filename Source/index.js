@@ -51,6 +51,40 @@ let myFullJid;
 let globalSock;
 let isExpressRunning = false;
 
+// 🛡️ [FASE 1 - ANTI-OOM] Guards de inicialização única (padrão Singleton).
+// As reconexões do Baileys chamam connectToWhatsApp() várias vezes; sem estes
+// guards o SQLite seria reaberto, novos endpoints/Socket.io subiriam e os
+// timers seriam multiplicados a cada queda de conexão.
+let isDbInitialized = false;
+let isWebInitialized = false;
+let isCronInitialized = false;
+let dailyJob = null;
+let webIO = null;
+let globalChatbot = null;
+
+// 🚦 [FASE 1 - ANTI-OOM] Semáforo de mídia: no máximo 2 processamentos
+// simultâneos de sharp/ffmpeg/sticker na VM de 1GB.
+const MAX_MEDIA_CONCURRENCY = 2;
+let activeMediaTasks = 0;
+const mediaQueue = [];
+
+function acquireMediaSlot() {
+    if (activeMediaTasks < MAX_MEDIA_CONCURRENCY) {
+        activeMediaTasks++;
+        return Promise.resolve();
+    }
+    return new Promise((resolve) => mediaQueue.push(resolve));
+}
+
+function releaseMediaSlot() {
+    const next = mediaQueue.shift();
+    if (next) {
+        next();
+    } else {
+        activeMediaTasks--;
+    }
+}
+
 async function preCompressVideo(inputBuffer) {
     const tempInput = path.join(__dirname, `temp_in_${Date.now()}.mp4`);
     const tempOutput = path.join(__dirname, `temp_out_${Date.now()}.mp4`);
@@ -1007,7 +1041,13 @@ const botCommands = {
 
 //Inicia a conexão com mo Whatsapp para fazer todas as operações
 async function connectToWhatsApp() {
-    await initDatabase();
+    // 🛡️ [FASE 1 - ANTI-OOM] Abre o SQLite APENAS uma vez por processo.
+    // Sem o guard, cada reconexão abria um novo handle de banco (DB zumbi).
+    if (!isDbInitialized) {
+        await initDatabase();
+        isDbInitialized = true;
+        console.log('✅ [DB] Instância única do SQLite inicializada.');
+    }
 
     /*try {
         await driveService.authorize();
@@ -1063,6 +1103,7 @@ async function connectToWhatsApp() {
 
     //Instancia o chatbot
     const chatbot = new ChatModel(db, genAI)
+    globalChatbot = chatbot; // Referência viva para rotas HTTP/WS e timers (evita instância zumbi)
     await chatbot.updateOnlineStatus();
 
     const blueskyBrain = new BlueskyBrain(db, chatbot);
@@ -1071,6 +1112,13 @@ async function connectToWhatsApp() {
 
     startTwitch(chatbot, sock);
     startDiscord(chatbot, sock);
+
+    // 🛡️ [FASE 1 - ANTI-OOM] Servidor HTTP + Socket.io + rotas são Singletons:
+    // sobem apenas UMA vez por processo, mesmo após N reconexões do Baileys.
+    // Sem isso cada queda criava um novo Express, um novo server, um novo
+    // Socket.io e mais um setInterval de dashboard (vazamento de RAM/sockets).
+    if (!isWebInitialized) {
+    isWebInitialized = true;
 
     const http = require('http');
     const { Server } = require('socket.io');
@@ -1115,6 +1163,7 @@ async function connectToWhatsApp() {
         cors: { origin: "*" }
     });
 
+    webIO = io; // Referência global viva (re-vinculada a cada reconexão)
     chatbot.parqueHandler.io = io;
 
     app.post('/api/send-code', async (req, res) => {
@@ -1135,7 +1184,7 @@ async function connectToWhatsApp() {
                 [jid]
             );
 
-            await sock.sendMessage(jid, { text: message });
+            await globalSock.sendMessage(jid, { text: message });
             
             console.log(`🔐 [MFA] Enviado para: ${pureNumbers}`);
 
@@ -1169,7 +1218,7 @@ Corre antes que alguém apague as provas, mude a versão dos fatos ou finja que 
     });
 
     app.get('/api/dashboard', async (req, res) => {
-        const data = await chatbot.getDashboardDataAPI();
+        const data = await globalChatbot.getDashboardDataAPI();
         res.json(data);
     });
     app.post('/api/auth/register', async (req, res) => {
@@ -1304,7 +1353,7 @@ Corre antes que alguém apague as provas, mude a versão dos fatos ou finja que 
         try {
             const jid = req.user.id_whatsapp;
 
-            const player = await chatbot.parqueHandler.getPlayerData(jid);
+            const player = await globalChatbot.parqueHandler.getPlayerData(jid);
             
             const userDb = await db.get("SELECT bostocoins, afinidade_bot FROM usuarios WHERE id_usuario = ?", [jid]);
             
@@ -1327,7 +1376,7 @@ Corre antes que alguém apague as provas, mude a versão dos fatos ou finja que 
         try {
             const jid = req.user.id_whatsapp;
             
-            const sessao = chatbot.parqueHandler.escavacoesAtivas.get(jid);
+            const sessao = globalChatbot.parqueHandler.escavacoesAtivas.get(jid);
 
             if (!sessao) {
                 return res.json({ ativa: false, mensagem: "Você está na superfície. Use !escavar no WhatsApp para entrar no Abismo!" });
@@ -1419,7 +1468,7 @@ Corre antes que alguém apague as provas, mude a versão dos fatos ou finja que 
                 platform: 'web' 
             };
 
-            await chatbot.handleCommand(fakeMsg, userId, groupId, true, comandoSintetico, null, sock, []);
+            await globalChatbot.handleCommand(fakeMsg, userId, groupId, true, comandoSintetico, null, globalSock, []);
 
             return res.json({ 
                 success: true, 
@@ -1435,7 +1484,7 @@ Corre antes que alguém apague as provas, mude a versão dos fatos ou finja que 
     io.on('connection', (socket) => {
         console.log(`🟢 [WS] Novo cliente conectado: ${socket.id}`);
         
-        chatbot.getDashboardDataAPI().then(data => {
+        globalChatbot.getDashboardDataAPI().then(data => {
             socket.emit('dashboard_update', data);
         });
 
@@ -1462,7 +1511,7 @@ Corre antes que alguém apague as provas, mude a versão dos fatos ou finja que 
     setInterval(async () => {
         if (io.engine.clientsCount > 0) { 
             try {
-                const data = await chatbot.getDashboardDataAPI();
+                const data = await globalChatbot.getDashboardDataAPI();
                 io.emit('dashboard_update', data);
             } catch (e) {
                 console.error("Erro no loop do WebSocket:", e);
@@ -1475,6 +1524,12 @@ Corre antes que alguém apague as provas, mude a versão dos fatos ou finja que 
             console.log('📈 [API/WS] Dashboard rodando na porta 3000');
             isExpressRunning = true;
         });
+    }
+    } // 🔚 fim do guard isWebInitialized (Express/Socket.io = instância única)
+
+    // 🔄 Re-vincula o emissor de eventos do Parque à instância ATUAL do handler
+    if (chatbot.parqueHandler) {
+        chatbot.parqueHandler.io = webIO;
     }
     
     //Envia figurinha
@@ -1508,7 +1563,18 @@ Corre antes que alguém apague as provas, mude a versão dos fatos ou finja que 
     if (connection === 'close') {
         const statusCode = (lastDisconnect.error)?.output?.statusCode;
         const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
-        
+
+        // 🧹 [FASE 1 - ANTI-LEAK] Descarte determinístico do socket zumbi:
+        // solta os listeners e encerra o websocket ANTES de criar outro,
+        // evitando acúmulo de handles/event emitters a cada queda.
+        try {
+            sock.ev.removeAllListeners();
+            sock.end(undefined);
+        } catch (err) {
+            console.error('⚠️ Falha ao descartar o socket antigo:', err.message);
+        }
+        if (globalSock === sock) globalSock = null;
+
         if (shouldReconnect) {
             console.log('🔄 Conexão caiu. Tentando reconectar em 5 segundos...');
             setTimeout(() => {
@@ -1539,10 +1605,11 @@ Corre antes que alguém apague as provas, mude a versão dos fatos ou finja que 
                 }
             })();
             
-            if (dailyJob) {
-                dailyJob.cancel();
-            }
-            
+            // 🛡️ [FASE 1 - ANTI-LEAK] O cron do "Bom Dia" é Singleton:
+            // é agendado UMA vez por processo e usa globalSock/globalChatbot,
+            // então continua falando com a conexão ATUAL após reconectar.
+            if (!isCronInitialized) {
+                isCronInitialized = true;
 
             dailyJob = schedule.scheduleJob('0 0 10 * * *', async function(){
                 const targetCity = "Santos"; 
@@ -1552,7 +1619,7 @@ Corre antes que alguém apague as provas, mude a versão dos fatos ou finja que 
 
                     const ROTAS_SILENCIOSAS = ["120363426917338477@g.us", "120363410458341287@g.us"];
 
-                    const humorMatinal = await chatbot.generateBomDia(`bomdia-${Date.now()}`);
+                    const humorMatinal = await globalChatbot.generateBomDia(`bomdia-${Date.now()}`);
 
                     const weatherComplement = await weatherCommandHandler.getWeather(targetCity);
                     const weatherForecastComplement = await weatherCommandHandler.getNextDayForecast(targetCity);
@@ -1562,7 +1629,7 @@ Corre antes que alguém apague as provas, mude a versão dos fatos ou finja que 
                                       weatherComplement + "\n\n" + 
                                       weatherForecastComplement;
 
-                    const groups = await sock.groupFetchAllParticipating();
+                    const groups = await globalSock.groupFetchAllParticipating();
                     const groupIds = Object.keys(groups);
 
                     console.log(`📊 Enviando bom dia para ${groupIds.length} grupos.`);
@@ -1574,7 +1641,7 @@ Corre antes que alguém apague as provas, mude a versão dos fatos ou finja que 
                         console.log("🎰 Realizando sorteios da semana...");
                         const estado = await db.get("SELECT * FROM cassino_estado WHERE id = 1");
                         
-                        const numBolao = await chatbot.rollDice(20);
+                        const numBolao = await globalChatbot.rollDice(20);
                         const apostasBolao = await db.all("SELECT b.*, u.nome FROM bolao b JOIN usuarios u ON b.id_usuario = u.id_usuario");
                         const vencedoresBolao = apostasBolao.filter(b => b.numero === numBolao);
                         
@@ -1596,7 +1663,7 @@ Corre antes que alguém apague as provas, mude a versão dos fatos ou finja que 
                         }
                         await db.run("DELETE FROM bolao"); 
 
-                        const numMega = await chatbot.rollDice(100);
+                        const numMega = await globalChatbot.rollDice(100);
                         const apostasMega = await db.all("SELECT l.*, u.nome FROM loteria l JOIN usuarios u ON l.id_usuario = u.id_usuario");
                         const vencedoresMega = apostasMega.filter(l => l.numero === numMega);
                         const multiMega = estado.mega_multiplicador * 100;
@@ -1629,7 +1696,7 @@ Corre antes que alguém apague as provas, mude a versão dos fatos ou finja que 
                         let toxicReport = "";
                         let divisor = "";
 
-                        const parqueReport = await chatbot.parqueHandler.processarBilheteria(groupId);
+                        const parqueReport = await globalChatbot.parqueHandler.processarBilheteria(groupId);
 
                         if(groupId == "120363422139578370@g.us"){
                             divisor = "\n\n------------------------------\n";                            
@@ -1677,7 +1744,7 @@ Corre antes que alguém apague as provas, mude a versão dos fatos ou finja que 
                                 
                             }
                             
-                            toxicReport = await chatbot.getAndResetToxicPodium(groupId);
+                            toxicReport = await globalChatbot.getAndResetToxicPodium(groupId);
                             
                             toxicReport = toxicRewardReport + toxicReport;
                         }
@@ -1716,7 +1783,7 @@ Corre antes que alguém apague as provas, mude a versão dos fatos ou finja que 
                         
                         const finalMessage = baseMessage + loteriaReport + parqueReport + divisor + toxicReport;
 
-                        await sock.sendMessage(groupId, { text: finalMessage });
+                        await globalSock.sendMessage(groupId, { text: finalMessage });
                         await new Promise(resolve => setTimeout(resolve, 2000));
                     }
 
@@ -1726,6 +1793,7 @@ Corre antes que alguém apague as provas, mude a versão dos fatos ou finja que 
                     console.error("❌ Erro no envio do clima/toxicidade agendado:", error);
                 }
             });
+            } // 🔚 fim do guard isCronInitialized (cron = instância única)
         }
     });
 
@@ -1734,7 +1802,8 @@ Corre antes que alguém apague as provas, mude a versão dos fatos ou finja que 
     //Pega as informações do bot
     const me = state.creds.me;
     myFullJid = me?.id ? jidNormalizedUser(me.id) :  '5513991526878@s.whatsapp.net'; 
-    let dailyJob;
+    // 🛡️ dailyJob agora é global (declarado no topo do arquivo) para o cron
+    // ser criado UMA única vez e sobreviver às reconexões.
 
 
     //Acorda quando chega uma mensagem
@@ -2022,6 +2091,15 @@ Corre antes que alguém apague as provas, mude a versão dos fatos ou finja que 
 
         // Comando para criar figurinha (!s ou !sticker)
         if (commandName === '!s' || commandName === '!sticker') {
+            // 🚦 [FASE 1 - ANTI-OOM] Semáforo: no máximo 2 mídias sendo
+            // processadas ao mesmo tempo (sharp/ffmpeg consomem muita RAM).
+            await acquireMediaSlot();
+
+            // Buffers declarados fora do try para poderem ser liberados no finally
+            let buffer = null;
+            let finalBuffer = null;
+            let finalStickerBuffer = null;
+
             try {
                 // Identifica se é uma imagem/video direto ou um quote
                 const isQuoted = !!msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
@@ -2056,13 +2134,13 @@ Corre antes que alguém apague as provas, mude a versão dos fatos ou finja que 
                     message: targetMessage
                 };
 
-                let buffer = await downloadMediaMessage(
+                buffer = await downloadMediaMessage(
                     mediaKeys,
                     'buffer',
                     { logger: pino({ level: 'silent' }) } 
                 );
 
-                let finalBuffer = buffer;
+                finalBuffer = buffer;
 
                 if (isVideo) {
                     await sock.sendMessage(from, { react: { text: '🗜️', key: msg.key } });
@@ -2104,7 +2182,6 @@ Corre antes que alguém apague as provas, mude a versão dos fatos ou finja que 
                 }
 
                 let stickerMsg;
-                let finalStickerBuffer;
                 let attempts = 0;
                 let currentQuality = isVideo ? 25 : stickerQuality;
                 const MAX_SIZE = 950 * 1024;
@@ -2146,6 +2223,13 @@ Corre antes que alguém apague as provas, mude a versão dos fatos ou finja que 
                 console.error("Erro ao criar figurinha:", error);
                 await sock.sendMessage(from, { text: '❌ Deu ruim na figurinha. Tenta com outra imagem.' }, { quoted: msg });
                 return;
+            } finally {
+                // 🧹 [FASE 1 - ANTI-OOM] Anula os buffers massivos e devolve o
+                // slot do semáforo para o GC liberar a RAM imediatamente.
+                buffer = null;
+                finalBuffer = null;
+                finalStickerBuffer = null;
+                releaseMediaSlot();
             }
         }
 

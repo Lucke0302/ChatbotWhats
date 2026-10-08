@@ -38,6 +38,9 @@ class ChatModel {
             "gemini-flash-latest": 20
         };
         this.updateOnlineStatus();
+        // 🛡️ init() é idempotente (guard interno no lolCommand.js):
+        // como o ChatModel é recriado a cada reconexão do Baileys, o guard
+        // impede que um novo timer diário da Riot API seja acumulado.
         lolCommandHandler.init();
         this.spamCooldowns = new Map(); 
         this.SPAM_DELAY_SECONDS = 10;

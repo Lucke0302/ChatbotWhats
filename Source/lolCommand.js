@@ -8,12 +8,25 @@ let lolVersion = '14.23.1';
 
 const UPDATE_INTERVAL = 1000 * 60 * 60 * 24;
 
+// 🛡️ [FASE 1 - ANTI-OOM] Guard de inicialização única: o ChatModel é
+// reconstruído a cada reconexão do Baileys e chama init() novamente.
+// Sem o guard, um novo setInterval de atualização da Riot seria criado por queda.
+let isLolInitialized = false;
+let lolUpdateTimer = null;
+
 async function init() {
+    if (isLolInitialized) {
+        console.log("🎮 [LoL] Módulo já inicializado. Re-init ignorado (anti-leak de timers).");
+        return;
+    }
+    isLolInitialized = true;
+
     console.log("🎮 Inicializando módulo League of Legends...");
     
     await updateLoLData().catch(err => console.error("❌ Falha ao iniciar dados do LoL:", err.message));
 
-    setInterval(async () => {
+    if (lolUpdateTimer) clearInterval(lolUpdateTimer);
+    lolUpdateTimer = setInterval(async () => {
         console.log("⏰ Atualizando versão e campeões do LoL (Rotina Diária)...");
         await updateLoLData().catch(err => console.error("❌ Erro na atualização diária do LoL:", err.message));
     }, UPDATE_INTERVAL);

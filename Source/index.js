@@ -22,7 +22,8 @@ const { GoogleGenAI } = require("@google/genai");
 const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 const qrcode = require('qrcode-terminal');
 const sqlite = require('sqlite'); 
-const sqlite3 = require('sqlite3'); 
+const sqlite3 = require('sqlite3');
+const { withTransaction, creditarSaldo } = require('./dbHelper'); 
 const pino = require('pino'); 
 const ChatModel = require('./chatModel');
 const { handleBotError } = require('./errorHandler');
@@ -1755,18 +1756,23 @@ Corre antes que alguém apague as provas, mude a versão dos fatos ou finja que 
 
                         loteriaReport += `\n\n🤝 **RESULTADO DO BOLÃO** 🤝\nNúmero sorteado: 🎲 **${numBolao}**\nPote total: 🪙 **${poteTotal}**\n`;
 
-                        if (vencedoresBolao.length > 0) {
-                            const premioPorPessoa = Math.floor(poteTotal / vencedoresBolao.length);
-                            for (const w of vencedoresBolao) {
-                                await db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [premioPorPessoa, w.id_usuario]);
-                                loteriaReport += `🎉 *${w.nome}* levou 🪙 **${premioPorPessoa}**!\n`;
+                        // [FASE 3] Pagamento dos vencedores + reset do acumulado + limpeza
+                        // dos bilhetes dentro de UMA transação: um crash no meio do
+                        // caminho não deixa o pote "pago duas vezes" na próxima semana.
+                        await withTransaction(db, async () => {
+                            if (vencedoresBolao.length > 0) {
+                                const premioPorPessoa = Math.floor(poteTotal / vencedoresBolao.length);
+                                for (const w of vencedoresBolao) {
+                                    await creditarSaldo(db, w.id_usuario, premioPorPessoa);
+                                    loteriaReport += `🎉 *${w.nome}* levou 🪙 **${premioPorPessoa}**!\n`;
+                                }
+                                await db.run("UPDATE cassino_estado SET bolao_acumulado = 0 WHERE id = 1");
+                            } else {
+                                loteriaReport += `💀 Ninguém acertou! O pote acumulou para a próxima semana.\n`;
+                                await db.run("UPDATE cassino_estado SET bolao_acumulado = ? WHERE id = 1", [poteTotal]);
                             }
-                            await db.run("UPDATE cassino_estado SET bolao_acumulado = 0 WHERE id = 1");
-                        } else {
-                            loteriaReport += `💀 Ninguém acertou! O pote acumulou para a próxima semana.\n`;
-                            await db.run("UPDATE cassino_estado SET bolao_acumulado = ? WHERE id = 1", [poteTotal]);
-                        }
-                        await db.run("DELETE FROM bolao"); 
+                            await db.run("DELETE FROM bolao");
+                        }); 
 
                         const numMega = await globalChatbot.rollDice(100);
                         const apostasMega = await db.all("SELECT l.*, u.nome FROM loteria l JOIN usuarios u ON l.id_usuario = u.id_usuario");
@@ -1775,20 +1781,24 @@ Corre antes que alguém apague as provas, mude a versão dos fatos ou finja que 
 
                         loteriaReport += `\n🎟️ **RESULTADO DA MEGA** 🎟️\nNúmero sorteado: 🎲 **${numMega}**\n`;
 
-                        if (vencedoresMega.length > 0) {
-                            loteriaReport += `🤑 **TEMOS BILIONÁRIOS!**\n`;
-                            for (const w of vencedoresMega) {
-                                const premioMega = w.valor * multiMega;
-                                await db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [premioMega, w.id_usuario]);
-                                loteriaReport += `💰 *${w.nome}* apostou 🪙 ${w.valor} e levou incríveis 🪙 **${premioMega}**!\n`;
+                        // [FASE 3] Resgate da Mega + reset do multiplicador + limpeza dos
+                        // bilhetes dentro de UMA transação (fim do prêmio duplicado).
+                        await withTransaction(db, async () => {
+                            if (vencedoresMega.length > 0) {
+                                loteriaReport += `🤑 **TEMOS BILIONÁRIOS!**\n`;
+                                for (const w of vencedoresMega) {
+                                    const premioMega = w.valor * multiMega;
+                                    await creditarSaldo(db, w.id_usuario, premioMega);
+                                    loteriaReport += `💰 *${w.nome}* apostou 🪙 ${w.valor} e levou incríveis 🪙 **${premioMega}**!\n`;
+                                }
+                                await db.run("UPDATE cassino_estado SET mega_multiplicador = 1 WHERE id = 1");
+                            } else {
+                                const semanas = estado.mega_multiplicador;
+                                loteriaReport += `💀 Ninguém acertou de novo... A Mega acumulou para **${(semanas + 1) * 100}x** a aposta na semana que vem!`;
+                                await db.run("UPDATE cassino_estado SET mega_multiplicador = mega_multiplicador + 1 WHERE id = 1");
                             }
-                            await db.run("UPDATE cassino_estado SET mega_multiplicador = 1 WHERE id = 1");
-                        } else {
-                            const semanas = estado.mega_multiplicador;
-                            loteriaReport += `💀 Ninguém acertou de novo... A Mega acumulou para **${(semanas + 1) * 100}x** a aposta na semana que vem!`;
-                            await db.run("UPDATE cassino_estado SET mega_multiplicador = mega_multiplicador + 1 WHERE id = 1");
-                        }
-                        await db.run("DELETE FROM loteria");
+                            await db.run("DELETE FROM loteria");
+                        });
                     }
 
                     for (const groupId of groupIds) {
@@ -1820,15 +1830,19 @@ Corre antes que alguém apague as provas, mude a versão dos fatos ou finja que 
                                 toxicRewardReport += "🤬 **PATROCÍNIO DO ÓDIO (PRÊMIO BOCA SUJA)** 🤬\nO Bostossauro valoriza a falta de educação. Os mais tóxicos ganharam:\n\n";
                                 
                                 const medalhas = ["🥇", "🥈", "🥉"];
-                                
-                                for (let i = 0; i < topToxicos.length; i++) {
-                                    const t = topToxicos[i];
-                                    const recompensa = t.quantidade * 10;
-                                    
-                                    await db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [recompensa, t.id_usuario]);
-                                    
-                                    toxicRewardReport += `${medalhas[i]} *${t.nome}*: ${t.quantidade} ofensas ➡️ **+🪙 ${recompensa}**\n`;
-                                }
+
+                                // [FASE 3] Premiação paga numa transação única (ou todos
+                                // recebem, ou ninguém recebe meio pagamento).
+                                await withTransaction(db, async () => {
+                                    for (let i = 0; i < topToxicos.length; i++) {
+                                        const t = topToxicos[i];
+                                        const recompensa = t.quantidade * 10;
+
+                                        await creditarSaldo(db, t.id_usuario, recompensa);
+
+                                        toxicRewardReport += `${medalhas[i]} *${t.nome}*: ${t.quantidade} ofensas ➡️ **+🪙 ${recompensa}**\n`;
+                                    }
+                                });
                                 toxicRewardReport += "\n";
                             }
 
@@ -1845,7 +1859,9 @@ Corre antes que alguém apague as provas, mude a versão dos fatos ou finja que 
                             if (topFalador) {
                                 const recompensaFalador = topFalador.total_mensagens * 2; 
                                 
-                                await db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [recompensaFalador, topFalador.id_usuario]);
+                                await withTransaction(db, async () => {
+                                    await creditarSaldo(db, topFalador.id_usuario, recompensaFalador);
+                                });
                                 
                             }
                             
@@ -1865,19 +1881,19 @@ Corre antes que alguém apague as provas, mude a versão dos fatos ou finja que 
                         let faladorRewardReport = "";
                         if (todosFaladores.length > 0) {
                             let outrosPagos = 0;
-                            
-                            for (let i = 0; i < todosFaladores.length; i++) {
-                                const f = todosFaladores[i];
-                                const recompensaFalador = f.total_mensagens;
-                                
-                                await db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [recompensaFalador, f.id_usuario]);
-                                
-                                if (i < 3) {
-                                    faladorRewardReport += "";
-                                } else {
-                                    outrosPagos++;
+
+                            // [FASE 3] Pagamento dos faladores numa transação única
+                            // (uma gravação só para o grupo inteiro).
+                            await withTransaction(db, async () => {
+                                for (let i = 0; i < todosFaladores.length; i++) {
+                                    const f = todosFaladores[i];
+                                    const recompensaFalador = f.total_mensagens;
+
+                                    await creditarSaldo(db, f.id_usuario, recompensaFalador);
+
+                                    if (i >= 3) outrosPagos++;
                                 }
-                            }
+                            });
                             
                             if (outrosPagos > 0) {
                                 faladorRewardReport += "";

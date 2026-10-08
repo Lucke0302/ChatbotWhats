@@ -1,0 +1,15 @@
+# Reasoning & Output Efficiency
+
+- Keep the reasoning (chain of thought) minimal and strictly focused on implementation logic.
+- No rambling, validation loops, or conversational preambles.
+- MANDATORY: Use `replace_in_file` with the minimum necessary context. Never rewrite entire files.
+- Do not repeat or print code blocks in the chat after modifying them with tools.
+- Terminal commands must use silent flags (-q, --silent, head), sending logs to separate files to be visited if necessary to avoid polluting the context.
+
+# Project Specifications (Bostossauro Bot v7.0)
+
+- Stack: Node.js, Baileys (WhatsApp adapter), SQLite, PM2, Google Gemini SDK, Sharp.
+- Environment Constraints: Runs on a 1GB RAM Debian VM. Extreme memory optimization is required. Avoid accumulating data in global variables, clear memory caches regularly, and aggressively handle buffer garbage collection (especially for Sharp image processing and media downloads).
+- Security: Strict prevention of SQL Injection. All SQLite queries must use parameterized inputs. User inputs from chat commands must be sanitized. 
+- Stability: Robust handling of `uncaughtException` and `unhandledRejection`. External API calls (Gemini, Riot Games, BlueSky) must have strict timeout fallbacks and retries to prevent dangling promises.
+- Core Domains: `chatModel.js` (AI Router), `blueskyBrain.js` (Social), and mini-games (`parqueHandler.js`, `pescariaHandler.js`, `casinoHandler.js`, `fazendaHandler.js`).

@@ -1,3 +1,5 @@
+const { withTransaction, debitarSaldo, creditarSaldo, confiscarSaldo, garantirUsuario, incrementarJson, debitarJson, setJson } = require('./dbHelper');
+
 class CasinoHandler {
 
 constructor(db) {
@@ -69,7 +71,16 @@ constructor(db) {
     }
 
     async updateBalance(userId, amount, groupId = null, ctx = null, bet = 0) {
-        const valorParaMissao = bet > 0 ? bet : (amount < 0 ? Math.abs(amount) : 0);
+        const valorNumerico = Math.floor(Number(amount));
+        if (!Number.isFinite(valorNumerico) || valorNumerico === 0) return false;
+
+        // [FASE 3] Débito nunca mais é "ler no JS -> validar -> gravar":
+        // a carteira só é debitada se o saldo cobrir a aposta (WHERE bostocoins >= ?).
+        if (valorNumerico < 0) {
+            return this.apostar(userId, Math.abs(valorNumerico), groupId, ctx, 0, bet > 0 ? bet : Math.abs(valorNumerico));
+        }
+
+        const valorParaMissao = bet > 0 ? bet : 0;
         
         if (valorParaMissao > 0) {
             if (this.parqueHandler && groupId && groupId.includes('@g.us')) {
@@ -91,7 +102,45 @@ constructor(db) {
             }
         }
         
-        await this.db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [amount, userId]);
+        return creditarSaldo(this.db, userId, valorNumerico);
+    }
+
+    // [FASE 3] Cobra a aposta e, opcionalmente, paga o prêmio DENTRO DA MESMA TRANSAÇÃO.
+    // O débito é condicional no SQLite (WHERE bostocoins >= ?), então duas jogadas
+    // simultâneas nunca gastam o mesmo saldo (fim do Double-Spend).
+    async apostar(userId, bet, groupId = null, ctx = null, premio = 0, valorMissao = null) {
+        const valor = Math.floor(Number(bet));
+        if (!Number.isFinite(valor) || valor <= 0) return false;
+
+        const valorPremio = Math.max(0, Math.floor(Number(premio)) || 0);
+        const valorParaMissao = valorMissao === null || valorMissao === undefined
+            ? valor
+            : Math.max(0, Math.floor(Number(valorMissao)) || 0);
+
+        let debitado = false;
+
+        try {
+            debitado = await withTransaction(this.db, async () => {
+                const ok = await debitarSaldo(this.db, userId, valor);
+                if (!ok) return false;
+
+                if (valorPremio > 0) await creditarSaldo(this.db, userId, valorPremio);
+                if (valorParaMissao > 0) {
+                    await incrementarJson(this.db, 'usuarios', 'financas', userId, '$.total_apostado', valorParaMissao);
+                }
+
+                return true;
+            });
+        } catch (e) {
+            console.error("Erro ao registrar aposta:", e);
+            return false;
+        }
+
+        if (debitado && valorParaMissao > 0 && this.parqueHandler && groupId && groupId.includes('@g.us')) {
+            this.parqueHandler.registrarProgressoComunitario(groupId, 'cassino', valorParaMissao, ctx).catch(() => {});
+        }
+
+        return debitado;
     }
 
     // CAÇA-NÍQUEIS
@@ -108,19 +157,26 @@ constructor(db) {
 
         let msg = `${userTag}🎰 **CAÇA-NÍQUEIS** 🎰\n\n[ ${r1} | ${r2} | ${r3} ]\n\n`;
 
+        let premio = 0;
+        let resultadoJogo = "";
+
         if (r1 === r2 && r2 === r3) {
-            let multiplier = r1 === "💎" || r1 === "🦖" ? 20 : 10;
-            const win = bet * multiplier;
-            await this.updateBalance(userId, win - bet, groupId, ctx, bet);
-            return msg + `🏆 **JACKPOT!** Você tirou 3 iguais e ganhou 🪙 ${win} Bostocoins!`;
+            const multiplier = r1 === "💎" || r1 === "🦖" ? 20 : 10;
+            premio = bet * multiplier;
+            resultadoJogo = `🏆 **JACKPOT!** Você tirou 3 iguais e ganhou 🪙 ${premio} Bostocoins!`;
         } else if (r1 === r2 || r2 === r3 || r1 === r3) {
-            const win = Math.floor(bet * 1.4);
-            await this.updateBalance(userId, win - bet, groupId, ctx, bet);
-            return msg + `✨ **QUASE!** Deu parzinho. Você ganhou 🪙 ${win} Bostocoins.`;
+            premio = Math.floor(bet * 1.4);
+            resultadoJogo = `✨ **QUASE!** Deu parzinho. Você ganhou 🪙 ${premio} Bostocoins.`;
         } else {
-            await this.updateBalance(userId, -bet, groupId, ctx, bet);
-            return msg + `💸 **PERDEU!** O cassino agradece sua doação de 🪙 ${bet} Bostocoins.`;
+            resultadoJogo = `💸 **PERDEU!** O cassino agradece sua doação de 🪙 ${bet} Bostocoins.`;
         }
+
+        // [FASE 3] Aposta + prêmio na mesma transação: se o saldo esfriou no meio
+        // do caminho, nada é debitado e o jogador é avisado.
+        const apostou = await this.apostar(userId, bet, groupId, ctx, premio);
+        if (!apostou) return `${userTag}❌ Você tá liso! Seu saldo não cobre mais a aposta de 🪙 ${bet} Bostocoins.`;
+
+        return msg + resultadoJogo;
     }
 
     // CARA OU COROA
@@ -136,14 +192,16 @@ constructor(db) {
 
         let msg = `${userTag}🪙 A moeda girou e caiu... **${result.toUpperCase()}**!\n\n`;
 
+        const premio = won ? Math.floor(bet * 1.8) : 0;
+
+        // [FASE 3] Débito condicional + prêmio atômicos (fim do gasto duplo).
+        const apostou = await this.apostar(userId, bet, groupId, ctx, premio);
+        if (!apostou) return `${userTag}❌ Sem saldo! Você tem 🪙 ${balance} Bostocoins.`;
+
         if (won) {
-            const win = Math.floor(bet * 1.8);
-            await this.updateBalance(userId, win - bet, groupId, ctx, bet);
-            return msg + `🎉 Você acertou e ganhou 🪙 ${win} Bostocoins!`;
-        } else {
-            await this.updateBalance(userId, -bet, groupId, ctx, bet);
-            return msg + `💸 Você errou e perdeu 🪙 ${bet} Bostocoins.`;
+            return msg + `🎉 Você acertou e ganhou 🪙 ${premio} Bostocoins!`;
         }
+        return msg + `💸 Você errou e perdeu 🪙 ${bet} Bostocoins.`;
     }
 
     // ROLETA SIMPLES
@@ -165,15 +223,18 @@ constructor(db) {
 
         let msg = `${userTag}🎡 A roleta girou e parou no ${emoji} **${resultColor.toUpperCase()}**!\n\n`;
 
-        if (colorChoice === resultColor) {
-            const multiplier = resultColor === 'verde' ? 12 : 2;
-            const win = bet * multiplier;
-            await this.updateBalance(userId, win - bet, groupId, ctx, bet);
-            return msg + `💰 **VITÓRIA!** Você multiplicou sua aposta por ${multiplier}x e ganhou 🪙 ${win} Bostocoins!`;
-        } else {
-            await this.updateBalance(userId, -bet, groupId, ctx, bet);
-            return msg + `💸 **DERROTA!** Você apostou no ${colorChoice} e perdeu 🪙 ${bet}.`;
+        const acertou = colorChoice === resultColor;
+        const multiplier = acertou ? (resultColor === 'verde' ? 12 : 2) : 0;
+        const premio = acertou ? bet * multiplier : 0;
+
+        // [FASE 3] Débito condicional + prêmio atômicos (fim do gasto duplo).
+        const apostou = await this.apostar(userId, bet, groupId, ctx, premio);
+        if (!apostou) return `${userTag}❌ Sem saldo! Você tem 🪙 ${balance} Bostocoins.`;
+
+        if (acertou) {
+            return msg + `💰 **VITÓRIA!** Você multiplicou sua aposta por ${multiplier}x e ganhou 🪙 ${premio} Bostocoins!`;
         }
+        return msg + `💸 **DERROTA!** Você apostou no ${colorChoice} e perdeu 🪙 ${bet}.`;
     }
 
     // MEGABOSTA
@@ -186,8 +247,17 @@ constructor(db) {
         const estado = await this.db.get("SELECT mega_multiplicador FROM cassino_estado WHERE id = 1");
         const multiplicador_atual = estado.mega_multiplicador * 100;
 
-        await this.updateBalance(userId, -bet, groupId, ctx);
-        await this.db.run("INSERT INTO loteria (id_usuario, numero, valor) VALUES (?, ?, ?)", [userId, number, bet]);
+        // [FASE 3] Débito do bilhete + INSERT atômicos: ou o bilhete existe e foi pago,
+        // ou nada acontece (nada de bilhete grátis nem débito sem bilhete).
+        const comprouBilhete = await withTransaction(this.db, async () => {
+            const ok = await this.apostar(userId, bet, groupId, ctx);
+            if (!ok) return false;
+
+            await this.db.run("INSERT INTO loteria (id_usuario, numero, valor) VALUES (?, ?, ?)", [userId, number, bet]);
+            return true;
+        });
+
+        if (!comprouBilhete) return `${userTag}❌ Saldo insuficiente! Você tem 🪙 ${balance} Bostocoins.`;
 
         return `${userTag}🎟️ **BILHETE DA MEGABOSTA COMPRADO!**\nApostou 🪙 ${bet} no número **${number}**.\nSe ganhar, leva 🪙 **${bet * multiplicador_atual}** na segunda-feira!`;
     }
@@ -202,8 +272,25 @@ constructor(db) {
         const ticket = await this.db.get("SELECT * FROM bolao WHERE id_usuario = ?", [userId]);
         if (ticket) return `${userTag}🎟️ Você já tá no bolão dessa semana com o número **${ticket.numero}**! Só pode um por pessoa.`;
 
-        await this.updateBalance(userId, -bet, groupId, ctx);
-        await this.db.run("INSERT INTO bolao (id_usuario, numero, valor) VALUES (?, ?, ?)", [userId, number, bet]);
+        // [FASE 3] Ticket + débito + INSERT dentro da mesma transação:
+        // dois cliques simultâneos não geram ticket duplo nem cobrança dobrada.
+        const resultadoBolao = await withTransaction(this.db, async () => {
+            const ticketAtual = await this.db.get("SELECT numero FROM bolao WHERE id_usuario = ?", [userId]);
+            if (ticketAtual) return { ok: false, motivo: 'ticket', numero: ticketAtual.numero };
+
+            const ok = await this.apostar(userId, bet, groupId, ctx);
+            if (!ok) return { ok: false, motivo: 'saldo' };
+
+            await this.db.run("INSERT INTO bolao (id_usuario, numero, valor) VALUES (?, ?, ?)", [userId, number, bet]);
+            return { ok: true };
+        });
+
+        if (!resultadoBolao.ok) {
+            if (resultadoBolao.motivo === 'ticket') {
+                return `${userTag}🎟️ Você já tá no bolão dessa semana com o número **${resultadoBolao.numero}**! Só pode um por pessoa.`;
+            }
+            return `${userTag}❌ Saldo insuficiente! Você tem 🪙 ${balance} Bostocoins.`;
+        }
 
         return `${userTag}🤝 **NO BOLÃO!**\nVocê jogou 🪙 ${bet} no número **${number}**. O pote do grupo só cresce! Resultado na segunda-feira.`;
     }
@@ -217,10 +304,20 @@ constructor(db) {
         const senderBalance = await this.getBalance(senderId);
         if (senderBalance < amount) return `${senderTag}❌ Saldo insuficiente! Você só tem 🪙 ${senderBalance} Bostocoins.`;
 
-        await this.db.run(`INSERT OR IGNORE INTO usuarios (id_usuario, nome, banido_ate, uso_ia_diario, data_ultimo_uso, anotacoes) VALUES (?, 'Anônimo', 0, 0, '', '')`, [receiverId]);
+        // [FASE 3] Pix atômico: cria o destinatário, debita o remetente de forma
+        // condicional e credita o destino na MESMA transação. Se o saldo não cobrir
+        // (ou algo falhar no meio), o ROLLBACK devolve tudo ao estado original.
+        const pixEfetuado = await withTransaction(this.db, async () => {
+            await garantirUsuario(this.db, receiverId);
 
-        await this.updateBalance(senderId, -amount);
-        await this.updateBalance(receiverId, amount);
+            const debitado = await debitarSaldo(this.db, senderId, amount);
+            if (!debitado) return false;
+
+            await creditarSaldo(this.db, receiverId, amount);
+            return true;
+        });
+
+        if (!pixEfetuado) return `${senderTag}❌ Saldo insuficiente! Você só tem 🪙 ${senderBalance} Bostocoins.`;
 
         return `💸 **PIX TRANSFERIDO!**\n\n${senderTag} enviou 🪙 **${amount} Bostocoins** com sucesso!\nO Banco Central do Bostossauro já aprovou a transação.`;
     }
@@ -254,8 +351,19 @@ constructor(db) {
             }
         }
 
-        await this.updateBalance(userId, 100);
-        await this.db.run("UPDATE usuarios SET last_minhabosta = ? WHERE id_usuario = ?", [now, userId]);
+        // [FASE 3] Claim atômico do benefício: o crédito só acontece se o cooldown
+        // já venceu NO BANCO (WHERE last_minhabosta <= ?). Duas mensagens simultâneas
+        // não conseguem mais sacar a esmola duas vezes.
+        const beneficio = await this.db.run(
+            `UPDATE usuarios
+             SET bostocoins = bostocoins + 100, last_minhabosta = ?
+             WHERE id_usuario = ? AND (last_minhabosta IS NULL OR last_minhabosta <= ?)`,
+            [now, userId, now - cooldown]
+        );
+
+        if (!beneficio || beneficio.changes !== 1) {
+            return `${userTag}🛑 Calma lá, parasita! O benefício já foi sacado. O governo libera de novo a cada 48 horas.`;
+        }
 
         return `${userTag}📝 **MINHA BOSTA MINHA VIDA APROVADO**\n\nO Bostossauro depositou a esmola de 🪙 **100 Bostocoins** na sua conta.\nTente não perder tudo no caça-níqueis em 5 minutos!`;
     }
@@ -330,7 +438,9 @@ constructor(db) {
         let nivel = financas.carreira.nivel || 1;
         let subnivel = financas.carreira.subnivel || 1;
         
-        if (financas.carreira.id_job === undefined || financas.carreira.id_job === null) {
+        const sorteouCargo = financas.carreira.id_job === undefined || financas.carreira.id_job === null;
+
+        if (sorteouCargo) {
             const maxJobs = this.CARREIRAS_CATALOGO[nivel].length;
             financas.carreira.id_job = Math.floor(Math.random() * maxJobs);
         }
@@ -347,9 +457,30 @@ constructor(db) {
         
         const profitResult = await this.verifyProfit(userId, salarioFinal);
         
-        await this.updateBalance(userId, profitResult.finalProfit);
-        await this.db.run("UPDATE usuarios SET last_trabalho = ? WHERE id_usuario = ?", [now, userId]);
-        await this.db.run("UPDATE usuarios SET financas = ? WHERE id_usuario = ?", [JSON.stringify(financas), userId]);
+        // [FASE 3] Ponto + pagamento + carteira de trabalho na MESMA transação.
+        // O crédito só ocorre se o cooldown venceu de fato (claim atômico no WHERE)
+        // e o `financas` é atualizado por json_set, sem sobrescrever o blob inteiro
+        // (o que revertia a amortização da dívida feita pelo verifyProfit).
+        const trabalhou = await withTransaction(this.db, async () => {
+            const ponto = await this.db.run(
+                `UPDATE usuarios
+                 SET bostocoins = bostocoins + ?, last_trabalho = ?
+                 WHERE id_usuario = ? AND (last_trabalho IS NULL OR last_trabalho <= ?)`,
+                [profitResult.finalProfit, now, userId, now - cooldown]
+            );
+
+            if (!ponto || ponto.changes !== 1) return false;
+
+            if (sorteouCargo) {
+                await setJson(this.db, 'usuarios', 'financas', userId, '$.carreira.id_job', financas.carreira.id_job);
+            }
+
+            return true;
+        });
+
+        if (!trabalhou) {
+            return `${userTag}🛑 O ponto eletrônico bloqueou! Essa batida já foi registrada (ou o descanso ainda não acabou).`;
+        }
 
         let msg = `${userTag}💼 **EXPEDIENTE CONCLUÍDO**\n\nVocê bateu o ponto como **${cargoCompleto}** e recebeu seu salário de 🪙 **${salarioFinal} Bostocoins**!${profitResult.msg}\n\n_Lucro na carteira: 🪙 ${profitResult.finalProfit}_`;
 
@@ -375,9 +506,12 @@ constructor(db) {
                     const nivel = financas.carreira.nivel;
                     const maxJobs = this.CARREIRAS_CATALOGO[nivel].length;
                     
-                    financas.carreira.id_job = Math.floor(Math.random() * maxJobs);
-                    
-                    await this.db.run("UPDATE usuarios SET financas = ? WHERE id_usuario = ?", [JSON.stringify(financas), u.id_usuario]);
+                    const novoJob = Math.floor(Math.random() * maxJobs);
+
+                    // [FASE 3] json_set grava apenas a chave do emprego: o blob `financas`
+                    // inteiro (dívida, investimento, título) nunca é sobrescrito por um
+                    // snapshot velho lido no JS.
+                    await setJson(this.db, 'usuarios', 'financas', u.id_usuario, '$.carreira.id_job', novoJob);
                     count++;
                 }
             } catch (e) {
@@ -498,7 +632,14 @@ constructor(db) {
                 financas.investimento.montante += Math.floor(yieldAmount);
             }
             financas.investimento.ultimo_rendimento += (daysPassed * 86400);
-            await this.db.run("UPDATE usuarios SET financas = ? WHERE id_usuario = ?", [JSON.stringify(financas), userId]);
+
+            // [FASE 3] Rendimento gravado por json_set (atômico) em vez de reescrever o
+            // blob inteiro com um snapshot velho, que apagava dívidas/empréstimos e
+            // títulos negociados em paralelo.
+            await withTransaction(this.db, async () => {
+                await setJson(this.db, 'usuarios', 'financas', userId, '$.investimento.montante', financas.investimento.montante);
+                await setJson(this.db, 'usuarios', 'financas', userId, '$.investimento.ultimo_rendimento', financas.investimento.ultimo_rendimento);
+            });
         }
 
         return financas;
@@ -528,9 +669,26 @@ constructor(db) {
 
         const profitResult = await this.verifyProfit(userId, pagamento);
         
-        financas.last_bico = now;
-        await this.db.run("UPDATE usuarios SET financas = ? WHERE id_usuario = ?", [JSON.stringify(financas), userId]);
-        await this.updateBalance(userId, profitResult.finalProfit);
+        // [FASE 3] O cooldown do bico é validado no próprio SQL (json_extract) e o
+        // pagamento entra na MESMA transação: dois cliques não pagam o bico duas vezes.
+        const bicoFeito = await withTransaction(this.db, async () => {
+            const claim = await this.db.run(
+                `UPDATE usuarios
+                 SET financas = json_set(COALESCE(NULLIF(financas, ''), '{}'), '$.last_bico', ?)
+                 WHERE id_usuario = ?
+                   AND COALESCE(json_extract(NULLIF(financas, ''), '$.last_bico'), 0) <= ?`,
+                [now, userId, now - cooldown]
+            );
+
+            if (!claim || claim.changes !== 1) return false;
+
+            await creditarSaldo(this.db, userId, profitResult.finalProfit);
+            return true;
+        });
+
+        if (!bicoFeito) {
+            return `${userTag}🛑 Calma aí, guerreirinho! Esse bico já foi contabilizado. Espera o corpo descansar.`;
+        }
 
         return `${userTag}🛠️ **BICO REALIZADO**\n\nVocê ${bicoSorteado} e levantou 🪙 **${pagamento} Bostocoins** pelo serviço!${profitResult.msg}\n\n_Lucro na carteira: 🪙 ${profitResult.finalProfit}_\n\n💡 _Dica: O bico cansa. Você acabou de gastar a energia que poderia ser usada no *!escavar*!_`;
     }
@@ -550,13 +708,18 @@ constructor(db) {
                 cut = financas.emprestimo.devedor;
             }
 
-            financas.emprestimo.devedor -= cut;
-            await this.db.run("UPDATE usuarios SET financas = ? WHERE id_usuario = ?", [JSON.stringify(financas), userId]);
+            // [FASE 3] Amortização atômica via json_set condicional: se a dívida já
+            // tiver sido quitada em paralelo, o corte NÃO é aplicado (o jogador fica
+            // com o lucro cheio em vez de pagar uma dívida que não existe mais).
+            const amortizou = await debitarJson(this.db, 'usuarios', 'financas', userId, '$.emprestimo.devedor', cut, 0);
+            if (!amortizou) return { finalProfit: rawProfit, msg: "" };
 
-            if (financas.emprestimo.devedor <= 0) {
+            const devedorRestante = Math.max(0, financas.emprestimo.devedor - cut);
+
+            if (devedorRestante <= 0) {
                 notificacao = `\n🏦 *O Bostossauro pegou 🪙 ${cut} do seu lucro e QUITOU sua dívida! Você está livre do SPC!*`;
             } else {
-                notificacao = `\n🏦 *O Bostossauro confiscou 🪙 ${cut} (30%) para abater sua dívida. Restam: 🪙 ${financas.emprestimo.devedor}*`;
+                notificacao = `\n🏦 *O Bostossauro confiscou 🪙 ${cut} (30%) para abater sua dívida. Restam: 🪙 ${devedorRestante}*`;
             }
         }
 
@@ -591,17 +754,38 @@ constructor(db) {
 
         if (action === 'depositar') {
             if (balance < amount) return `${userTag}❌ Você não tem tudo isso! Saldo: 🪙 ${balance}`;
-            await this.updateBalance(userId, -amount);
+            // [FASE 3] Débito da carteira + crédito do investimento na mesma transação.
+            // Sem saldo, nem a carteira nem a Bolsa mudam.
+            const aplicou = await withTransaction(this.db, async () => {
+                const debitado = await debitarSaldo(this.db, userId, amount);
+                if (!debitado) return false;
+
+                await incrementarJson(this.db, 'usuarios', 'financas', userId, '$.investimento.montante', amount);
+                return true;
+            });
+
+            if (!aplicou) return `${userTag}❌ Você não tem tudo isso! Saldo: 🪙 ${balance}`;
+
             financas.investimento.montante += amount;
-            await this.db.run("UPDATE usuarios SET financas = ? WHERE id_usuario = ?", [JSON.stringify(financas), userId]);
             return `${userTag}📈 **COMPRA EXECUTADA!**\nVocê aplicou 🪙 ${amount} em ${ativoSorteado}.\nSeu montante agora é 🪙 ${financas.investimento.montante} e já está rendendo 10% ao dia!`;
         }
 
         if (action === 'sacar') {
             if (financas.investimento.montante < amount) return `${userTag}❌ Você só tem 🪙 ${financas.investimento.montante} investidos! O mercado não imprime dinheiro (ainda).`;
+            // [FASE 3] Saque atômico: o montante só cai se existir saldo investido
+            // (json_set condicional). Sem isso, dois saques simultâneos levavam o
+            // dobro do dinheiro para a carteira.
+            const sacou = await withTransaction(this.db, async () => {
+                const debitado = await debitarJson(this.db, 'usuarios', 'financas', userId, '$.investimento.montante', amount, 0);
+                if (!debitado) return false;
+
+                await creditarSaldo(this.db, userId, amount);
+                return true;
+            });
+
+            if (!sacou) return `${userTag}❌ Você só tem 🪙 ${financas.investimento.montante} investidos! O mercado não imprime dinheiro (ainda).`;
+
             financas.investimento.montante -= amount;
-            await this.updateBalance(userId, amount);
-            await this.db.run("UPDATE usuarios SET financas = ? WHERE id_usuario = ?", [JSON.stringify(financas), userId]);
             return `${userTag}💵 **LUCRO REALIZADO!**\nVocê vendeu ${ativoSorteado} e sacou 🪙 ${amount}. O dinheiro já está na sua carteira.`;
         }
 
@@ -626,10 +810,29 @@ constructor(db) {
         if (amount > 10000) return `${userTag}🛑 O Banco Central barrou. Empréstimo máximo é de 🪙 10000 por vez.`;
 
         const debt = Math.floor(amount * 1.20);
-        financas.emprestimo.devedor = debt;
 
-        await this.updateBalance(userId, amount);
-        await this.db.run("UPDATE usuarios SET financas = ? WHERE id_usuario = ?", [JSON.stringify(financas), userId]);
+        // [FASE 3] Contrato atômico: o débito do contratante é registrado junto com a
+        // entrega do dinheiro e só passa se o usuário NÃO tiver dívida ativa
+        // (WHERE devedor <= 0). Dois empréstimos simultâneos não dobram a dívida
+        // em cima de um único depósito.
+        const emprestou = await withTransaction(this.db, async () => {
+            const contrato = await this.db.run(
+                `UPDATE usuarios
+                 SET financas = json_set(COALESCE(NULLIF(financas, ''), '{}'), '$.emprestimo.devedor', ?)
+                 WHERE id_usuario = ?
+                   AND COALESCE(json_extract(NULLIF(financas, ''), '$.emprestimo.devedor'), 0) <= 0`,
+                [debt, userId]
+            );
+
+            if (!contrato || contrato.changes !== 1) return false;
+
+            await creditarSaldo(this.db, userId, amount);
+            return true;
+        });
+
+        if (!emprestou) return `${userTag}🛑 Calma lá, caloteiro! Você já tem uma dívida ativa. Quite ela antes de pedir mais.`;
+
+        financas.emprestimo.devedor = debt;
 
         return `${userTag}🤝 **PACTO SELADO!**\nO Bostossauro depositou 🪙 ${amount} na sua carteira.\n📝 **Sua dívida agora é de 🪙 ${debt}** (Taxa de 20%).\n_Lembre-se: 30% de todo seu suor agora é meu!_`;
     }
@@ -679,17 +882,25 @@ constructor(db) {
             
             if (balance < tituloObj.price) return `${userTag}💸 Vai parcelar o ego no carnê? Você precisa de 🪙 ${tituloObj.price} Bostocoins.`;
 
-            await this.updateBalance(userId, -tituloObj.price);
-            
+            // [FASE 3] Compra atômica: o título só é gravado se o pagamento sair
+            // (débito condicional + json_set na mesma transação).
+            const comprouTitulo = await withTransaction(this.db, async () => {
+                const debitado = await debitarSaldo(this.db, userId, tituloObj.price);
+                if (!debitado) return false;
+
+                await setJson(this.db, 'usuarios', 'financas', userId, '$.titulo', tituloObj.name);
+                return true;
+            });
+
+            if (!comprouTitulo) return `${userTag}💸 Vai parcelar o ego no carnê? Você precisa de 🪙 ${tituloObj.price} Bostocoins.`;
+
             financas.titulo = tituloObj.name;
-            await this.db.run("UPDATE usuarios SET financas = ? WHERE id_usuario = ?", [JSON.stringify(financas), userId]);
 
             return `${userTag}🥂 **PARABÉNS, VOCÊ É UM(A) NOBRE AGORA!**\nSua nova alcunha é: **${tituloObj.name}**\nO Bostossauro agradece a sua doação voluntária para a redução da inflação.`;
         }
         
         if (action === 'remover') {
-            financas.titulo = null;
-            await this.db.run("UPDATE usuarios SET financas = ? WHERE id_usuario = ?", [JSON.stringify(financas), userId]);
+            await setJson(this.db, 'usuarios', 'financas', userId, '$.titulo', null);
             return `${userTag}🧹 Título removido. Você voltou a ser um camponês comum.`;
         }
     }
@@ -739,8 +950,17 @@ constructor(db) {
 
                     if (finalId.includes("5513991526878")) continue;
 
-                    await this.db.run(`INSERT OR IGNORE INTO usuarios (id_usuario, nome, banido_ate, uso_ia_diario, data_ultimo_uso, anotacoes) VALUES (?, 'Anônimo', 0, 0, '', '')`, [finalId]);
-                    await this.db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [amount, finalId]);
+                    // [FASE 3] Injeção/confisco atômico por membro: nada de carteira
+                    // negativa no Plano Collor (MAX(0, ...)) e nada de linha órfã.
+                    await withTransaction(this.db, async () => {
+                        await garantirUsuario(this.db, finalId);
+
+                        if (amount < 0) {
+                            await confiscarSaldo(this.db, finalId, Math.abs(amount));
+                        } else {
+                            await creditarSaldo(this.db, finalId, amount);
+                        }
+                    });
                     count++;
                 }
 
@@ -761,8 +981,16 @@ constructor(db) {
             }
         } 
         else {
-            await this.db.run(`INSERT OR IGNORE INTO usuarios (id_usuario, nome, banido_ate, uso_ia_diario, data_ultimo_uso, anotacoes) VALUES (?, 'Anônimo', 0, 0, '', '')`, [targetId]);
-            await this.db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [amount, targetId]);
+            // [FASE 3] Mesma blindagem no alvo único (confisco nunca fica negativo).
+            await withTransaction(this.db, async () => {
+                await garantirUsuario(this.db, targetId);
+
+                if (amount < 0) {
+                    await confiscarSaldo(this.db, targetId, Math.abs(amount));
+                } else {
+                    await creditarSaldo(this.db, targetId, amount);
+                }
+            });
             
             const cleanNum = targetId.split('@')[0];
             let msg = ``;
@@ -848,50 +1076,46 @@ constructor(db) {
 
     // ACELERA O COOLDOWN DO BICO/ESCAVAÇÃO EM 2 HORAS
     async acelerarBicoGlobal(userTag) {
-        const SECONDS_TO_SUBTRACT = 2 * 3600; 
-        const users = await this.db.all("SELECT id_usuario, financas FROM usuarios WHERE financas IS NOT NULL AND financas != '{}'");
-        let count = 0;
+        const SECONDS_TO_SUBTRACT = 2 * 3600;
 
-        for (const u of users) {
-            try {
-                let financas = JSON.parse(u.financas);
-                
-                if (financas.last_bico && financas.last_bico > 0) {
-                    financas.last_bico -= SECONDS_TO_SUBTRACT;
-                    await this.db.run("UPDATE usuarios SET financas = ? WHERE id_usuario = ?", [JSON.stringify(financas), u.id_usuario]);
-                    count++;
-                }
-            } catch (e) {
-                console.error("Erro ao acelerar bico para usuário:", u.id_usuario, e);
-            }
-        }
-        
-        return `⏳ **DECRETO DE URGÊNCIA!**\nO Banco Central adiantou o relógio em 2 horas para **${count} trabalhadores/mineradores**!\nA energia voltou! Vão fazer um *!bico* ou *!escavar* no parque!`;
+        // [FASE 3] Update set-based atômico: antes o bot lia o blob inteiro no JS e
+        // regravava (perdendo dívidas/títulos alterados no meio do caminho).
+        const result = await this.db.run(`
+            UPDATE usuarios
+            SET financas = json_set(
+                COALESCE(NULLIF(financas, ''), '{}'),
+                '$.last_bico',
+                CAST(COALESCE(json_extract(NULLIF(financas, ''), '$.last_bico'), 0) AS REAL) - ?
+            )
+            WHERE financas IS NOT NULL AND financas != '{}'
+              AND CAST(COALESCE(json_extract(NULLIF(financas, ''), '$.last_bico'), 0) AS REAL) > 0
+        `, [SECONDS_TO_SUBTRACT]);
+
+        const count = result ? result.changes : 0;
+
+        return `⏳ **DECRETO DE URGÊNCIA!**\nO Banco Central adiantou o relógio em 2 horas para **${count} trabalhadores/mineradores**!\nA energia voltou! Vão fazer um *!bico* ou *!escavação* no parque!`;
     }
 
     // ACELERA O RENDIMENTO DOS INVESTIMENTOS EM 24 HORAS
     async acelerarInvestimentoGlobal(userTag) {
         const SECONDS_TO_SUBTRACT = 86400;
-        const users = await this.db.all("SELECT id_usuario, financas FROM usuarios WHERE financas IS NOT NULL AND financas != '{}'");
-        let count = 0;
+        const agora = Math.floor(Date.now() / 1000);
 
-        for (const u of users) {
-            try {
-                let financas = JSON.parse(u.financas);
-                
-                if (financas.investimento && financas.investimento.montante > 0) {
-                    if (!financas.investimento.ultimo_rendimento) {
-                        financas.investimento.ultimo_rendimento = Math.floor(Date.now() / 1000);
-                    }
-                    financas.investimento.ultimo_rendimento -= SECONDS_TO_SUBTRACT;
-                    await this.db.run("UPDATE usuarios SET financas = ? WHERE id_usuario = ?", [JSON.stringify(financas), u.id_usuario]);
-                    count++;
-                }
-            } catch (e) {
-                console.error("Erro ao acelerar investimentos:", u.id_usuario, e);
-            }
-        }
-        
+        // [FASE 3] json_set atômico: um único UPDATE adianta o relógio de todos os
+        // investidores sem reescrever (e sem corromper) o blob `financas` inteiro.
+        const result = await this.db.run(`
+            UPDATE usuarios
+            SET financas = json_set(
+                COALESCE(NULLIF(financas, ''), '{}'),
+                '$.investimento.ultimo_rendimento',
+                COALESCE(json_extract(NULLIF(financas, ''), '$.investimento.ultimo_rendimento'), ?) - ?
+            )
+            WHERE financas IS NOT NULL AND financas != '{}'
+              AND CAST(COALESCE(json_extract(NULLIF(financas, ''), '$.investimento.montante'), 0) AS REAL) > 0
+        `, [agora, SECONDS_TO_SUBTRACT]);
+
+        const count = result ? result.changes : 0;
+
         return `📈 **MÁQUINA DO TEMPO DE WALL STREET!**\nA CVM dormiu e o relógio adiantou em 24 horas.\n**${count} investidores** acabaram de receber seus juros diários! Use *!investir* para conferir a mágica dos juros compostos.`;
     }
 }

@@ -1,3 +1,5 @@
+const { withTransaction, setJson, creditarSaldo, debitarSaldo } = require('./dbHelper');
+
 const MINERAL_CATALOG = [
     // Lixo
     { id: 'pedregulho', name: 'Pedregulho Inútil', emoji: '🪨', rarity: 'lixo', value: 2 },
@@ -679,9 +681,15 @@ class ParqueHandler {
         let pagamentoMsg = "";
         if (acionistasIds.length > 0 && lucroFinalGrupo > 0) {
             const cota = Math.floor(lucroFinalGrupo / acionistasIds.length);
-            for (const acionistaId of acionistasIds) {
-                await this.db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [cota, acionistaId]);
-            }
+
+            // [FASE 3] Bilheteria paga numa transação única: ou todos os acionistas
+            // recebem sua cota, ou nenhum recebe (antes um erro no meio deixava
+            // metade do grupo paga e o relatório dizendo que todos receberam).
+            await withTransaction(this.db, async () => {
+                for (const acionistaId of acionistasIds) {
+                    await creditarSaldo(this.db, acionistaId, cota);
+                }
+            });
             
             pagamentoMsg = `💰 A bilheteria arrecadou 🪙 **${valorBrutoTotal} Bostocoins** brutos!\n`;
             pagamentoMsg += `🏢 A InGen confiscou 50% (🪙 **${metadeInGen}**).\n`;
@@ -845,11 +853,13 @@ class ParqueHandler {
 
             let houveMudanca = false;
             let diferencaDeNivelTotal = 0;
+            const categoriasRecalculadas = [];
 
             const checarLevelUp = (categoria, valorAntigo, valorNovo) => {
                 if (valorNovo <= valorAntigo) return 0;
                 conquistas[categoria] = valorNovo;
                 houveMudanca = true;
+                categoriasRecalculadas.push(categoria);
 
                 const metas = this.MARCOS_SEASON[categoria].metas;
                 let niveisAntigos = metas.filter(m => valorAntigo >= m).length;
@@ -863,10 +873,23 @@ class ParqueHandler {
 
             if (houveMudanca) {
                 const novoNivelReceita = Math.min(24, (legado.nivel_receita || 1) + diferencaDeNivelTotal);
-                await this.db.run(
-                    "UPDATE legado_grupos SET conquistas_json = ?, nivel_receita = ? WHERE group_id = ?", 
-                    [JSON.stringify(conquistas), novoNivelReceita, groupId]
-                );
+
+                // [FASE 3] Só as chaves recalculadas são gravadas (json_set por
+                // categoria) e o nível da receita sobe por aritmética no SQL. O blob
+                // `conquistas_json` nunca é substituído por um snapshot velho, então
+                // um marco registrado em paralelo (registrarProgressoComunitario)
+                // deixa de ser apagado por esta sincronização.
+                await withTransaction(this.db, async () => {
+                    for (const categoria of categoriasRecalculadas) {
+                        await setJson(this.db, 'legado_grupos', 'conquistas_json', groupId, `$.${categoria}`, conquistas[categoria]);
+                    }
+
+                    await this.db.run(
+                        "UPDATE legado_grupos SET nivel_receita = MIN(24, COALESCE(nivel_receita, 1) + ?) WHERE group_id = ?",
+                        [diferencaDeNivelTotal, groupId]
+                    );
+                });
+
                 console.log(`[MISSÕES] Sincronização Concluída! Nível da Receita do grupo ${groupId} subiu para ${novoNivelReceita}`);
             }
 
@@ -880,6 +903,9 @@ class ParqueHandler {
 
         if (categoria === 'dino_lvl') return; 
 
+        const marco = this.MARCOS_SEASON[categoria];
+        if (!marco || !Array.isArray(marco.metas)) return;
+
         try {
             let targetGroup = groupId;
             try {
@@ -888,36 +914,51 @@ class ParqueHandler {
             } catch (e) {
             }
 
-            const legado = await this.db.get("SELECT * FROM legado_grupos WHERE group_id = ?", [targetGroup]);
-            if (!legado) return;
+            const pathConquista = `$.${categoria}`;
+            const metasJson = JSON.stringify(marco.metas);
 
-            let conquistas = JSON.parse(legado.conquistas_json || '{}');
-            const valorAntigo = conquistas[categoria] || 0;
-            const valorNovo = valorAntigo + valorAdicional;
-            conquistas[categoria] = valorNovo;
+            // [FASE 3] Progresso comunitário 100% atômico: o json_set soma o valor no
+            // blob `conquistas_json` e o nível da receita é recalculado pelo próprio
+            // SQLite (json_each comparando o valor antigo x novo). Antes o handler fazia
+            // JSON.parse -> somar -> JSON.stringify e dois registros simultâneos
+            // (ex: pesca + venda no mesmo segundo) sobrescreviam um ao outro.
+            const estado = await withTransaction(this.db, async () => {
+                const resultado = await this.db.run(`
+                    WITH alvo AS (
+                        SELECT CAST(COALESCE(json_extract(NULLIF(conquistas_json, ''), ?), 0) AS REAL) AS antigo,
+                               CAST(COALESCE(json_extract(NULLIF(conquistas_json, ''), ?), 0) AS REAL) + ? AS novo
+                        FROM legado_grupos WHERE group_id = ?
+                    )
+                    UPDATE legado_grupos
+                    SET conquistas_json = json_set(COALESCE(NULLIF(conquistas_json, ''), '{}'), ?, (SELECT novo FROM alvo)),
+                        nivel_receita = MIN(24, COALESCE(nivel_receita, 1) + (
+                            (SELECT COUNT(*) FROM json_each(?) WHERE CAST(value AS REAL) <= (SELECT novo FROM alvo))
+                          - (SELECT COUNT(*) FROM json_each(?) WHERE CAST(value AS REAL) <= (SELECT antigo FROM alvo))
+                        ))
+                    WHERE group_id = ?
+                `, [pathConquista, pathConquista, valorAdicional, targetGroup, pathConquista, metasJson, metasJson, targetGroup]);
 
-            const metasDaCategoria = this.MARCOS_SEASON[categoria].metas;
-            let niveisAntigosAtingidos = metasDaCategoria.filter(m => valorAntigo >= m).length;
-            let niveisNovosAtingidos = metasDaCategoria.filter(m => valorNovo >= m).length;
+                if (!resultado || resultado.changes !== 1) return null;
 
-            const diferencaDeNivel = niveisNovosAtingidos - niveisAntigosAtingidos;
-
-            if (diferencaDeNivel > 0) {
-                const novoNivelReceita = Math.min(24, (legado.nivel_receita || 1) + diferencaDeNivel);
-                
-                await this.db.run(
-                    "UPDATE legado_grupos SET conquistas_json = ?, nivel_receita = ? WHERE group_id = ?", 
-                    [JSON.stringify(conquistas), novoNivelReceita, targetGroup]
+                return this.db.get(
+                    `SELECT CAST(COALESCE(json_extract(NULLIF(conquistas_json, ''), ?), 0) AS REAL) AS valor,
+                            COALESCE(nivel_receita, 1) AS nivel
+                     FROM legado_grupos WHERE group_id = ?`,
+                    [pathConquista, targetGroup]
                 );
+            });
 
-                if (ctx && ctx.sendTo) {
-                    const nomeCat = this.MARCOS_SEASON[categoria].nome;
-                    const msgUP = `🎉 **MARCO COMUNITÁRIO ATINGIDO!** 🎉\n\nO esforço do grupo deu resultado! Vocês acabaram de subir de nível na categoria:\n🌟 **${nomeCat}** (Nível ${niveisNovosAtingidos}/4)\n\n📈 A receita global do parque subiu para **${novoNivelReceita}/24**!\nA InGen liberou mais verba para a próxima bilheteria. Usem \`!parque missoes\` para ver o painel atualizado.`;
-                    
-                    await ctx.sendTo(targetGroup, msgUP);
-                }
-            } else {
-                await this.db.run("UPDATE legado_grupos SET conquistas_json = ? WHERE group_id = ?", [JSON.stringify(conquistas), targetGroup]);
+            if (!estado) return;
+
+            const valorAntigo = estado.valor - valorAdicional;
+            const niveisAntigosAtingidos = marco.metas.filter(m => valorAntigo >= m).length;
+            const niveisNovosAtingidos = marco.metas.filter(m => estado.valor >= m).length;
+
+            if (niveisNovosAtingidos > niveisAntigosAtingidos && ctx && ctx.sendTo) {
+                const nomeCat = marco.nome;
+                const msgUP = `🎉 **MARCO COMUNITÁRIO ATINGIDO!** 🎉\n\nO esforço do grupo deu resultado! Vocês acabaram de subir de nível na categoria:\n🌟 **${nomeCat}** (Nível ${niveisNovosAtingidos}/4)\n\n📈 A receita global do parque subiu para **${estado.nivel}/24**!\nA InGen liberou mais verba para a próxima bilheteria. Usem \`!parque missoes\` para ver o painel atualizado.`;
+
+                await ctx.sendTo(targetGroup, msgUP);
             }
 
         } catch (e) {
@@ -1087,7 +1128,15 @@ class ParqueHandler {
                 return `${userTag} 💸 O hospital da InGen não atende indigentes! A cirurgia particular para te tirar da maca custa 🪙 **${custoCura.toLocaleString('pt-BR')}**, você só tem 🪙 ${saldo.toLocaleString('pt-BR')}.`;
             }
             
-            await this.db.run("UPDATE usuarios SET bostocoins = bostocoins - ? WHERE id_usuario = ?", [custoCura, userId]);
+            // [FASE 3] Débito condicional: a cirurgia só é liberada se o saldo cobrir
+            // o custo no momento da gravação (antes o bot lia o saldo no JS e depois
+            // descontava sem verificar, permitindo gasto duplo em cliques rápidos).
+            const pagouCura = await debitarSaldo(this.db, userId, custoCura);
+
+            if (!pagouCura) {
+                return `${userTag} 💸 O hospital da InGen não atende indigentes! A cirurgia custa 🪙 **${custoCura.toLocaleString('pt-BR')}** e seu saldo não cobre mais.`;
+            }
+
             player.ferramentas.last_dano = 0; 
             await this.savePlayerData(userId, player);
 
@@ -1148,7 +1197,9 @@ class ParqueHandler {
             if (!alvo) return `${userTag} ❌ Item inválido. Veja a *!escavar loja*.`;
             if (saldo < alvo.price) return `${userTag} 💸 Faltam moedas! Custa 🪙 ${alvo.price}.`;
 
-            await this.db.run("UPDATE usuarios SET bostocoins = bostocoins - ? WHERE id_usuario = ?", [alvo.price, userId]);
+            // [FASE 3] Compra atômica: só desconta (e entrega) se o saldo cobrir.
+            const comprouItemParque = await debitarSaldo(this.db, userId, alvo.price);
+            if (!comprouItemParque) return `${userTag} 💸 Faltam moedas! Custa 🪙 ${alvo.price}.`;
 
             if (tipo === 'consumivel') {
                 player.inventario_consumiveis[alvo.id] = (player.inventario_consumiveis[alvo.id] || 0) + 1;
@@ -1253,11 +1304,16 @@ class ParqueHandler {
             let autoConsertado = false;
             const custoAfiar = Math.floor((picaretaAtual.req_coins || 100) * 0.25);
             
-            if (player.ferramentas.debito_automatico !== 0 && saldo >= custoAfiar) {
-                await this.db.run("UPDATE usuarios SET bostocoins = bostocoins - ? WHERE id_usuario = ?", [custoAfiar, userId]);
-                player.ferramentas.picareta_hp = picaretaAtual.durabilidade;
-                await this.savePlayerData(userId, player);
-                autoConsertado = true;
+            if (player.ferramentas.debito_automatico !== 0) {
+                // [FASE 3] Débito automático condicional: se o saldo não cobrir, a
+                // picareta NÃO é consertada de graça (antes bastava clicar duas vezes).
+                const pagouAfiacao = await debitarSaldo(this.db, userId, custoAfiar);
+
+                if (pagouAfiacao) {
+                    player.ferramentas.picareta_hp = picaretaAtual.durabilidade;
+                    await this.savePlayerData(userId, player);
+                    autoConsertado = true;
+                }
             }
 
             if (!autoConsertado) {
@@ -1297,11 +1353,11 @@ class ParqueHandler {
             const consertoCusto = Math.floor((picaretaAtual.req_coins || 100) * 0.25);
             
             if (motivo === 'quebra' && player.ferramentas.debito_automatico !== 0) {
-                const dbUser = await this.db.get("SELECT bostocoins FROM usuarios WHERE id_usuario = ?", [userId]);
-                const saldoAtualizado = dbUser ? dbUser.bostocoins : 0;
+                // [FASE 3] Débito automático condicional: o saldo é validado pelo
+                // SQLite (WHERE bostocoins >= ?) na própria gravação, não no JS.
+                const pagouConsertoAuto = await debitarSaldo(this.db, userId, consertoCusto);
                 
-                if (saldoAtualizado >= consertoCusto) {
-                    await this.db.run("UPDATE usuarios SET bostocoins = bostocoins - ? WHERE id_usuario = ?", [consertoCusto, userId]);
+                if (pagouConsertoAuto) {
                     player.ferramentas.picareta_hp = picaretaAtual.durabilidade;
                     autoConsertado = true;
                 }
@@ -1650,7 +1706,10 @@ class ParqueHandler {
             
             if (saldo < consertoCusto) return `${userTag} 💸 Faltam moedas! Consertar custa 🪙 ${consertoCusto}, você só tem ${saldo}.`;
             
-            await this.db.run("UPDATE usuarios SET bostocoins = bostocoins - ? WHERE id_usuario = ?", [consertoCusto, userId]);
+            // [FASE 3] Afiação atômica: o débito condicional define se o conserto sai.
+            const pagouAfiacaoManual = await debitarSaldo(this.db, userId, consertoCusto);
+            if (!pagouAfiacaoManual) return `${userTag} 💸 Faltam moedas! Consertar custa 🪙 ${consertoCusto}, você só tem ${saldo}.`;
+
             player.ferramentas.picareta_hp = picaretaAtual.durabilidade;
             await this.savePlayerData(userId, player);
             return `${userTag} 🔧 **AFIAÇÃO CONCLUÍDA!**\nSua ${picaretaAtual.name} recuperou a durabilidade máxima por 🪙 ${consertoCusto}.`;
@@ -1677,7 +1736,10 @@ class ParqueHandler {
                 return `${userTag} 🪨 Faltam materiais! Você precisa de ${nextPic.req_qtd}x ${itemDef.emoji} ${itemDef.name}, mas só tem ${itemReqQtd} no parque mochila.`;
             }
 
-            await this.db.run("UPDATE usuarios SET bostocoins = bostocoins - ? WHERE id_usuario = ?", [nextPic.req_coins, userId]);
+            // [FASE 3] Upgrade da picareta: débito condicional antes de entregar a peça.
+            const pagouUpgradePicareta = await debitarSaldo(this.db, userId, nextPic.req_coins);
+            if (!pagouUpgradePicareta) return `${userTag} 💸 Faltam Bostocoins! Custa 🪙 ${nextPic.req_coins}, você só tem ${saldo}.`;
+
             player.inventory[nextPic.req_item] -= nextPic.req_qtd;
             player.ferramentas.picareta = nextPic.id;
             player.ferramentas.picareta_hp = nextPic.durabilidade;
@@ -1842,9 +1904,14 @@ class ParqueHandler {
                 );
 
                 const recompensaIndividual = Math.floor(hibridoInfo.ticket_value / idsFormatados.length);
-                for (const uid of idsFormatados) {
-                    await this.db.run("UPDATE usuarios SET bostocoins = bostocoins + ? WHERE id_usuario = ?", [recompensaIndividual, uid]);
-                }
+
+                // [FASE 3] Royalties do híbrido pagos numa transação única: o crédito
+                // múltiplo é tudo-ou-nada, evitando economia inflada por execução parcial.
+                await withTransaction(this.db, async () => {
+                    for (const uid of idsFormatados) {
+                        await creditarSaldo(this.db, uid, recompensaIndividual);
+                    }
+                });
 
                 msgHibrido += `\n\n🚨 **ALERTA DE SEGURANÇA MÁXIMA DA INGEN!** 🚨\n`;
                 msgHibrido += `O cruzamento de DNA no parque de vocês gerou uma mutação agressiva no laboratório!\n\n`;

@@ -15,6 +15,7 @@ const CasinoHandler = require('./casinoHandler');
 const PescariaHandler = require('./pescariaHandler');
 const {ParqueHandler} = require('./parqueHandler');
 const { FazendaHandler } = require('./fazendaHandler');
+const { withTransaction, debitarSaldo } = require('./dbHelper');
 const StreamHandler = require('./streamHandler');
 const RIOT_API_KEY = process.env.RIOT_API_KEY;
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
@@ -2149,8 +2150,31 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
             if (usoAtual <= 0) return `${tag}🧠 Seu cérebro já está 100% livre! Você não tem cota de IA para reduzir hoje. Vá gastar com isca!`;
 
             const reduceAmount = Math.min(usoAtual, item.effect);
-            
-            await this.db.run("UPDATE usuarios SET bostocoins = bostocoins - ?, uso_ia_diario = uso_ia_diario - ? WHERE id_usuario = ?", [item.price, reduceAmount, ctx.sender]);
+
+            // [FASE 3] Compra atômica: o dinheiro só sai se a cota de IA ainda existir.
+            // Antes o UPDATE era incondicional (dois cliques = preço dobrado e saldo
+            // podendo ficar negativo).
+            const comprou = await withTransaction(this.db, async () => {
+                const debitado = await debitarSaldo(this.db, ctx.sender, item.price);
+                if (!debitado) return false;
+
+                const cota = await this.db.run(
+                    "UPDATE usuarios SET uso_ia_diario = MAX(0, uso_ia_diario - ?) WHERE id_usuario = ? AND uso_ia_diario > 0",
+                    [reduceAmount, ctx.sender]
+                );
+
+                if (!cota || cota.changes !== 1) {
+                    throw new Error('COTA_IA_ZERADA');
+                }
+
+                return true;
+            }).catch((e) => {
+                if (e && e.message === 'COTA_IA_ZERADA') return false;
+                console.error("Erro na compra VIP:", e);
+                return false;
+            });
+
+            if (!comprou) return `${tag}💸 Compra não concluída: saldo insuficiente (🪙 ${saldo}) ou cota de IA já zerada.`;
             
             return `${tag}💎 **COMPRA VIP REALIZADA!**\nVocê comprou o *${item.name}*!\nSua cota de IA caiu de ${usoAtual} para **${usoAtual - reduceAmount}**.\nPode voltar a perturbar o GPT!`;
         }

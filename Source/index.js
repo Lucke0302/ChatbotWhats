@@ -38,6 +38,11 @@ const driveService = new DriveBackup();
 
 const { startDiscord } = require('./Discord/discordConnector');
 
+// 🛡️ [FASE 2 - SEGURANÇA] Estado vivo compartilhado com Twitch/Discord.
+// Os conectores leem o sock/chatbot ATUAIS via getter, nunca a instância
+// capturada na primeira conexão (evita sockets zumbis após restart do Baileys).
+const { setGlobalSock, setGlobalChatbot } = require('./globalState');
+
 const { exec } = require('child_process');
 const path = require('path');
 const util = require('util');
@@ -1074,6 +1079,7 @@ async function connectToWhatsApp() {
     });
 
     globalSock = sock;    
+    setGlobalSock(sock); // 🔄 Publica a instância ATIVA para os conectores externos
     sock.pollCache = pollCache;
 
     if (usePairingCode && !sock.authState.creds.registered) {
@@ -1104,14 +1110,17 @@ async function connectToWhatsApp() {
     //Instancia o chatbot
     const chatbot = new ChatModel(db, genAI)
     globalChatbot = chatbot; // Referência viva para rotas HTTP/WS e timers (evita instância zumbi)
+    setGlobalChatbot(chatbot); // 🔄 Publica a instância ATIVA para os conectores externos
     await chatbot.updateOnlineStatus();
 
     const blueskyBrain = new BlueskyBrain(db, chatbot);
     blueskyBrain.iniciarRotina();
     chatbot.blueskyBrain = blueskyBrain;
 
-    startTwitch(chatbot, sock);
-    startDiscord(chatbot, sock);
+    // 🔄 Conectores externos NÃO recebem mais instâncias por parâmetro:
+    // eles consomem o estado vivo (getGlobalSock/getGlobalChatbot).
+    startTwitch();
+    startDiscord();
 
     // 🛡️ [FASE 1 - ANTI-OOM] Servidor HTTP + Socket.io + rotas são Singletons:
     // sobem apenas UMA vez por processo, mesmo após N reconexões do Baileys.
@@ -1151,7 +1160,72 @@ async function connectToWhatsApp() {
     app.use(express.json());
     app.use(cookieParser());
 
-    const JWT_SECRET = process.env.JWT_SECRET || 'chave_super_secreta_jwt_bostossauro';
+    // 🛡️ [FASE 2 - SEGURANÇA] ZERO fallback hardcoded: o segredo hardcoded no
+    // código permitia FORJAR tokens (bypass total do login) por qualquer um que
+    // lesse o repositório. Sem JWT_SECRET no ambiente geramos um segredo
+    // criptograficamente aleatório por processo: sessões antigas morrem no
+    // restart, o que é o comportamento seguro.
+    const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(64).toString('hex');
+    if (!process.env.JWT_SECRET) {
+        console.warn('⚠️ [SEGURANÇA] JWT_SECRET ausente no .env — usando segredo efêmero (sessões invalidam a cada restart).');
+    }
+
+    // 🛡️ [FASE 2 - SEGURANÇA] Rate limit em memória (sem dependência nova, VM de 1GB).
+    // Janela deslizante por IP com poda automática para não vazar memória.
+    const rateBuckets = new Map();
+
+    const createRateLimiter = ({ windowMs, max, message }) => (req, res, next) => {
+        const now = Date.now();
+        const ip = String(req.headers['x-forwarded-for'] || req.ip || (req.socket && req.socket.remoteAddress) || 'unknown')
+            .split(',')[0].trim();
+
+        let hits = rateBuckets.get(ip);
+        if (!hits) {
+            hits = [];
+            rateBuckets.set(ip, hits);
+        }
+
+        while (hits.length && (now - hits[0]) > windowMs) hits.shift();
+
+        if (hits.length >= max) {
+            const retryAfter = Math.max(1, Math.ceil((windowMs - (now - hits[0])) / 1000));
+            res.set('Retry-After', String(retryAfter));
+            return res.status(429).json({ error: message });
+        }
+
+        hits.push(now);
+
+        // Poda global: mantém o Map pequeno mesmo sob ataque distribuído.
+        if (rateBuckets.size > 500) {
+            for (const [key, value] of rateBuckets) {
+                if (!value.length || (now - value[value.length - 1]) > windowMs) rateBuckets.delete(key);
+            }
+        }
+
+        next();
+    };
+
+    // Envio de código por WhatsApp é uma ação CARA e abusável (spam / força bruta de MFA).
+    const mfaRateLimiter = createRateLimiter({
+        windowMs: 10 * 60 * 1000,
+        max: 3,
+        message: "Muitas solicitações de código. Aguarde alguns minutos."
+    });
+    const dashboardRateLimiter = createRateLimiter({
+        windowMs: 60 * 1000,
+        max: 60,
+        message: "Taxa de consulta excedida. Reduza a frequência."
+    });
+    const loginRateLimiter = createRateLimiter({
+        windowMs: 10 * 60 * 1000,
+        max: 10,
+        message: "Muitas tentativas de autenticação. Aguarde alguns minutos."
+    });
+    const broadcastRateLimiter = createRateLimiter({
+        windowMs: 60 * 1000,
+        max: 5,
+        message: "Webhook em cooldown."
+    });
 
     app.use(express.json());
 
@@ -1166,14 +1240,23 @@ async function connectToWhatsApp() {
     webIO = io; // Referência global viva (re-vinculada a cada reconexão)
     chatbot.parqueHandler.io = io;
 
-    app.post('/api/send-code', async (req, res) => {
+    app.post('/api/send-code', mfaRateLimiter, async (req, res) => {
         try {
             const { phone } = req.body;
             if (!phone) return res.status(400).json({ RequestStatus: 400, Error: "Telefone ausente." });
 
+            // Normaliza para evitar injeção de caracteres/formatos no JID
             const pureNumbers = phone.toString().replace(/\D/g, '');
+            if (pureNumbers.length < 10 || pureNumbers.length > 15) {
+                return res.status(400).json({ RequestStatus: 400, Error: "Telefone inválido." });
+            }
             
             const jid = pureNumbers + '@s.whatsapp.net';
+
+            // 🛡️ [FASE 2 - SEGURANÇA] Nunca operar em cima de socket zumbi
+            if (!globalSock) {
+                return res.status(503).json({ RequestStatus: 503, Error: "Serviço de mensagens indisponível." });
+            }
 
             const code = mfaService.generateCode();
             const message = `TeamMatch: Seu código de segurança é ${code}`;
@@ -1188,9 +1271,12 @@ async function connectToWhatsApp() {
             
             console.log(`🔐 [MFA] Enviado para: ${pureNumbers}`);
 
+            // ⚠️ [FASE 2 - SEGURANÇA] O VerificationCode NÃO trafega mais no JSON:
+            // devolver o código na resposta transformava a rota em um oráculo de
+            // MFA (qualquer um gerava/roubava o código do alvo pela internet).
+            // O segredo agora só é legível por quem tem posse do WhatsApp alvo.
             return res.json({
                 RequestStatus: 200,
-                VerificationCode: code,
                 UserPhone: pureNumbers
             });
 
@@ -1200,11 +1286,16 @@ async function connectToWhatsApp() {
         }
     });
 
-    app.post('/api/xoxo', async (req, res) => {
+    app.post('/api/xoxo', broadcastRateLimiter, async (req, res) => {
         try {
             const cupulaGroupId = process.env.CUPULA_GROUP_ID || "120363422139578370@g.us"; 
 
-            // Usa o globalSock aqui!
+            // 🛡️ [FASE 2 - SEGURANÇA] Webhook aberto: precisa de rate limit e de
+            // socket VIVO, senão vira vetor de broadcast/spam via WhatsApp.
+            if (!globalSock) {
+                return res.status(503).json({ RequestStatus: 503, error: "Serviço de mensagens indisponível." });
+            }
+
             await globalSock.sendMessage(cupulaGroupId, { text: `Você não ouviu isso de mim… mas tem post novo no blog. 👀
 Corre antes que alguém apague as provas, mude a versão dos fatos ou finja que “não foi bem assim”.` });
             
@@ -1217,11 +1308,21 @@ Corre antes que alguém apague as provas, mude a versão dos fatos ou finja que 
         }
     });
 
-    app.get('/api/dashboard', async (req, res) => {
-        const data = await globalChatbot.getDashboardDataAPI();
-        res.json(data);
+    app.get('/api/dashboard', dashboardRateLimiter, async (req, res) => {
+        // 🛡️ [FASE 2 - SEGURANÇA] Rota pública de métricas: rate limit obrigatório
+        // para não virar amplificador de leitura no SQLite da VM de 1GB.
+        try {
+            if (!globalChatbot) {
+                return res.status(503).json({ status: "error", message: "Chatbot indisponível." });
+            }
+            const data = await globalChatbot.getDashboardDataAPI();
+            return res.json(data);
+        } catch (e) {
+            console.error("❌ Erro na rota /api/dashboard:", e);
+            return res.status(500).json({ status: "error", message: "Erro interno." });
+        }
     });
-    app.post('/api/auth/register', async (req, res) => {
+    app.post('/api/auth/register', loginRateLimiter, async (req, res) => {
         try {
             const { phone, password, token } = req.body;
             if (!phone || !password || !token) return res.status(400).json({ error: "Dados incompletos." });
@@ -1252,7 +1353,7 @@ Corre antes que alguém apague as provas, mude a versão dos fatos ou finja que 
         }
     });
 
-    app.post('/api/auth/login', async (req, res) => {
+    app.post('/api/auth/login', loginRateLimiter, async (req, res) => {
         try {
             const { phone, password } = req.body;
             const pureNumbers = phone.toString().replace(/\D/g, '');
@@ -1491,8 +1592,9 @@ Corre antes que alguém apague as provas, mude a versão dos fatos ou finja que 
         socket.on('auth_bostopark', (token) => {
             if (!token) return;
             
-            const JWT_SECRET = process.env.JWT_SECRET || 'chave_super_secreta_jwt_bostossauro';
-            
+            // 🛡️ [FASE 2 - SEGURANÇA] Usa o MESMO segredo do resto da API.
+            // Antes esta linha redefinia o segredo com o valor hardcoded,
+            // criando duas autoridades de assinatura diferentes (bypass).
             jwt.verify(token, JWT_SECRET, (err, user) => {
                 if (!err && user && user.id_whatsapp) {
                     const roomName = user.id_whatsapp.split('@')[0];
@@ -1573,7 +1675,10 @@ Corre antes que alguém apague as provas, mude a versão dos fatos ou finja que 
         } catch (err) {
             console.error('⚠️ Falha ao descartar o socket antigo:', err.message);
         }
-        if (globalSock === sock) globalSock = null;
+        if (globalSock === sock) {
+            globalSock = null;
+            setGlobalSock(null); // 🔄 Evita que Twitch/Discord escrevam no socket morto
+        }
 
         if (shouldReconnect) {
             console.log('🔄 Conexão caiu. Tentando reconectar em 5 segundos...');

@@ -1172,9 +1172,15 @@ class ChatModel {
     //Retorna a contagem total de mensagens de uma conversa
     async getMessageCount(from){
         const netId = await this.getNetGroupId(from);
-        const condition = netId !== from ? `id_conversa IN ('${from}', '${netId}')` : `id_conversa = '${from}'`;
+        // 🛡️ [FASE 2 - SEGURANÇA] JIDs NUNCA são concatenados na SQL: o escape
+        // é delegado ao SQLite via placeholder (?), matando SQL Injection por
+        // `from`/`netId` (JID manipulado, grupo linkado malicioso, etc).
+        const sameConversation = netId === from;
+        const condition = sameConversation ? `id_conversa = ?` : `id_conversa IN (?, ?)`;
+        const params = sameConversation ? [from] : [from, netId];
+
         const sqlQuery = `SELECT COUNT(*) AS total FROM mensagens WHERE ${condition}`;
-        const result = await this.db.get(sqlQuery); 
+        const result = await this.db.get(sqlQuery, params); 
         return result ? result.total : 0;
     }
 
@@ -1419,15 +1425,82 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
     };
 
     //Função para o comando !resumo, retorna a resposta de um select feito pelo Gemini
-    async getMessagesByAiResponse(response){
+    async getMessagesByAiResponse(response, params = []){
         const sqlQuery = response
+
+        // 🛡️ [FASE 2 - SEGURANÇA] Cinto + suspensório: além da allow-list do
+        // buildSafeLembrarQuery(), nada que não seja um SELECT simples e
+        // parâmetro-único chega ao driver aqui.
+        if (typeof sqlQuery !== 'string' || !/^select\s+nome_remetente\s*,\s*conteudo\s+from\s+mensagens\b/i.test(sqlQuery.trim())) {
+            throw new Error("UNSAFE_AI_SQL_BLOCKED");
+        }
+        if (!/limit\s+200\s*$/i.test(sqlQuery.trim())) {
+            throw new Error("UNSAFE_AI_SQL_BLOCKED");
+        }
         
-        const messagesDb = await this.db.all(sqlQuery);
+        const messagesDb = await this.db.all(sqlQuery, params);
         if (!messagesDb || messagesDb.length === 0) {
             throw new Error("NO_AI_SQL_RESULT");
         }
 
         return messagesDb.map(m => `${m.nome_remetente || 'Desconhecido'}: ${m.conteudo}`).join('\n');        
+    }
+
+    // 🛡️ [FASE 2 - SEGURANÇA] Guarda-corpo do SQL gerado pela IA (!lembrar).
+    // A IA NUNCA executa SQL livre. Regras:
+    //  (a) prefixo obrigatório: SELECT nome_remetente, conteudo FROM mensagens
+    //  (b) allow-list negativa: sem UNION/DROP/DELETE/UPDATE/INSERT/PRAGMA/;/--
+    //  (c) apenas um filtro temporal inteiro é aproveitado (timestamp BETWEEN)
+    //  (d) o filtro de conversa e o LIMIT são reescritos POR NÓS, com params (?)
+    static buildSafeLembrarQuery(rawSql, from, netId) {
+        const MAX_RAW_SQL_LENGTH = 1000;
+        const FORCED_LIMIT = 200;
+
+        const sql = String(rawSql || '')
+            .replace(/```sql/gi, '')
+            .replace(/```/g, '')
+            // Um ';' TERMINAL é ruído comum do modelo (o exemplo do prompt não
+            // pede, mas ele costuma adicionar). Removemos apenas no fim: qualquer
+            // ';' interno continua bloqueado como tentativa de multi-statement.
+            .replace(/;+\s*$/, '')
+            .trim();
+
+        if (!sql || sql.length > MAX_RAW_SQL_LENGTH) {
+            console.log("⚠️ [SQL GUARD] Query vazia ou maior que o limite permitido.");
+            throw new Error("INVALID_SELECT");
+        }
+
+        // (a) Somente leitura das colunas/tabela autorizadas.
+        if (!/^select\s+nome_remetente\s*,\s*conteudo\s+from\s+mensagens\b/i.test(sql)) {
+            console.log("⚠️ [SQL GUARD] Prefixo não autorizado:", sql.slice(0, 120));
+            throw new Error("INVALID_SELECT");
+        }
+
+        // (b) Nada de escrita, DDL, encadeamento de statements ou comentários.
+        const PERIGOSOS = /\b(union|drop|delete|update|insert|pragma|attach|detach|alter|create|replace|exec|execute|vacuum|grant|revoke|load_extension|sqlite_master)\b|;|--|\/\*|\*\//i;
+        if (PERIGOSOS.test(sql)) {
+            console.log("⚠️ [SQL GUARD] Payload destrutivo bloqueado:", sql.slice(0, 120));
+            throw new Error("DANGEROUS_SQL");
+        }
+
+        // (c) Único filtro aproveitado da IA: intervalo inteiro de timestamp.
+        const range = sql.match(/timestamp\s+between\s+(\d{1,11})\s+and\s+(\d{1,11})/i);
+
+        // (d) Reconstrução da query com placeholder (escape delegado ao SQLite).
+        const sameConversation = netId === from;
+        let query = sameConversation
+            ? "SELECT nome_remetente, conteudo FROM mensagens WHERE id_conversa = ?"
+            : "SELECT nome_remetente, conteudo FROM mensagens WHERE id_conversa IN (?, ?)";
+        const params = sameConversation ? [from] : [from, netId];
+
+        if (range) {
+            query += " AND timestamp BETWEEN ? AND ?";
+            params.push(parseInt(range[1], 10), parseInt(range[2], 10));
+        }
+
+        query += ` AND conteudo NOT LIKE '*Resumo da conversa*%' ORDER BY timestamp DESC LIMIT ${FORCED_LIMIT}`;
+
+        return { query, params };
     }
 
     // TRADUTOR DE REDE PAI-FILHO
@@ -1674,9 +1747,76 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
         return prompt;
     }
 
+    // 🛡️ [FASE 2 - PROMPT INJECTION] Saneia o bloco ||MEMORIA||.
+    // A memória é saída de LLM (dado NÃO confiável): limitamos o tamanho,
+    // removemos caracteres de controle e os próprios separadores, para que o
+    // texto não vire payload persistido no SQLite nem instruções maliciosas
+    // reaproveitadas no próximo prompt.
+    static sanitizeMemoryText(raw) {
+        const MAX_MEMORIA_CHARS = 1500;
+        const texto = String(raw === null || raw === undefined ? "" : raw)
+            .replace(/\|\|(MEMORIA|ANOTACOES)\|\|/gi, " ")
+            .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, " ")
+            .replace(/[ \t]{3,}/g, "  ")
+            .trim();
+
+        if (!texto) return "";
+        return texto.length > MAX_MEMORIA_CHARS ? texto.slice(0, MAX_MEMORIA_CHARS) : texto;
+    }
+
+    // 🛡️ [FASE 2 - PROMPT INJECTION] Saneia o bloco ||ANOTACOES|| antes de
+    // qualquer efeito colateral (UPDATE de afinidade no SQLite e fila do BlueSky).
+    // Tipos são validados (números finitos) e as FAIXAS são forçadas:
+    // nota 0..10 e mudanca_afinidade -5..5, conforme a régua definida no prompt.
+    static sanitizeAnotacoes(rawJson) {
+        const LIMITES = {
+            notaMin: 0, notaMax: 10,
+            afinidadeMin: -5, afinidadeMax: 5,
+            textoMax: 400,
+            temasMax: 5, temaMax: 80
+        };
+
+        let parsed;
+        try {
+            parsed = typeof rawJson === 'string' ? JSON.parse(rawJson) : rawJson;
+        } catch (e) {
+            return null; // JSON inválido => nenhum efeito colateral é executado
+        }
+
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+
+        // Só aceita número finito; arredonda e prende na faixa permitida.
+        const limitarInteiro = (valor, min, max) => {
+            const n = Number(valor);
+            if (!Number.isFinite(n)) return null;
+            return Math.min(max, Math.max(min, Math.round(n)));
+        };
+
+        const limparTexto = (valor, max) => {
+            if (typeof valor !== 'string') return "";
+            const texto = valor
+                .replace(/[\u0000-\u001F\u007F]/g, " ")
+                .replace(/\|\|(MEMORIA|ANOTACOES)\|\|/gi, " ")
+                .trim();
+            return texto.length > max ? texto.slice(0, max) : texto;
+        };
+
+        return {
+            contexto: limparTexto(parsed.contexto, LIMITES.textoMax),
+            humor: limparTexto(parsed.humor, LIMITES.textoMax),
+            // Nota inválida/fora de faixa cai para 0 => nunca dispara post no BlueSky
+            nota: limitarInteiro(parsed.nota, LIMITES.notaMin, LIMITES.notaMax) ?? LIMITES.notaMin,
+            // Afinidade inválida cai para 0 => nunca altera o saldo social do usuário
+            mudanca_afinidade: limitarInteiro(parsed.mudanca_afinidade, LIMITES.afinidadeMin, LIMITES.afinidadeMax) ?? 0,
+            temas: Array.isArray(parsed.temas)
+                ? parsed.temas.slice(0, LIMITES.temasMax).map(t => limparTexto(t, LIMITES.temaMax)).filter(Boolean)
+                : []
+        };
+    }
+
    // Recebe a resposta do Gemini utilizando o prompt recebido
     // Recebe a resposta do Gemini utilizando o prompt recebido
-    async getAiResponse(from, sender, name, isGroup, command, prompt, forceModel = null) {
+    async getAiResponse(from, sender, name, isGroup, command, prompt, forceModel = null, options = {}) {
         await this.updateOnlineStatus();
 
         let modelName = await this.selectBestModel(command, forceModel);
@@ -1777,24 +1917,33 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
                 }
             }
 
-            if (memoryText.length > 0) {
-                await this.saveUserMemory(name, sender, memoryText);
+            // 🛡️ [FASE 2 - PROMPT INJECTION] Memória vinda do modelo passa por
+            // saneamento (tipo/tamanho) antes de tocar o SQLite. Também não é
+            // escrita em passadas de "ferramenta" (ex: geração de SQL do !lembrar).
+            if (memoryText.length > 0 && !options.skipMemoryEffects) {
+                const memoriaLimpa = ChatModel.sanitizeMemoryText(memoryText);
+                if (memoriaLimpa) await this.saveUserMemory(name, sender, memoriaLimpa);
             }
 
-            if (anotacoesJsonStr) {
+            if (anotacoesJsonStr && !options.skipMemoryEffects) {
                 try {
                     const cleanJson = anotacoesJsonStr.replace(/```json/gi, '').replace(/```/g, '').trim();
-                    const anotacoes = JSON.parse(cleanJson);
 
-                    if (typeof anotacoes.mudanca_afinidade === 'number' && anotacoes.mudanca_afinidade !== 0) {
-                        await this.db.run(`UPDATE usuarios SET afinidade_bot = afinidade_bot + ? WHERE id_usuario = ?`, [anotacoes.mudanca_afinidade, sender]);
-                        console.log(`❤️ Afinidade com ${sender} mudou: ${anotacoes.mudanca_afinidade > 0 ? '+' : ''}${anotacoes.mudanca_afinidade}`);
-                    }
+                    // 🛡️ [FASE 2 - PROMPT INJECTION] Validação de TIPOS + clamp de
+                    // faixa: nada é gravado nem enviado ao BlueSky sem passar aqui.
+                    const anotacoes = ChatModel.sanitizeAnotacoes(cleanJson);
 
-                    if (this.blueskyBrain && anotacoes.contexto && anotacoes.humor && typeof anotacoes.nota === 'number') {
-                        const msgTimestamp = Math.floor(Date.now() / 1000); 
-                        this.blueskyBrain.processarAnotacao(anotacoes, msgTimestamp)
-                            .catch(e => console.error("Erro no fluxo do BlueSky:", e));
+                    if (anotacoes) {
+                        if (anotacoes.mudanca_afinidade !== 0) {
+                            await this.db.run(`UPDATE usuarios SET afinidade_bot = afinidade_bot + ? WHERE id_usuario = ?`, [anotacoes.mudanca_afinidade, sender]);
+                            console.log(`❤️ Afinidade com ${sender} mudou: ${anotacoes.mudanca_afinidade > 0 ? '+' : ''}${anotacoes.mudanca_afinidade}`);
+                        }
+
+                        if (this.blueskyBrain && anotacoes.contexto && anotacoes.humor && anotacoes.nota > 0) {
+                            const msgTimestamp = Math.floor(Date.now() / 1000); 
+                            this.blueskyBrain.processarAnotacao(anotacoes, msgTimestamp)
+                                .catch(e => console.error("Erro no fluxo do BlueSky:", e));
+                        }
                     }
                 } catch (e) {
                     console.error("❌ [JSON PARSE] Erro ao desempacotar anotações secretas:", e.message);
@@ -2081,34 +2230,31 @@ Usem \`!parque missoes\` para ver os marcos da comunidade. Trabalhem juntos para
 
     async handleLembrarCommand(from, sender, name, isGroup, command, complement){
             const netId = await this.getNetGroupId(from);
-            const condition = netId !== from ? `id_conversa IN ('${from}', '${netId}')` : `id_conversa = '${from}'`;
 
             const pergunta = command.slice(8).trim()
             const selectPrompt = `Você é um gerador de consulta SQL para SQLite. Sua única saída deve ser uma consulta SQL (SELECT), sem NENHUMA explicação ou texto adicional.
             A tabela é 'mensagens' e o campo de tempo é 'timestamp' (UNIX time em segundos).
-            Use a condição WHERE para filtrar rigorosamente por ${condition} E pelo intervalo de tempo (timestamp).
-            O usuário quer recuperar mensagens que se encaixam no período de tempo da pergunta, limitando o resultado a 500 mensagens no máximo.
+            FILTRO OBRIGATÓRIO: use APENAS o intervalo de tempo (timestamp) no WHERE. NUNCA escreva a coluna 'id_conversa',
+            pois o sistema injeta o filtro de conversa como parâmetro seguro DEPOIS da sua resposta.
+            O usuário quer recuperar mensagens que se encaixam no período de tempo da pergunta.
             Recupere as colunas 'nome_remetente' e 'conteudo'.
             A ordenação deve ser por timestamp DESC, e o limite deve ser de 200. Se a pergunta não especificar um período de tempo, recupere as últimas 200 mensagens da conversa.
 
-            Exemplo de saída para "o que rolou ontem": SELECT nome_remetente, conteudo FROM mensagens WHERE id_conversa = '${from}' AND timestamp BETWEEN 1764355200 AND 1764441600 ORDER BY timestamp DESC LIMIT 200;
+            Exemplo de saída para "o que rolou ontem": SELECT nome_remetente, conteudo FROM mensagens WHERE timestamp BETWEEN 1764355200 AND 1764441600 ORDER BY timestamp DESC LIMIT 200
 
             Pergunta do usuário: ${pergunta}`
 
-            let sqlQuery = await this.getAiResponse(from, sender, name, isGroup, command, selectPrompt, "gemini-3.1-flash-lite-preview")
+            // 🛡️ [FASE 2 - SEGURANÇA] A IA só PRODUZ TEXTO aqui. Quem monta a SQL
+            // executável é o guarda-corpo (allow-list + parâmetros + LIMIT fixo).
+            const rawSql = await this.getAiResponse(
+                from, sender, name, isGroup, command, selectPrompt,
+                "gemini-3.1-flash-lite-preview",
+                { skipMemoryEffects: true } // passada de geração de SQL não escreve memória/BlueSky
+            );
 
-            sqlQuery = sqlQuery.replace(/```sql/gi, '').replace(/```/g, '').trim(); 
-            
-            if (!sqlQuery.toLowerCase().startsWith('select')) {
-                console.log("IA gerou SQL inválido:", sqlQuery);
-                throw new Error("INVALID_SELECT");
-            }
-            
-            if (!sqlQuery.toLowerCase().includes('limit')) {
-                sqlQuery = sqlQuery.replace(/;?$/, ` LIMIT 200;`);
-            }
-            
-            let selectedMessages = await this.getMessagesByAiResponse(sqlQuery)
+            const { query: safeSql, params: safeParams } = ChatModel.buildSafeLembrarQuery(rawSql, from, netId);
+
+            let selectedMessages = await this.getMessagesByAiResponse(safeSql, safeParams)
 
             let finalPrompt = await this.formulatePrompt(from, sender, name, isGroup, command, selectedMessages)
             

@@ -1,5 +1,9 @@
 const { Client, GatewayIntentBits, AttachmentBuilder } = require('discord.js');
 const fs = require('fs');
+// 🛡️ [FASE 2 - SEGURANÇA] Referências VIVAS: o conector nunca captura o `sock`
+// ou o `chatbot` da primeira conexão em closure. Após um restart do Baileys
+// esses objetos viram zumbis (socket morto) e os envios falham silenciosamente.
+const { getGlobalSock, getGlobalChatbot } = require('../globalState');
 
 let isDiscordConnected = false;
 
@@ -14,8 +18,14 @@ const discordCommandEmojis = {
     '!fazenda': '🚜', '!cidade': '📍', '!admin': '🔐'
 };
 
-function startDiscord(chatbot, sock) {
+function startDiscord() {
     if (isDiscordConnected) return;
+
+    // Consome o getter SEM guardar a referência (nada de instância zumbi retida)
+    if (!getGlobalChatbot()) {
+        console.warn('⚠️ [DISCORD] ChatModel indisponível. Discord não iniciado.');
+        return;
+    }
 
     const client = new Client({
         intents: [
@@ -35,6 +45,11 @@ function startDiscord(chatbot, sock) {
 
         if (!message.content.startsWith('!')) return;
 
+        // 🔄 Consome SEMPRE a conexão WhatsApp ATIVA (nunca a da primeira conexão)
+        const sock = getGlobalSock();
+        const activeChatbot = getGlobalChatbot();
+        if (!activeChatbot) return; // Baileys reiniciando: ignora o comando
+
         const command = message.content.trim();
         
         const senderDiscord = `${message.author.id}@discord`;
@@ -44,7 +59,7 @@ function startDiscord(chatbot, sock) {
 
         let sender = senderDiscord; 
         try {
-            const link = await chatbot.db.get("SELECT id_whatsapp FROM contas_linkadas WHERE id_discord = ?", [senderDiscord]);
+            const link = await activeChatbot.db.get("SELECT id_whatsapp FROM contas_linkadas WHERE id_discord = ?", [senderDiscord]);
             if (link && link.id_whatsapp) {
                 sender = link.id_whatsapp; 
                 console.log(`🔗 [DISCORD] Usuário reconhecido: ${name} -> ${sender}`);
@@ -129,7 +144,7 @@ function startDiscord(chatbot, sock) {
         }
 
         try {
-            const response = await chatbot.handleCommand(
+            const response = await activeChatbot.handleCommand(
                 fakeMsg, sender, from, isGroup, command, quotedMsg, sock, []
             );
 
